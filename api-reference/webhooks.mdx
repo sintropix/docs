@@ -1,7 +1,7 @@
 ---
 title: "Webhooks: Real-Time Event Notifications from Sintropix"
 sidebarTitle: "Webhooks"
-description: "Register HTTPS endpoints to receive real-time event notifications when transactions, reconciliation matches, close milestones, and integrations change in Sintropix."
+description: "Register HTTPS endpoints to receive real-time push notifications for transaction, reconciliation, close, and integration events from Sintropix."
 ---
 
 Webhooks let you receive real-time HTTP notifications whenever a meaningful financial event occurs in Sintropix — a new transaction arrives, a reconciliation match is confirmed, a month-end close is completed, or an integration loses its connection. Instead of polling the API, your system receives a push notification the moment the event happens, enabling you to build reactive workflows, trigger downstream automations, and keep external systems in sync without delay.
@@ -43,6 +43,32 @@ curl -X POST https://api.sintropix.com/v1/webhooks \
 <ParamField body="description" type="string">
   Optional human-readable label for this webhook, visible in the Sintropix dashboard under **Settings → Webhooks**.
 </ParamField>
+
+### Response Fields
+
+<ResponseField name="webhook_id" type="string">
+  Unique identifier for the registered webhook endpoint (e.g., `wh_jkl012`). Use this ID to delete the webhook later.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The HTTPS endpoint URL where Sintropix will deliver event payloads.
+</ResponseField>
+
+<ResponseField name="events" type="array">
+  The list of event type strings this webhook is subscribed to.
+</ResponseField>
+
+<ResponseField name="entity_id" type="string">
+  The entity scope for this webhook, or `null` if the webhook receives events from all entities.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status of the webhook. `active` means Sintropix is actively delivering events to this endpoint.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of when the webhook was registered.
+</ResponseField>
 
 ### Example Response
 

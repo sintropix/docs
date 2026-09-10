@@ -1,27 +1,27 @@
 ---
 title: "Financial Reports: P&L, Balance Sheet, Cash Flow, and More"
 sidebarTitle: "Reports"
-description: "Generate P&L, Balance Sheet, General Ledger, and Cash Flow reports in Sintropix — filtered by entity, currency, and date range, ready to export or pin to your dashboard."
+description: "Run P&L, Balance Sheet, Cash Flow, and General Ledger reports in Sintropix — filter by entity, currency, and date, then export or pin to your dashboard."
 ---
 
 Sintropix generates your core financial statements directly from the live general ledger, so the numbers you see in a report are the same numbers that back every other view in the platform. There is no separate reporting database to sync, no export-and-reformat step, and no risk of a report going stale between closes. Every report reflects the current state of the ledger the moment you open it.
 
 ## Available Reports
 
-<CardGroup cols={2}>
-  <Card title="Profit & Loss (Estado de Resultados)" icon="trending-up">
+<AccordionGroup>
+  <Accordion title="Profit & Loss (Estado de Resultados)" icon="trending-up">
     View income, cost of goods sold, gross margin, operating expenses, and EBITDA for any period. Filter by entity, date range, and account group to drill from the consolidated view down to a single subsidiary's cost structure.
-  </Card>
-  <Card title="Balance Sheet (Balance General)" icon="scale-balanced">
+  </Accordion>
+  <Accordion title="Balance Sheet (Balance General)" icon="scale-balanced">
     See assets, liabilities, and equity as of any date. Run it consolidated across all entities — with intercompany eliminations applied automatically — or isolate a single subsidiary for a standalone view.
-  </Card>
-  <Card title="General Ledger (Libro Mayor)" icon="book-open">
+  </Accordion>
+  <Accordion title="General Ledger (Libro Mayor)" icon="book-open">
     Every accounting entry in date order, with the source document, account, counterpart account, and amount. Filter by account, date range, and entity to trace any balance back to its originating transaction.
-  </Card>
-  <Card title="Cash Flow Statement (Flujo de Caja)" icon="money-bill-wave">
+  </Accordion>
+  <Accordion title="Cash Flow Statement (Flujo de Caja)" icon="money-bill-wave">
     Operating, investing, and financing activities broken out clearly. Both the **direct method** (actual cash receipts and payments) and the **indirect method** (net income adjusted for non-cash items) are supported — switch between them without re-entering any data.
-  </Card>
-</CardGroup>
+  </Accordion>
+</AccordionGroup>
 
 ## Filtering and Slicing
 
