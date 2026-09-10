@@ -1,0 +1,139 @@
+---
+title: "Sintropix Allocations API: Match and Settle Ledger Lines"
+sidebarTitle: "Allocations"
+description: "Create, list, delete, and auto-match Reconciliation Allocations to settle Open-Item lines across Ledger Accounts and Partners."
+---
+
+An Allocation settles one debit line against one credit line on an Open-Item Account. The match endpoint lets you auto-allocate a selection of lines. This page covers the full CRUD for Allocations plus the match operation.
+
+<Info>
+  Source: `apps/erp-backend/src/ledger-core/reconciliation/reconciliation.controller.ts`.
+</Info>
+
+## GET /api/entities/:entityId/ledger/allocations
+
+List Allocations for a specific Ledger Entry Line. Returns all `reconciliationAllocationSchema` rows where either the debit or credit side matches the given line.
+
+- **Path param:** `entityId` (UUID)
+- **Query param:** `lineId` (UUID, required)
+- **Success response:** Array of `reconciliationAllocationSchema`
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Allocation id |
+| `entityId` | UUID | Owning Entity |
+| `debitLineId` | UUID | Settled debit line |
+| `creditLineId` | UUID | Settled credit line |
+| `accountId` | UUID | Open-Item Account |
+| `amount` | integer | Settled amount |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/allocations?lineId=$LINE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/ledger/allocations
+
+Create a single Allocation between two lines. The caller supplies the idempotency id. The debit line must be on the debit side, the credit line on the credit side, both must belong to the same Open-Item Account, and the amount must not exceed either line's open amount.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `CreateReconciliationAllocationDto` (from `createReconciliationAllocationSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `debitLineId` | UUID | Yes | Debit line id |
+| `creditLineId` | UUID | Yes | Credit line id |
+| `amount` | integer | Yes | Positive settlement amount |
+
+- **Success response:** `reconciliationAllocationSchema`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/allocations \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "33333333-3333-4333-8333-333333333333",
+    "debitLineId": "11111111-1111-4111-8111-111111111111",
+    "creditLineId": "22222222-2222-4222-8222-222222222222",
+    "amount": 100
+  }'
+```
+
+## DELETE /api/entities/:entityId/ledger/allocations/:allocationId
+
+Delete an Allocation. This restores the open amounts of the two lines it settled.
+
+- **Path params:** `entityId` (UUID), `allocationId` (UUID)
+- **Success response:** `reconciliationAllocationSchema` (the deleted allocation)
+- **Status:** 200
+
+```bash
+curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/allocations/$ALLOCATION_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## POST /api/entities/:entityId/ledger/allocations/match
+
+Auto-match a selection of Open-Item lines. The server splits the selection by side, greedily decomposes into debit/credit pairs, and creates every Allocation in one transaction. The selection must contain at least two lines, at least one debit and one credit, and all lines must belong to the same Open-Item Account.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `MatchLinesDto` (from `matchLinesSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lineIds` | UUID[] | Yes | At least 2 line ids to match |
+
+- **Success response:** `matchLinesResultSchema` — `{ allocations, settledLines, openTotal }`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/allocations/match \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "lineIds": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333"
+    ]
+  }'
+```
+
+## Domain error codes
+
+| Code | Meaning |
+| --- | --- |
+| `RECONCILIATION_ALLOCATION_NOT_FOUND_ERROR` | Allocation does not exist |
+| `RECONCILIATION_ALLOCATION_NETS_REVERSAL_ERROR` | Allocation would net a reversal entry |
+| `RECONCILIATION_ALLOCATION_ID_CONFLICT_ERROR` | Allocation id already used |
+| `RECONCILIATION_ALLOCATION_DEBIT_AND_CREDIT_LINE_IDS_CANNOT_BE_THE_SAME_ERROR` | Debit and credit lines must differ |
+| `RECONCILIATION_ALLOCATION_DEBIT_LINE_NOT_FOUND_ERROR` | Debit line not found |
+| `RECONCILIATION_ALLOCATION_CREDIT_LINE_NOT_FOUND_ERROR` | Credit line not found |
+| `RECONCILIATION_ALLOCATION_DEBIT_LINE_MUST_BE_DEBIT_ERROR` | Debit line is not on the debit side |
+| `RECONCILIATION_ALLOCATION_CREDIT_LINE_MUST_BE_CREDIT_ERROR` | Credit line is not on the credit side |
+| `RECONCILIATION_ALLOCATION_LINES_ON_DIFFERENT_ACCOUNTS_ERROR` | Lines belong to different accounts |
+| `RECONCILIATION_ALLOCATION_ACCOUNT_MUST_BE_OPEN_ITEM_ERROR` | Account is not an Open-Item Account |
+| `RECONCILIATION_ALLOCATION_AMOUNT_EXCEEDS_OPEN_AMOUNT_ERROR` | Amount exceeds one of the line's open amounts |
+| `RECONCILIATION_MATCH_LINE_NOT_FOUND_ERROR` | One or more line ids not found |
+| `RECONCILIATION_MATCH_LINES_ON_DIFFERENT_ACCOUNTS_ERROR` | Selection spans multiple accounts |
+| `RECONCILIATION_MATCH_NOTHING_TO_MATCH_ERROR` | Selection contains no debit/credit pair |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, DELETE) |
+| 201 | Created (POST allocation, POST match) |
+| 400 | Validation error |
+| 401 | Unauthenticated |
+| 403 | Forbidden |
+| 404 | Resource not found |
+| 409 | Domain rule violation |

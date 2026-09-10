@@ -1,0 +1,55 @@
+---
+title: "Sintropix FX Rates API: Read and Sync Currency Rates"
+sidebarTitle: "FX Rates"
+description: "Read a single FX rate, list the most recent published rates, and trigger a rate sync from Banco Central de Chile through the Sintropix ERP API."
+---
+
+The FX Rates API exposes the currency conversion rates Sintropix uses across every Entity. Rates are pulled from Banco Central de Chile per ADR 0029; the sync endpoint refreshes the local cache and is restricted to staff. The read endpoints are Entity-independent because rates are global.
+
+<Info>
+  Source: `apps/erp-backend/src/fx/fx.controller.ts`. Base path: `/api/fx-rates`.
+</Info>
+
+## GET `/fx-rates`
+
+Return the FX rate for a currency pair on a given date.
+
+- **Query:** `FxRateQueryDto` (`fromCurrency`, `toCurrency`, `date`).
+- **Response:** `fxRateSchema`.
+
+```bash
+curl "https://<your-erp-backend-host>/api/fx-rates?fromCurrency=USD&toCurrency=CLP&date=2025-12-31" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/fx-rates/recent`
+
+List the most recent published rates across all tracked currency pairs.
+
+- **Response:** array of `fxRateSchema`.
+
+## POST `/fx-rates/sync` (staff only)
+
+Force a sync of published rates from Banco Central de Chile. The response summarizes what was fetched and stored.
+
+- **Body:** `FxSyncRequestDto`.
+- **Response:** `fxSyncResultSchema`.
+- **Status:** `200`.
+
+<Note>
+  This route requires `role = staff`. Client callers receive `403`.
+</Note>
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success. |
+| `400` | Validation error on query or body, or missing `x-audit-actor` on the sync call. |
+| `403` | `POST /sync` called by a non-staff user. |
+| `404` | No rate found for the requested currency pair and date. |
+| `502` | Upstream error from Banco Central de Chile on sync. |
+
+<Warning>
+  Unverified: the exact fields of `FxSyncRequestDto` (typically a date range or a "since" cursor). Refer to the DTO and `@sintropix/api-contract` for authoritative shapes.
+</Warning>

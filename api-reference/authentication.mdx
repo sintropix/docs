@@ -1,122 +1,142 @@
 ---
-title: "Sintropix API Authentication: Keys, Scopes, and Security"
+title: "Sintropix API Authentication: Sessions, API Keys, and Roles"
 sidebarTitle: "Authentication"
-description: "Create API keys, assign permission scopes, and securely authenticate every request to the Sintropix API from any language or HTTP client."
+description: "How the Sintropix ERP authenticates callers: Better Auth sessions in the browser, API keys in the x-api-key header, roles, tenant scoping, and read-only keys."
 ---
 
-Every request to the Sintropix API must be authenticated using a Bearer token. You generate API keys inside your Sintropix account, assign them the minimum scopes your integration needs, and pass the key in the `Authorization` header of each request. Keys are long-lived but should be rotated regularly following the practices described below.
+Sintropix authenticates callers with [Better Auth](https://better-auth.com) (ADR 0015), self-hosted against the same Postgres that stores the ledger. A browser signs in with email and password and receives an httpOnly session cookie; an integration or agent presents a long-lived API key in the `x-api-key` header (ADR 0026). The two credentials share one authorization model: a global Role plus per-Entity Membership.
 
-## Getting Your API Key
+## Roles
 
-<Steps>
-  <Step title="Log in to Sintropix">
-    Open [sintropix.com](https://sintropix.com) and sign in with your account credentials.
-  </Step>
-  <Step title="Open Settings">
-    Click your organization name in the top-right corner, then select **Settings** from the dropdown menu.
-  </Step>
-  <Step title="Navigate to API Keys">
-    In the left sidebar, click **API Keys** under the **Developer** section.
-  </Step>
-  <Step title="Create a New Key">
-    Click **Create New Key**, enter a descriptive name (e.g., `production-reconciliation-bot`), and select the scopes your integration requires.
-  </Step>
-  <Step title="Copy and store your key immediately">
-    Your API key is displayed **only once** at creation. Copy it to a secure secrets manager before closing the dialog.
-  </Step>
-</Steps>
+Every User has exactly one Role, stored on the User record:
+
+- **`staff`**: Sintropix employees. Full read and write access to every Entity, including Entities created later, with no per-Entity grant.
+- **`client`**: everyone else. Read and write access to exactly the Entities they hold an Entity Membership for.
+
+Role gates _which_ Entities a User can touch, not _what_ they can do inside one. There is no per-operation permission system.
+
+A small set of routes require `staff`:
+
+- `POST /api/entities` and `PATCH /api/entities/:entityId/parent` and `PATCH /api/entities/:entityId/accounting-policies`
+- Every route under [`/api/onboarding/*`](/api-reference/onboarding)
+- `POST /api/fx-rates/sync`
+- Every route under `/api/agents/*` and `/api/entities/:entityId/agents/*` (Erwin surfaces)
+
+Client roles that hit a staff-only route receive `403`.
+
+## Tenant Scoping
+
+Any route whose path contains `:entityId` runs through `TenantGuard` (`apps/erp-backend/src/auth/tenant.guard.ts`):
+
+1. If the caller is `staff`, the guard passes.
+2. If the caller authenticated with an API key **scoped to one Entity** (see [Erwin Key Leases](#erwin-key-leases-read-only-and-entity-scoped) below), the guard rejects requests to any other Entity with `404`.
+3. Otherwise the guard requires an Entity Membership row for the caller's User and the requested `entityId`, and returns `404` when it is absent.
+
+The guard raises `404`, never `403`, on missing membership. A caller cannot use the API to discover whether an Entity id they do not own exists.
+
+## Session Cookies
+
+The Sintropix web client signs in through Better Auth's REST surface at `/api/auth/*` (email and password today; sign-up is disabled — Users are provisioned by staff, see [Onboarding](/api-reference/onboarding)). The response sets an httpOnly, same-site session cookie that carries authentication on subsequent requests.
+
+Two deployment consequences flow from the same-site cookie:
+
+- The SPA and the API must share a registrable domain (for example `app.sintropix.com` and `api.sintropix.com`). Two `*.up.railway.app` subdomains are different sites under the Public Suffix List and Safari drops the cookie.
+- Local development on `localhost` across ports is same-site and works out of the box.
+
+Reset flows exist in Better Auth but Sintropix does not send email in v1: staff mint a set-password link and deliver it to the client through their existing channel ([`POST /api/onboarding/users/:userId/set-password-link`](/api-reference/onboarding)).
+
+## API Keys
+
+API keys are stand-ins for their owning User. A key authenticates as that User, with that User's Role and Memberships, with the following differences from a session:
+
+- The credential is a header (`x-api-key`), not a cookie.
+- The key is barred from the auth surface. Any request to `/api/auth/*` carrying `x-api-key` is rejected with `403` before Better Auth sees it (`apiKeyAuthSurfaceBar` middleware, ADR 0026). A leaked key therefore cannot mint further keys, change passwords, or manage Users.
+- Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) must include a Declared Actor (see below).
+- Each key is rate-limited to **5,000 requests per hour** (Better Auth `apiKey` plugin, sliding window).
+
+Key management (mint, list, revoke) is self-serve in the Sintropix web app over the session; the API does not expose a mint endpoint to key holders. Any User may mint keys — including staff. A staff key therefore reaches every Entity of every client; treat it as a high-value secret.
 
 <Warning>
-  Sintropix does not store your API key after creation. If you lose it, you must revoke the old key and create a new one. Store your key in a secrets manager (such as AWS Secrets Manager, HashiCorp Vault, or 1Password) immediately after creation.
+  Keys can live forever. Expiry is optional and unbounded by default (ADR 0026). Rotate keys on a schedule and revoke immediately on suspected leak.
 </Warning>
 
-## Using Your API Key
+### Declared Actor
 
-Pass your API key as a Bearer token in the `Authorization` header of every request:
+Every key-authenticated mutation must carry `x-audit-actor`:
 
-```bash
-curl https://api.sintropix.com/v1/entities \
-  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```http
+x-api-key: <secret>
+x-audit-actor: my-reconciliation-bot
 ```
 
-Never include the key in the URL or in a query parameter — header-based authentication keeps the key out of server logs and browser history.
+The Declared Actor is recorded verbatim on the [Audit Trail](/api-reference/audit-trail) row that the mutation writes. It is a self-reported software label ("what wrote this row"), not proof of identity — the key's owning User remains the verified Actor. Omitting the header on a mutation returns `400` with the required header name in the message.
 
-### Using Environment Variables
+Session-authenticated requests do not need `x-audit-actor`; the browser's session already identifies the User.
 
-The recommended pattern is to read the key from an environment variable at runtime, rather than hardcoding it in your source code.
+<Info>
+  `GET` and `HEAD` requests never require `x-audit-actor`, because the audit trail captures mutations only.
+</Info>
 
-<Tabs>
-  <Tab title="Python">
-    ```python
-    import os
-    import requests
+### Read-Only Keys
 
-    headers = {"Authorization": f"Bearer {os.environ['SINTROPIX_API_KEY']}"}
-    response = requests.get("https://api.sintropix.com/v1/entities", headers=headers)
-    data = response.json()
-    ```
-  </Tab>
-  <Tab title="JavaScript / Node.js">
-    ```javascript
-    const response = await fetch('https://api.sintropix.com/v1/entities', {
-      headers: {
-        'Authorization': `Bearer ${process.env.SINTROPIX_API_KEY}`
-      }
-    });
-    const data = await response.json();
-    ```
-  </Tab>
-</Tabs>
+A key's `permissions` column marks it read-only by carrying `{"erp": ["read"]}` (ADR 0030). The `ReadOnlyKeyGuard` (`apps/erp-backend/src/auth/read-only-key.guard.ts`) rejects any non-`GET`/`HEAD` request authenticated with such a key by throwing an `HttpException` with code `API_KEY_READ_ONLY_ERROR`.
 
-Set the environment variable in your shell or CI/CD pipeline:
+The narrowing is verb-level only: a read-only key still reads everything its owner can read, across every Entity the owner is a member of, unless the key is also Entity-scoped.
+
+<Note>
+  Read-only key minting is currently exposed to staff-side flows (chiefly Erwin Key Leases, described next). Sintropix has not published a self-serve read-only key mint UI as of this writing; verify current availability in the settings screen.
+</Note>
+
+### Erwin Key Leases (Read-Only and Entity-Scoped)
+
+Erwin, the AI assistant, does not hold a static credential. On every message a user sends, the agent gateway mints a **fresh read-only key for that User**, scoped to one Entity, with a **1-hour** expiry, and pushes it to the flue-agent runtime for the duration of that submission (ADR 0030, amended by ADR 0032 and ADR 0039). Each key row carries `metadata.entityId`, which `TenantGuard` reads to reject requests to any other Entity.
+
+The lease has no refresh protocol: an expired lease simply lapses, and the next user message mints a new one. Because the credential is per-submission and per-User, the [Audit Trail](/api-reference/audit-trail) records `actorUserId` = the human user and `declaredActor` = `erwin:<conversationId>`, tracing every write back to the exact chat transcript.
+
+## Sign-In Example (Better Auth)
+
+The frontend uses Better Auth's client library rather than raw HTTP, but the underlying request is a plain POST:
 
 ```bash
-export SINTROPIX_API_KEY="sk_live_YOUR_API_KEY"
+curl -X POST "https://<your-erp-backend-host>/api/auth/sign-in/email" \
+  -H "Content-Type: application/json" \
+  --cookie-jar cookies.txt \
+  -d '{"email": "you@example.com", "password": "…"}'
 ```
 
-## API Key Scopes
+Subsequent business calls read the cookie jar:
 
-When you create a key, you select one or more **scopes** that determine what the key is allowed to do. Requests using a key that lacks the required scope return `403 Forbidden`.
+```bash
+curl "https://<your-erp-backend-host>/api/entities" \
+  --cookie cookies.txt
+```
 
-| Scope | Description |
-|-------|-------------|
-| `read:financials` | Read transactions, financial reports, and reconciliation data. |
-| `write:transactions` | Create journal entries and manual transactions. |
-| `write:reconciliation` | Trigger reconciliation runs and approve or reject matches. |
-| `read:entities` | List and read entity configuration and metadata. |
-| `write:webhooks` | Register, update, and delete webhook endpoints. |
+<Note>
+  This is the raw Better Auth transport. Refer to [Better Auth's REST docs](https://www.better-auth.com/docs) for the full auth surface; Sintropix does not layer its own routes on top.
+</Note>
 
-<Tip>
-  Follow the principle of least privilege: grant each API key only the scopes it actually needs. A read-only reporting integration should carry only `read:financials` and `read:entities`.
-</Tip>
+## API Key Example
 
-## Key Rotation
+```bash
+# Read (no x-audit-actor required)
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/balance-sheet?asOf=2025-12-31" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
 
-Rotate API keys every **90 days** to limit exposure if a key is ever leaked. Sintropix supports graceful rotation to avoid downtime:
+# Mutate (x-audit-actor required)
+curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/partners" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-reconciliation-bot" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme SpA", "rut": "76.123.456-7"}'
+```
 
-1. Create a new key in **Settings → API Keys**.
-2. Deploy the new key to your production environment.
-3. The old key remains active for **24 hours** after the new key is created, giving you time to roll out the change.
-4. After 24 hours, the old key is automatically revoked.
+## Common Failure Modes
 
-You can also revoke a key immediately by clicking **Revoke** next to it in the API Keys settings page.
-
-## Security Best Practices
-
-<AccordionGroup>
-  <Accordion title="Never commit keys to source code">
-    API keys committed to a git repository — even a private one — are frequently leaked. Use `.gitignore` to exclude files containing secrets, and audit your commit history before opening a repository to new team members.
-  </Accordion>
-  <Accordion title="Use a secrets manager">
-    Store keys in a dedicated secrets manager such as AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault, or Doppler. These tools provide audit logs, access controls, and automatic rotation hooks.
-  </Accordion>
-  <Accordion title="Restrict scopes to the minimum required">
-    Each key should carry only the scopes the integration actively uses. This limits the blast radius if a key is compromised.
-  </Accordion>
-  <Accordion title="Monitor for unexpected usage">
-    Review the API request logs in **Settings → API Keys → Activity** regularly. Unusual request volumes or access to unexpected endpoints may indicate a leaked key.
-  </Accordion>
-  <Accordion title="Use separate keys per environment">
-    Maintain distinct keys for development, staging, and production. This prevents test activity from appearing in production audit logs and makes key rotation easier.
-  </Accordion>
-</AccordionGroup>
+| Symptom | Cause |
+| --- | --- |
+| `403` on `/api/auth/*` | You sent `x-api-key` to the auth surface. Use a session cookie. |
+| `400` with a missing-header message on a `POST`/`PATCH`/`PUT`/`DELETE` | Key-authenticated mutation without `x-audit-actor`. |
+| `403` with `API_KEY_READ_ONLY_ERROR` | Read-only key used to mutate. Mint a full-power key or drop the write. |
+| `404` on `/api/entities/:entityId/…` | Caller is not a member of the Entity, or the id does not exist. Staff never see this. |
+| `401` on every route | No valid session cookie or API key. |
+| `429` | Key exceeded 5,000 requests in the last hour. Back off. |

@@ -1,0 +1,57 @@
+---
+title: "Sintropix Sources API: Named Origins for Imported Documents"
+sidebarTitle: "Sources"
+description: "List, create, rename, and delete Sources: named origins that group Invoices and other documents imported from external systems into an Entity."
+---
+
+A Source is a named origin an Entity uses to group documents it pulls from external systems: for example, an SII feed, a supplier email inbox, or a CSV import. A Source is a bucket; the [Source Feeds](/api-reference/source-feeds) attached to it are what actually fetch data.
+
+<Info>
+  Source: `apps/erp-backend/src/source/source.controller.ts`. Base path: `/api/entities/:entityId/sources`.
+</Info>
+
+## GET `/sources`
+
+List every Source for the Entity, each annotated with the count of Invoices it has produced.
+
+- **Response:** array of `sourceWithInvoiceCountSchema`.
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/sources" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST `/sources`
+
+Create a Source.
+
+- **Body:** `CreateSourceDto`.
+- **Response:** `sourceWithInvoiceCountSchema`.
+
+## PATCH `/sources/:sourceId`
+
+Rename a Source. The controller method is `renameSource`; other attributes are not updated here.
+
+- **Body:** `UpdateSourceDto`.
+- **Response:** `sourceWithInvoiceCountSchema`.
+
+## DELETE `/sources/:sourceId`
+
+Delete a Source. Sources referenced by existing Invoices or attached Source Feeds are refused.
+
+- **Response:** `sourceWithInvoiceCountSchema`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `PATCH`. |
+| `201` | Source created. |
+| `204` | Source deleted. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity or Source not found. |
+| `409` | Source has attached Invoices or Feeds and cannot be deleted. |
+
+<Warning>
+  Unverified: fields on `CreateSourceDto` and `UpdateSourceDto` (likely `id`, `name`). Refer to the DTOs and `@sintropix/api-contract` for authoritative shapes.
+</Warning>

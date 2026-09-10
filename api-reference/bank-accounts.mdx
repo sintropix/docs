@@ -1,0 +1,266 @@
+---
+title: "Sintropix Bank Accounts API: Manage Accounts and Feeds"
+sidebarTitle: "Bank Accounts"
+description: "Create, update, list, and delete Bank Accounts for an Entity. Manage bank data feeds and trigger manual syncs via the Sintropix ERP HTTP API."
+---
+
+A Bank Account is a real-world account an Entity holds at a financial institution, such as a checking account or a credit card. Each account is scoped to a single Entity, denominated in one currency, and mapped to exactly one Ledger Account where its booked activity accumulates. This page covers the endpoints for managing Bank Accounts and their optional bank data feeds.
+
+<Info>
+  Source controllers: [`bank-account.controller.ts`](https://github.com/sintropix/monorepo/blob/main/apps/erp-backend/src/bank-core/bank-account/bank-account.controller.ts) and [`bank-account-feed.controller.ts`](https://github.com/sintropix/monorepo/blob/main/apps/erp-backend/src/bank-feed/bank-account-feed.controller.ts)
+</Info>
+
+## Base path
+
+All Bank Account routes are prefixed under:
+
+```text
+POST /api/entities/:entityId/bank-accounts
+```
+
+Feed sub-routes live under:
+
+```text
+/api/entities/:entityId/bank-accounts/:bankAccountId/feed
+```
+
+Path parameters `:entityId` and `:bankAccountId` are UUIDs.
+
+## Authentication
+
+Use a session cookie or pass `x-api-key: $SINTROPIX_API_KEY`. Mutations with an API key also require `x-audit-actor: my-agent`. See [Authentication](/api-reference/authentication).
+
+## Bank Account kinds
+
+A Bank Account has one of two kinds, validated at creation against the mapped Ledger Account's type:
+
+| Kind | Mapped Ledger Account type |
+| --- | --- |
+| `bank` | Asset |
+| `card` | Liability |
+
+## List bank accounts
+
+```http
+GET /api/entities/:entityId/bank-accounts
+```
+
+Returns every Bank Account for the Entity with a computed summary. The response is a bare JSON array of `BankAccountWithSummary`.
+
+### Response schema
+
+`BankAccountWithSummary` extends `BankAccount` with these fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Account identifier |
+| `entityId` | UUID | Owning Entity |
+| `name` | string | Display name |
+| `kind` | `bank` \| `card` | Account kind |
+| `ledgerAccountId` | UUID | Mapped Ledger Account |
+| `currency` | string | ISO 4217 currency code |
+| `feed` | `BankAccountFeed` \| null | Active feed, if any |
+| `createdAt` | ISO date | Creation timestamp |
+| `updatedAt` | ISO date | Last update timestamp |
+| `balance` | integer | Signed balance in minor units |
+| `unreconciledCount` | integer | Movements without a booking entry |
+
+The `feed` object, when present, contains:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `bankConnectionId` | UUID | Source Bank Connection |
+| `providerAccountId` | string | Provider-side account handle |
+| `institutionName` | string | Institution display name |
+| `lastSyncedAt` | ISO date \| null | Last successful sync, null until first success |
+
+### Example
+
+```bash
+curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Create a bank account
+
+```http
+POST /api/entities/:entityId/bank-accounts
+```
+
+Creates a new Bank Account. The request body follows `CreateBankAccountSchema`.
+
+### Body parameters
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied identifier for idempotency |
+| `name` | string | Yes | Display name (non-empty) |
+| `kind` | `bank` \| `card` | Yes | Account kind |
+| `ledgerAccountId` | UUID | Yes | Ledger Account to map; type must match kind |
+| `currency` | string | Yes | ISO 4217 currency code |
+
+### Response
+
+Returns `201 Created` with a `BankAccountWithSummary` object.
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 201 | Created |
+| 400 | Validation error or kind/type mismatch |
+| 404 | Entity or Ledger Account not found |
+| 409 | `id` already exists |
+
+### Example
+
+```bash
+curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "0190e000-0000-7000-8000-000000000001",
+    "name": "Primary Checking",
+    "kind": "bank",
+    "ledgerAccountId": "0190d000-0000-7000-8000-000000000001",
+    "currency": "CLP"
+  }'
+```
+
+## Update a bank account
+
+```http
+PATCH /api/entities/:entityId/bank-accounts/:bankAccountId
+```
+
+Updates the name of an existing Bank Account. Only `name` is editable through this endpoint.
+
+### Body parameters
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | New display name (non-empty) |
+
+### Response
+
+Returns `200 OK` with a `BankAccount` object (without summary fields).
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Updated |
+| 400 | Validation error |
+| 404 | Bank Account not found |
+
+### Example
+
+```bash
+curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID \
+  -X PATCH \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"name": "Updated Checking Name"}'
+```
+
+## Delete a bank account
+
+```http
+DELETE /api/entities/:entityId/bank-accounts/:bankAccountId
+```
+
+Removes a Bank Account. Deletion is allowed only when the account has no Movements and no active feed.
+
+### Response
+
+Returns `200 OK` with a `DeleteBankAccountResult`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `deletedBankAccountId` | UUID | The removed account's identifier |
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Deleted |
+| 404 | Bank Account not found |
+| 409 | Account has Movements or an active feed |
+
+### Example
+
+```bash
+curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID \
+  -X DELETE \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Delete a bank account feed
+
+```http
+DELETE /api/entities/:entityId/bank-accounts/:bankAccountId/feed
+```
+
+Removes the active bank data feed from a Bank Account. The account and its existing Movements remain; no new feed data will be ingested.
+
+### Response
+
+Returns `200 OK` with a `BankAccount` object (feed is now null).
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Feed removed |
+| 404 | Bank Account not found or not fed |
+
+### Example
+
+```bash
+curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/feed \
+  -X DELETE \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Sync a bank account feed
+
+```http
+POST /api/entities/:entityId/bank-accounts/:bankAccountId/feed/sync
+```
+
+Triggers a manual sync of the Bank Account's feed. The server reads the latest window from the Provider, lands new Movements, and records the outcome.
+
+### Response
+
+Returns `201 Created` with a `BankAccountFeedSyncResult`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `landedCount` | integer | New Movements written (nonnegative) |
+| `skippedCount` | integer | Movements already present (nonnegative) |
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 201 | Sync completed |
+| 404 | Bank Account not found or not fed |
+| 502 | Provider read or landing failed |
+
+### Example
+
+```bash
+curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/feed/sync \
+  -X POST \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Rate limits
+
+Bank Account endpoints share the global rate limit of 5000 requests per hour per API key.

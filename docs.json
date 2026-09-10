@@ -70,13 +70,53 @@
             ]
           },
           {
-            "group": "Endpoints",
+            "group": "Ledger",
             "pages": [
               "api-reference/entities",
-              "api-reference/transactions",
-              "api-reference/reconciliation",
+              "api-reference/chart-of-accounts",
+              "api-reference/ledger-entries",
+              "api-reference/allocations",
+              "api-reference/dimensions"
+            ]
+          },
+          {
+            "group": "Banking",
+            "pages": [
+              "api-reference/bank-accounts",
+              "api-reference/bank-movements",
+              "api-reference/bank-connections"
+            ]
+          },
+          {
+            "group": "Documents",
+            "pages": [
+              "api-reference/invoices",
+              "api-reference/partners",
+              "api-reference/attachments"
+            ]
+          },
+          {
+            "group": "Reports & Audit",
+            "pages": [
               "api-reference/reports",
-              "api-reference/webhooks"
+              "api-reference/audit-trail"
+            ]
+          },
+          {
+            "group": "Sources & Integrations",
+            "pages": [
+              "api-reference/sources",
+              "api-reference/source-feeds",
+              "api-reference/integrations",
+              "api-reference/sii"
+            ]
+          },
+          {
+            "group": "Platform",
+            "pages": [
+              "api-reference/fx-rates",
+              "api-reference/reference-data",
+              "api-reference/onboarding"
             ]
           }
         ]

@@ -1,0 +1,245 @@
+---
+title: "Sintropix Chart of Accounts API: Templates, Groups, and Accounts"
+sidebarTitle: "Chart of Accounts"
+description: "Initialize, read, and edit the Chart of Accounts for an Entity. Covers templates, account groups, ledger accounts, and the chart initialization endpoint."
+---
+
+The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for an Entity. You can initialize it from a template, create groups and accounts individually, and read the whole chart in one call. This page also covers the Ledger Account endpoints under `entities/:entityId/ledger/accounts`.
+
+<Info>
+  Sources: `apps/erp-backend/src/ledger-core/chart-of-accounts/chart-of-accounts.controller.ts` and `apps/erp-backend/src/ledger-core/ledger/ledger.controller.ts`.
+</Info>
+
+## GET /api/entities/:entityId/ledger/chart-templates
+
+List the available chart templates that can be used to initialize an Entity's Chart of Accounts.
+
+- **Success response:** Array of `chartTemplateSummarySchema`
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `key` | string | Template identifier |
+| `version` | string | Template version |
+| `locale` | string | Locale code |
+| `effectiveFrom` | ISO date | Effective date |
+| `groupCount` | integer | Number of groups in the template |
+| `accountCount` | integer | Number of accounts in the template |
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/chart-templates \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET /api/entities/:entityId/ledger/chart-of-accounts
+
+Read the full Chart of Accounts for an Entity in one document. The response contains all Account Groups and all Ledger Accounts, with derived facts computed on read.
+
+- **Path param:** `entityId` (UUID)
+- **Success response:** `chartOfAccountsSchema` — `{ groups, accounts }`
+- **Status:** 200
+
+Each account in `accounts` carries:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Account id |
+| `groupId` | UUID or null | Parent group |
+| `code` | string | Account code |
+| `name` | string | Account name |
+| `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
+| `tracking` | enum | `balance` or `open_item` |
+| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing` |
+| `normalSide` | enum | `debit` or `credit`, derived from type |
+| `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
+| `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, or null when deletable |
+| `isDefaultPurchaseAccount` | boolean | Whether a Partner names this account as its Default Purchase Account |
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/chart-of-accounts \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/ledger/chart-initializations
+
+Initialize the Chart of Accounts from a template. The Entity must have an empty chart. The response is the full `chartOfAccountsSchema`.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `InitializeChartFromTemplateDto` (from `initializeChartFromTemplateSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `templateKey` | string | Yes | Template key from chart-templates |
+| `templateVersion` | string | Yes | Template version |
+
+- **Success response:** `chartOfAccountsSchema`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/chart-initializations \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "55555555-5555-4555-8555-555555555555",
+    "templateKey": "sintropix-ifrs-starter",
+    "templateVersion": "2026.1"
+  }'
+```
+
+## POST /api/entities/:entityId/ledger/account-groups
+
+Create a new Account Group within the Chart of Accounts.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `CreateLedgerAccountGroupDto` (from `createLedgerAccountGroupSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `parentGroupId` | UUID or null | No | Parent group id; null for a top-level group |
+| `codePrefix` | string | Yes | Group code prefix, non-empty |
+| `name` | string | Yes | Group name, non-empty |
+| `type` | enum | Yes | Account type (`asset`, `liability`, etc.) |
+
+- **Success response:** `createLedgerAccountGroupResultSchema` — `{ group }`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/account-groups \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "11111111-1111-4111-8111-111111111111",
+    "parentGroupId": null,
+    "codePrefix": "1.1",
+    "name": "Disponible",
+    "type": "asset"
+  }'
+```
+
+## GET /api/entities/:entityId/ledger/accounts
+
+List all Ledger Accounts for an Entity.
+
+- **Path param:** `entityId` (UUID)
+- **Success response:** Array of `ledgerAccountSchema`
+- **Status:** 200
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/accounts \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/ledger/accounts
+
+Create a new Ledger Account.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `CreateLedgerAccountDto` (from `createLedgerAccountSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `name` | string | Yes | Account name, non-empty |
+| `code` | string | Yes | Account code, non-empty |
+| `type` | enum | Yes | Account type |
+| `tracking` | enum | Yes | `balance` or `open_item` |
+| `subtype` | enum or null | No | Optional subtype; null or omitted means none |
+| `groupId` | UUID | No | Parent group |
+
+- **Success response:** `createLedgerAccountResultSchema` — `{ account }` (with derived facts)
+- **Status:** 201
+
+<Note>
+  `normalSide` is derived from `type` by the database. Do not send it in the payload.
+</Note>
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/accounts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "Caja",
+    "code": "1101",
+    "type": "asset",
+    "tracking": "balance"
+  }'
+```
+
+## PATCH /api/entities/:entityId/ledger/accounts/:accountId
+
+Edit an existing Ledger Account. At least one field must be provided. Accounts with entries can only change type within compatible groups (for example, `income` to `other_income`, or `operating_expense` to `cost_of_goods_sold`).
+
+- **Path params:** `entityId` (UUID), `accountId` (UUID)
+- **Body:** `UpdateLedgerAccountDto` (from `updateLedgerAccountSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | No | Account name |
+| `code` | string | No | Account code |
+| `type` | enum | No | Account type (transition rules apply) |
+| `tracking` | enum | No | `balance` or `open_item` |
+| `subtype` | enum or null | No | Subtype or null to clear |
+| `groupId` | UUID | No | Parent group |
+
+- **Success response:** `updateLedgerAccountResultSchema` — `{ account }`
+- **Status:** 200
+
+```bash
+curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"name": "Caja chica"}'
+```
+
+## DELETE /api/entities/:entityId/ledger/accounts/:accountId
+
+Delete a Ledger Account. The account must have no blocking foreign keys (no lines, no Bank Account, no Partner default purchase account).
+
+- **Path params:** `entityId` (UUID), `accountId` (UUID)
+- **Success response:** `deleteLedgerAccountResultSchema` — `{ deletedAccountId }`
+- **Status:** 200
+
+```bash
+curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Domain error codes
+
+| Code | Meaning |
+| --- | --- |
+| `LEDGER_ACCOUNT_CODE_ALREADY_EXISTS_ERROR` | Account code already in use |
+| `LEDGER_ACCOUNT_IN_USE_ERROR` | Delete blocked by entries, bank account, or default purchase account |
+| `LEDGER_ACCOUNT_TYPE_LOCKED_ERROR` | Type change not allowed for an account with entries |
+| `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
+| `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed |
+| `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
+| `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
+| `LEDGER_ACCOUNT_GROUP_NOT_FOUND_ERROR` | Referenced group does not exist |
+| `LEDGER_ACCOUNT_GROUP_ALREADY_EXISTS_ERROR` | Group code prefix already in use |
+| `LEDGER_ACCOUNT_GROUP_ID_ALREADY_EXISTS_ERROR` | Group id already exists |
+| `LEDGER_ACCOUNT_GROUP_PARENT_TYPE_INCOMPATIBLE_ERROR` | Parent group type mismatch |
+| `LEDGER_ACCOUNT_GROUP_TYPE_INCOMPATIBLE_ERROR` | Group and account type mismatch |
+| `CHART_TEMPLATE_NOT_FOUND_ERROR` | Template key/version not found |
+| `CHART_TEMPLATE_REQUIRES_EMPTY_CHART_ERROR` | Entity already has a chart |
+| `CHART_INITIALIZATION_ALREADY_EXISTS_ERROR` | Initialization id already used |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, PATCH, DELETE) |
+| 201 | Created (POST) |
+| 400 | Validation error |
+| 401 | Unauthenticated |
+| 403 | Forbidden |
+| 404 | Resource not found |
+| 409 | Domain rule violation |

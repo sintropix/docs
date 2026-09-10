@@ -1,0 +1,77 @@
+---
+title: "Sintropix Onboarding API: Provision Users and Grant Memberships"
+sidebarTitle: "Onboarding"
+description: "Staff-only endpoints to create Users, look them up by email, grant or revoke Entity Memberships, mint set-password links, and revoke live sessions."
+---
+
+The Onboarding API is how Sintropix staff provision new Users and control their per-Entity access. Every route on this controller is restricted to `role = staff` (`@Roles([userRoleEnum.enum.staff])` at the class level). Sign-up is disabled by design in v1 (ADR 0015), so User creation happens only through this surface, and set-password links are minted here and delivered to the client through the staff member's existing channel because Sintropix does not send email in v1.
+
+<Info>
+  Source: `apps/erp-backend/src/auth/onboarding/onboarding.controller.ts`. Base path: `/api/onboarding`.
+</Info>
+
+<Warning>
+  Staff-only. A client-role caller (session or API key) receives `403` on every route below.
+</Warning>
+
+## POST `/onboarding/users`
+
+Create a User.
+
+- **Body:** `CreateUserDto`.
+- **Response:** `onboardedUserSchema`.
+
+## GET `/onboarding/users`
+
+Look up a User by email.
+
+- **Query:** `FindUserByEmailDto` (`email`).
+- **Response:** `onboardedUserSchema`.
+
+## POST `/onboarding/users/:userId/memberships`
+
+Grant an Entity Membership to a User. `client` Users see and edit exactly the Entities they hold a Membership row for; `staff` Users bypass the check entirely and do not need Memberships.
+
+- **Body:** `GrantMembershipDto`.
+- **Status:** `204`.
+
+```bash
+curl -X POST "https://<your-erp-backend-host>/api/onboarding/users/$USER_ID/memberships" \
+  --cookie cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{ "entityId": "…" }'
+```
+
+## DELETE `/onboarding/users/:userId/memberships`
+
+Revoke an Entity Membership. Body shape matches `POST` (the same `GrantMembershipDto`).
+
+- **Body:** `GrantMembershipDto`.
+- **Status:** `204`.
+
+## POST `/onboarding/users/:userId/set-password-link`
+
+Mint a one-time link the User can follow to set (or reset) their password. Delivery is manual: the staff member sends the link to the client over their existing channel (Sintropix has no transactional email provider in v1).
+
+- **Response:** `setPasswordLinkSchema`.
+
+## POST `/onboarding/users/:userId/revoke-sessions`
+
+Revoke every active session for a User, forcing a fresh sign-in on their next request. Use after a suspected credential compromise.
+
+- **Status:** `204`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `POST /users`, `GET /users`, `POST /set-password-link`. |
+| `204` | Success on membership grant/revoke and session revocation. |
+| `400` | Validation error. |
+| `403` | Caller is not `staff`. |
+| `404` | User (or referenced Entity) not found. |
+| `409` | Membership already exists on grant, or already absent on revoke. |
+
+<Warning>
+  Unverified: exact fields on `CreateUserDto`, `GrantMembershipDto`, and the returned `setPasswordLinkSchema` payload (whether the link is a full URL or a token to compose one). Refer to the DTOs alongside the controller and `@sintropix/api-contract` for authoritative shapes.
+</Warning>

@@ -1,0 +1,51 @@
+---
+title: "Sintropix Integrations API: Link External Systems to an Entity"
+sidebarTitle: "Integrations"
+description: "Create, list, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds."
+---
+
+An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Entity's behalf. Integrations are the credential side; [Source Feeds](/api-reference/source-feeds) are the recurring pull jobs that actually import data using them.
+
+<Info>
+  Source: `apps/erp-backend/src/integration/integration.controller.ts`. Base path: `/api/entities/:entityId/integrations`.
+</Info>
+
+## POST `/integrations`
+
+Create an Integration.
+
+- **Body:** `CreateIntegrationDto`.
+- **Response:** `integrationWithFeedSchema` (the Integration and its linked Source Feed, if any).
+
+```bash
+curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ /* see CreateIntegrationDto */ }'
+```
+
+## GET `/integrations`
+
+List every Integration for the Entity.
+
+- **Response:** array of `integrationWithFeedSchema`.
+
+## DELETE `/integrations/:integrationId`
+
+Remove an Integration. Any attached Source Feed is removed as part of the same operation.
+
+- **Response:** `integrationWithFeedSchema` (the deleted state).
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `DELETE`. |
+| `201` | Integration created. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity or Integration not found. |
+
+<Warning>
+  Unverified: the full provider list accepted by `CreateIntegrationDto`. Refer to the DTO alongside the controller and `@sintropix/api-contract` for authoritative shapes.
+</Warning>

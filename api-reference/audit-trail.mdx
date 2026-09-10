@@ -1,0 +1,65 @@
+---
+title: "Sintropix Audit Trail API: Query Forensic Change History"
+sidebarTitle: "Audit Trail"
+description: "Query the forensic audit trail for an entity. Returns paginated mutation envelopes with actor attribution, diffs, and named resources. GET requests are not audited."
+---
+
+<Info>
+  Source controller: `apps/erp-backend/src/audit/audit.controller.ts`
+</Info>
+
+The audit trail is a forensic, append-only log of every mutating request against an entity's data. Each row stores the actor, credential type, declared actor, request id, route, method, and a diff of what changed. GET requests do not produce audit records.
+
+## List audit trail
+
+`GET /api/entities/:entityId/audit-trail`
+
+Returns a paginated page of audit envelopes for the entity, plus the named resources needed to render them without extra lookups.
+
+**Query params (from `listAuditTrailQuerySchema`)**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cursor` | integer | No | Page cursor (positive integer) |
+| `limit` | integer | No | Page size (default 50, max 100) |
+| `from` | ISO date | No | Filter envelopes on or after this date |
+| `to` | ISO date | No | Filter envelopes on or before this date |
+| `actorUserId` | UUID | No | Filter to a specific user |
+| `conversationId` | UUID | No | Filter to a specific conversation / request grouping |
+| `tableName` | string | No | Filter to a specific table; must be provided together with `rowId` |
+| `rowId` | UUID | No | Filter to a specific row; must be provided together with `tableName` |
+
+**Response:** `auditTrailPageSchema` (paginated: `{ envelopes, namedResources, nextCursor }`)
+
+```bash
+curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/audit-trail?limit=50" \
+  -H "Cookie: <session-cookie>"
+```
+
+## What the trail captures
+
+Per ADR 0028, the audit trail is row-level and automatic via Postgres triggers. Every mutating request produces one **Audit Envelope** grouping its **Audit Changes**:
+
+- **Actor:** `actorUserId` plus name and role of the authenticated user
+- **Credential type:** `session` for browser sessions, `api_key` for API key requests
+- **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity)
+- **Request id:** a server-generated unique id grouping all changes in one request
+- **Route and HTTP method:** the endpoint that triggered the mutation
+- **Entity id:** the entity scope the change occurred within
+- **Diff:** for inserts and deletes, the full row image; for updates, only the columns that moved with before and after values
+
+GET requests are not audited. Unbook (soft delete) is now traceless no longer: the removed entry's full image survives as Audit Changes.
+
+## Status codes
+
+| Code | Meaning |
+| --- | --- |
+| 200 | Success |
+| 400 | Invalid query parameters (Zod validation error) |
+| 401 | Unauthenticated |
+| 403 | Not a member of this entity |
+| 404 | Entity not found |
+
+<Warning>
+  Unverified: the exact set of `tableName` values accepted by the filter and the complete list of columns redacted from audit images (for example, secret hashes) are defined in the backend trigger configuration and migration files. Refer to `@sintropix/api-contract` and the backend audit module for the precise schema.
+</Warning>

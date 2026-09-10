@@ -1,0 +1,101 @@
+---
+title: "Sintropix Invoices API: Create, Book, and Link DTEs"
+sidebarTitle: "Invoices"
+description: "List, create, edit, book, and delete AR and AP Invoices. Attach or detach a Chilean DTE and paginate over invoice documents for an Entity."
+---
+
+Invoices are Sintropix's model for both AR (issued to customers) and AP (received from suppliers). Each Invoice can be booked to a Ledger Entry and, in Chile, linked to a Documento Tributario Electrónico (DTE) issued through the SII. This page covers listing, creating, editing, booking, and DTE-linking Invoices.
+
+<Info>
+  Source: `apps/erp-backend/src/invoice/invoice.controller.ts`. Base path: `/api/entities/:entityId/invoices`.
+</Info>
+
+## GET `/invoices`
+
+List every Invoice for the Entity, filtered by direction and document kind.
+
+- **Query:** `ListInvoicesQueryDto` (`direction`, `documentKind`).
+- **Response:** array of `invoiceSchema`.
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices?direction=ar" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/invoices/pages`
+
+Paginated Invoice listing with richer filters. Use this instead of `GET /invoices` for UI-style pagination.
+
+- **Query:** `ListInvoiceDocumentsQueryDto` (cursor, page size, filters).
+- **Response:** `invoiceDocumentsPageSchema` (`{ rows, nextCursor }`).
+
+<Note>
+  The `pages` route is declared before `:invoiceId` in the controller so Nest does not read `pages` as an invoice id. Match that ordering when composing URLs.
+</Note>
+
+## POST `/invoices`
+
+Create an Invoice.
+
+- **Body:** `CreateInvoiceDto`.
+- **Response:** `createInvoiceResultSchema`.
+
+```bash
+curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ /* see CreateInvoiceDto */ }'
+```
+
+## GET `/invoices/:invoiceId`
+
+Return the full Invoice detail (`invoiceDetailSchema`) including lines, links, and the current book status.
+
+## PATCH `/invoices/:invoiceId`
+
+Partial update.
+
+- **Body:** `UpdateInvoiceDto`.
+- **Response:** `updateInvoiceResultSchema`.
+
+## DELETE `/invoices/:invoiceId`
+
+Delete the Invoice. Booked Invoices are refused; unbook first.
+
+- **Response:** `deleteInvoiceResultSchema`.
+
+## PUT `/invoices/:invoiceId/dte`
+
+Attach or replace the linked DTE reference on an Invoice. The DTE record itself is imported through the [SII feed](/api-reference/sii); this endpoint only links the id.
+
+- **Body:** `PutInvoiceDteDto`.
+- **Response:** `updateInvoiceResultSchema`.
+
+## DELETE `/invoices/:invoiceId/dte`
+
+Remove the DTE link from an Invoice. The DTE record stays; only the association is cleared.
+
+- **Response:** `updateInvoiceResultSchema`.
+
+## POST `/invoices/:invoiceId/book`
+
+Book an existing Invoice to a Ledger Entry using the supplied booking instructions (target counter account, dimensions, partner).
+
+- **Body:** `BookInvoiceDto`.
+- **Response:** `bookInvoiceResultSchema`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `PATCH`, `PUT`, `POST /book`. |
+| `201` | Invoice created. |
+| `204` | Invoice deleted. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity or Invoice not found. |
+| `409` | Cannot delete a booked Invoice, DTE reference already linked, and so on. |
+
+<Warning>
+  Unverified: exact fields of `CreateInvoiceDto`, `BookInvoiceDto`, and `PutInvoiceDteDto`. Refer to the DTOs alongside the controller and `@sintropix/api-contract` for authoritative shapes.
+</Warning>

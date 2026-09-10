@@ -1,0 +1,72 @@
+---
+title: "Sintropix Partners API: Manage Customers, Suppliers, and Counterparties"
+sidebarTitle: "Partners"
+description: "List, page through, create, edit, and delete Partners (customers, suppliers, employees, tax authorities) for an Entity in Sintropix."
+---
+
+A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD and the paginated Partner listing.
+
+<Info>
+  Source: `apps/erp-backend/src/partner/partner.controller.ts`. Base path: `/api/entities/:entityId/partners`.
+</Info>
+
+## GET `/partners`
+
+List every Partner for the Entity, each row enriched with Open Item totals (unsettled AR and AP balances).
+
+- **Response:** array of `partnerWithOpenTotalsSchema`.
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/partners" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/partners/pages`
+
+Paginated Partner listing for UI use.
+
+- **Query:** `ListPartnersPageQueryDto` (cursor, page size, filters).
+- **Response:** `partnersPageSchema` (`{ rows, nextCursor }`).
+
+## POST `/partners`
+
+Create a Partner.
+
+- **Body:** `CreatePartnerDto`.
+- **Response:** `partnersPageRowSchema`.
+
+```bash
+curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/partners" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ /* see CreatePartnerDto */ }'
+```
+
+## PATCH `/partners/:partnerId`
+
+Update Partner attributes.
+
+- **Body:** `UpdatePartnerDto`.
+- **Response:** `updatePartnerAnswerSchema`.
+
+## DELETE `/partners/:partnerId`
+
+Delete a Partner. Partners with outstanding Open Items or referenced Ledger Lines are refused.
+
+- **Response:** `partnersPageRowSchema`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `PATCH`. |
+| `201` | Partner created. |
+| `204` | Partner deleted. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity or Partner not found. |
+| `409` | Partner has open items or references and cannot be deleted. |
+
+<Warning>
+  Unverified: the exact set of fields on `CreatePartnerDto` and `UpdatePartnerDto`, including the country-specific tax ids (RUT for Chile, RFC for Mexico, and so on). Refer to the DTOs alongside the controller for authoritative shapes.
+</Warning>

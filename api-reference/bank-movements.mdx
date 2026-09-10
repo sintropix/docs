@@ -1,0 +1,109 @@
+---
+title: "Sintropix Bank Movements API: Book, Match, and Transfer"
+sidebarTitle: "Bank Movements"
+description: "List Bank Movements for an account, get match candidates and reconciliation state, then book, match, or transfer a movement into the ledger."
+---
+
+A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a booking status: unbooked, booked to a Ledger Entry, or matched to an existing Invoice or Ledger Entry. This page covers listing, editing, booking, matching, and transferring Bank Movements.
+
+<Info>
+  Source: `apps/erp-backend/src/bank-core/bank-movement/bank-movement.controller.ts`. Domain terms come from `apps/erp-backend/CONTEXT.md`; the internal-transfer model is fixed by ADR 0025.
+</Info>
+
+<Note>
+  All routes are nested under a Bank Account, not directly under the Entity. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`. `:movementId` is a UUID.
+</Note>
+
+## GET `/movements`
+
+List Movements on a Bank Account. Returns `bankMovementsPageSchema`, a paginated `{ rows, nextCursor }` object.
+
+- **Query:** `ListBankMovementsQueryDto` (grep `list-bank-movements-query.dto.ts` for the exact filters, which include a cursor, page size, date range, and status filter).
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/movements/:movementId/match-candidates`
+
+List Invoices and Ledger Entries that could plausibly settle this Movement (per Sintropix's matching heuristics).
+
+- **Response:** `bankMovementMatchCandidatesSchema`.
+
+## GET `/movements/:movementId/reconciliation`
+
+Return the Movement's current booking or match state and the Ledger Lines that discharge it.
+
+- **Response:** `bankMovementReconciliationSchema`.
+
+## GET `/movements/:movementId/erwin-context`
+
+Compact reconciliation context tailored for Erwin (the AI assistant) as it decides how to book a Movement. Present in the public surface because Erwin authenticates as the User via a Key Lease.
+
+- **Response:** `erwinBankMovementContextSchema`.
+
+## POST `/movements`
+
+Create a manual Bank Movement on the account. Requires `x-audit-actor` for API-key callers.
+
+- **Body:** `CreateBankMovementDto`.
+- **Response:** `createBankMovementResultSchema`.
+
+```bash
+curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ /* see CreateBankMovementDto */ }'
+```
+
+## PATCH `/movements/:movementId`
+
+Edit an existing Movement (for example, correct a description or counterparty).
+
+- **Body:** `UpdateBankMovementDto`.
+- **Response:** `updateBankMovementResultSchema`.
+
+## DELETE `/movements/:movementId`
+
+Remove a Movement. Booked or matched Movements are refused; unbook or unmatch first.
+
+- **Response:** `deleteBankMovementResultSchema`.
+
+## POST `/movements/:movementId/book`
+
+Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry from the Movement plus the booking instructions in the body.
+
+- **Body:** `BookBankMovementDto` (target account, dimension values, partner, memo).
+- **Response:** `reconcileBankMovementResultSchema`.
+
+## POST `/movements/:movementId/match`
+
+Match a Movement to an existing document (Invoice or Ledger Entry) rather than booking a new entry. Sintropix records an Allocation between the Movement's counter-account line and the matched document's open-item line.
+
+- **Body:** `MatchBankMovementDto`.
+- **Response:** `reconcileBankMovementResultSchema`.
+
+## POST `/movements/:movementId/transfer`
+
+Mark this Movement as one leg of an Internal Transfer. Per ADR 0025, an Internal Transfer is a composed act rather than a first-class aggregate, so both legs must be identified before the transfer is booked.
+
+- **Body:** `TransferBankMovementDto`.
+- **Response:** `bankMovementWithStatusSchema`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success (`GET`, `PATCH`, `POST`). |
+| `201` | Movement created. |
+| `204` | Movement deleted. |
+| `400` | Validation error, or missing `x-audit-actor` on a key call. |
+| `403` | Read-only key attempted a mutation. |
+| `404` | Entity, Bank Account, or Movement not found. |
+| `409` | Domain conflict (already booked, already matched, and so on). |
+
+<Warning>
+  Unverified: the full set of `status` values on `bankMovementWithStatusSchema` and the exact fields of the DTOs above. Refer to `@sintropix/api-contract` and the DTOs alongside the controller for authoritative shapes.
+</Warning>

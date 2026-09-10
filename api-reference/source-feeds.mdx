@@ -1,0 +1,68 @@
+---
+title: "Sintropix Source Feeds API: Recurring Pulls from External Systems"
+sidebarTitle: "Source Feeds"
+description: "Configure, sync, edit, and delete Source Feeds: the recurring pull jobs that import documents from external systems into a Source on an Entity."
+---
+
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the credentials or handle it needs to fetch from the external system. Syncing a Feed lands new documents into its Source.
+
+<Info>
+  Source: `apps/erp-backend/src/source-feed/source-feed.controller.ts`. Base path: `/api/entities/:entityId/source-feeds`.
+</Info>
+
+## GET `/source-feeds`
+
+List every Source Feed for the Entity, each annotated with its parent Source name.
+
+- **Response:** array of `sourceFeedWithSourceNameSchema`.
+
+## POST `/source-feeds`
+
+Create a Source Feed. The response distinguishes success, redirect (the caller must complete a link flow), and error states.
+
+- **Body:** `CreateSourceFeedDto`.
+- **Response:** `sourceFeedWriteAnswerSchema`.
+
+## POST `/source-feeds/:sourceFeedId/sync`
+
+Trigger an on-demand sync of a Source Feed. The response reports how many documents were landed, updated, or skipped.
+
+- **Body:** `SyncSourceFeedDto`.
+- **Response:** `syncSourceFeedAnswerSchema`.
+- **Status:** `200`.
+
+```bash
+curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/source-feeds/$FEED_ID/sync" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+## PATCH `/source-feeds/:sourceFeedId`
+
+Change the link date on a Source Feed (the earliest date the Feed will import from).
+
+- **Body:** `UpdateSourceFeedDto`.
+- **Response:** `sourceFeedWithSourceNameSchema`.
+
+## DELETE `/source-feeds/:sourceFeedId`
+
+Delete a Source Feed. The parent Source and any already-imported documents are unaffected.
+
+- **Response:** `sourceFeedWithSourceNameSchema`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `PATCH`, `POST /sync`. |
+| `201` | Source Feed created. |
+| `204` | Source Feed deleted. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity or Source Feed not found. |
+| `502` | External sync failed at the provider. |
+
+<Warning>
+  Unverified: the full discriminant set of `sourceFeedWriteAnswerSchema` (success versus redirect versus error variants) and the exact provider list. Refer to `@sintropix/api-contract` for authoritative shapes.
+</Warning>

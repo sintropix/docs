@@ -1,0 +1,410 @@
+---
+title: "Sintropix Ledger Entries API: Book, Reverse, and Schedule Transactions"
+sidebarTitle: "Ledger Entries"
+description: "Create, list, reverse, and unbook Ledger Entries. Manage Scheduled Entries, Ledger Lines, and Open Items for an Entity's books."
+---
+
+Ledger Entries are the core double-entry transactions in Sintropix. Each entry has a header (date, memo, notes) and at least two balanced lines. This page covers creating, listing, reversing, and unbooking entries, plus Scheduled Entries and line-level updates.
+
+<Info>
+  Source: `apps/erp-backend/src/ledger-core/ledger/ledger.controller.ts`.
+</Info>
+
+## GET /api/entities/:entityId/ledger/entries
+
+List Ledger Entries with pagination, filtering, and sorting. Defaults to live entries (`active` and `reversed` statuses).
+
+- **Path param:** `entityId` (UUID)
+- **Query params:** `ListLedgerEntriesQueryDto` (from `listLedgerEntriesQuerySchema`)
+
+| Param | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `cursor` | UUID | No | — | Last entry id of the previous page |
+| `limit` | integer | No | 50 | Page size, max 100 |
+| `from` | ISO date | No | — | Earliest entry date |
+| `to` | ISO date | No | — | Latest entry date (must be >= from) |
+| `search` | string | No | — | Memo search |
+| `sort` | enum | No | `date` | `date`, `memo`, or `amount` |
+| `direction` | enum | No | `desc` | `asc` or `desc` |
+| `statuses` | string | No | `active,reversed` | Comma-separated status list |
+
+- **Success response:** `ledgerEntriesPageSchema` — `{ entries, nextCursor }`
+- **Status:** 200
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET /api/entities/:entityId/ledger/entries/:entryId
+
+Get the full detail of a single Ledger Entry, including lines, related invoices, related bank movements, and allocations.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Success response:** `ledgerEntryDetailSchema`
+- **Status:** 200
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/ledger/entries
+
+Create a new Ledger Entry. The entry must have at least two lines and total debits must equal total credits. The client supplies the idempotency id.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `CreateLedgerEntryDto` (from `createLedgerEntrySchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `entryDate` | ISO date | Yes | Transaction date |
+| `memo` | string or null | Yes | Short description |
+| `notes` | string or null | No | Longer notes; trimmed, blank becomes null |
+| `newLedgerEntryLines` | array | Yes | At least 2 lines, max 2,000, balanced |
+
+Each line in `newLedgerEntryLines`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | UUID | Yes | Ledger Account id |
+| `functionalAmount` | integer | Yes | Nonnegative magnitude |
+| `side` | enum | Yes | `debit` or `credit` |
+| `partnerId` | UUID or null | No | Counterparty partner |
+| `transactionCurrency` | string | No | Foreign currency code |
+| `transactionAmount` | integer | No | Foreign amount |
+| `transactionFxRate` | decimal string | No | Rate as plain decimal string |
+| `dimensionValueIds` | UUID[] | No | Default `[]`; tags for this line |
+
+<Note>
+  The transaction trio (currency, amount, rate) must be provided together or omitted together. The rate is a plain decimal string, never a float.
+</Note>
+
+- **Success response:** `ledgerEntryWithLinesSchema`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "33333333-3333-4333-8333-333333333333",
+    "entryDate": "2026-01-15",
+    "memo": "Venta al contado",
+    "notes": null,
+    "newLedgerEntryLines": [
+      { "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 100, "side": "debit" },
+      { "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 100, "side": "credit" }
+    ]
+  }'
+```
+
+## PATCH /api/entities/:entityId/ledger/entries/:entryId
+
+Update an entry's header fields (date, memo, notes). At least one field must be provided.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Body:** `UpdateLedgerEntryDto` (from `updateLedgerEntrySchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entryDate` | ISO date | No | New transaction date |
+| `memo` | string or null | No | New memo |
+| `notes` | string or null | No | New notes; trimmed, blank becomes null |
+
+- **Success response:** `ledgerEntrySchema`
+- **Status:** 200
+
+```bash
+curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"memo": "Updated description"}'
+```
+
+## POST /api/entities/:entityId/ledger/entries/:entryId/reverse
+
+Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be after the original entry date and after the ledger lock date.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Body:** `ReverseLedgerEntryDto` (from `reverseLedgerEntrySchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id for the reversal entry |
+| `entryDate` | ISO date | Yes | Reversal date |
+
+- **Success response:** `reverseLedgerEntryResultSchema` — `{ reversalEntry, reversedEntry, severedInvoices, severedMovements, settledChainEntries }`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID/reverse \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "44444444-4444-4444-8444-444444444444",
+    "entryDate": "2026-01-20"
+  }'
+```
+
+## DELETE /api/entities/:entityId/ledger/entries/:entryId
+
+Unbook (soft-delete) a Ledger Entry. The entry status becomes `deleted`. This severs any linked invoices, bank movements, and allocations. If the entry is a reversal, the chain behind it is settled back to its prior state.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Success response:** `unbookLedgerEntryResultSchema` — `{ unbookedEntry, severedInvoices, severedMovements, settledChainEntries }`
+- **Status:** 200
+
+```bash
+curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Scheduled Entries
+
+### POST /api/entities/:entityId/ledger/scheduled-entries
+
+Schedule a Ledger Entry for future booking. The entry date must be in the future. Scheduled entries cannot carry transaction currency lines.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** Same shape as `CreateLedgerEntryDto`
+- **Success response:** `ledgerEntryWithLinesSchema`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "55555555-5555-4555-8555-555555555555",
+    "entryDate": "2026-03-01",
+    "memo": "Future rent",
+    "notes": null,
+    "newLedgerEntryLines": [
+      { "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 500, "side": "debit" },
+      { "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 500, "side": "credit" }
+    ]
+  }'
+```
+
+### POST /api/entities/:entityId/ledger/scheduled-entries/:entryId/book
+
+Book a Scheduled Entry immediately. The entry date must be on or before today.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Success response:** `ledgerEntryWithLinesSchema`
+- **Status:** 200
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID/book \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+### PATCH /api/entities/:entityId/ledger/scheduled-entries/:entryId
+
+Reschedule a planned entry. Replaces the date, memo, notes, and the entire line set.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Body:** `RescheduleLedgerEntryDto` (from `rescheduleLedgerEntrySchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entryDate` | ISO date | Yes | New scheduled date |
+| `memo` | string or null | Yes | New memo |
+| `notes` | string or null | Yes | New notes |
+| `newLedgerEntryLines` | array | Yes | Full new line set, balanced |
+
+- **Success response:** `ledgerEntryWithLinesSchema`
+- **Status:** 200
+
+```bash
+curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "entryDate": "2026-04-01",
+    "memo": "Updated future rent",
+    "notes": null,
+    "newLedgerEntryLines": [
+      { "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 600, "side": "debit" },
+      { "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 600, "side": "credit" }
+    ]
+  }'
+```
+
+### DELETE /api/entities/:entityId/ledger/scheduled-entries/:entryId
+
+Cancel a Scheduled Entry. The entry status becomes `cancelled`.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Success response:** `ledgerEntrySchema`
+- **Status:** 200
+
+```bash
+curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Ledger Lines
+
+### GET /api/entities/:entityId/ledger/lines
+
+List Ledger Entry Lines. Defaults to live entries only. Optionally filter by partner.
+
+- **Path param:** `entityId` (UUID)
+- **Query params:** `ListLedgerEntryLinesQueryDto` (from `listLedgerEntryLinesQuerySchema`)
+
+| Param | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `partnerId` | UUID | No | — | Narrow to one partner's lines |
+| `statuses` | string | No | `active,reversed` | Comma-separated status list |
+
+- **Success response:** Array of `listedLedgerEntryLineSchema`
+- **Status:** 200
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines?partnerId=$PARTNER_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+### GET /api/entities/:entityId/ledger/open-item-lines
+
+List Open Item lines for an Open-Item Account with pagination. Shows unsettled lines by default.
+
+- **Path param:** `entityId` (UUID)
+- **Query params:** `ListOpenItemLinesQueryDto` (from `listOpenItemLinesQuerySchema`)
+
+| Param | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `accountId` | UUID | Yes | — | Open-Item Account id |
+| `cursor` | UUID | No | — | Last line id of the previous page |
+| `limit` | integer | No | 50 | Page size, max 100 |
+| `statusFilter` | enum | No | `unsettled` | `unsettled`, `all`, or `settled` |
+| `partnerId` | UUID | No | — | Filter by partner |
+| `sort` | enum | No | `entryDate` | Sort field |
+| `sortDirection` | enum | No | `asc` | `asc` or `desc` |
+
+- **Success response:** `openItemLinesPageSchema` — `{ lines, nextCursor, openTotal, lineCount, partnerOptions }`
+- **Status:** 200
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/open-item-lines?accountId=$ACCOUNT_ID&limit=20" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+### PATCH /api/entities/:entityId/ledger/lines/:lineId/partner
+
+Change the partner on a Ledger Entry Line. `null` clears the partner.
+
+- **Path params:** `entityId` (UUID), `lineId` (UUID)
+- **Body:** `UpdateLedgerEntryLinePartnerDto` (from `updateLedgerEntryLinePartnerSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `partnerId` | UUID or null | Yes | New partner or null |
+
+- **Success response:** `ledgerEntryLineSchema`
+- **Status:** 200
+
+```bash
+curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/partner \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"partnerId": "66666666-6666-4666-8666-666666666666"}'
+```
+
+### PATCH /api/entities/:entityId/ledger/lines/:lineId/account
+
+Reclassify a Ledger Entry Line to a different Ledger Account. The line must have no Allocation and no document link, and its entry must be open.
+
+- **Path params:** `entityId` (UUID), `lineId` (UUID)
+- **Body:** `UpdateLedgerEntryLineAccountDto` (from `updateLedgerEntryLineAccountSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | UUID | Yes | New Ledger Account id |
+
+- **Success response:** `ledgerEntryLineWithNamedDimensionValuesSchema`
+- **Status:** 200
+
+```bash
+curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/account \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"accountId": "22222222-2222-4222-8222-222222222222"}'
+```
+
+### PUT /api/entities/:entityId/ledger/lines/:lineId/dimension-values
+
+Replace the Dimension Value tags on a Ledger Entry Line. An empty array untags the line.
+
+- **Path params:** `entityId` (UUID), `lineId` (UUID)
+- **Body:** `UpdateLedgerEntryLineDimensionValuesDto` (from `updateLedgerEntryLineDimensionValuesSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dimensionValueIds` | UUID[] | Yes | Full replacement tag set |
+
+- **Success response:** `ledgerEntryLineWithNamedDimensionValuesSchema`
+- **Status:** 200
+
+```bash
+curl -X PUT https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/dimension-values \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"dimensionValueIds": ["dddddddd-dddd-4ddd-8ddd-dddddddddddd"]}'
+```
+
+## Domain error codes
+
+| Code | Meaning |
+| --- | --- |
+| `LEDGER_ACCOUNT_NOT_FOUND_ERROR` | Referenced account does not exist |
+| `LEDGER_ENTRY_ALREADY_EXISTS_ERROR` | Entry id already used |
+| `LEDGER_ENTRY_NOT_FOUND_ERROR` | Entry not found |
+| `LEDGER_ENTRY_LINE_NOT_FOUND_ERROR` | Line not found |
+| `LEDGER_ENTRY_DATE_LOCKED_ERROR` | Entry date is on or before the ledger lock date |
+| `LEDGER_ENTRY_FROZEN_ERROR` | Entry is frozen (locked date) |
+| `LEDGER_ENTRY_LOCKED_ERROR` | Ledger is locked |
+| `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | Cannot unbook a frozen entry |
+| `LEDGER_ENTRY_NOT_ACTIVE_ERROR` | Entry is not active |
+| `LEDGER_ENTRY_OVER_CORRECTED_ERROR` | Entry already has a reversal |
+| `LEDGER_REVERSAL_NETTING_BLOCKED_ERROR` | Reversal would net an existing allocation |
+| `LEDGER_REVERSAL_DATE_BEFORE_ORIGINAL_ERROR` | Reversal date is not after the original |
+| `LEDGER_ENTRY_LINE_IN_REVERSAL_PAIR_ERROR` | Line is part of a reversal pair |
+| `LEDGER_ENTRY_LINE_PARTNER_PINNED_ERROR` | Partner cannot be changed (pinned by constraint) |
+| `LEDGER_ENTRY_LINE_PARTNER_NOT_FOUND_ERROR` | Partner not found |
+| `LEDGER_ENTRY_LINE_PARTNERS_NOT_FOUND_ERROR` | Multiple partners not found |
+| `LEDGER_ENTRY_LINE_ACCOUNT_PINNED_ERROR` | Account cannot be changed (pinned by constraint) |
+| `LEDGER_ENTRY_NOT_SCHEDULED_ERROR` | Entry is not a Scheduled Entry |
+| `LEDGER_ENTRY_SCHEDULED_DATE_NOT_FUTURE_ERROR` | Scheduled date must be in the future |
+| `LEDGER_ENTRY_SCHEDULED_NOT_DUE_ERROR` | Scheduled entry is not yet due |
+| `LEDGER_ENTRY_SCHEDULED_TRANSACTION_CURRENCY_ERROR` | Scheduled entries cannot carry foreign currency |
+| `DIMENSION_VALUE_SET_VALUES_NOT_FOUND_ERROR` | One or more dimension value ids not found |
+| `DIMENSION_VALUE_SET_DUPLICATE_DIMENSION_ERROR` | Multiple values from the same dimension |
+| `RECONCILIATION_ALLOCATION_NOT_FOUND_ERROR` | Allocation not found |
+| `RECONCILIATION_ALLOCATION_NETS_REVERSAL_ERROR` | Allocation nets a reversal |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, PATCH, DELETE, book) |
+| 201 | Created (POST entries, POST reverse, POST scheduled-entries) |
+| 400 | Validation error |
+| 401 | Unauthenticated |
+| 403 | Forbidden |
+| 404 | Resource not found |
+| 409 | Domain rule violation |

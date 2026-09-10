@@ -1,0 +1,269 @@
+---
+title: "Sintropix Bank Connections API: Link and Manage Bank Feeds"
+sidebarTitle: "Bank Connections"
+description: "Create, list, reconnect, map, and disconnect Bank Connections for an Entity. Connect to providers like Fintoc or Global66 and feed discovered accounts into Bank Accounts."
+---
+
+<Info>
+  Source: [`apps/erp-backend/src/bank-feed/bank-feed.controller.ts`](https://github.com/sintropix/monorepo/blob/main/apps/erp-backend/src/bank-feed/bank-feed.controller.ts)
+</Info>
+
+A Bank Connection is an Entity-scoped grant to read bank data from a Provider (for example, Fintoc or Global66). It stores encrypted credentials and a health status. A Connection can expose discovered accounts, which you then map to existing Bank Accounts or use to create new ones. Removing a Connection cascades and removes every feed it held.
+
+All routes live under `/api/entities/:entityId/bank-connections`. Path parameters are UUIDs.
+
+## Authentication
+
+Use a session cookie or an API key via the `x-api-key` header. Mutations with an API key also require `x-audit-actor`. See [Authentication](/api-reference/authentication).
+
+## Create a link intent
+
+`POST /api/entities/:entityId/bank-connections/link-intents`
+
+Start the connect flow by creating a Link Intent at the Provider. The response contains a widget token and public key the frontend needs to open the Provider widget.
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `holderType` | `enum('business', 'individual')` | Yes | Who holds the account at the institution |
+
+### Response
+
+`BankConnectionLinkIntent`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `widgetToken` | `string` | Token the Provider widget needs |
+| `publicKey` | `string` | Public key for the widget session |
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/link-intents \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"holderType":"business"}'
+```
+
+## Create a Bank Connection
+
+`POST /api/entities/:entityId/bank-connections`
+
+Finalize the connection after the widget journey completes. The shape is a discriminated union on `provider`.
+
+### Request body (Fintoc)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `provider` | `'fintoc'` | Yes | Provider identifier |
+| `id` | `uuid` | Yes | Client-supplied id for idempotency |
+| `exchangeToken` | `string` | Yes | Token the widget minted |
+
+### Request body (Global66)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `provider` | `'global66'` | Yes | Provider identifier |
+| `id` | `uuid` | Yes | Client-supplied id for idempotency |
+| `clientId` | `string` | Yes | Global66 client id |
+| `clientSecret` | `string` | Yes | Global66 client secret |
+| `accounts` | `array` | Yes | At least one account object |
+| `accounts[].accountId` | `string` | Yes | Account id at Global66 |
+| `accounts[].currency` | `string` | Yes | ISO 4217 code (e.g. `CLP`) |
+
+### Response
+
+`BankConnectionWithFedAccounts` — the created connection plus any fed Bank Accounts (empty on creation).
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "provider": "fintoc",
+    "id": "0192a8b4-0000-7000-8000-000000000001",
+    "exchangeToken": "ex_tok_123"
+  }'
+```
+
+## Reconnect a Bank Connection
+
+`POST /api/entities/:entityId/bank-connections/:bankConnectionId/reconnect`
+
+Restore a failed Fintoc connection with a fresh exchange token.
+
+### Path parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `entityId` | `uuid` | Entity that owns the connection |
+| `bankConnectionId` | `uuid` | Connection to reconnect |
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `provider` | `'fintoc'` | Yes | Must match the existing provider |
+| `exchangeToken` | `string` | Yes | Fresh token from the widget |
+
+### Response
+
+`BankConnectionWithFedAccounts`
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/reconnect \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"provider":"fintoc","exchangeToken":"ex_tok_456"}'
+```
+
+## List Bank Connections
+
+`GET /api/entities/:entityId/bank-connections`
+
+Return every Bank Connection for the Entity, each with the fed Bank Accounts it serves.
+
+### Response
+
+`BankConnectionWithFedAccounts[]`
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Get discovered accounts
+
+`GET /api/entities/:entityId/bank-connections/:bankConnectionId/accounts`
+
+Read the live account panel for one Connection. This fetches the Provider's current link status, discovered accounts, and the local map inputs the server owns.
+
+### Response
+
+`BankConnectionAccounts`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | `enum('active','inactive','login_required')` | Provider's judgment of the link |
+| `accounts` | `DiscoveredAccountWithFeed[]` | Accounts the Provider discovered |
+| `mappableBankAccounts` | `MappableBankAccount[]` | Local Bank Accounts that can still take a feed |
+| `ledgerAccounts` | `PickableLedgerAccount[]` | Asset Ledger Accounts eligible for mapped creation |
+| `refreshing` | `boolean \| null` | Whether a refresh intent is in progress |
+
+Each discovered account carries `providerAccountId`, `name`, `number`, `type`, `currency`, balances in minor units, `refreshedAt`, `observed`, and an optional `fedBankAccount` if a feed already exists.
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Add accounts to a Global66 connection
+
+`POST /api/entities/:entityId/bank-connections/:bankConnectionId/accounts`
+
+For Global66 connections, publish additional account ids the Provider does not list automatically.
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accounts` | `array` | Yes | At least one account object |
+| `accounts[].accountId` | `string` | Yes | Account id at Global66 |
+| `accounts[].currency` | `string` | Yes | ISO 4217 code |
+
+### Response
+
+`BankConnectionWithFedAccounts`
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"accounts":[{"accountId":"acc_789","currency":"CLP"}]}'
+```
+
+## Map a discovered account to an existing Bank Account
+
+`POST /api/entities/:entityId/bank-connections/:bankConnectionId/feeds`
+
+Create a feed that attaches a discovered account to an existing local Bank Account. The server derives the currency from the Provider and rejects a mismatch.
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bankAccountId` | `uuid` | Yes | Local Bank Account to feed |
+| `providerAccountId` | `string` | Yes | Provider's opaque handle for the account |
+
+### Response
+
+`BankAccount`
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/feeds \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "bankAccountId": "0192a8b4-0000-7000-8000-000000000002",
+    "providerAccountId": "acc_123"
+  }'
+```
+
+## Create a Bank Account from a discovered account
+
+`POST /api/entities/:entityId/bank-connections/:bankConnectionId/bank-accounts`
+
+Create a new Bank Account and feed it from a discovered account in one operation. The creation is always kind `bank`, so only an asset Ledger Account is accepted.
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `uuid` | Yes | Client-supplied id for idempotency |
+| `name` | `string` | Yes | Display name |
+| `ledgerAccountId` | `uuid` | Yes | Asset Ledger Account to map |
+| `providerAccountId` | `string` | Yes | Provider's opaque handle |
+| `feedStartDate` | `ISO date` | Yes | Day the feed begins. Must not be older than 90 days or in the future |
+
+### Response
+
+`BankAccountWithSummary`
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/bank-accounts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "0192a8b4-0000-7000-8000-000000000003",
+    "name": "Banco Principal",
+    "ledgerAccountId": "0192a8b4-0000-7000-8000-000000000004",
+    "providerAccountId": "acc_123",
+    "feedStartDate": "2024-06-01"
+  }'
+```
+
+## Disconnect a Bank Connection
+
+`DELETE /api/entities/:entityId/bank-connections/:bankConnectionId`
+
+Remove the connection and cascade every feed it held. The response names the deleted connection and every Bank Account that lost its feed.
+
+### Response
+
+`DisconnectBankConnectionResult`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `deletedBankConnectionId` | `uuid` | The removed connection |
+| `unfedBankAccounts` | `BankAccount[]` | Accounts whose feed was removed |
+
+```bash
+curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```

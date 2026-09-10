@@ -1,0 +1,44 @@
+---
+title: "Sintropix Reference Data API: Countries and Currencies Catalog"
+sidebarTitle: "Reference Data"
+description: "Read the Country and Currency catalogs used across Sintropix for Entity setup, Partner tax ids, Bank Account currencies, and FX rate lookups."
+---
+
+The Reference Data API exposes the static catalogs Sintropix uses across every Entity: the list of supported Countries and the list of supported Currencies. These are shared, Entity-independent lookups; use them to render pickers and to validate codes before writes.
+
+<Info>
+  Source: `apps/erp-backend/src/reference/reference.controller.ts`. Routes: `/api/countries`, `/api/currencies`.
+</Info>
+
+## GET `/countries`
+
+Return every supported Country.
+
+- **Response:** array of `countrySchema`.
+
+```bash
+curl "https://<your-erp-backend-host>/api/countries" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/currencies`
+
+Return every supported Currency (ISO 4217 codes plus display metadata).
+
+- **Response:** array of `currencySchema`.
+
+```bash
+curl "https://<your-erp-backend-host>/api/currencies" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success. |
+| `401` | No valid credential. |
+
+<Warning>
+  Unverified: the full field lists of `countrySchema` and `currencySchema`. Refer to `@sintropix/api-contract` for authoritative shapes.
+</Warning>

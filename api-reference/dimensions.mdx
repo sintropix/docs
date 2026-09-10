@@ -1,0 +1,216 @@
+---
+title: "Sintropix Dimensions API: Reporting Axes and Values"
+sidebarTitle: "Dimensions"
+description: "Create, update, and delete Dimensions and Dimension Values to tag Ledger Entry Lines for segmented reporting."
+---
+
+Dimensions are reporting axes you define for an Entity. Each Dimension holds Dimension Values that tag Ledger Entry Lines. Only lines on Result Accounts (income and expense types) can carry Dimension Values. This page covers full CRUD for both Dimensions and their Values.
+
+<Info>
+  Sources: `apps/erp-backend/src/ledger-core/dimension/dimension.controller.ts` and `apps/erp-backend/src/ledger-core/dimension/dimension-value.controller.ts`.
+</Info>
+
+## GET /api/entities/:entityId/dimensions
+
+List all Dimensions for an Entity.
+
+- **Path param:** `entityId` (UUID)
+- **Success response:** Array of `dimensionSchema`
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Dimension id |
+| `entityId` | UUID | Owning Entity |
+| `name` | string | Dimension name |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/dimensions
+
+Create a new Dimension.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `CreateDimensionDto` (from `createDimensionSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `name` | string | Yes | Dimension name, non-empty |
+
+- **Success response:** `dimensionSchema`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "Centro de costo"
+  }'
+```
+
+## PATCH /api/entities/:entityId/dimensions/:dimensionId
+
+Rename a Dimension.
+
+- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Body:** `UpdateDimensionDto` (from `updateDimensionSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | New dimension name |
+
+- **Success response:** `dimensionSchema`
+- **Status:** 200
+
+```bash
+curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"name": "Proyecto"}'
+```
+
+## DELETE /api/entities/:entityId/dimensions/:dimensionId
+
+Delete a Dimension. A Dimension that has values cannot be deleted.
+
+- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Success response:** `dimensionSchema`
+- **Status:** 200
+
+```bash
+curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## GET /api/entities/:entityId/dimensions/:dimensionId/values
+
+List all Dimension Values for a Dimension.
+
+- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Success response:** Array of `dimensionValueSchema`
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Value id |
+| `entityId` | UUID | Owning Entity |
+| `dimensionId` | UUID | Parent Dimension |
+| `code` | string | Value code |
+| `name` | string | Value name |
+| `parentId` | UUID or null | Parent value for hierarchy |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+```bash
+curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/dimensions/:dimensionId/values
+
+Create a new Dimension Value.
+
+- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Body:** `CreateDimensionValueDto` (from `createDimensionValueSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `code` | string | Yes | Value code, non-empty |
+| `name` | string | Yes | Value name, non-empty |
+| `parentId` | UUID or null | No | Parent value id; null for top-level |
+
+- **Success response:** `dimensionValueSchema`
+- **Status:** 201
+
+```bash
+curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "33333333-3333-4333-8333-333333333333",
+    "code": "CC-100",
+    "name": "Ventas",
+    "parentId": null
+  }'
+```
+
+## PATCH /api/entities/:entityId/dimensions/:dimensionId/values/:dimensionValueId
+
+Update a Dimension Value. You can rename, recode, or reparent it.
+
+- **Path params:** `entityId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
+- **Body:** `UpdateDimensionValueDto` (from `updateDimensionValueSchema`)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `code` | string | No | New code |
+| `name` | string | No | New name |
+| `parentId` | UUID or null | No | New parent or null for top-level |
+
+At least one field must be provided.
+
+- **Success response:** `dimensionValueSchema`
+- **Status:** 200
+
+```bash
+curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"name": "Ventas sur"}'
+```
+
+## DELETE /api/entities/:entityId/dimensions/:dimensionId/values/:dimensionValueId
+
+Delete a Dimension Value. A value that is tagged on any Ledger Entry Line or that has children cannot be deleted.
+
+- **Path params:** `entityId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
+- **Success response:** `dimensionValueSchema`
+- **Status:** 200
+
+```bash
+curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Domain error codes
+
+| Code | Meaning |
+| --- | --- |
+| `DIMENSION_NOT_FOUND_ERROR` | Dimension does not exist |
+| `DIMENSION_ALREADY_EXISTS_ERROR` | Dimension id already used |
+| `DIMENSION_NAME_ALREADY_EXISTS_ERROR` | Dimension name already in use |
+| `DIMENSION_HAS_VALUES_ERROR` | Cannot delete a Dimension that has values |
+| `DIMENSION_VALUE_NOT_FOUND_ERROR` | Dimension Value does not exist |
+| `DIMENSION_VALUE_ALREADY_EXISTS_ERROR` | Dimension Value id already used |
+| `DIMENSION_VALUE_CODE_ALREADY_EXISTS_ERROR` | Code already in use for this Dimension |
+| `DIMENSION_VALUE_PARENT_NOT_FOUND_ERROR` | Parent value not found |
+| `DIMENSION_VALUE_PARENT_CYCLE_ERROR` | Value cannot become a descendant of itself |
+| `DIMENSION_VALUE_IN_USE_ERROR` | Value is tagged on a Ledger Entry Line |
+| `DIMENSION_VALUE_HAS_CHILDREN_ERROR` | Value has child values |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, PATCH, DELETE) |
+| 201 | Created (POST) |
+| 400 | Validation error |
+| 401 | Unauthenticated |
+| 403 | Forbidden |
+| 404 | Resource not found |
+| 409 | Domain rule violation |

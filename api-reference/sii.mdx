@@ -1,0 +1,54 @@
+---
+title: "Sintropix SII API: Chilean DTE Documents and References"
+sidebarTitle: "SII"
+description: "List Chilean SII document types, fetch a DTE, and manage cross-DTE references for Chilean tax documents linked to Invoices in Sintropix."
+---
+
+The SII (Servicio de Impuestos Internos) is Chile's national tax authority. A DTE (Documento Tributario Electrónico) is a Chilean e-invoice or credit note issued through the SII. Sintropix imports DTEs from an SII feed and exposes them through the endpoints on this page so callers can read them and manage cross-DTE references (for example, a credit note referencing an original invoice). Sintropix does not emit DTEs on the caller's behalf here; issuance happens in the SII portal or through an integration that populates the feed.
+
+<Info>
+  Source: `apps/erp-backend/src/sii/sii.controller.ts`. Base path: `/api/entities/:entityId/sii`.
+</Info>
+
+## GET `/sii/document-types`
+
+List the SII document type catalog available to this Entity (invoice, credit note, debit note, and their variants).
+
+- **Response:** array of `siiDocumentTypeSchema`.
+
+```bash
+curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/sii/document-types" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/sii/dte/:dteId`
+
+Fetch a single DTE with its detail, including line items and any references to or from other DTEs.
+
+- **Response:** `dteDetailSchema`.
+
+## POST `/sii/dte/:dteId/references`
+
+Add a reference from this DTE to a target DTE. Used, for example, to record that a credit note credits a specific original invoice.
+
+- **Body:** `CreateDteReferenceDto`.
+- **Response:** the updated `dteDetailSchema`.
+
+## DELETE `/sii/dte/:dteId/references/:targetDteId`
+
+Remove a previously added reference.
+
+- **Response:** the updated `dteDetailSchema`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity, DTE, or target DTE not found. |
+| `409` | Duplicate reference or invalid reference target. |
+
+<Warning>
+  Unverified: the exact fields of `CreateDteReferenceDto` (typically reference type and free-text reason). Refer to the DTO alongside the controller and `@sintropix/api-contract` for authoritative shapes.
+</Warning>
