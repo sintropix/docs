@@ -1,0 +1,64 @@
+---
+title: "Multi-Currency Accounting Across All Your Entities"
+sidebarTitle: "Multi-Currency"
+description: "Sintropix manages transaction, functional, and reporting currency layers automatically — with daily FX rates, and automatic posting of realized and unrealized FX differences."
+---
+
+Running a multi-country startup means your finances live in at least three currencies simultaneously: the currency your Chilean subsidiary gets paid in, the currency your Mexican team's payroll runs in, and the USD your investors want to see on the cap table. Sintropix manages all three layers automatically — recording transactions in their original currency, maintaining each entity's books in its functional currency, and consolidating everything into your chosen reporting currency without manual conversion.
+
+## Three Currency Layers
+
+Every transaction in Sintropix passes through three distinct currency layers:
+
+- **Transaction Currency** — the original currency of the transaction as it occurred. For example, a USD invoice paid to a Chilean supplier is recorded in USD, regardless of the entity's functional currency. This preserves the source record exactly as it happened.
+
+- **Functional Currency** — the entity's primary operating currency, in which statutory accounting records are maintained. For a Chile subsidiary, this is typically CLP. For the US holding, USD. Sintropix converts transaction-currency amounts to functional currency at the exchange rate in effect on the transaction date.
+
+- **Reporting Currency** — your chosen consolidation currency for group-level reports, typically USD. Sintropix converts each entity's functional-currency balances to the reporting currency when generating consolidated P&L, Balance Sheet, and Cash Flow statements.
+
+Each layer is stored independently, so you can always trace a consolidated USD figure back to the original transaction in its source currency.
+
+## Daily Exchange Rates
+
+Sintropix updates exchange rates every day from a central bank and market data feed. When a transaction is imported or entered, Sintropix automatically applies the exchange rate for the transaction date.
+
+For past-dated transactions — for example, a back-dated invoice or a correcting entry — Sintropix looks up the historical rate for that specific date and applies it consistently. You never need to look up or enter exchange rates manually.
+
+## FX Gains and Losses
+
+When exchange rates move between the date of a transaction and the date of its settlement, a difference arises between the rate at which a payable or receivable was recorded and the rate at which it was actually paid or collected.
+
+Sintropix handles both types of FX difference automatically:
+
+- **Realized FX gains and losses** — arise when a foreign-currency payable or receivable is settled. Sintropix calculates the difference between the original rate and the settlement rate and posts it to your FX result account at the time of payment.
+
+- **Unrealized FX gains and losses** — arise on open foreign-currency payables and receivables at period-end when rates have moved but settlement has not yet occurred. Sintropix calculates and posts these adjustments automatically during the close process, and reverses them at the start of the following period.
+
+Both types are posted to the account you designate in your chart of accounts for FX results, ensuring your P&L accurately reflects currency exposure.
+
+## Setting Your Reporting Currency
+
+<Steps>
+  <Step title="Open Company Settings">
+    Navigate to **Settings → Company** in the left sidebar.
+  </Step>
+  <Step title="Select Reporting Currency">
+    Under the **Reporting Currency** field, choose your preferred consolidation currency from the dropdown. USD is selected by default.
+  </Step>
+  <Step title="Save and confirm">
+    Click **Save**. Sintropix will recalculate all historical consolidated reports using the new reporting currency.
+  </Step>
+</Steps>
+
+<Note>
+  Changing your reporting currency recalculates all historical consolidated reports — including P&L, Balance Sheet, and Cash Flow — using the daily exchange rates that were in effect at the time of each transaction. Individual entity books (in their functional currencies) are not affected.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Multi-Entity Management" icon="building" href="/platform/multi-entity">
+    Learn how Sintropix structures holding companies and subsidiaries for consolidated reporting.
+  </Card>
+  <Card title="Reports" icon="chart-bar" href="/modules/reports">
+    Run consolidated and entity-level financial reports in any supported currency.
+  </Card>
+</CardGroup>

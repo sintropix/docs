@@ -1,0 +1,122 @@
+---
+title: "Authenticate with the Sintropix API"
+sidebarTitle: "Authentication"
+description: "Create API keys, set permission scopes, and authenticate requests to the Sintropix API securely from any language or HTTP client."
+---
+
+Every request to the Sintropix API must be authenticated using a Bearer token. You generate API keys inside your Sintropix account, assign them the minimum scopes your integration needs, and pass the key in the `Authorization` header of each request. Keys are long-lived but should be rotated regularly following the practices described below.
+
+## Getting Your API Key
+
+<Steps>
+  <Step title="Log in to Sintropix">
+    Open [sintropix.com](https://sintropix.com) and sign in with your account credentials.
+  </Step>
+  <Step title="Open Settings">
+    Click your organization name in the top-right corner, then select **Settings** from the dropdown menu.
+  </Step>
+  <Step title="Navigate to API Keys">
+    In the left sidebar, click **API Keys** under the **Developer** section.
+  </Step>
+  <Step title="Create a New Key">
+    Click **Create New Key**, enter a descriptive name (e.g., `production-reconciliation-bot`), and select the scopes your integration requires.
+  </Step>
+  <Step title="Copy and store your key immediately">
+    Your API key is displayed **only once** at creation. Copy it to a secure secrets manager before closing the dialog.
+  </Step>
+</Steps>
+
+<Warning>
+  Sintropix does not store your API key after creation. If you lose it, you must revoke the old key and create a new one. Store your key in a secrets manager (such as AWS Secrets Manager, HashiCorp Vault, or 1Password) immediately after creation.
+</Warning>
+
+## Using Your API Key
+
+Pass your API key as a Bearer token in the `Authorization` header of every request:
+
+```bash
+curl https://api.sintropix.com/v1/entities \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+Never include the key in the URL or in a query parameter — header-based authentication keeps the key out of server logs and browser history.
+
+### Using Environment Variables
+
+The recommended pattern is to read the key from an environment variable at runtime, rather than hardcoding it in your source code.
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    import os
+    import requests
+
+    headers = {"Authorization": f"Bearer {os.environ['SINTROPIX_API_KEY']}"}
+    response = requests.get("https://api.sintropix.com/v1/entities", headers=headers)
+    data = response.json()
+    ```
+  </Tab>
+  <Tab title="JavaScript / Node.js">
+    ```javascript
+    const response = await fetch('https://api.sintropix.com/v1/entities', {
+      headers: {
+        'Authorization': `Bearer ${process.env.SINTROPIX_API_KEY}`
+      }
+    });
+    const data = await response.json();
+    ```
+  </Tab>
+</Tabs>
+
+Set the environment variable in your shell or CI/CD pipeline:
+
+```bash
+export SINTROPIX_API_KEY="sk_live_YOUR_API_KEY"
+```
+
+## API Key Scopes
+
+When you create a key, you select one or more **scopes** that determine what the key is allowed to do. Requests using a key that lacks the required scope return `403 Forbidden`.
+
+| Scope | Description |
+|-------|-------------|
+| `read:financials` | Read transactions, financial reports, and reconciliation data. |
+| `write:transactions` | Create journal entries and manual transactions. |
+| `write:reconciliation` | Trigger reconciliation runs and approve or reject matches. |
+| `read:entities` | List and read entity configuration and metadata. |
+| `write:webhooks` | Register, update, and delete webhook endpoints. |
+
+<Tip>
+  Follow the principle of least privilege: grant each API key only the scopes it actually needs. A read-only reporting integration should carry only `read:financials` and `read:entities`.
+</Tip>
+
+## Key Rotation
+
+Rotate API keys every **90 days** to limit exposure if a key is ever leaked. Sintropix supports graceful rotation to avoid downtime:
+
+1. Create a new key in **Settings → API Keys**.
+2. Deploy the new key to your production environment.
+3. The old key remains active for **24 hours** after the new key is created, giving you time to roll out the change.
+4. After 24 hours, the old key is automatically revoked.
+
+You can also revoke a key immediately by clicking **Revoke** next to it in the API Keys settings page.
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Never commit keys to source code">
+    API keys committed to a git repository — even a private one — are frequently leaked. Use `.gitignore` to exclude files containing secrets, and audit your commit history before opening a repository to new team members.
+  </Accordion>
+  <Accordion title="Use a secrets manager">
+    Store keys in a dedicated secrets manager such as AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault, or Doppler. These tools provide audit logs, access controls, and automatic rotation hooks.
+  </Accordion>
+  <Accordion title="Restrict scopes to the minimum required">
+    Each key should carry only the scopes the integration actively uses. This limits the blast radius if a key is compromised.
+  </Accordion>
+  <Accordion title="Monitor for unexpected usage">
+    Review the API request logs in **Settings → API Keys → Activity** regularly. Unusual request volumes or access to unexpected endpoints may indicate a leaked key.
+  </Accordion>
+  <Accordion title="Use separate keys per environment">
+    Maintain distinct keys for development, staging, and production. This prevents test activity from appearing in production audit logs and makes key rotation easier.
+  </Accordion>
+</AccordionGroup>

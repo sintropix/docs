@@ -1,47 +1,68 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Sintropix in 4 Steps"
+sidebarTitle: "Quick Start"
+description: "Connect your first entity, link your bank accounts and integrations, and start working with Erwin — your AI finance assistant — in under an hour."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+Getting up and running on Sintropix doesn't require a lengthy implementation. You connect your entity, link your accounts, and your general ledger starts populating automatically. This guide walks you through the four steps that take you from a blank account to live financial data — and your first conversation with Erwin.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Create Your Account">
+    Go to [sintropix.com](https://sintropix.com) and sign up. During onboarding, you'll be asked to:
 
-    ```bash
-    npm install your-package
-    ```
+    - **Name your first entity** — this is the legal company you're setting up first (e.g., your US holding or your primary operating subsidiary)
+    - **Select your functional currency** — the primary currency for that entity (USD for a US holding, CLP for a Chilean subsidiary, MXN for Mexico, etc.)
+    - **Choose your reporting currency** — the currency used for consolidated multi-entity reports; most teams choose USD
+
+    If you operate multiple entities, you can add additional subsidiaries from **Settings → Entities** after completing the initial setup. Each entity has its own chart of accounts, functional currency, and tax jurisdiction.
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+  <Step title="Connect Your Bank Accounts">
+    Link your bank accounts so that transactions flow into your general ledger automatically — no CSV imports, no manual entry.
 
-    ```bash
-    your-cli init
-    ```
+    Navigate to **Integrations → Banks** and select your institution. Sintropix supports direct connections to:
+
+    - **LATAM:** Santander, BCI, Banco de Chile, BICE, Itaú, BBVA, Mercado Pago, Global66
+    - **US:** Mercury
+
+    Once connected, Sintropix pulls your transaction history and begins classifying movements against your chart of accounts. New transactions appear in your ledger within 24 hours of posting at the bank.
+
+    <Tip>
+      Connect all bank accounts for a given entity before moving on. Reconciliation works best when Sintropix has a complete picture of your cash movements.
+    </Tip>
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+  <Step title="Connect Your Integrations">
+    Beyond banks, Sintropix pulls data from the tools your finance team already uses. Head to **Integrations** and connect what applies to your stack:
 
-    ```bash
-    your-cli start
-    ```
+    - **Payroll** — [Buk](https://www.buk.cl) or [Rankmi](https://www.rankmi.com): payroll runs post directly to your general ledger, with payroll tax and benefit line items broken out automatically
+    - **Expenses** — [Rinde Gastos](https://www.rindegastos.com), [Xpendit](https://www.xpendit.com), or [Ramp](https://ramp.com): approved expense reports create accounting entries without manual re-entry
+    - **CRM** — [HubSpot](https://www.hubspot.com) or [Salesforce](https://www.salesforce.com): closed deals feed the revenue recognition engine, which maps contracts to accrual schedules automatically
+    - **Payments** — [Stripe](https://stripe.com) or Mercado Pago: payment events are matched to open invoices and cash is applied in real time
+
+    Each integration is a one-time OAuth or API key connection. Once linked, data flows continuously — no scheduled exports or manual uploads required.
+  </Step>
+  <Step title="Meet Erwin, Your AI Finance Assistant">
+    Once your accounts are connected and data starts flowing, open the **Erwin** panel from the left navigation bar. Erwin is embedded directly in your accounting data, so every answer he gives is grounded in your actual general ledger — not a summary or a static report.
+
+    Start by asking him something practical:
+
+    - *"What do I need to close this month?"* — Erwin reviews your close checklist and tells you exactly what's unreconciled, unapproved, or missing
+    - *"Build a 13-week cash flow forecast"* — Erwin projects your cash position using your current AR aging, AP schedule, and payroll commitments
+    - *"What's our consolidated burn rate across all entities this quarter?"* — Erwin pulls and translates data across every entity you've connected
+    - *"Why did our gross margin drop in Colombia last month?"* — Erwin digs into the account-level detail and surfaces the driver
+
+    Erwin can also proactively alert you to anomalies — duplicate transactions, unusual FX exposure, accounts that are past due — before they become problems at close.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+<Note>
+  On your first connection, it can take up to 24 hours for all historical transactions to fully sync and for reconciliation suggestions to appear. Real-time transaction flow begins immediately after the initial sync completes.
+</Note>
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Financial Snapshot Dashboard" icon="chart-line" href="/platform/dashboard">
+    Explore your live Cash, ARR, Burn, Runway, AP, and AR dashboard after your first sync.
+  </Card>
+  <Card title="Erwin — AI Finance Assistant" icon="robot" href="/platform/ai-assistant">
+    Learn everything Erwin can do: forecasts, anomaly detection, close guidance, and more.
+  </Card>
+</CardGroup>

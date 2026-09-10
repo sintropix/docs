@@ -1,0 +1,71 @@
+---
+title: "Automatic Reconciliation: Match Every Transaction Fast"
+sidebarTitle: "Reconciliation"
+description: "Sintropix automatically matches bank movements to invoices, payroll, and journal entries — flagging only the exceptions that need a human decision."
+---
+
+Reconciliation is the process of confirming that every bank movement has a corresponding document and a corresponding accounting entry. Done manually, it is one of the most time-consuming tasks in finance. Sintropix automates the vast majority of it — importing transactions from your connected bank accounts, matching them to their backing documents, and posting the resulting entries to your general ledger without requiring manual intervention.
+
+## How Reconciliation Works
+
+Sintropix uses a **three-way match** to reconcile each transaction:
+
+1. **Bank movement** — a debit or credit imported directly from your connected bank account (Santander, BCI, Banco de Chile, Itaú, Mercury, and others).
+2. **Backing document** — an invoice, payroll record, expense report, or other source document that explains the movement.
+3. **Accounting entry** — the journal entry that records the transaction in the correct accounts in your general ledger.
+
+When all three elements are present and consistent (amount, date, and counterparty align), Sintropix marks the transaction as **Matched** and posts the entry automatically. For transactions where a perfect match is not found, Sintropix flags the item for human review rather than posting a guess.
+
+## Reconciliation Status
+
+Every transaction in Sintropix carries one of three statuses:
+
+| Status | Meaning |
+|---|---|
+| **Matched** | Automatically reconciled — bank movement, document, and entry are all confirmed. No action required. |
+| **Needs Review** | Sintropix could not find a confident automatic match. A human decision is required. |
+| **Excluded** | Intentionally skipped — for example, internal transfers between your own accounts that should not generate an entry. |
+
+You can filter the reconciliation queue by status at any time from the **Reconciliation** section in the left sidebar.
+
+## Reviewing Unmatched Items
+
+For transactions with a **Needs Review** status, Sintropix guides you through resolution in a few steps.
+
+<Steps>
+  <Step title="Open the Reconciliation queue">
+    From your dashboard Action Items, click **Unreconciled transactions**, or navigate to **Reconciliation → Needs Review** in the left sidebar.
+  </Step>
+  <Step title="Review Sintropix's suggested matches">
+    For each unmatched item, Sintropix presents one or more candidate matches ranked by similarity — based on amount, transaction date, and counterparty name. Review the top suggestion and the underlying documents before accepting.
+  </Step>
+  <Step title="Accept a match or search manually">
+    Click **Accept** to confirm Sintropix's suggested match, or use the search field to find a different invoice, payroll record, or expense report manually.
+  </Step>
+  <Step title="Create a new entry if no document exists">
+    If no backing document exists — for example, a bank charge with no corresponding invoice — click **Create Entry** to record a new journal entry directly from the reconciliation queue. Erwin can suggest the correct accounts based on the transaction description.
+  </Step>
+</Steps>
+
+## Multi-Currency Reconciliation
+
+When a bank movement and its backing document are in different currencies — for example, a USD invoice paid from a CLP bank account — Sintropix handles the FX difference automatically.
+
+- The transaction is matched using the exchange rate in effect on the settlement date.
+- Any difference between the invoice rate and the settlement rate is calculated as a **realized FX gain or loss**.
+- Sintropix posts the gain or loss to the appropriate account in your chart of accounts (typically a dedicated FX result account) without requiring manual adjustment.
+
+Unrealized FX differences on open payables and receivables are also calculated at period-end and posted automatically during the close process.
+
+<Note>
+  Reconciliation matching rules — including tolerance thresholds for amount differences and the logic for counterparty name matching — are configurable per entity. Go to **Settings → Entity → Reconciliation Rules** to adjust these for each of your subsidiaries.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Continuous Close" icon="calendar-check" href="/platform/continuous-close">
+    See how automatic reconciliation feeds directly into your daily close checklist.
+  </Card>
+  <Card title="Reconciliation API" icon="code" href="/api-reference/reconciliation">
+    Query reconciliation status and push matching decisions programmatically via the Sintropix API.
+  </Card>
+</CardGroup>

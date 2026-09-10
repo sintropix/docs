@@ -1,0 +1,115 @@
+---
+title: "Core Concepts: How Sintropix Organizes Your Data"
+sidebarTitle: "Core Concepts"
+description: "Understand the key building blocks of Sintropix — entities, currencies, transactions, reconciliation, close checklists, and more — before you dive in."
+---
+
+Sintropix introduces a small set of concepts that shape how your financial data is structured, how transactions flow through the system, and how the AI layer interacts with your accounting. Familiarizing yourself with these building blocks will make every other part of the platform easier to understand and use.
+
+<AccordionGroup>
+  <Accordion title="Entity">
+    An **entity** is a legal company in Sintropix — either a holding company or an operating subsidiary. Each entity is a self-contained accounting unit with its own:
+
+    - **Chart of accounts** — the full list of account codes and names used to classify transactions for that company
+    - **Functional currency** — the primary currency in which that entity measures its financial performance (see below)
+    - **Tax jurisdiction** — the country whose tax calendar, filing requirements, and local rules apply
+
+    Most multi-country teams set up one entity per legal company: a US holding, a Chilean SPA, a Mexican SAPI de CV, and so on. You can add, configure, and archive entities from **Settings → Entities** at any time.
+
+    Sintropix consolidates across all your entities automatically — intercompany transactions between entities are tracked and eliminated when generating group-level reports.
+  </Accordion>
+
+  <Accordion title="Functional Currency">
+    The **functional currency** is the primary currency of a given entity — the currency in which that entity's economic environment operates. Sintropix uses the functional currency as the baseline for all accounting entries within an entity.
+
+    Examples:
+    - US holding → **USD**
+    - Chilean subsidiary → **CLP**
+    - Mexican subsidiary → **MXN**
+    - Colombian subsidiary → **COP**
+
+    When a transaction is recorded in a currency other than the entity's functional currency (for example, a USD invoice received by the Chilean entity), Sintropix applies the daily FX rate and records the translation automatically. Any resulting foreign exchange gain or loss is posted to the appropriate account without manual intervention.
+  </Accordion>
+
+  <Accordion title="Reporting Currency">
+    The **reporting currency** is the single currency you choose for consolidated, multi-entity financial statements. It is separate from each entity's functional currency and is applied only when generating group-level reports (consolidated P&L, Balance Sheet, Cash Flow).
+
+    Most multi-country LATAM teams set their reporting currency to **USD**, but you can choose any currency your investors or board require.
+
+    Sintropix translates each entity's functional-currency balances into the reporting currency using the appropriate rate (average rate for income statement items, closing rate for balance sheet items) every time a consolidated report is generated.
+  </Accordion>
+
+  <Accordion title="Transaction">
+    A **transaction** is any financial movement captured in Sintropix — whether it arrives via an integration or is entered manually. Transactions include:
+
+    - Bank transfers and cash receipts (from bank integrations)
+    - Invoice payments received or made
+    - Payroll runs (from Buk, Rankmi)
+    - Employee expense reports (from Rinde Gastos, Xpendit, Ramp)
+    - Subscription payments (from Stripe, Mercado Pago)
+    - Manual journal entries created by your team
+
+    Every transaction is associated with a specific entity, dated, denominated in a transaction currency, and mapped to one or more accounts in the chart of accounts. Unclassified transactions appear in the **Inbox** for review and coding.
+  </Accordion>
+
+  <Accordion title="Reconciliation">
+    **Reconciliation** is the process of matching a bank movement to its backing document — an invoice, a payroll entry, an expense report — and confirming that the corresponding accounting entry is correct. A transaction is considered reconciled when:
+
+    1. The bank movement is matched to a source document (e.g., an invoice in your AR aging)
+    2. The accounting entry in the general ledger reflects the correct account, amount, and currency
+    3. A team member (or Erwin, if auto-reconciliation is enabled) has approved the match
+
+    Sintropix uses AI to suggest matches automatically. Your team reviews and approves the suggestions, or handles exceptions that Erwin couldn't match with confidence. Reconciliation status is visible at the entity level and rolls up into the close checklist.
+  </Accordion>
+
+  <Accordion title="Close Checklist">
+    The **close checklist** is the structured list of items that must be completed before a given month is considered closed. For each entity, it tracks:
+
+    - Unreconciled bank movements as a percentage of total activity
+    - Unapproved journal entries and adjustments
+    - Outstanding AP and AR items requiring action
+    - Revenue recognition schedules that need review
+    - Intercompany balances pending confirmation
+
+    Sintropix calculates a **completion percentage** for each entity's checklist in real time. When all items reach 100%, the month can be locked. Because the general ledger is updated daily (continuous close), most checklist items are handled throughout the month — the formal close is a short review, not a multi-week reconstruction.
+  </Accordion>
+
+  <Accordion title="Erwin — AI Finance Assistant">
+    **Erwin** is the AI assistant embedded in Sintropix. Unlike a general-purpose AI chatbot, Erwin has direct access to your live accounting data — your actual general ledger, reconciliation status, AR aging, AP schedule, payroll history, and bank balances — across every entity you've connected.
+
+    Erwin can:
+
+    - **Answer finance questions** in plain language: *"What's our consolidated ARR this quarter?"*, *"Which invoices are more than 60 days past due in Mexico?"*
+    - **Generate forecasts**: 13-week cash flow, runway analysis, scenario modeling
+    - **Guide close**: tell you exactly what's blocking your month-end and in which entity
+    - **Surface anomalies**: flag duplicate transactions, unusual spending patterns, unexpected FX exposures, and accounts that moved significantly month-over-month
+    - **Draft journal entries**: propose adjusting entries based on reconciliation findings, which a team member can review and post
+
+    Erwin is available from the left navigation bar on any screen. Every response cites the underlying data, so you can drill into the detail behind any number he surfaces.
+  </Accordion>
+
+  <Accordion title="Journal Entry">
+    A **journal entry** is a manual debit/credit pair that you create directly in Sintropix for accounting adjustments that aren't covered by an integration. Common uses include:
+
+    - Accrual entries (e.g., accruing a service expense before the invoice arrives)
+    - Depreciation and amortization schedules
+    - Intercompany loan interest
+    - Corrections and reversals
+    - Opening balance entries when migrating from another system
+
+    Each journal entry requires a date, a description, a balanced set of debit and credit lines, and an approver. Erwin can draft proposed journal entries for you to review; nothing is posted until a qualified team member approves it.
+
+    <Warning>
+      Journal entries affect your general ledger immediately upon posting and are included in all reports. Always review entries carefully before approving, especially during a locked period.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+<CardGroup cols={2}>
+  <Card title="Financial Snapshot Dashboard" icon="chart-line" href="/platform/dashboard">
+    See how your entities, currencies, and transactions surface in the live Financial Snapshot.
+  </Card>
+  <Card title="Continuous Close" icon="calendar-check" href="/platform/continuous-close">
+    Learn how the daily ledger update and close checklist keep your month-end under control.
+  </Card>
+</CardGroup>

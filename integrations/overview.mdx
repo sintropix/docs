@@ -1,0 +1,63 @@
+---
+title: "Integrations: Connect Your Financial Data Sources"
+sidebarTitle: "Overview"
+description: "Sintropix connects to 100+ banks, payroll systems, expense tools, and CRMs so your general ledger stays current without manual data entry."
+---
+
+Sintropix connects to more than 100 financial data sources — banks, payment platforms, payroll providers, expense tools, and CRMs — so your accounting data flows in automatically. Instead of exporting spreadsheets or entering transactions by hand, you configure an integration once and Sintropix keeps your general ledger, reconciliation queue, and financial reports up to date continuously.
+
+## Integration Categories
+
+<CardGroup cols={2}>
+  <Card title="Banks & Payment Accounts" icon="building-columns" href="/integrations/banks">
+    Connect bank accounts and payment platforms across all your LATAM entities — Santander, BCI, Banco de Chile, BICE, Itaú, BBVA, Mercado Pago, Global66, and Mercury.
+  </Card>
+  <Card title="Payroll & Expenses" icon="money-bill-wave" href="/integrations/payroll-expenses">
+    Import payroll settlements from Buk and Rankmi, and employee expense reports from Rinde Gastos, Xpendit, and Ramp directly into your general ledger.
+  </Card>
+  <Card title="CRM & Payments" icon="handshake" href="/integrations/crm-payments">
+    Pull closed deals from HubSpot and Salesforce to drive revenue recognition, and capture payment settlements from Stripe and Mercado Pago for reconciliation.
+  </Card>
+  <Card title="More Integrations Coming" icon="plug" href="https://sintropix.com">
+    Sintropix is continuously expanding its integration catalog. Reach out to your account team to request a new connector or ask about beta access.
+  </Card>
+</CardGroup>
+
+## How to Connect an Integration
+
+<Steps>
+  <Step title="Go to Settings → Integrations">
+    From the sidebar, navigate to **Settings**, then select the **Integrations** tab. You'll see all available connectors organized by category.
+  </Step>
+  <Step title="Find your provider">
+    Use the search bar to find a specific provider by name, or browse by category — Banks, Payroll, Expenses, CRM, or Payments.
+  </Step>
+  <Step title="Click Connect and authenticate">
+    Select your provider and click **Connect**. Depending on the provider, you'll be prompted to complete an OAuth authorization flow (you'll be redirected to the provider's login page) or enter an API key directly in Sintropix.
+  </Step>
+  <Step title="Select the associated entity">
+    Choose which of your entities this integration belongs to. For example, a Buk payroll connection may belong to your Chile subsidiary, while Mercury belongs to your US holding company.
+  </Step>
+  <Step title="Wait for the initial sync">
+    Once connected, Sintropix begins importing data immediately. The first full sync — which includes historical transactions — may take up to 24 hours depending on the volume of data and the provider's API limits.
+  </Step>
+</Steps>
+
+## Data Refresh
+
+After the initial sync, Sintropix keeps your data current through scheduled background syncs. Refresh frequency varies by integration type:
+
+- **Banks and payment accounts** — sync every few hours throughout the business day so your cash balances and reconciliation queue stay current.
+- **Payroll providers** — sync daily; new payroll runs appear in Sintropix shortly after they are processed in your payroll system.
+- **CRMs** — sync daily; newly closed deals are picked up and added to your revenue recognition pipeline automatically.
+- **Expense platforms** — sync daily; approved expense reports are posted to accounts payable without manual intervention.
+
+If you need the latest data immediately, you can trigger a manual refresh at any time. Go to **Settings → Integrations**, find the connected provider, and click **Sync Now**.
+
+<Note>
+  Each integration is associated with a specific entity. If multiple entities share the same bank (for example, two subsidiaries both have accounts at Santander Chile), connect the integration separately for each entity. This ensures transactions are attributed to the correct entity in your general ledger and consolidation reports.
+</Note>
+
+<Warning>
+  Keep your integration credentials current. If an OAuth token expires or an API key is revoked, Sintropix will pause data sync for that connection and display an alert in your dashboard action items. Resolve the credential issue in **Settings → Integrations** to resume syncing. Gaps in data caused by expired credentials may require a manual re-sync to backfill missing transactions.
+</Warning>

@@ -1,0 +1,353 @@
+---
+title: "Reports API: Pull Financial Statements Programmatically"
+sidebarTitle: "Reports"
+description: "Generate P&L, balance sheet, cash flow, and general ledger reports for any entity or consolidated group via the Sintropix Reports API."
+---
+
+The Reports API lets you pull financial statements programmatically — directly into a BI tool, a board deck pipeline, or an AI agent's context window. All reports reflect Sintropix's continuously updated general ledger, so the data you receive is as current as today's transactions. You can request statements for a single entity or, by omitting `entity_id`, receive a consolidated report across all entities in your group with intercompany eliminations already applied.
+
+All Reports endpoints require the `read:financials` scope.
+
+---
+
+## GET /reports/pnl
+
+Retrieve a Profit & Loss statement for a specific period. Omit `entity_id` to receive a consolidated P&L across all entities, with intercompany revenue and expense eliminations automatically applied.
+
+```bash
+curl "https://api.sintropix.com/v1/reports/pnl?start_date=2025-01-01&end_date=2025-01-31&currency=USD" \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+### Query Parameters
+
+<ParamField query="entity_id" type="string">
+  Scope the report to a specific entity. Omit to generate a consolidated group P&L.
+</ParamField>
+
+<ParamField query="start_date" type="string" required>
+  Start of the reporting period. ISO 8601 date: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="end_date" type="string" required>
+  End of the reporting period. ISO 8601 date: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="currency" type="string" required>
+  Reporting currency for the output. All amounts are translated to this currency using Sintropix's daily FX rates. ISO 4217 code (e.g., `USD`, `CLP`).
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="period" type="object">
+  Object with `start_date` and `end_date` strings confirming the period covered.
+</ResponseField>
+
+<ResponseField name="entity_id" type="string">
+  The entity ID, or `"consolidated"` for a group-level report.
+</ResponseField>
+
+<ResponseField name="currency" type="string">
+  The reporting currency used for all amounts in this response.
+</ResponseField>
+
+<ResponseField name="revenue" type="number">
+  Total recognized revenue for the period.
+</ResponseField>
+
+<ResponseField name="cost_of_goods_sold" type="number">
+  Total cost of goods sold (COGS) for the period.
+</ResponseField>
+
+<ResponseField name="gross_profit" type="number">
+  `revenue` minus `cost_of_goods_sold`.
+</ResponseField>
+
+<ResponseField name="operating_expenses" type="number">
+  Total operating expenses (excluding COGS) for the period.
+</ResponseField>
+
+<ResponseField name="ebitda" type="number">
+  Earnings before interest, taxes, depreciation, and amortization.
+</ResponseField>
+
+<ResponseField name="net_income" type="number">
+  Bottom-line net income for the period after all expenses, interest, and taxes.
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "period": {
+      "start_date": "2025-01-01",
+      "end_date": "2025-01-31"
+    },
+    "entity_id": "consolidated",
+    "currency": "USD",
+    "revenue": 485000,
+    "cost_of_goods_sold": 97000,
+    "gross_profit": 388000,
+    "operating_expenses": 310000,
+    "ebitda": 91500,
+    "net_income": 78000
+  },
+  "meta": {
+    "request_id": "req_4fToM8lEuT7xZ2cP",
+    "timestamp": "2025-01-15T13:00:00Z"
+  }
+}
+```
+
+---
+
+## GET /reports/balance-sheet
+
+Retrieve a balance sheet as of a specific date. The balance sheet reflects all assets, liabilities, and equity balances at the close of the given date.
+
+```bash
+curl "https://api.sintropix.com/v1/reports/balance-sheet?entity_id=ent_def456&as_of=2025-01-31&currency=USD" \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+### Query Parameters
+
+<ParamField query="entity_id" type="string">
+  Scope the report to a specific entity. Omit for a consolidated group balance sheet.
+</ParamField>
+
+<ParamField query="as_of" type="string" required>
+  The date as of which to evaluate balances. ISO 8601 date: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="currency" type="string" required>
+  Reporting currency for the output. ISO 4217 code.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="as_of" type="string">
+  The date used to calculate balances, confirming the `as_of` parameter received.
+</ResponseField>
+
+<ResponseField name="entity_id" type="string">
+  The entity ID, or `"consolidated"` for a group-level report.
+</ResponseField>
+
+<ResponseField name="currency" type="string">
+  The reporting currency used for all amounts.
+</ResponseField>
+
+<ResponseField name="total_assets" type="number">
+  Sum of all asset account balances as of the specified date.
+</ResponseField>
+
+<ResponseField name="total_liabilities" type="number">
+  Sum of all liability account balances as of the specified date.
+</ResponseField>
+
+<ResponseField name="total_equity" type="number">
+  Total equity (`total_assets` minus `total_liabilities`).
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "as_of": "2025-01-31",
+    "entity_id": "ent_def456",
+    "currency": "USD",
+    "total_assets": 1240000,
+    "total_liabilities": 380000,
+    "total_equity": 860000
+  },
+  "meta": {
+    "request_id": "req_6gVpN1mFvU8yA3dQ",
+    "timestamp": "2025-01-15T13:05:00Z"
+  }
+}
+```
+
+---
+
+## GET /reports/cash-flow
+
+Retrieve a cash flow statement for a given period, broken down by operating, investing, and financing activities.
+
+```bash
+curl "https://api.sintropix.com/v1/reports/cash-flow?entity_id=ent_def456&start_date=2025-01-01&end_date=2025-01-31&currency=USD" \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+### Query Parameters
+
+<ParamField query="entity_id" type="string">
+  Scope the report to a specific entity. Omit for a consolidated group cash flow.
+</ParamField>
+
+<ParamField query="start_date" type="string" required>
+  Start of the period. ISO 8601 date: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="end_date" type="string" required>
+  End of the period. ISO 8601 date: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="currency" type="string" required>
+  Reporting currency for the output. ISO 4217 code.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="operating_activities" type="number">
+  Net cash generated or used by core business operations during the period.
+</ResponseField>
+
+<ResponseField name="investing_activities" type="number">
+  Net cash from investment activities (e.g., equipment purchases, asset sales).
+</ResponseField>
+
+<ResponseField name="financing_activities" type="number">
+  Net cash from financing activities (e.g., equity raises, loan repayments).
+</ResponseField>
+
+<ResponseField name="net_change_in_cash" type="number">
+  Sum of all three activity lines — the total change in cash position over the period.
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "period": {
+      "start_date": "2025-01-01",
+      "end_date": "2025-01-31"
+    },
+    "entity_id": "ent_def456",
+    "currency": "USD",
+    "operating_activities": 95000,
+    "investing_activities": -22000,
+    "financing_activities": 0,
+    "net_change_in_cash": 73000
+  },
+  "meta": {
+    "request_id": "req_7hWqO2nGwV9zB4eR",
+    "timestamp": "2025-01-15T13:10:00Z"
+  }
+}
+```
+
+---
+
+## GET /reports/general-ledger
+
+Retrieve paginated general ledger entries for an entity. You can filter to a specific account to drill into a single line of the chart of accounts.
+
+```bash
+curl "https://api.sintropix.com/v1/reports/general-ledger?entity_id=ent_def456&start_date=2025-01-01&end_date=2025-01-31&limit=50" \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+### Query Parameters
+
+<ParamField query="entity_id" type="string" required>
+  The entity whose general ledger to retrieve.
+</ParamField>
+
+<ParamField query="start_date" type="string" required>
+  Start of the period. ISO 8601 date: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="end_date" type="string" required>
+  End of the period. ISO 8601 date: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="account_id" type="string">
+  Filter entries to a specific chart-of-accounts ID. Omit to retrieve all accounts.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  Number of entries per page. Maximum `100`.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor from the previous response.
+</ParamField>
+
+### Response Fields (per entry)
+
+<ResponseField name="account_id" type="string">
+  The chart-of-accounts ID for this entry.
+</ResponseField>
+
+<ResponseField name="account_name" type="string">
+  Human-readable name of the account.
+</ResponseField>
+
+<ResponseField name="date" type="string">
+  ISO 8601 date of the ledger entry.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Description of the transaction that generated this entry.
+</ResponseField>
+
+<ResponseField name="debit" type="number">
+  Debit amount for this line. `null` if this line is a credit.
+</ResponseField>
+
+<ResponseField name="credit" type="number">
+  Credit amount for this line. `null` if this line is a debit.
+</ResponseField>
+
+<ResponseField name="balance" type="number">
+  Running account balance after this entry is applied.
+</ResponseField>
+
+<ResponseField name="source" type="string">
+  Integration name (e.g., `Stripe`, `Banco de Chile`) or `manual` if entered via API or Sintropix UI.
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "account_id": "acc_cash_001",
+      "account_name": "Cash — Banco de Chile",
+      "date": "2025-01-10",
+      "description": "Payment received — Invoice INV-0041",
+      "debit": 5000000,
+      "credit": null,
+      "balance": 62000000,
+      "source": "Banco de Chile"
+    },
+    {
+      "account_id": "acc_cash_001",
+      "account_name": "Cash — Banco de Chile",
+      "date": "2025-01-12",
+      "description": "Supplier payment — Vendor XYZ",
+      "debit": null,
+      "credit": 1200000,
+      "balance": 60800000,
+      "source": "Banco de Chile"
+    }
+  ],
+  "pagination": {
+    "cursor": "cur_Zp5sYmJrX7oMt1kB",
+    "has_more": true
+  },
+  "meta": {
+    "request_id": "req_9iXrP3oHxW0aC5fS",
+    "timestamp": "2025-01-15T13:15:00Z"
+  }
+}
+```
+
+<Note>
+  General ledger amounts are always returned in the entity's **functional currency**. Use the `currency` parameter on other report endpoints (P&L, Balance Sheet, Cash Flow) if you need translation to a reporting currency such as USD.
+</Note>

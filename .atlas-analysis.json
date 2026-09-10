@@ -1,13 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "Sintropix",
+  "projectType": "saas",
+  "projectName": "Sintropix",
+  "projectDescription": "An AI-native ERP platform where finance teams and AI agents collaborate on financial data — automating reconciliation, multi-entity consolidation, and continuous close for multi-country LATAM startups.",
   "theme": "luma",
-  "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
-  },
-  "favicon": "/favicon.svg",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
   "navigation": {
     "tabs": [
       {
@@ -83,11 +81,26 @@
       }
     ]
   },
-  "navbar": {
-    "primary": {
-      "type": "button",
-      "label": "Get Started",
-      "href": "https://sintropix.com"
-    }
-  }
+  "keyFeatures": [
+    "AI Assistant (Erwin) — answers finance questions using your live data",
+    "Continuous Close — general ledger updated daily, month-end is a review not a rebuild",
+    "Automatic Reconciliation — bank movements matched to invoices, payroll, and accounting entries",
+    "Multi-Entity Management — manage all LATAM subsidiaries in one platform with intercompany eliminations",
+    "Multi-Currency Support — transaction, functional, and reporting currencies with daily FX rates",
+    "Revenue Recognition — contract-to-accrual automation integrated with HubSpot and PDF contracts",
+    "Financial Snapshot — live consolidated metrics: Cash, ARR, Burn, Runway, AP, AR",
+    "100+ Native Integrations — banks, payroll, expenses, CRMs, and payment processors"
+  ],
+  "publicApiSurface": [
+    "GET /entities — list legal entities",
+    "GET /transactions — query transactions by entity, date range, currency",
+    "POST /transactions — create manual journal entries",
+    "GET /reconciliation/status — fetch reconciliation status",
+    "POST /reconciliation/match — manually match transactions",
+    "GET /reports/pnl — profit & loss statement",
+    "GET /reports/balance-sheet — balance sheet",
+    "GET /reports/cash-flow — cash flow statement",
+    "GET /reports/general-ledger — general ledger",
+    "POST /webhooks — register webhook endpoints for transaction and close events"
+  ]
 }

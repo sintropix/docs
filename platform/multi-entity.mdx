@@ -1,0 +1,70 @@
+---
+title: "Multi-Entity Management: All Your Subsidiaries in One Place"
+sidebarTitle: "Multi-Entity"
+description: "Manage your US holding company and every LATAM subsidiary in a single Sintropix workspace — with consolidated reporting, intercompany eliminations, and per-entity controls."
+---
+
+Most multi-country LATAM startups end up managing their finances across a patchwork of local accountants, spreadsheets, and country-specific tools — one system for Chile, another for Mexico, a shared drive for Colombia. Sintropix brings every entity into one platform: a US holding company and any number of LATAM subsidiaries, each with its own settings, and all available through a single consolidated view.
+
+## Entity Structure
+
+Each entity in Sintropix is a fully independent accounting environment with its own:
+
+- **Chart of accounts** — customized for the entity's jurisdiction and reporting requirements.
+- **Functional currency** — the primary operating currency in which the entity's books are kept (e.g., CLP for Chile, MXN for Mexico, USD for the US holding).
+- **Tax calendar** — the local fiscal year and statutory deadline schedule for the entity's country.
+- **External accountant access** — you can invite a local accountant to a specific entity without granting them access to the rest of your group.
+
+The **holding entity** sits at the top of the structure and is the basis for consolidated group reporting. Subsidiaries roll up to the holding entity for consolidation purposes.
+
+## Consolidated View
+
+The consolidated dashboard aggregates all entities into a single set of financial metrics and reports. Sintropix converts each entity's functional-currency balances to your chosen **reporting currency** (typically USD) using daily exchange rates, then sums across all entities.
+
+This means your group-level P&L, Balance Sheet, and Cash Flow always reflect the real consolidated position — not a manual spreadsheet assembled after the fact.
+
+## Intercompany Eliminations
+
+When one entity in your group sells to, lends to, or transfers funds to another entity, those transactions appear in both entities' books. If you include them in consolidated reports without adjustment, you overstate revenue, expenses, and balances. The process of removing these internal transactions from consolidated reports is called **intercompany elimination**.
+
+Sintropix handles eliminations automatically. When you record a transaction and tag it as intercompany — specifying the counterpart entity — Sintropix generates the offsetting elimination entries at consolidation time. These entries appear in your consolidated reports but do not affect the individual entity books.
+
+## Adding an Entity
+
+<Steps>
+  <Step title="Name the entity">
+    Go to **Settings → Entities → Add Entity** and enter the legal name of the entity as it appears in its jurisdiction.
+  </Step>
+  <Step title="Select country and jurisdiction">
+    Choose the entity's country of incorporation. Sintropix will load the appropriate chart of accounts template and tax calendar for that jurisdiction.
+  </Step>
+  <Step title="Set the functional currency">
+    Select the entity's primary operating currency. This is the currency in which the entity's statutory accounts are maintained.
+  </Step>
+  <Step title="Connect bank accounts and integrations">
+    Link the entity's bank accounts (Santander, BCI, Itaú, Mercado Pago, and others), payroll provider (Buk, Rankmi), and any other relevant integrations. The entity will begin importing data and reconciling transactions as soon as the connections are active.
+  </Step>
+</Steps>
+
+## Supported Countries
+
+Sintropix supports multi-entity structures across the following countries. Each comes with a local chart of accounts template and tax calendar.
+
+| Country | Flag |
+|---|---|
+| United States | 🇺🇸 |
+| Chile | 🇨🇱 |
+| Mexico | 🇲🇽 |
+| Colombia | 🇨🇴 |
+| Peru | 🇵🇪 |
+| Brazil | 🇧🇷 |
+| Argentina | 🇦🇷 |
+
+<CardGroup cols={2}>
+  <Card title="Multi-Currency" icon="coins" href="/platform/multi-currency">
+    Understand how Sintropix handles transaction, functional, and reporting currencies across your entities.
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations/overview">
+    Connect banks, payroll providers, and other tools to each of your entities.
+  </Card>
+</CardGroup>

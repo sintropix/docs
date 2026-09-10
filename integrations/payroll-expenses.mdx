@@ -1,0 +1,78 @@
+---
+title: "Payroll and Expense Integrations in Sintropix"
+sidebarTitle: "Payroll & Expenses"
+description: "Automatically import payroll settlements from Buk and Rankmi and employee expenses from Rinde Gastos, Xpendit, and Ramp into your general ledger."
+---
+
+Payroll and employee expenses are among the largest and most recurring cost categories for a scaling startup — and they're traditionally among the most manual to record. Sintropix integrates directly with your payroll and expense platforms so that every pay run and approved expense report is posted to the correct general ledger account and entity without any manual data entry from your finance team.
+
+## Payroll Integrations
+
+Sintropix imports payroll settlements automatically after each pay run is processed in your payroll system. Each imported run is posted as a journal entry to the general ledger, broken down by cost component.
+
+### Buk
+
+Buk connects to Sintropix via API. After each payroll cycle, Sintropix imports:
+
+- Gross salary and net pay per employee
+- Bonuses and variable compensation
+- Employer social security contributions (previsión, AFP, Fonasa/Isapre in Chile; IMSS/INFONAVIT in Mexico; and equivalent schemes in other countries)
+- Severance provisions where applicable
+
+Each line item is tagged with the corresponding entity and employee classification (full-time, part-time, contractor, etc.), giving you accurate labor cost breakdowns per entity in your P&L.
+
+### Rankmi
+
+Rankmi connects via API and provides the same payroll data structure as Buk — settlements, bonuses, and social contributions imported per pay period. If your organization uses Rankmi as its primary HR and payroll platform, Sintropix maps Rankmi's payroll output to the same general ledger structure.
+
+<Note>
+  Payroll integrations are per-entity. If you operate subsidiaries in Chile and Mexico and both use Buk, connect Buk separately for each entity in **Settings → Integrations**. This ensures payroll entries are attributed to the correct entity and do not cross-contaminate your consolidation reports.
+</Note>
+
+## Expense Integrations
+
+Employee expense reports are imported after approval in your expense platform and posted as accounts payable entries in Sintropix. When the corresponding bank payment clears, Sintropix matches it against the AP entry automatically during reconciliation.
+
+### Rinde Gastos
+
+Rinde Gastos is a common expense management tool for LATAM teams. Sintropix imports expense reports from Rinde after they reach **Approved** status. Each report line is mapped to an expense category and entity.
+
+### Xpendit
+
+Xpendit expense reports and corporate card transactions are imported after manager approval. Both reimbursable employee expenses and corporate card charges are supported, giving you a complete view of team spending.
+
+### Ramp
+
+Ramp is typically used by your US holding entity for USD-denominated corporate card spend. Sintropix imports Ramp transactions and expense reports, posting them to the holding entity's accounts payable. Because Ramp transactions are in USD, no currency conversion is required for the holding entity; subsidiary entities that incur USD expenses through Ramp will have those transactions converted at the applicable FX rate.
+
+## Connecting Payroll
+
+<Steps>
+  <Step title="Open Integrations">
+    Navigate to **Settings → Integrations** and select the **Payroll** category.
+  </Step>
+  <Step title="Select your provider">
+    Choose **Buk** or **Rankmi** from the list of available connectors.
+  </Step>
+  <Step title="Authenticate">
+    Enter the API key provided by your payroll platform, or complete the OAuth flow if prompted. You'll find your API key in the developer or integrations section of your payroll provider's settings.
+  </Step>
+  <Step title="Select the entity">
+    Choose the Sintropix entity this payroll connection belongs to. Repeat this process for each entity that uses the same provider.
+  </Step>
+  <Step title="Choose import start date">
+    Select how far back you want Sintropix to import historical payroll runs. You can import from the beginning of the current fiscal year or choose a custom start date.
+  </Step>
+</Steps>
+
+## Connecting Expenses
+
+The setup flow for expense integrations follows the same pattern as payroll:
+
+1. Go to **Settings → Integrations → Expenses**.
+2. Select your expense provider (Rinde Gastos, Xpendit, or Ramp).
+3. Authenticate using the provider's API key or OAuth flow.
+4. Select the entity associated with this expense platform.
+5. Sintropix begins importing approved expense reports.
+
+Once connected, approved expense reports flow into your accounts payable ledger automatically. When your finance team processes the reimbursement and the bank payment clears, Sintropix matches the bank debit against the AP entry — no manual reconciliation step required.

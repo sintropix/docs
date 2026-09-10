@@ -1,0 +1,173 @@
+---
+title: "Entities API: Manage Legal Entities in Sintropix"
+sidebarTitle: "Entities"
+description: "List and inspect the legal entities in your Sintropix organization — countries, functional currencies, integration counts, and chart of accounts."
+---
+
+In Sintropix, an **entity** represents a single legal company in your group structure — for example, your US holding company, your Chilean SpA, or your Mexican SAPI. The Entities API lets you list all entities in your organization and retrieve the configuration details for any individual entity, including its functional currency, status, and the number of connected integrations.
+
+All Entities endpoints require the `read:entities` scope.
+
+---
+
+## GET /entities
+
+List all legal entities in your organization.
+
+```bash
+curl https://api.sintropix.com/v1/entities \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+### Query Parameters
+
+<ParamField query="page_size" type="integer" default="20">
+  Number of entities to return per page. Maximum `100`.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor returned by the previous response. Omit on the first request.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="id" type="string">
+  Unique identifier for the entity (e.g., `ent_abc123`).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Legal name of the entity as registered.
+</ResponseField>
+
+<ResponseField name="country" type="string">
+  Two-letter country code in [ISO 3166-1 alpha-2](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) format (e.g., `CL`, `MX`, `CO`, `PE`, `BR`, `AR`, `US`).
+</ResponseField>
+
+<ResponseField name="functional_currency" type="string">
+  The entity's functional currency in [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) format (e.g., `CLP`, `MXN`, `USD`).
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Entity lifecycle status. One of `active` or `inactive`.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of when the entity was added to Sintropix.
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "ent_abc123",
+      "name": "Acme Holdings Inc.",
+      "country": "US",
+      "functional_currency": "USD",
+      "status": "active",
+      "created_at": "2024-03-01T09:00:00Z"
+    },
+    {
+      "id": "ent_def456",
+      "name": "Acme Chile SpA",
+      "country": "CL",
+      "functional_currency": "CLP",
+      "status": "active",
+      "created_at": "2024-03-01T09:05:00Z"
+    },
+    {
+      "id": "ent_ghi789",
+      "name": "Acme México SAPI de CV",
+      "country": "MX",
+      "functional_currency": "MXN",
+      "status": "active",
+      "created_at": "2024-03-01T09:10:00Z"
+    }
+  ],
+  "pagination": {
+    "cursor": "cur_NxT4pAgEcUrSoR",
+    "has_more": false
+  },
+  "meta": {
+    "request_id": "req_7fKpL3mNqR9sT2vX",
+    "timestamp": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+---
+
+## GET /entities/{entity_id}
+
+Retrieve the full configuration details for a single entity by its ID. This response includes additional fields beyond the list view — specifically the number of accounts in the entity's chart of accounts and the number of active integrations.
+
+```bash
+curl https://api.sintropix.com/v1/entities/ent_abc123 \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY"
+```
+
+### Path Parameters
+
+<ParamField path="entity_id" type="string" required>
+  The unique identifier of the entity to retrieve (e.g., `ent_abc123`).
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="id" type="string">
+  Unique identifier for the entity.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Legal name of the entity.
+</ResponseField>
+
+<ResponseField name="country" type="string">
+  ISO 3166-1 alpha-2 country code.
+</ResponseField>
+
+<ResponseField name="functional_currency" type="string">
+  ISO 4217 functional currency code.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  `active` or `inactive`.
+</ResponseField>
+
+<ResponseField name="chart_of_accounts_count" type="integer">
+  Total number of accounts defined in this entity's chart of accounts.
+</ResponseField>
+
+<ResponseField name="integration_count" type="integer">
+  Number of active integrations (banks, payroll, CRM, etc.) connected to this entity.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of when the entity was added to Sintropix.
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "id": "ent_def456",
+    "name": "Acme Chile SpA",
+    "country": "CL",
+    "functional_currency": "CLP",
+    "status": "active",
+    "chart_of_accounts_count": 87,
+    "integration_count": 4,
+    "created_at": "2024-03-01T09:05:00Z"
+  },
+  "meta": {
+    "request_id": "req_9aTkW2bNpR5sU7xY",
+    "timestamp": "2025-01-15T10:31:00Z"
+  }
+}
+```
+
+<Note>
+  If you request an `entity_id` that does not belong to your organization, the API returns `404 Not Found` — not `403 Forbidden` — to avoid leaking information about other organizations' entity IDs.
+</Note>

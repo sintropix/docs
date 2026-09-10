@@ -1,0 +1,129 @@
+---
+title: "Sintropix API: Programmatic Access to Your Financial Data"
+sidebarTitle: "Overview"
+description: "Explore the Sintropix REST API — query live financial data, create transactions, trigger reconciliation, and pull reports programmatically."
+---
+
+The Sintropix REST API gives you and your AI agents direct, programmatic access to your financial data. You can query transactions, create journal entries, trigger reconciliation runs, pull financial statements, and integrate Sintropix into any internal workflow or external tool — all over standard HTTPS with JSON payloads.
+
+## Base URL
+
+Every API request targets the following base URL:
+
+```
+https://api.sintropix.com/v1
+```
+
+All endpoints are versioned under `/v1`. When breaking changes are introduced, a new version path will be announced with a migration period.
+
+## Request Format
+
+All requests must include a `Content-Type: application/json` header, and request bodies must be valid JSON.
+
+```bash
+curl https://api.sintropix.com/v1/entities \
+  -H "Authorization: Bearer sk_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+<Note>
+  `GET` requests do not require a request body. Pass filters and options as query string parameters instead.
+</Note>
+
+## Response Format
+
+Every response from the Sintropix API is a JSON object. Successful responses wrap the returned data in a `data` key alongside a `meta` object that includes a unique request identifier and server-side timestamp — useful for debugging and support tickets.
+
+```json
+{
+  "data": {
+    "id": "ent_abc123",
+    "name": "Sintropix Chile SpA",
+    "country": "CL"
+  },
+  "meta": {
+    "request_id": "req_7fKpL3mNqR9sT2vX",
+    "timestamp": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+## Pagination
+
+List endpoints use **cursor-based pagination** to ensure stable, consistent results even as new records are created. Pass `limit` to control page size and `cursor` to advance through pages.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | integer | Number of records to return. Default `20`, maximum `100`. |
+| `cursor` | string | Opaque cursor returned by the previous response. Omit on first request. |
+| `has_more` | boolean | `true` if additional records exist beyond this page. |
+
+A paginated response looks like this:
+
+```json
+{
+  "data": [...],
+  "pagination": {
+    "cursor": "cur_NxT4pAgEcUrSoR",
+    "has_more": true
+  },
+  "meta": {
+    "request_id": "req_7fKpL3mNqR9sT2vX",
+    "timestamp": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+To retrieve the next page, pass the returned `cursor` value as the `cursor` query parameter in your next request. When `has_more` is `false`, you have reached the last page.
+
+## Rate Limits
+
+The API enforces a limit of **1,000 requests per minute** per API key. Every response includes the following headers so you can monitor your consumption:
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Maximum requests allowed per minute for your key. |
+| `X-RateLimit-Remaining` | Requests remaining in the current window. |
+| `X-RateLimit-Reset` | Unix timestamp (seconds) when the current window resets. |
+
+If you exceed the limit, the API returns `429 Too Many Requests`. Wait until `X-RateLimit-Reset` before retrying.
+
+<Tip>
+  For high-volume workflows, use the `cursor` pagination pattern to bulk-read data in large pages rather than making many small requests.
+</Tip>
+
+## Error Codes
+
+When a request fails, the API returns a structured error object alongside the appropriate HTTP status code:
+
+```json
+{
+  "error": {
+    "code": "INVALID_PARAMETER",
+    "message": "The 'start_date' parameter must be a valid ISO 8601 date string.",
+    "param": "start_date"
+  }
+}
+```
+
+The `code` field contains a machine-readable string you can match in your code. The `message` field is a human-readable explanation. `param` is present when the error relates to a specific request parameter.
+
+| HTTP Status | Meaning |
+|-------------|---------|
+| `200 OK` | Request succeeded. |
+| `201 Created` | Resource created successfully. |
+| `400 Bad Request` | One or more request parameters are invalid or missing. |
+| `401 Unauthorized` | API key is missing or invalid. |
+| `403 Forbidden` | Your API key does not have the required scope for this operation. |
+| `404 Not Found` | The requested resource does not exist. |
+| `429 Too Many Requests` | Rate limit exceeded. Check `X-RateLimit-Reset` and retry. |
+| `500 Internal Server Error` | An unexpected server-side error occurred. Contact support if the issue persists. |
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api-reference/authentication">
+    Learn how to create and use API keys, manage scopes, and keep your credentials secure.
+  </Card>
+  <Card title="Entities" icon="building" href="/api-reference/entities">
+    List and inspect the legal entities in your Sintropix organization.
+  </Card>
+</CardGroup>

@@ -1,0 +1,83 @@
+---
+title: "Frequently Asked Questions About Sintropix"
+sidebarTitle: "FAQ"
+description: "Find answers to common questions about Sintropix setup, integrations, supported countries, currencies, data security, and platform capabilities."
+---
+
+Whether you're just getting started or exploring what Sintropix can do for your finance team, this page answers the most common questions about the platform — from entity setup and currency support to how Erwin accesses your data and what happens when an integration disconnects.
+
+<AccordionGroup>
+  <Accordion title="Which countries does Sintropix support?">
+    Sintropix supports multi-entity structures across **Chile, Mexico, Colombia, Peru, Brazil, Argentina, and the United States**. You can manage a US holding company alongside any combination of LATAM subsidiaries from a single platform, with each entity maintaining its own chart of accounts, functional currency, and local compliance settings.
+  </Accordion>
+
+  <Accordion title="Does Sintropix replace my external accountant?">
+    No — Sintropix is not a replacement for your external accountant. The platform automates data capture, bank reconciliation, intercompany eliminations, and general ledger updates so that your accountant spends less time rebuilding data and more time on review and judgment. Your accountant still reviews, approves, and signs off on financial statements. Think of Sintropix as the infrastructure layer that keeps your books current and audit-ready at all times.
+  </Accordion>
+
+  <Accordion title="How long does the initial data import take?">
+    The first synchronization can take **up to 24 hours**, depending on the volume of historical transactions across your connected banks, payroll providers, and expense systems. Larger histories — for example, multiple entities with several years of bank data — may take longer. You will receive a notification once the initial import is complete and reconciliation can begin. Ongoing syncs after the first connection are near real-time.
+  </Accordion>
+
+  <Accordion title="Can I use Sintropix with just one entity?">
+    Sintropix is purpose-built for **multi-entity structures** — US holding companies with LATAM subsidiaries. Single-entity companies can connect and use the platform, but many of the highest-value features (consolidated reporting, intercompany eliminations, multi-currency translation, and entity-level benchmarking) require at least two entities to be meaningful. If you are currently single-entity but planning to expand, Sintropix is designed to scale with you.
+  </Accordion>
+
+  <Accordion title="What currencies does Sintropix support?">
+    Sintropix supports all major LATAM currencies, including **USD, CLP, MXN, COP, PEN, BRL, and ARS**. Exchange rates update daily, and the platform maintains three currency layers for every transaction:
+
+    - **Transaction currency** — the currency in which the payment or invoice was issued
+    - **Functional currency** — the primary operating currency of each entity
+    - **Reporting currency** — the consolidated currency used for group-level financial statements (typically USD)
+
+    FX differences are posted automatically to the appropriate gain/loss account based on each entity's settings.
+  </Accordion>
+
+  <Accordion title="How does Erwin access my financial data?">
+    Erwin, the Sintropix AI assistant, reads your **reconciled transactions and general ledger in real-time** — the same data your finance team sees in the dashboard and reports. Erwin only accesses data belonging to your company; it has no visibility into other organizations on the platform. All queries are processed within Sintropix's secure infrastructure. Erwin cannot modify transactions or post entries — it is a read-only analytical assistant.
+  </Accordion>
+
+  <Accordion title="Can multiple team members use Sintropix?">
+    Yes. You can invite team members from **Settings → Team**. Sintropix uses role-based access controls (RBAC) to define what each person can see and edit:
+
+    - **Admin** — full access to all entities, settings, and integrations
+    - **Finance Manager** — can view and edit transactions, reports, and reconciliation queues
+    - **Viewer** — read-only access to reports and dashboards
+
+    You can also restrict access at the entity level, so a team member in Chile only sees the Chilean subsidiary's data. Role and entity permissions can be adjusted at any time.
+  </Accordion>
+
+  <Accordion title="Is my financial data secure?">
+    Yes. Sintropix applies enterprise-grade security across the entire platform:
+
+    - All data is **encrypted in transit** (TLS 1.2+) and **at rest** (AES-256)
+    - Sintropix is **SOC 2 Type II compliant**
+    - Bank connections use read-only API access — Sintropix never stores your banking credentials
+    - Access logs are maintained for all user and API activity
+    - Data is isolated per organization; no cross-tenant data access is possible
+
+    For detailed security documentation, visit [sintropix.com/security](https://sintropix.com/security).
+  </Accordion>
+
+  <Accordion title="What happens if a bank integration disconnects?">
+    When a bank integration loses its connection — most commonly because credentials have expired or the bank requires re-authentication — an **alert appears in your dashboard action items**. Transaction syncing pauses until the connection is restored. To reconnect:
+
+    1. Go to **Settings → Integrations**
+    2. Find the disconnected integration (marked with a red status indicator)
+    3. Click **Reconnect** and follow the authentication steps for that bank
+
+    Sintropix will automatically backfill any transactions that were missed during the disconnection window once the integration is restored.
+  </Accordion>
+
+  <Accordion title="Can I export data out of Sintropix?">
+    Yes. Every report in Sintropix — P&L, Balance Sheet, General Ledger, Cash Flow, and custom reports — can be exported to **CSV, Excel (.xlsx), and PDF** directly from the report view. For programmatic access, Sintropix provides a REST API that allows you to pull transaction data, entity metadata, and report outputs into your own data warehouse or BI tools. API documentation is available at [sintropix.com/docs/api](https://sintropix.com/docs/api).
+  </Accordion>
+
+  <Accordion title="How are intercompany transactions handled?">
+    When you tag a transaction as **intercompany** and specify the counterpart entity, Sintropix automatically eliminates it from consolidated financial reports. This means intercompany loans, management fees, and transfers do not inflate your group-level revenue, expenses, or balances. At the individual entity level, the transaction remains fully visible. You can review all intercompany eliminations in the **Multi-Entity → Eliminations** section before finalizing a consolidated period.
+  </Accordion>
+
+  <Accordion title="Does Sintropix support the local chart of accounts for each country?">
+    Yes. Each entity in Sintropix has its own **chart of accounts adapted to local accounting standards**. For example, Chilean entities follow the Chilean GAAP structure, Mexican entities follow the SAT-aligned plan de cuentas, and Brazilian entities follow CPC/IFRS conventions. When you create a new entity, Sintropix pre-populates a country-appropriate chart of accounts that you can customize. At the group level, accounts are mapped to a unified reporting structure so consolidated reports are consistent across all entities.
+  </Accordion>
+</AccordionGroup>
