@@ -32,7 +32,7 @@ Returns a paginated page of audit envelopes for the entity, plus the named resou
 **Response:** `auditTrailPageSchema` (paginated: `{ envelopes, namedResources, nextCursor }`)
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/audit-trail?limit=50" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?limit=50" \
   -H "Cookie: <session-cookie>"
 ```
 

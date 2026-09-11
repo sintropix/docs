@@ -18,7 +18,7 @@ List every Invoice for the Entity, filtered by direction and document kind.
 - **Response:** array of `invoiceSchema`.
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices?direction=ar" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices?direction=ar" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -41,7 +41,7 @@ Create an Invoice.
 - **Response:** `createInvoiceResultSchema`.
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \

@@ -63,7 +63,7 @@ Returns `PresignResult`.
 ### Example
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/presign" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/presign" \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -d '{
@@ -111,7 +111,7 @@ Returns `AttachmentWithoutObjectKey`.
 ### Example
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/confirm" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/confirm" \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -141,7 +141,7 @@ Returns an array of `AttachmentWithoutObjectKey`.
 ### Example
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -172,7 +172,7 @@ Returns `AttachmentUrl`.
 ### Example
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/$ATTACHMENT_ID/url" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/$ATTACHMENT_ID/url" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -197,7 +197,7 @@ Remove an attachment and its link to the host resource. The response has no body
 ### Example
 
 ```bash
-curl -X DELETE "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/$ATTACHMENT_ID" \
+curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/attachments/$ATTACHMENT_ID" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```

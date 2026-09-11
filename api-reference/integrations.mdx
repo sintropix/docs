@@ -18,7 +18,7 @@ Create an Integration.
 - **Response:** `integrationWithFeedSchema` (the Integration and its linked Source Feed, if any).
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/integrations" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \

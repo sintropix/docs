@@ -98,7 +98,7 @@ The lease has no refresh protocol: an expired lease simply lapses, and the next 
 The frontend uses Better Auth's client library rather than raw HTTP, but the underlying request is a plain POST:
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/auth/sign-in/email" \
+curl -X POST "https://api.sintropix.com/api/auth/sign-in/email" \
   -H "Content-Type: application/json" \
   --cookie-jar cookies.txt \
   -d '{"email": "you@example.com", "password": "…"}'
@@ -107,7 +107,7 @@ curl -X POST "https://<your-erp-backend-host>/api/auth/sign-in/email" \
 Subsequent business calls read the cookie jar:
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities" \
+curl "https://api.sintropix.com/api/entities" \
   --cookie cookies.txt
 ```
 
@@ -119,11 +119,11 @@ curl "https://<your-erp-backend-host>/api/entities" \
 
 ```bash
 # Read (no x-audit-actor required)
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/balance-sheet?asOf=2025-12-31" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet?asOf=2025-12-31" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 
 # Mutate (x-audit-actor required)
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/partners" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-reconciliation-bot" \
   -H "Content-Type: application/json" \

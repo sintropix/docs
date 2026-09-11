@@ -17,7 +17,7 @@ List every Partner for the Entity, each row enriched with Open Item totals (unse
 - **Response:** array of `partnerWithOpenTotalsSchema`.
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/partners" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -36,7 +36,7 @@ Create a Partner.
 - **Response:** `partnersPageRowSchema`.
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/partners" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \

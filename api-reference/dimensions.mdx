@@ -27,7 +27,7 @@ List all Dimensions for an Entity.
 | `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
-curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions \
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -47,7 +47,7 @@ Create a new Dimension.
 - **Status:** 201
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -72,7 +72,7 @@ Rename a Dimension.
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -88,7 +88,7 @@ Delete a Dimension. A Dimension that has values cannot be deleted.
 - **Status:** 200
 
 ```bash
-curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -113,7 +113,7 @@ List all Dimension Values for a Dimension.
 | `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
-curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -135,7 +135,7 @@ Create a new Dimension Value.
 - **Status:** 201
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -166,7 +166,7 @@ At least one field must be provided.
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -182,7 +182,7 @@ Delete a Dimension Value. A value that is tagged on any Ledger Entry Line or tha
 - **Status:** 200
 
 ```bash
-curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```

@@ -32,7 +32,7 @@ List Ledger Entries with pagination, filtering, and sorting. Defaults to live en
 - **Status:** 200
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -45,7 +45,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 - **Status:** 200
 
 ```bash
-curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -85,7 +85,7 @@ Each line in `newLedgerEntryLines`:
 - **Status:** 201
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -118,7 +118,7 @@ Update an entry's header fields (date, memo, notes). At least one field must be 
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -141,7 +141,7 @@ Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be
 - **Status:** 201
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID/reverse \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID/reverse \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -160,7 +160,7 @@ Unbook (soft-delete) a Ledger Entry. The entry status becomes `deleted`. This se
 - **Status:** 200
 
 ```bash
-curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -177,7 +177,7 @@ Schedule a Ledger Entry for future booking. The entry date must be in the future
 - **Status:** 201
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled-entries \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -202,7 +202,7 @@ Book a Scheduled Entry immediately. The entry date must be on or before today.
 - **Status:** 200
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID/book \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID/book \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -225,7 +225,7 @@ Reschedule a planned entry. Replaces the date, memo, notes, and the entire line 
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -249,7 +249,7 @@ Cancel a Scheduled Entry. The entry status becomes `cancelled`.
 - **Status:** 200
 
 ```bash
-curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID \
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled-entries/$ENTRY_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -272,7 +272,7 @@ List Ledger Entry Lines. Defaults to live entries only. Optionally filter by par
 - **Status:** 200
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines?partnerId=$PARTNER_ID" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines?partnerId=$PARTNER_ID" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -297,7 +297,7 @@ List Open Item lines for an Open-Item Account with pagination. Shows unsettled l
 - **Status:** 200
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/open-item-lines?accountId=$ACCOUNT_ID&limit=20" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/open-item-lines?accountId=$ACCOUNT_ID&limit=20" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -316,7 +316,7 @@ Change the partner on a Ledger Entry Line. `null` clears the partner.
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/partner \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/partner \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -338,7 +338,7 @@ Reclassify a Ledger Entry Line to a different Ledger Account. The line must have
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/account \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/account \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -360,7 +360,7 @@ Replace the Dimension Value tags on a Ledger Entry Line. An empty array untags t
 - **Status:** 200
 
 ```bash
-curl -X PUT https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/dimension-values \
+curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE_ID/dimension-values \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \

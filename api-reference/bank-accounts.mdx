@@ -77,7 +77,7 @@ The `feed` object, when present, contains:
 ### Example
 
 ```bash
-curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts \
+curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -115,7 +115,7 @@ Returns `201 Created` with a `BankAccountWithSummary` object.
 ### Example
 
 ```bash
-curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts \
+curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
   -X POST \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
@@ -158,7 +158,7 @@ Returns `200 OK` with a `BankAccount` object (without summary fields).
 ### Example
 
 ```bash
-curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID \
+curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID \
   -X PATCH \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
@@ -193,7 +193,7 @@ Returns `200 OK` with a `DeleteBankAccountResult`:
 ### Example
 
 ```bash
-curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID \
+curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID \
   -X DELETE \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
@@ -221,7 +221,7 @@ Returns `200 OK` with a `BankAccount` object (feed is now null).
 ### Example
 
 ```bash
-curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/feed \
+curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/feed \
   -X DELETE \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
@@ -255,7 +255,7 @@ Returns `201 Created` with a `BankAccountFeedSyncResult`:
 ### Example
 
 ```bash
-curl -s https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/feed/sync \
+curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/feed/sync \
   -X POST \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"

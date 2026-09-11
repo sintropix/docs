@@ -32,7 +32,7 @@ Trigger an on-demand sync of a Source Feed. The response reports how many docume
 - **Status:** `200`.
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/source-feeds/$FEED_ID/sync" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FEED_ID/sync" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \

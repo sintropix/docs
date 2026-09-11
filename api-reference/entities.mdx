@@ -29,7 +29,7 @@ Create a new Entity. The client supplies the idempotency id, so a retried POST c
 - **Status:** 201
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities \
+curl -X POST https://api.sintropix.com/api/entities \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -50,7 +50,7 @@ List every Entity the caller can access. Staff see all Entities; clients see onl
 - **Status:** 200
 
 ```bash
-curl https://<your-erp-backend-host>/api/entities \
+curl https://api.sintropix.com/api/entities \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -63,7 +63,7 @@ Check whether the identity fields of an Entity (name, country, taxId, currency) 
 - **Status:** 200
 
 ```bash
-curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/editability \
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/editability \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -85,7 +85,7 @@ Update the core identity fields of an Entity. At least one field must be provide
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -107,7 +107,7 @@ Set, move, or clear the ledger lock date. A date freezes the ledger up to and in
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger-lock-date \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger-lock-date \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -130,7 +130,7 @@ Set or clear the parent Entity that controls this one. An id names the controlli
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/parent \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/parent \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -153,7 +153,7 @@ Set or remove the free-text accounting policies of an Entity. Free text sets the
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://<your-erp-backend-host>/api/entities/$ENTITY_ID/accounting-policies \
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/accounting-policies \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \

@@ -21,7 +21,7 @@ List Movements on a Bank Account. Returns `bankMovementsPageSchema`, a paginated
 - **Query:** `ListBankMovementsQueryDto` (grep `list-bank-movements-query.dto.ts` for the exact filters, which include a cursor, page size, date range, and status filter).
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -51,7 +51,7 @@ Create a manual Bank Movement on the account. Requires `x-audit-actor` for API-k
 - **Response:** `createBankMovementResultSchema`.
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \

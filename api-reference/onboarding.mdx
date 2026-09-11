@@ -36,7 +36,7 @@ Grant an Entity Membership to a User. `client` Users see and edit exactly the En
 - **Status:** `204`.
 
 ```bash
-curl -X POST "https://<your-erp-backend-host>/api/onboarding/users/$USER_ID/memberships" \
+curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships" \
   --cookie cookies.txt \
   -H "Content-Type: application/json" \
   -d '{ "entityId": "…" }'

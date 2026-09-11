@@ -11,62 +11,16 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Documentation",
+        "tab": "API Reference",
         "groups": [
           {
             "group": "Get Started",
             "pages": [
-              "introduction",
+              "api-reference/overview",
+              "api-reference/authentication",
+              "guides/api-keys",
               "quickstart",
               "core-concepts"
-            ]
-          },
-          {
-            "group": "Platform",
-            "pages": [
-              "platform/dashboard",
-              "platform/ai-assistant",
-              "platform/continuous-close",
-              "platform/reconciliation",
-              "platform/multi-entity",
-              "platform/multi-currency"
-            ]
-          },
-          {
-            "group": "Finance Modules",
-            "pages": [
-              "modules/revenue-recognition",
-              "modules/reports",
-              "modules/accounts-payable",
-              "modules/accounts-receivable"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              "integrations/overview",
-              "integrations/banks",
-              "integrations/payroll-expenses",
-              "integrations/crm-payments"
-            ]
-          },
-          {
-            "group": "Help",
-            "pages": [
-              "help/faq",
-              "help/troubleshooting"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
-          {
-            "group": "API Overview",
-            "pages": [
-              "api-reference/overview",
-              "api-reference/authentication"
             ]
           },
           {

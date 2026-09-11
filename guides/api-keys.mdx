@@ -1,0 +1,49 @@
+---
+title: "Get a Sintropix API Key for Agents and Integrations"
+sidebarTitle: "Get an API Key"
+description: "Create a Sintropix API key, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
+---
+
+Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, inherits the owning User's Role and Memberships, and is rate-limited to 5,000 requests per hour.
+
+<Steps>
+  <Step title="Sign in to Sintropix">
+    Open your Sintropix workspace and sign in as the User the key should act on behalf of. The key inherits that User's Role and per-Entity Memberships, so choose a User with the access the integration actually needs.
+  </Step>
+  <Step title="Create the key">
+    Open your account settings and create a new API key. Give it a descriptive name (for example, `erwin-agent` or `reconciliation-bot`) so you can identify it later in the audit trail.
+  </Step>
+  <Step title="Copy the secret">
+    The key is shown once at creation. Copy it and store it in your secrets manager immediately. Sintropix does not display the secret again after this screen.
+  </Step>
+  <Step title="Call the API">
+    Send the key in the `x-api-key` header on every request:
+
+    ```bash
+    curl https://api.sintropix.com/api/entities \
+      -H "x-api-key: $SINTROPIX_API_KEY"
+    ```
+
+    Requests to `/api/auth/*` are rejected when they carry `x-api-key`, so keys cannot be used to mint further keys or manage Users.
+  </Step>
+</Steps>
+
+## Scope and Permissions
+
+- A key authenticates as its owning User with that User's global Role and per-Entity Memberships.
+- Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities the owning User is a member of.
+- Keys can be issued as read-only or scoped to a single Entity for tighter blast radius. See [Authentication](/api-reference/authentication) for the full model, including Erwin key leases.
+
+## Rate Limits
+
+Each key is limited to **5,000 requests per hour** on a sliding window. Requests over the limit return `429 Too Many Requests`; back off and retry after the window resets.
+
+## Rotation and Revocation
+
+- Rotate keys on a schedule and whenever a team member with access leaves.
+- Revoke a key immediately from your account settings if you suspect it has leaked. Revocation takes effect on the next request.
+- Every action taken with a key is recorded in the [audit trail](/api-reference/audit-trail) under the owning User, so leaked-key activity is traceable.
+
+<Card title="Full Authentication Reference" icon="key" href="/api-reference/authentication" horizontal>
+  Session cookies, API keys, roles, tenant scoping, and error codes in detail.
+</Card>

@@ -23,7 +23,7 @@ Returns the home dashboard snapshot: cash position, daily balances for the last 
 **Response:** `homeReportSchema`
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/home" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/home" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -45,7 +45,7 @@ Returns the balance sheet for the requested exercise period.
 **Response:** `balanceSheetReportSchema`
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/balance-sheet?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -67,7 +67,7 @@ Returns the income statement for the requested date range.
 **Response:** `incomeStatementReportSchema`
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/income-statement?from=2024-01-01&to=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2024-01-01&to=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -88,7 +88,7 @@ Returns the income statement broken down by the values of a single dimension (fo
 **Response:** `incomeStatementByDimensionReportSchema`
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/income-statement-by-dimension?dimensionId=<uuid>&from=2024-01-01&to=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement-by-dimension?dimensionId=<uuid>&from=2024-01-01&to=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -111,7 +111,7 @@ Returns a paginated journal of ledger entry lines in chronological order. Each r
 **Response:** `journalReportPageSchema` (paginated: `{ rows, nextCursor }`)
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/journal?from=2024-01-01&to=2024-12-31&limit=50" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/journal?from=2024-01-01&to=2024-12-31&limit=50" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -133,7 +133,7 @@ Returns a revenue realization report for the requested period, showing recognize
 **Response:** `revenueRealizationReportSchema`
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/reports/revenue-realization?from=2024-01-01&to=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/revenue-realization?from=2024-01-01&to=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -159,7 +159,7 @@ Returns the classic eight-column trial balance: debit, credit, debtor balance, c
 **Response:** `eightColumnBalanceReportSchema`
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/reports/eight-column-balance?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/eight-column-balance?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -182,7 +182,7 @@ Returns a paginated walk of one ledger account in ledger order, with a running b
 **Response:** `generalLedgerPageSchema` (paginated: `{ lines, nextCursor, openingBalance, closingBalance, lineCount }`)
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/general-ledger?accountId=<uuid>&limit=50" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger?accountId=<uuid>&limit=50" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -205,7 +205,7 @@ Returns the partner ledger for an open-item account, grouped by partner with ope
 **Response:** `partnerLedgerReportSchema`
 
 ```bash
-curl -s "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/partner-ledger?accountId=<uuid>&from=2024-01-01&to=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/partner-ledger?accountId=<uuid>&from=2024-01-01&to=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
 

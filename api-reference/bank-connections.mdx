@@ -38,7 +38,7 @@ Start the connect flow by creating a Link Intent at the Provider. The response c
 | `publicKey` | `string` | Public key for the widget session |
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/link-intents \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/link-intents \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -76,7 +76,7 @@ Finalize the connection after the widget journey completes. The shape is a discr
 `BankConnectionWithFedAccounts` — the created connection plus any fed Bank Accounts (empty on creation).
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -112,7 +112,7 @@ Restore a failed Fintoc connection with a fresh exchange token.
 `BankConnectionWithFedAccounts`
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/reconnect \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/reconnect \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -130,7 +130,7 @@ Return every Bank Connection for the Entity, each with the fed Bank Accounts it 
 `BankConnectionWithFedAccounts[]`
 
 ```bash
-curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections \
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -155,7 +155,7 @@ Read the live account panel for one Connection. This fetches the Provider's curr
 Each discovered account carries `providerAccountId`, `name`, `number`, `type`, `currency`, balances in minor units, `refreshedAt`, `observed`, and an optional `fedBankAccount` if a feed already exists.
 
 ```bash
-curl https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -178,7 +178,7 @@ For Global66 connections, publish additional account ids the Provider does not l
 `BankConnectionWithFedAccounts`
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -203,7 +203,7 @@ Create a feed that attaches a discovered account to an existing local Bank Accou
 `BankAccount`
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/feeds \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/feeds \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -234,7 +234,7 @@ Create a new Bank Account and feed it from a discovered account in one operation
 `BankAccountWithSummary`
 
 ```bash
-curl -X POST https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/bank-accounts \
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/bank-accounts \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -263,7 +263,7 @@ Remove the connection and cascade every feed it held. The response names the del
 | `unfedBankAccounts` | `BankAccount[]` | Accounts whose feed was removed |
 
 ```bash
-curl -X DELETE https://<your-erp-backend-host>/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID \
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```

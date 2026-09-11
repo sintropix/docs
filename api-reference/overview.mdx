@@ -15,7 +15,7 @@ The Sintropix API is a JSON over HTTPS interface to the ERP backend that owns yo
 All routes are mounted under a global `/api` prefix (see `app.setGlobalPrefix('api')` in `apps/erp-backend/src/main.ts`). Sintropix has not published a stable customer-facing base URL; substitute your deployment's origin.
 
 ```text
-https://<your-erp-backend-host>/api
+https://api.sintropix.com/api
 ```
 
 The API is not versioned in the URL path. Contract-breaking changes are coordinated through `@sintropix/api-contract` version bumps and the frontend that consumes it.
@@ -63,7 +63,7 @@ See [Authentication](/api-reference/authentication) for the full model, includin
 Requests are plain JSON. Include `Content-Type: application/json` on any request with a body.
 
 ```bash
-curl "https://<your-erp-backend-host>/api/entities/$ENTITY_ID/ledger/accounts" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
