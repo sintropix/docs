@@ -8,6 +8,11 @@
     "dark": "#5669c2"
   },
   "favicon": "/favicon.png",
+  "logo": {
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png",
+    "href": "https://sintropix.com"
+  },
   "navigation": {
     "tabs": [
       {
