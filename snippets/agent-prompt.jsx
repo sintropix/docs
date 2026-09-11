@@ -7,6 +7,7 @@ export const AgentPrompt = () => {
       copied: "✓ Copied — paste into your agent to get started!",
       errorTitle: "Copy failed. Select and copy the prompt below.",
       textareaLabel: "Full Sintropix agent prompt",
+      switchTo: "Prompt in English",
       text: `Help me work with the Sintropix ERP through its API.
   Use https://docs.sintropix.com/llms.txt to find documentation as needed.
   Ask me for my API key through a secure input. If I don’t have one yet, give me both options: guide me step by step through creating it at https://app.sintropix.com under Ajustes → Claves de API → Crear clave, and point me to the illustrated guide at https://docs.sintropix.com/guides/api-keys. Then wait for me to come back with the key.
@@ -22,6 +23,7 @@ export const AgentPrompt = () => {
       copied: "✓ Copiado — pégalo en tu agente para empezar.",
       errorTitle: "No se pudo copiar. Selecciona y copia el prompt de abajo.",
       textareaLabel: "Prompt completo del agente de Sintropix en español",
+      switchTo: "Prompt en español",
       text: `Ayúdame a trabajar con el ERP de Sintropix a través de su API. Háblame siempre en español.
   Usa https://docs.sintropix.com/llms.txt para encontrar la documentación que necesites.
   Pídeme mi clave de API mediante una entrada segura. Si todavía no tengo una, dame las dos opciones: guíame paso a paso para crearla en https://app.sintropix.com en Ajustes → Claves de API → Crear clave, y muéstrame la guía ilustrada en https://docs.sintropix.com/guides/api-keys. Luego espera a que vuelva con la clave.
@@ -53,53 +55,69 @@ export const AgentPrompt = () => {
   const [status, setStatus] = useState("idle");
   const [lang, setLang] = useState("en");
 
+  // Pick the prompt language from the browser on the client only, so the
+  // server-rendered markup and the first client render stay identical.
+  useEffect(() => {
+    const languages = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
+    const prefersSpanish = languages.some((l) => typeof l === "string" && l.toLowerCase().startsWith("es"));
+    if (prefersSpanish) setLang("es");
+  }, []);
+
   useEffect(() => {
     if (status !== "copied") return;
     const timeout = setTimeout(() => setStatus("idle"), 4000);
     return () => clearTimeout(timeout);
   }, [status]);
 
-  const copyPrompt = async (key) => {
-    setLang(key);
+  const active = PROMPTS[lang];
+  const other = lang === "en" ? "es" : "en";
+
+  const copyPrompt = async () => {
     try {
-      await navigator.clipboard.writeText(PROMPTS[key].text);
+      await navigator.clipboard.writeText(active.text);
       setStatus("copied");
     } catch {
       setStatus("error");
     }
   };
 
-  const active = PROMPTS[lang];
+  const switchLang = () => {
+    setStatus("idle");
+    setLang(other);
+  };
 
   return (
-    <div className="not-prose my-6">
-      <div className="flex flex-wrap items-start gap-3">
-        {Object.entries(PROMPTS).map(([key, p]) => (
-          <div key={key} className="group relative inline-flex max-w-full flex-col items-start">
-            <button
-              type="button"
-              onClick={() => copyPrompt(key)}
-              aria-label={p.ariaLabel}
-              lang={key}
-              className="group inline-flex cursor-pointer items-center gap-2.5 rounded-2xl border border-zinc-950 bg-zinc-950 px-5 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 dark:border-zinc-200 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
-            >
-              <Icons />
-              <span>{p.label}</span>
-            </button>
-            <span
-              lang={key}
-              className="mt-3 block font-mono text-xs leading-5 text-zinc-500 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none dark:text-zinc-400"
-            >
-              {p.hint}
+    <div className="not-prose my-6" lang={lang}>
+      <div className="group relative inline-flex max-w-full flex-col items-start">
+        <button
+          type="button"
+          onClick={copyPrompt}
+          aria-label={active.ariaLabel}
+          className="group inline-flex cursor-pointer items-center gap-2.5 rounded-2xl border border-zinc-950 bg-zinc-950 px-5 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 dark:border-zinc-200 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+        >
+          <Icons />
+          <span>{active.label}</span>
+        </button>
+        <div className="mt-3 min-h-8 text-xs leading-5" role="status">
+          {status === "copied" ? (
+            <span className="text-primary">{active.copied}</span>
+          ) : (
+            <span className="block font-mono text-zinc-500 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none dark:text-zinc-400">
+              {active.hint}
             </span>
-          </div>
-        ))}
+          )}
+        </div>
       </div>
-      <div className="mt-2 min-h-5 text-xs leading-5" role="status" lang={lang}>
-        {status === "copied" ? <span className="text-primary">{active.copied}</span> : null}
-      </div>
+      <button
+        type="button"
+        onClick={switchLang}
+        lang={other}
+        className="-mt-1 block cursor-pointer text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"
+      >
+        {PROMPTS[other].switchTo}
+      </button>
       {status === "error" && (
-        <div className="mt-3 text-sm" role="alert" lang={lang}>
+        <div className="mt-3 text-sm" role="alert">
           <p>{active.errorTitle}</p>
           <textarea
             readOnly
