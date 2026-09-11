@@ -1,20 +1,49 @@
 ---
 title: "Get a Sintropix API Key for Agents and Integrations"
 sidebarTitle: "Get an API Key"
-description: "Create a Sintropix API key, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
+description: "Create a Sintropix API key from Settings, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
 ---
 
 Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, inherits the owning User's Role and Memberships, and is rate-limited to 5,000 requests per hour.
 
+Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sintropix.com). The whole trip takes under a minute.
+
 <Steps>
-  <Step title="Sign in to Sintropix">
-    Open your Sintropix workspace and sign in as the User the key should act on behalf of. The key inherits that User's Role and per-Entity Memberships, so choose a User with the access the integration actually needs.
+  <Step title="Sign in and open Settings">
+    Sign in as the User the key should act on behalf of. The key inherits that User's Role and per-Entity Memberships, so choose a User with the access the integration actually needs.
+
+    Click your name at the bottom of the left sidebar and choose **Ajustes**.
+
+    <Frame caption="The user menu at the bottom-left of the app. Ajustes opens Settings.">
+      <img src="/images/api-keys/01-user-menu.png" alt="Sintropix home screen with the user menu open, showing Ajustes and Cerrar sesión" />
+    </Frame>
+  </Step>
+  <Step title="Go to Claves de API">
+    Settings opens on the **Empresa** page. In the Configuración list on the left, click **Claves de API**.
+
+    <Frame caption="Claves de API in the Settings sidebar.">
+      <img src="/images/api-keys/02-settings-api-keys-nav.png" alt="Sintropix Settings with the Configuración sidebar, Claves de API highlighted" />
+    </Frame>
+
+    The page lists every key you own with its name, prefix, creation date, expiry, and last use. Keys can be revoked from the trash icon on each row.
+
+    <Frame caption="Existing keys. Only the prefix is shown; the secret is never displayed again after creation.">
+      <img src="/images/api-keys/03-api-keys-list.png" alt="Claves de API page listing existing keys with a Crear clave button" />
+    </Frame>
   </Step>
   <Step title="Create the key">
-    Open your account settings and create a new API key. Give it a descriptive name (for example, `erwin-agent` or `reconciliation-bot`) so you can identify it later in the audit trail.
+    Click **Crear clave**. Give the key a descriptive name (for example `erwin-agent` or `reconciliation-bot`) so you can identify it later in the key list and the audit trail, then click **Crear clave** in the dialog.
+
+    <Frame caption="Name the key after the software that will use it.">
+      <img src="/images/api-keys/04-create-key-dialog.png" alt="Crear clave de API dialog with a Nombre field" />
+    </Frame>
   </Step>
   <Step title="Copy the secret">
-    The key is shown once at creation. Copy it and store it in your secrets manager immediately. Sintropix does not display the secret again after this screen.
+    The key is shown once. Copy it with the button next to the field and store it in your secrets manager before clicking **Listo**. Sintropix does not display the secret again after this screen; if you lose it, revoke the key and create a new one.
+
+    <Frame caption="The one-time secret dialog. It also reminds you of the two headers every mutating request needs.">
+      <img src="/images/api-keys/05-copy-secret.png" alt="Copia tu clave de API dialog showing the secret once, with the x-api-key and x-audit-actor headers" />
+    </Frame>
   </Step>
   <Step title="Call the API">
     Send the key in the `x-api-key` header on every request:
@@ -22,6 +51,16 @@ Sintropix API keys let agents and integrations authenticate as a User without a 
     ```bash
     curl https://api.sintropix.com/api/entities \
       -H "x-api-key: $SINTROPIX_API_KEY"
+    ```
+
+    Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) made with a key must also send an `x-audit-actor` header naming the software that is acting. The value is recorded verbatim in the [audit trail](/api-reference/audit-trail); omitting it returns `400`.
+
+    ```bash
+    curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/partners \
+      -H "x-api-key: $SINTROPIX_API_KEY" \
+      -H "x-audit-actor: my-agent" \
+      -H "Content-Type: application/json" \
+      -d '{ /* see CreatePartnerDto */ }'
     ```
 
     Requests to `/api/auth/*` are rejected when they carry `x-api-key`, so keys cannot be used to mint further keys or manage Users.
@@ -41,7 +80,7 @@ Each key is limited to **5,000 requests per hour** on a sliding window. Requests
 ## Rotation and Revocation
 
 - Rotate keys on a schedule and whenever a team member with access leaves.
-- Revoke a key immediately from your account settings if you suspect it has leaked. Revocation takes effect on the next request.
+- Revoke a key immediately from **Ajustes → Claves de API** if you suspect it has leaked. Revocation takes effect on the next request.
 - Every action taken with a key is recorded in the [audit trail](/api-reference/audit-trail) under the owning User, so leaked-key activity is traceable.
 
 <Card title="Full Authentication Reference" icon="key" href="/api-reference/authentication" horizontal>
