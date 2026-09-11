@@ -22,11 +22,9 @@ Start the connect flow by creating a Link Intent at the Provider. The response c
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `holderType` | `enum('business', 'individual')` | Yes | Who holds the account at the institution |
+| `holderType` | `business` or `individual` | Yes | Who holds the account at the institution |
 
 ### Response
-
-`BankConnectionLinkIntent`
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -69,7 +67,35 @@ Finalize the connection after the widget journey completes. The shape is a discr
 
 ### Response
 
-`BankConnectionWithFedAccounts` — the created connection plus any fed Bank Accounts (empty on creation).
+The created connection plus any fed Bank Accounts (empty on creation). Every endpoint on this page that returns a Bank Connection uses this shape:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `uuid` | Connection id |
+| `entityId` | `uuid` | Owning Entity |
+| `provider` | `fintoc` or `global66` | Provider that holds the grant |
+| `providerRef` | `string` | Provider-side reference for the link |
+| `institutionName` | `string` | Institution display name |
+| `holderId` | `string` | Provider-side id of the account holder |
+| `mode` | `test` or `live` | Whether the link runs against the Provider's test or live environment |
+| `createdAt` | `ISO datetime` | Creation timestamp |
+| `updatedAt` | `ISO datetime` | Last update timestamp |
+| `fedBankAccounts` | `array` | Bank Accounts fed by this connection, in name order; each has `id` (`uuid`) and `name` (`string`) |
+
+```json
+{
+  "id": "0192a8b4-0000-7000-8000-000000000001",
+  "entityId": "0190a000-0000-7000-8000-000000000001",
+  "provider": "fintoc",
+  "providerRef": "link_abc123",
+  "institutionName": "Banco de Chile",
+  "holderId": "761234560",
+  "mode": "live",
+  "createdAt": "2026-02-01T12:00:00.000Z",
+  "updatedAt": "2026-02-01T12:00:00.000Z",
+  "fedBankAccounts": []
+}
+```
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections \
@@ -105,7 +131,7 @@ Restore a failed Fintoc connection with a fresh exchange token.
 
 ### Response
 
-`BankConnectionWithFedAccounts`
+The restored Bank Connection, in the same shape as the create response.
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/reconnect \
@@ -123,7 +149,7 @@ Return every Bank Connection for the Entity, each with the fed Bank Accounts it 
 
 ### Response
 
-`BankConnectionWithFedAccounts[]`
+A JSON array of Bank Connections, each in the same shape as the create response.
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections \
@@ -138,17 +164,57 @@ Read the live account panel for one Connection. This fetches the Provider's curr
 
 ### Response
 
-`BankConnectionAccounts`
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | `active`, `inactive`, or `login_required` | Provider's judgment of the link. `login_required` means the institution rejected the stored grant and you must reconnect |
+| `accounts` | `array` | Accounts the Provider discovered (see below) |
+| `mappableBankAccounts` | `array` | Local Bank Accounts that can still take a feed (see below) |
+| `ledgerAccounts` | `array` | Asset Ledger Accounts eligible for mapped creation (see below) |
+| `refreshing` | `boolean \| null` | `true` while the Provider is still refreshing the link, `false` when every refresh has finished, `null` when the refresh state could not be read |
+
+Each element of `accounts` carries:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `status` | `enum('active','inactive','login_required')` | Provider's judgment of the link |
-| `accounts` | `DiscoveredAccountWithFeed[]` | Accounts the Provider discovered |
-| `mappableBankAccounts` | `MappableBankAccount[]` | Local Bank Accounts that can still take a feed |
-| `ledgerAccounts` | `PickableLedgerAccount[]` | Asset Ledger Accounts eligible for mapped creation |
-| `refreshing` | `boolean \| null` | Whether a refresh intent is in progress |
+| `providerAccountId` | `string` | Provider's opaque handle for the account |
+| `name` | `string` | Account name as the institution reports it |
+| `number` | `string` | Account number as the institution reports it |
+| `type` | `string` | Provider-defined account type, display only |
+| `currency` | `string` | ISO 4217 code |
+| `balance.current` | `integer` | Current balance in minor units of `currency` |
+| `balance.available` | `integer \| null` | Available balance in minor units; null when the institution does not report it |
+| `balance.limit` | `integer \| null` | Credit limit in minor units; null when the institution does not report it |
+| `refreshedAt` | `ISO datetime \| null` | When the Provider last refreshed this account |
+| `observed` | `boolean` | `true` when the Provider reads the account but the feed does not land its movements yet. Always `false` for Fintoc |
+| `fedBankAccount` | `object \| null` | The Bank Account this account already feeds, as `{ id, name }`, or null |
 
-Each discovered account carries `providerAccountId`, `name`, `number`, `type`, `currency`, balances in minor units, `refreshedAt`, `observed`, and an optional `fedBankAccount` if a feed already exists.
+Each element of `mappableBankAccounts` carries `id` (`uuid`), `name` (`string`), and `currency` (`string`). Each element of `ledgerAccounts` carries `id` (`uuid`), `code` (`string`), and `name` (`string`).
+
+```json
+{
+  "status": "active",
+  "accounts": [
+    {
+      "providerAccountId": "acc_123",
+      "name": "Cuenta Corriente",
+      "number": "000123456789",
+      "type": "checking_account",
+      "currency": "CLP",
+      "balance": { "available": 1250000, "current": 1250000, "limit": null },
+      "refreshedAt": "2026-02-01T12:00:00.000Z",
+      "observed": false,
+      "fedBankAccount": null
+    }
+  ],
+  "mappableBankAccounts": [
+    { "id": "0192a8b4-0000-7000-8000-000000000002", "name": "Primary Checking", "currency": "CLP" }
+  ],
+  "ledgerAccounts": [
+    { "id": "0192a8b4-0000-7000-8000-000000000004", "code": "1102", "name": "Banco" }
+  ],
+  "refreshing": false
+}
+```
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
@@ -171,7 +237,7 @@ For Global66 connections, publish additional account ids the Provider does not l
 
 ### Response
 
-`BankConnectionWithFedAccounts`
+The updated Bank Connection, in the same shape as the create response.
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts \
@@ -196,7 +262,7 @@ Create a feed that attaches a discovered account to an existing local Bank Accou
 
 ### Response
 
-`BankAccount`
+The Bank Account that now carries the feed, with `feed` populated. The shape is the one documented on the [Bank Accounts](/api-reference/bank-accounts) page, without the `balance` and `unreconciledCount` summary fields.
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/feeds \
@@ -227,7 +293,7 @@ Create a new Bank Account and feed it from a discovered account in one operation
 
 ### Response
 
-`BankAccountWithSummary`
+The created Bank Account with its `balance` and `unreconciledCount` summary, in the same shape as the list response on the [Bank Accounts](/api-reference/bank-accounts) page.
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/bank-accounts \
@@ -251,12 +317,10 @@ Remove the connection and cascade every feed it held. The response names the del
 
 ### Response
 
-`DisconnectBankConnectionResult`
-
 | Field | Type | Description |
 | --- | --- | --- |
 | `deletedBankConnectionId` | `uuid` | The removed connection |
-| `unfedBankAccounts` | `BankAccount[]` | Accounts whose feed was removed |
+| `unfedBankAccounts` | `array` | Accounts whose feed was removed, each a Bank Account (see the [Bank Accounts](/api-reference/bank-accounts) page) without summary fields and with `feed` set to null |
 
 ```bash
 curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID \

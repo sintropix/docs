@@ -6,32 +6,70 @@ description: "Create, list, and delete Integrations: the linked credentials for 
 
 An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Entity's behalf. Integrations are the credential side; [Source Feeds](/api-reference/source-feeds) are the recurring pull jobs that actually import data using them.
 
+## The Integration object
+
+The access token is stored encrypted and is never returned on any read.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Integration id. |
+| `entityId` | uuid | Owning Entity. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number). `null` when it could not be determined at connect time. |
+| `documentCount` | integer | Number of documents the provider reported when the credential was verified at connect time. |
+| `feed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when no Feed is configured. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
 ## POST `/integrations`
 
-Create an Integration.
+Create an Integration. The access token is verified against the provider once, then stored encrypted.
 
-- **Body:** `CreateIntegrationDto`.
-- **Response:** `integrationWithFeedSchema` (the Integration and its linked Source Feed, if any).
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` | Yes | The external system to link. |
+| `accessToken` | string | Yes | The provider's API access token. Whitespace is trimmed; must be non-empty. |
+
+- **Response:** the Integration object (its `feed` is `null` on creation).
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
-  -d '{ /* see CreateIntegrationDto */ }'
+  -d '{
+    "id": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
+    "kind": "bsale",
+    "accessToken": "b7f3c9e1a2d4f6081e3c5a7b9d1f2e4c"
+  }'
+```
+
+```json
+{
+  "id": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
+  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "kind": "bsale",
+  "providerRef": "12345",
+  "documentCount": 355,
+  "feed": null,
+  "createdAt": "2025-01-02T12:00:00.000Z",
+  "updatedAt": "2025-01-02T12:00:00.000Z"
+}
 ```
 
 ## GET `/integrations`
 
 List every Integration for the Entity.
 
-- **Response:** array of `integrationWithFeedSchema`.
+- **Response:** array of Integration objects.
 
 ## DELETE `/integrations/:integrationId`
 
 Remove an Integration. Any attached Source Feed is removed as part of the same operation.
 
-- **Response:** `integrationWithFeedSchema` (the deleted state).
+- **Response:** the Integration object as it stood before deletion, including its `feed` if it had one.
 
 ## Status codes
 
@@ -41,7 +79,3 @@ Remove an Integration. Any attached Source Feed is removed as part of the same o
 | `201` | Integration created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Integration not found. |
-
-<Warning>
-  Unverified: the full provider list accepted by `CreateIntegrationDto`. Refer to the DTO alongside the controller and `@sintropix/api-contract` for authoritative shapes.
-</Warning>

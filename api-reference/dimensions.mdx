@@ -11,7 +11,7 @@ Dimensions are reporting axes you define for an Entity. Each Dimension holds Dim
 List all Dimensions for an Entity.
 
 - **Path param:** `entityId` (UUID)
-- **Success response:** Array of `dimensionSchema`
+- **Success response:** array of Dimension objects
 - **Status:** 200
 
 | Field | Type | Description |
@@ -32,14 +32,14 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions \
 Create a new Dimension.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `CreateDimensionDto` (from `createDimensionSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied idempotency id |
 | `name` | string | Yes | Dimension name, non-empty |
 
-- **Success response:** `dimensionSchema`
+- **Success response:** the created Dimension (same shape as the list response)
 - **Status:** 201
 
 ```bash
@@ -58,13 +58,13 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions \
 Rename a Dimension.
 
 - **Path params:** `entityId` (UUID), `dimensionId` (UUID)
-- **Body:** `UpdateDimensionDto` (from `updateDimensionSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | Yes | New dimension name |
 
-- **Success response:** `dimensionSchema`
+- **Success response:** the updated Dimension (same shape as the list response)
 - **Status:** 200
 
 ```bash
@@ -80,7 +80,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIME
 Delete a Dimension. A Dimension that has values cannot be deleted.
 
 - **Path params:** `entityId` (UUID), `dimensionId` (UUID)
-- **Success response:** `dimensionSchema`
+- **Success response:** the deleted Dimension (same shape as the list response)
 - **Status:** 200
 
 ```bash
@@ -94,7 +94,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIM
 List all Dimension Values for a Dimension.
 
 - **Path params:** `entityId` (UUID), `dimensionId` (UUID)
-- **Success response:** Array of `dimensionValueSchema`
+- **Success response:** array of Dimension Value objects
 - **Status:** 200
 
 | Field | Type | Description |
@@ -118,7 +118,7 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/
 Create a new Dimension Value.
 
 - **Path params:** `entityId` (UUID), `dimensionId` (UUID)
-- **Body:** `CreateDimensionValueDto` (from `createDimensionValueSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -127,7 +127,7 @@ Create a new Dimension Value.
 | `name` | string | Yes | Value name, non-empty |
 | `parentId` | UUID or null | No | Parent value id; null for top-level |
 
-- **Success response:** `dimensionValueSchema`
+- **Success response:** the created Dimension Value (same shape as the values list response)
 - **Status:** 201
 
 ```bash
@@ -148,7 +148,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMEN
 Update a Dimension Value. You can rename, recode, or reparent it.
 
 - **Path params:** `entityId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
-- **Body:** `UpdateDimensionValueDto` (from `updateDimensionValueSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -158,7 +158,7 @@ Update a Dimension Value. You can rename, recode, or reparent it.
 
 At least one field must be provided.
 
-- **Success response:** `dimensionValueSchema`
+- **Success response:** the updated Dimension Value (same shape as the values list response)
 - **Status:** 200
 
 ```bash
@@ -174,7 +174,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIME
 Delete a Dimension Value. A value that is tagged on any Ledger Entry Line or that has children cannot be deleted.
 
 - **Path params:** `entityId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
-- **Success response:** `dimensionValueSchema`
+- **Success response:** the deleted Dimension Value (same shape as the values list response)
 - **Status:** 200
 
 ```bash

@@ -57,7 +57,7 @@ Sintropix exposes an HTTP API to the same ERP backend that powers the web app an
 The API is designed to be driven by agents:
 
 - Every business route is scoped to a single Entity (`/api/entities/{entityId}/...`), so an agent operating on multiple companies always makes the target explicit.
-- Requests and responses are validated end-to-end by a shared Zod contract, so field names, types, and enums are stable across endpoints.
+- Requests and responses are validated end to end, so field names, types, and enums are stable across endpoints.
 - Errors return a consistent envelope with machine-readable codes for retries and branching.
 - The [audit trail](/api-reference/audit-trail) records every write, so agent actions are traceable.
 

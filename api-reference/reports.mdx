@@ -6,6 +6,8 @@ description: "Fetch financial reports for an entity including balance sheet, inc
 
 The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
 
+All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
+
 ## Entity reports
 
 Base path: `GET /api/entities/:entityId/reports`
@@ -16,7 +18,20 @@ Base path: `GET /api/entities/:entityId/reports`
 
 Returns the home dashboard snapshot: cash position, daily balances for the last 60 days, monthly income for the last 6 months, receivables/payables open positions, and unbooked invoice counts.
 
-**Response:** `homeReportSchema`
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `cash.total` | integer | Consolidated cash position as of today, in the functional currency |
+| `cash.rateDate` | ISO date or null | Oldest publication date among the FX rates used; `null` when nothing was converted |
+| `cash.unconvertedCurrencies` | string[] | Currencies left out because no rate was published |
+| `dailyBalances` | array | Exactly 60 items of `{ date, total }`, one per calendar day |
+| `monthlyIncome` | array | Exactly 6 items of `{ monthKey, total }`; `monthKey` is `YYYY-MM` |
+| `priorMonthToDateIncomeTotal` | integer | Income in the prior month up to the same day of the month |
+| `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines |
+| `payable` | object | `{ total, count }`: open payable amount and the number of open lines |
+| `salesToBook` | integer | Unbooked sales invoices |
+| `purchasesToBook` | integer | Unbooked purchase invoices |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/home" \
@@ -29,16 +44,39 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/home" \
 
 Returns the balance sheet for the requested exercise period.
 
-**Query params (from `balanceSheetQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `exerciseStart` | ISO date | Yes | Start of the exercise period |
-| `cutoffDate` | ISO date | Yes | End of the exercise period |
+| `cutoffDate` | ISO date | Yes | End of the exercise period (must be on or after `exerciseStart`) |
 | `presentationCurrency` | string | No | Currency to present amounts in |
 | `presentationRate` | decimal string | No | Rate used for conversion; required together with `presentationCurrency` |
 
-**Response:** `balanceSheetReportSchema`
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `exerciseStart` | ISO date | As requested |
+| `cutoffDate` | ISO date | As requested |
+| `functionalCurrency` | string | The entity's functional currency |
+| `presentationCurrency` | string | Currency the amounts are in |
+| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
+| `accountGroups` | array | Account Groups in code-prefix order, each `{ id, parentGroupId, codePrefix, name }` |
+| `assets` | object | `{ accounts, total }` |
+| `liabilities` | object | `{ accounts, total }` |
+| `equity` | object | `{ accounts, total, priorPeriodResult, currentPeriodResult, conversionRounding }` |
+| `totalLiabilitiesAndEquity` | integer | Sum of the liabilities and equity totals |
+
+Each item in an `accounts` array, in code order:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `accountId` | UUID | Ledger Account id |
+| `groupId` | UUID or null | Account Group the account belongs to |
+| `code` | string | Account code |
+| `name` | string | Account name |
+| `balance` | integer | Balance at `cutoffDate` |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
@@ -51,7 +89,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet
 
 Returns the income statement for the requested date range.
 
-**Query params (from `incomeStatementQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -60,7 +98,42 @@ Returns the income statement for the requested date range.
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
 
-**Response:** `incomeStatementReportSchema`
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `from` | ISO date | As requested |
+| `to` | ISO date | As requested |
+| `functionalCurrency` | string | The entity's functional currency |
+| `presentationCurrency` | string | Currency the amounts are in |
+| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
+| `accountGroups` | array | Account Groups, each `{ id, parentGroupId, codePrefix, name }` |
+| `accounts` | array | Result accounts in code order, each with the fields below |
+
+Each item in `accounts`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Ledger Account id |
+| `groupId` | UUID or null | Account Group the account belongs to |
+| `code` | string | Account code |
+| `name` | string | Account name |
+| `type` | enum | `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
+| `normalSide` | enum | `debit` or `credit` |
+| `lines` | array | Lines posted to the account in the period, newest entry first, each with the fields below |
+
+Each item in `lines`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entryId` | UUID | Parent entry |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `side` | enum | `debit` or `credit` |
+| `amount` | integer | Amount in the presentation currency |
+| `partnerId` | UUID or null | Counterparty partner |
+| `partnerName` | string or null | Name of the partner |
+| `partnerTaxId` | string or null | Tax id of the partner |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2024-01-01&to=2024-12-31" \
@@ -73,7 +146,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statem
 
 Returns the income statement broken down by the values of a single dimension (for example, a cost center).
 
-**Query params (from `incomeStatementByDimensionQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -81,7 +154,25 @@ Returns the income statement broken down by the values of a single dimension (fo
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 
-**Response:** `incomeStatementByDimensionReportSchema`
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dimension` | object | The dimension: `{ id, entityId, name, createdAt, updatedAt }` |
+| `dimensionValues` | array | Every value of the dimension, ordered by code, each with the fields below |
+| `unassignedAmount` | integer | Net result of lines that carry no value of this dimension |
+| `total` | integer | Net result of the whole period; equals `unassignedAmount` plus every `directAmount` |
+
+Each item in `dimensionValues`. A positive amount is a profit.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Dimension Value id |
+| `code` | string | Value code |
+| `name` | string | Value name |
+| `parentId` | UUID or null | Parent value; `null` at the top level |
+| `directAmount` | integer | Net result of lines tagged with this value alone |
+| `rolledUpAmount` | integer | `directAmount` plus the amounts of every descendant value |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement-by-dimension?dimensionId=<uuid>&from=2024-01-01&to=2024-12-31" \
@@ -94,7 +185,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statem
 
 Returns a paginated journal of ledger entry lines in chronological order. Each row contains the line, its parent entry, and the account it posts to.
 
-**Query params (from `journalReportQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -104,7 +195,33 @@ Returns a paginated journal of ledger entry lines in chronological order. Each r
 | `cursor` | string | No | Page cursor (`YYYY-MM-DD~<entryId>~<lineId>`) |
 | `limit` | integer | No | Page size (default 100, max 100) |
 
-**Response:** `journalReportPageSchema` (paginated: `{ rows, nextCursor }`)
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `rows` | array | Journal rows on this page, each with the fields below |
+| `nextCursor` | string or null | Pass as `cursor` to fetch the next page; `null` on the last page |
+
+Each item in `rows`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `line` | object | `{ id, functionalAmount, side }`; `side` is `debit` or `credit` |
+| `entry` | object | `{ id, entryDate, memo }` |
+| `account` | object | `{ id, code, name }` |
+
+```json
+{
+  "rows": [
+    {
+      "line": { "id": "77777777-7777-4777-8777-777777777777", "functionalAmount": 100, "side": "debit" },
+      "entry": { "id": "33333333-3333-4333-8333-333333333333", "entryDate": "2024-01-15", "memo": "Venta al contado" },
+      "account": { "id": "11111111-1111-4111-8111-111111111111", "code": "1101", "name": "Caja" }
+    }
+  ],
+  "nextCursor": "2024-01-15~33333333-3333-4333-8333-333333333333~77777777-7777-4777-8777-777777777777"
+}
+```
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/journal?from=2024-01-01&to=2024-12-31&limit=50" \
@@ -117,16 +234,39 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/journal?from=
 
 Returns a revenue realization report for the requested period, showing recognized revenue, collected amounts, billed outstanding, and monthly breakdowns.
 
-**Query params (from `revenueRealizationQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `from` | ISO date | Yes | Start date |
-| `to` | ISO date | Yes | End date |
+| `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
 
-**Response:** `revenueRealizationReportSchema`
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `from` | ISO date | As requested |
+| `to` | ISO date | As requested |
+| `paymentStateDate` | ISO date | Date at which collection state was evaluated |
+| `functionalCurrency` | string | The entity's functional currency |
+| `presentationCurrency` | string | Currency the amounts are in |
+| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
+| `months` | array | One item per month: `{ monthKey }` (`YYYY-MM`) plus the amount fields below |
+| `total` | object | The amount fields below, summed over the period |
+| `entries` | array | One item per revenue entry: `{ entryId, entryDate, memo, partnerId, partnerName, partnerTaxId }` plus the amount fields below |
+
+Amount fields present on every item of `months`, on `total`, and on every item of `entries`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `recognized` | integer | Revenue recognized |
+| `collected` | integer | Amount collected |
+| `billedOutstanding` | integer | Billed but not yet collected |
+| `recognizedAndUnbilled` | integer | Recognized but not yet billed |
+| `outstandingRemainder` | integer | Recognized and neither collected nor billed |
+| `untrackedRecognizedRevenue` | integer | Recognized revenue with no receivable to track it against |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/revenue-realization?from=2024-01-01&to=2024-12-31" \
@@ -143,16 +283,42 @@ Base path: `GET /api/entities/:entityId/ledger`
 
 Returns the classic eight-column trial balance: debit, credit, debtor balance, creditor balance, asset, liability, loss, and profit per account.
 
-**Query params (from `eightColumnBalanceQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `exerciseStart` | ISO date | Yes | Start of the exercise |
-| `cutoffDate` | ISO date | Yes | End of the exercise |
+| `cutoffDate` | ISO date | Yes | End of the exercise (must be on or after `exerciseStart`) |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
 
-**Response:** `eightColumnBalanceReportSchema`
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `exerciseStart` | ISO date | As requested |
+| `cutoffDate` | ISO date | As requested |
+| `functionalCurrency` | string | The entity's functional currency |
+| `presentationCurrency` | string | Currency the amounts are in |
+| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
+| `rows` | array | One item per account: `{ accountId, code, name, type }` plus the eight column fields below |
+| `subtotal` | object | The eight column fields, summed over `rows` |
+| `conversionRounding` | object | The eight column fields; rounding difference introduced by currency conversion |
+| `result` | object | `{ kind, amount, adjustment }`; `kind` is `profit`, `loss`, or `break_even`, and `adjustment` carries the eight column fields |
+| `totals` | object | The eight column fields after the result adjustment |
+
+`type` on a row is one of `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense`. The eight column fields, all nonnegative integers:
+
+| Field | Description |
+| --- | --- |
+| `debit` | Total debits |
+| `credit` | Total credits |
+| `debtorBalance` | Debit balance |
+| `creditorBalance` | Credit balance |
+| `asset` | Balance classified as asset |
+| `liability` | Balance classified as liability |
+| `loss` | Balance classified as loss |
+| `profit` | Balance classified as profit |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/eight-column-balance?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
@@ -165,17 +331,48 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/eight-
 
 Returns a paginated walk of one ledger account in ledger order, with a running balance from inception.
 
-**Query params (from `generalLedgerQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `accountId` | UUID | Yes | Ledger account to read |
 | `from` | ISO date | No | Window start |
-| `to` | ISO date | No | Window end |
+| `to` | ISO date | No | Window end (must be on or after `from`) |
 | `cursor` | UUID | No | Id of the last line from the previous page |
 | `limit` | integer | No | Page size (default 50, max 100) |
 
-**Response:** `generalLedgerPageSchema` (paginated: `{ lines, nextCursor, openingBalance, closingBalance, lineCount }`)
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `lines` | array | Lines on this page, each with the fields below |
+| `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
+| `openingBalance` | integer | Balance before `from`; `0` when the window has no start |
+| `closingBalance` | integer | Balance at `to`, or the whole balance when the window has no end |
+| `lineCount` | integer | Lines inside the window, across every page |
+
+Each item in `lines`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Line id |
+| `entryId` | UUID | Parent entry |
+| `accountId` | UUID | Ledger Account |
+| `entityId` | UUID | Owning Entity |
+| `functionalAmount` | integer | Nonnegative magnitude |
+| `side` | enum | `debit` or `credit` |
+| `partnerId` | UUID or null | Counterparty partner |
+| `partnerName` | string or null | Name of the partner |
+| `transactionCurrency` | string or null | Foreign currency code, if any |
+| `transactionAmount` | integer or null | Amount in the foreign currency |
+| `transactionFxRate` | decimal string or null | Rate used for conversion |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `entryStatus` | enum | `active` or `reversed` (only live entries appear) |
+| `reversalOfEntryId` | UUID or null | Entry the parent entry reverses; `null` otherwise |
+| `runningBalance` | integer | Balance after this line, counted from inception and signed by the account's normal side |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger?accountId=<uuid>&limit=50" \
@@ -188,17 +385,56 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger
 
 Returns the partner ledger for an open-item account, grouped by partner with opening/closing balances and line-level detail.
 
-**Query params (from `partnerLedgerQuerySchema`)**
+**Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `accountId` | UUID | Yes | Ledger account (must be open-item tracking) |
 | `from` | ISO date | Yes | Start date |
-| `to` | ISO date | Yes | End date |
-| `partnerIds` | UUID[] | No | Filter to specific partners (max 100) |
+| `to` | ISO date | Yes | End date (must be on or after `from`) |
+| `partnerIds` | UUID[] | No | Filter to specific partners (max 100); repeat the param for each id |
 | `includeUnassigned` | boolean | No | Include lines with no partner (default false) |
 
-**Response:** `partnerLedgerReportSchema`
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `account` | object | `{ id, code, name, normalSide }`; `normalSide` is `debit` or `credit` |
+| `currency` | string | Currency the amounts are in |
+| `from` | ISO date | As requested |
+| `to` | ISO date | As requested |
+| `groups` | array | One item per partner, each with the fields below |
+
+Each item in `groups`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `partnerId` | UUID or null | Partner; `null` for the unassigned group |
+| `partnerName` | string or null | Name of the partner |
+| `partnerTaxId` | string or null | Tax id of the partner |
+| `openingBalance` | integer | Balance before `from` |
+| `totalDebit` | integer | Debits in the period |
+| `totalCredit` | integer | Credits in the period |
+| `closingBalance` | integer | Balance at `to` |
+| `lines` | array | Lines in the period, each with the fields below |
+
+Each item in `lines`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Line id |
+| `entryId` | UUID | Parent entry |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `side` | enum | `debit` or `credit` |
+| `functionalAmount` | integer | Nonnegative magnitude |
+| `transactionCurrency` | string or null | Foreign currency code, if any |
+| `transactionAmount` | integer or null | Amount in the foreign currency |
+| `transactionFxRate` | decimal string or null | Rate used for conversion |
+| `debit` | integer | Amount when `side` is `debit`, else `0` |
+| `credit` | integer | Amount when `side` is `credit`, else `0` |
+| `runningBalance` | integer | Balance after this line within the partner group |
+| `documentNumber` | string or null | Number of the invoice this line books, if any |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/partner-ledger?accountId=<uuid>&from=2024-01-01&to=2024-12-31" \
@@ -210,11 +446,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/partner-ledger
 | Code | Meaning |
 | --- | --- |
 | 200 | Success |
-| 400 | Invalid query parameters (Zod validation error) |
+| 400 | Invalid query parameters |
 | 401 | Unauthenticated |
 | 403 | Not a member of this entity |
 | 404 | Entity or referenced resource not found |
-
-<Warning>
-  Unverified: the exact field-level error messages for presentation currency / rate mismatches are defined in the Zod refinements of `@sintropix/api-contract`. Refer to the contract package for the precise schema shapes.
-</Warning>

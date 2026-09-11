@@ -4,7 +4,7 @@ sidebarTitle: "Attachments"
 description: "Upload, confirm, list, retrieve signed URLs, and delete attachments on invoices, bank movements, and ledger entries using the Sintropix ERP HTTP API."
 ---
 
-The Attachments API lets you associate files with invoices, bank movements, and general ledger entries. Every host follows the same two-phase upload pattern: request a presigned S3 URL, PUT the file from your client, then confirm the upload so the record is created. You can list attachments, fetch a temporary download URL, and remove an attachment when it is no longer needed.
+The Attachments API lets you associate files with invoices, bank movements, and general ledger entries. Every host follows the same two-phase upload pattern: request a presigned upload URL, PUT the file from your client, then confirm the upload so the record is created. You can list attachments, fetch a temporary download URL, and remove an attachment when it is no longer needed.
 
 All three hosts share the same five endpoints. Replace the host path segment with the resource you are targeting.
 
@@ -20,13 +20,13 @@ All three hosts share the same five endpoints. Replace the host path segment wit
 
 1. **Presign**: `POST …/presign` with the file metadata. The server returns an `attachmentId` and a signed `url`.
 2. **Upload**: `PUT` the file bytes to the signed URL from your client (not through the ERP API).
-3. **Confirm**: `POST …/confirm` with the `attachmentId` and display `filename`. The server reads the stored object metadata and creates the attachment record.
+3. **Confirm**: `POST …/confirm` with the `attachmentId` and display `filename`. The server checks the uploaded object's content type and size against what was declared and creates the attachment record.
 
 Accepted content types: `application/pdf`, `image/png`, `image/jpeg`, `application/xml`, `text/xml`, `text/csv`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Maximum file size is 25 MB.
 
 ## Presign an upload
 
-Request a presigned S3 URL and an attachment ID before uploading file bytes.
+Request a presigned upload URL and an attachment ID before uploading file bytes.
 
 `POST /api/entities/:entityId/invoices/:invoiceId/attachments/presign`
 
@@ -47,12 +47,15 @@ Request a presigned S3 URL and an attachment ID before uploading file bytes.
 
 ### Response
 
-Returns `PresignResult`.
+| Field | Type | Description |
+| --- | --- | --- |
+| `attachmentId` | UUID | Identifier to pass to the confirm step. |
+| `url` | URL | Presigned URL to `PUT` the file bytes to. Send the same `Content-Type` you declared. The URL expires after a short window. |
 
 ```json
 {
   "attachmentId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
-  "url": "https://<r2-host>/<bucket>/<object-key>?X-Amz-Algorithm=..."
+  "url": "https://storage.example.com/entity/3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57/0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b?X-Amz-Algorithm=..."
 }
 ```
 
@@ -91,11 +94,22 @@ After PUTting the file to the presigned URL, confirm the upload to create the at
 
 ### Response
 
-Returns `AttachmentWithoutObjectKey`.
+Returns the attachment record.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Attachment id. Same value as the `attachmentId` from presign. |
+| `entityId` | UUID | Entity that owns the attachment. |
+| `filename` | string | Display filename. |
+| `contentType` | enum | One of the accepted MIME types listed above, as read from the stored object. |
+| `byteSize` | integer | File size in bytes, as read from the stored object. |
+| `createdAt` | ISO datetime | When the record was created. |
+| `updatedAt` | ISO datetime | When the record was last updated. |
 
 ```json
 {
   "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
   "filename": "invoice-001.pdf",
   "contentType": "application/pdf",
   "byteSize": 142000,
@@ -132,7 +146,7 @@ Retrieve all attachments linked to a host resource.
 
 ### Response
 
-Returns an array of `AttachmentWithoutObjectKey`.
+Returns an array of attachment records, each with the same fields as the confirm response (`id`, `entityId`, `filename`, `contentType`, `byteSize`, `createdAt`, `updatedAt`).
 
 ### Example
 
@@ -157,11 +171,13 @@ Generate a temporary signed URL to download a specific attachment.
 
 ### Response
 
-Returns `AttachmentUrl`.
+| Field | Type | Description |
+| --- | --- | --- |
+| `url` | URL | Temporary signed download link. Fetch it with a plain `GET`; no Sintropix credential is needed. The URL expires after a short window, so request a fresh one rather than storing it. |
 
 ```json
 {
-  "url": "https://<r2-host>/<bucket>/<object-key>?X-Amz-Algorithm=..."
+  "url": "https://storage.example.com/entity/3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57/0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b?X-Amz-Algorithm=..."
 }
 ```
 
@@ -200,11 +216,11 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVO
 
 ## Response schemas
 
-| Schema | Source | Description |
-| --- | --- | --- |
-| `PresignResult` | `@sintropix/api-contract` | `{ attachmentId: UUID, url: URL }` |
-| `AttachmentWithoutObjectKey` | `@sintropix/api-contract` | Attachment row without the internal `objectKey`. |
-| `AttachmentUrl` | `@sintropix/api-contract` | `{ url: URL }` temporary download link. |
+| Shape | Description |
+| --- | --- |
+| Presign result | `{ attachmentId: UUID, url: URL }`. Returned by `POST …/presign`. |
+| Attachment record | `{ id, entityId, filename, contentType, byteSize, createdAt, updatedAt }`. Returned by `POST …/confirm` and, as an array, by `GET …/attachments`. The internal storage key is never exposed. |
+| Download URL | `{ url: URL }`. Returned by `GET …/:attachmentId/url`. |
 
 ## Status codes
 

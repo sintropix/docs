@@ -8,24 +8,49 @@ The Reference Data API exposes the static catalogs Sintropix uses across every E
 
 ## GET `/countries`
 
-Return every supported Country.
+Return every supported Country. No query parameters.
 
-- **Response:** array of `countrySchema`.
+**Response** `200`: an array of Country objects.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `code` | string | ISO 3166-1 alpha-2 code, for example `CL`. This is the value other endpoints accept as a country. |
+| `name` | string | Display name of the country. |
 
 ```bash
 curl "https://api.sintropix.com/api/countries" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
+```json
+[
+  { "code": "CL", "name": "Chile" },
+  { "code": "US", "name": "United States" }
+]
+```
+
 ## GET `/currencies`
 
-Return every supported Currency (ISO 4217 codes plus display metadata).
+Return every supported Currency (ISO 4217 codes plus display metadata). No query parameters.
 
-- **Response:** array of `currencySchema`.
+**Response** `200`: an array of Currency objects.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `code` | string | ISO 4217 code, for example `CLP`. This is the value other endpoints accept as a currency. |
+| `decimalPlaces` | integer | Number of minor-unit decimal places amounts in this currency carry (`0` for CLP, `2` for USD). |
+| `name` | string | Display name of the currency. |
 
 ```bash
 curl "https://api.sintropix.com/api/currencies" \
   -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+[
+  { "code": "CLP", "decimalPlaces": 0, "name": "Chilean Peso" },
+  { "code": "USD", "decimalPlaces": 2, "name": "US Dollar" }
+]
 ```
 
 ## Status codes
@@ -34,7 +59,3 @@ curl "https://api.sintropix.com/api/currencies" \
 | --- | --- |
 | `200` | Success. |
 | `401` | No valid credential. |
-
-<Warning>
-  Unverified: the full field lists of `countrySchema` and `currencySchema`. Refer to `@sintropix/api-contract` for authoritative shapes.
-</Warning>

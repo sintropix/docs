@@ -6,35 +6,131 @@ description: "List Chilean SII document types, fetch a DTE, and manage cross-DTE
 
 The SII (Servicio de Impuestos Internos) is Chile's national tax authority. A DTE (Documento Tributario Electrónico) is a Chilean e-invoice or credit note issued through the SII. Sintropix imports DTEs from an SII feed and exposes them through the endpoints on this page so callers can read them and manage cross-DTE references (for example, a credit note referencing an original invoice). Sintropix does not emit DTEs on the caller's behalf here; issuance happens in the SII portal or through an integration that populates the feed.
 
+A DTE can also be attached to an Invoice by hand with `PUT /invoices/:invoiceId/dte` on the [Invoices page](/api-reference/invoices); the `dte.id` returned there is the `dteId` used below.
+
 ## GET `/sii/document-types`
 
 List the SII document type catalog available to this Entity (invoice, credit note, debit note, and their variants).
 
-- **Response:** array of `siiDocumentTypeSchema`.
+**Response:** an array of document types.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `code` | string | The SII code (`33`, `34`, `39`, `61`, ...). Use it as `dteTypeCode` when attaching a DTE. |
+| `country` | string | ISO 3166-1 alpha-2 code of the issuing tax authority (`CL`). |
+| `label` | string | The official name of the document type. |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/sii/document-types" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
+Example response:
+
+```json
+[
+  { "code": "33", "country": "CL", "label": "Factura Electrónica" },
+  { "code": "34", "country": "CL", "label": "Factura No Afecta o Exenta Electrónica" },
+  { "code": "39", "country": "CL", "label": "Boleta Electrónica" },
+  { "code": "61", "country": "CL", "label": "Nota de Crédito Electrónica" }
+]
+```
+
 ## GET `/sii/dte/:dteId`
 
-Fetch a single DTE with its detail, including line items and any references to or from other DTEs.
+Fetch a single DTE with its detail, including its amounts and any references to or from other DTEs.
 
-- **Response:** `dteDetailSchema`.
+**Response:** a DTE detail object.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | DTE id. |
+| `entityId` | uuid | Owning Entity. |
+| `invoiceId` | uuid or null | The Invoice this DTE backs. Null for a document the books do not track as a claim (a boleta, a guía). |
+| `dteTypeCode` | string | SII document type code. |
+| `folio` | integer | The number the SII assigned. |
+| `issuerRut` | string | Issuer RUT, canonical form (`76123456-0`). |
+| `receiverRut` | string or null | Receiver RUT. |
+| `issuerName` | string or null | Issuer name as printed. |
+| `receiverName` | string or null | Receiver name as printed. |
+| `issueDate` | string | `YYYY-MM-DD`. |
+| `taxPeriod` | string or null | The F29 / IVA month, `YYYY-MM`. |
+| `currency` | string | ISO 4217 code. |
+| `total` | integer | Gross total, minor units of `currency`. |
+| `netAmount` | integer or null | Net base, minor units. |
+| `exemptAmount` | integer or null | Exempt part of the base, minor units. |
+| `taxAmount` | integer or null | Tax amount, minor units. |
+| `externalRef` | string or null | The id an external provider gave the document. Null when entered by hand. |
+| `metadata` | array | Additional Information lines, `{ "label": string, "value": string }`. |
+| `statedDteReferences` | array | References this DTE makes to other DTEs. Each has `targetDteId` (uuid), `referenceCode` (integer or null), `targetDteTypeCode` (string), and `targetFolio` (integer). |
+| `receivedDteReferences` | array | References other DTEs make to this one. Each has `dteId` (uuid, the referencing DTE), `referenceCode` (integer or null), `referencingDteTypeCode` (string), and `referencingFolio` (integer). |
+| `createdAt` | timestamp | Creation time. |
+| `updatedAt` | timestamp | Last update time. |
+
+`referenceCode` is the SII code that says what the referencing document does to the referenced one: `1` voids it, `2` corrects its text, `3` corrects its amounts. Null means the DTE states a reference and no code.
+
+Example response for a credit note that voids an invoice:
+
+```json
+{
+  "id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+  "entityId": "b2f0c1d4-7e8a-4b9c-8d1e-2f3a4b5c6d7e",
+  "invoiceId": "8a9b0c1d-2e3f-4a5b-8c6d-7e8f9a0b1c2d",
+  "dteTypeCode": "61",
+  "folio": 1187,
+  "issuerRut": "76123456-0",
+  "receiverRut": "77654321-7",
+  "issuerName": "Servicios Cloud SpA",
+  "receiverName": "Mi Empresa SpA",
+  "issueDate": "2026-08-20",
+  "taxPeriod": "2026-08",
+  "currency": "CLP",
+  "total": 1190000,
+  "netAmount": 1000000,
+  "exemptAmount": 0,
+  "taxAmount": 190000,
+  "externalRef": null,
+  "metadata": [{ "label": "Razón", "value": "Anula factura por error en glosa" }],
+  "statedDteReferences": [
+    {
+      "targetDteId": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f",
+      "referenceCode": 1,
+      "targetDteTypeCode": "33",
+      "targetFolio": 45210
+    }
+  ],
+  "receivedDteReferences": [],
+  "createdAt": "2026-08-20T12:40:07.301Z",
+  "updatedAt": "2026-08-20T12:41:15.088Z"
+}
+```
 
 ## POST `/sii/dte/:dteId/references`
 
 Add a reference from this DTE to a target DTE. Used, for example, to record that a credit note credits a specific original invoice.
 
-- **Body:** `CreateDteReferenceDto`.
-- **Response:** the updated `dteDetailSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `targetDteId` | uuid | Yes | The DTE being referenced. Must belong to the same Entity and differ from `dteId`. |
+| `referenceCode` | integer or null | Yes | `1` (voids), `2` (corrects text), `3` (corrects amounts), or `null` for a reference with no code. |
+
+**Response:** the updated DTE detail, as returned by `GET /sii/dte/:dteId`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/sii/dte/$DTE_ID/references" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "targetDteId": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f", "referenceCode": 1 }'
+```
 
 ## DELETE `/sii/dte/:dteId/references/:targetDteId`
 
 Remove a previously added reference.
 
-- **Response:** the updated `dteDetailSchema`.
+**Response:** the updated DTE detail, as returned by `GET /sii/dte/:dteId`.
 
 ## Status codes
 
@@ -43,8 +139,4 @@ Remove a previously added reference.
 | `200` | Success. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity, DTE, or target DTE not found. |
-| `409` | Duplicate reference or invalid reference target. |
-
-<Warning>
-  Unverified: the exact fields of `CreateDteReferenceDto` (typically reference type and free-text reason). Refer to the DTO alongside the controller and `@sintropix/api-contract` for authoritative shapes.
-</Warning>
+| `409` | Duplicate reference or invalid reference target (for example, a DTE referencing itself). |

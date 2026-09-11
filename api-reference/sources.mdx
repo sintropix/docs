@@ -10,44 +10,90 @@ A Source is a named origin an Entity uses to group documents it pulls from exter
 
 List every Source for the Entity, each annotated with the count of Invoices it has produced.
 
-- **Response:** array of `sourceWithInvoiceCountSchema`.
+**Response:** an array of Source objects.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Source id. |
+| `entityId` | uuid | Owning Entity. |
+| `name` | string | Display name, unique within the Entity. |
+| `invoiceCount` | integer | How many Invoices name this Source. |
+| `createdAt` | timestamp | Creation time (ISO 8601). |
+| `updatedAt` | timestamp | Last update time (ISO 8601). |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/sources" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
+Example response:
+
+```json
+[
+  {
+    "id": "5d6e7f80-91a2-4b3c-8d4e-5f6a7b8c9d0e",
+    "entityId": "b2f0c1d4-7e8a-4b9c-8d1e-2f3a4b5c6d7e",
+    "name": "Bsale",
+    "invoiceCount": 412,
+    "createdAt": "2026-03-02T09:15:44.000Z",
+    "updatedAt": "2026-03-02T09:15:44.000Z"
+  }
+]
+```
+
 ## POST `/sources`
 
 Create a Source.
 
-- **Body:** `CreateSourceDto`.
-- **Response:** `sourceWithInvoiceCountSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Caller-generated id. Retrying with the same id is answered `409`, so a retried request never creates a second Source. |
+| `name` | string | Yes | Trimmed before it is stored; must be non-empty after trimming and unique within the Entity. |
+
+**Response** (`201`): the created Source object, with `invoiceCount` of `0`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/sources" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "id": "5d6e7f80-91a2-4b3c-8d4e-5f6a7b8c9d0e", "name": "Bsale" }'
+```
 
 ## PATCH `/sources/:sourceId`
 
-Rename a Source. The controller method is `renameSource`; other attributes are not updated here.
+Rename a Source. The name is the only attribute a Source has, so it is the only one this endpoint updates.
 
-- **Body:** `UpdateSourceDto`.
-- **Response:** `sourceWithInvoiceCountSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | New name. Trimmed, non-empty, unique within the Entity. |
+
+**Response:** the updated Source object.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/sources/$SOURCE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Bsale (ventas)" }'
+```
 
 ## DELETE `/sources/:sourceId`
 
 Delete a Source. Sources referenced by existing Invoices or attached Source Feeds are refused.
 
-- **Response:** `sourceWithInvoiceCountSchema`.
+**Response:** the deleted Source object.
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PATCH`. |
+| `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
 | `201` | Source created. |
-| `204` | Source deleted. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Source not found. |
-| `409` | Source has attached Invoices or Feeds and cannot be deleted. |
-
-<Warning>
-  Unverified: fields on `CreateSourceDto` and `UpdateSourceDto` (likely `id`, `name`). Refer to the DTOs and `@sintropix/api-contract` for authoritative shapes.
-</Warning>
+| `409` | Source id or name already exists, or the Source has attached Invoices or Feeds and cannot be deleted. |

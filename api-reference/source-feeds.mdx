@@ -4,27 +4,87 @@ sidebarTitle: "Source Feeds"
 description: "Configure, sync, edit, and delete Source Feeds: the recurring pull jobs that import documents from external systems into a Source on an Entity."
 ---
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the credentials or handle it needs to fetch from the external system. Syncing a Feed lands new documents into its Source.
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the [Integration](/api-reference/integrations) it fetches through. Syncing a Feed lands new documents into its Source.
+
+## The Source Feed object
+
+Every route on this page returns Feeds in this shape.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Feed id. |
+| `entityId` | uuid | Owning Entity. |
+| `sourceId` | uuid | The Source the Feed fills. |
+| `integrationId` | uuid | The Integration the Feed reads through. |
+| `feedStartDate` | string (`YYYY-MM-DD`) | The link date: the earliest emission date the Feed imports, on the provider's calendar. |
+| `lastSyncedAt` | ISO 8601 timestamp \| null | When the Feed last completed a successful sync. `null` until the first success. |
+| `sourceName` | string | Name of the parent Source. |
+| `lastSyncRun` | sync run object \| null | The most recent sync, whatever its outcome. `null` until the first sync settles. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
+**Sync run object**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Run id. |
+| `entityId`, `integrationId`, `sourceFeedId`, `sourceId` | uuid | What the run belonged to. |
+| `feedStartDate` | string (`YYYY-MM-DD`) | Start of the range the run read. |
+| `sweptTo` | string (`YYYY-MM-DD`) | End of the range the run read (the day it ran, Chilean calendar). |
+| `landedCount` | integer | Documents newly imported. |
+| `skippedCount` | integer | Documents already present and unchanged. |
+| `ignoredCount` | integer | Documents of types the books do not track. |
+| `rejectedCount` | integer | Documents refused with a reason. |
+| `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
+| `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
+| `report` | object | `{ tieOutLines, rejected, divergences, tieOutMismatch? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected }`). `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `document_inactive`, `sii_not_accepted`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. |
+| `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
 
 List every Source Feed for the Entity, each annotated with its parent Source name.
 
-- **Response:** array of `sourceFeedWithSourceNameSchema`.
+- **Response:** array of Source Feed objects.
 
 ## POST `/source-feeds`
 
-Create a Source Feed. The response distinguishes success, redirect (the caller must complete a link flow), and error states.
+Create a Source Feed. The body names the Source to fill, either an existing one by id or a new one by name, and the response carries both the Feed and that Source.
 
-- **Body:** `CreateSourceFeedDto`.
-- **Response:** `sourceFeedWriteAnswerSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
+| `integrationId` | uuid | Yes | The Integration to read through. |
+| `feedStartDate` | string (`YYYY-MM-DD`) | Yes | The link date: the earliest emission date to import. |
+| `source` | object | Yes | Exactly one of `{ "sourceId": "<uuid>" }` (an existing Source) or `{ "sourceName": "<name>" }` (create a Source with that name). A body carrying both keys is rejected. |
+
+**Response:** `{ feed, source }`, where `feed` is the Source Feed object and `source` is the Source it fills: `{ id, entityId, name, invoiceCount, createdAt, updatedAt }`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "e4f5a6b7-c8d9-4e0f-a1b2-c3d4e5f6a7b8",
+    "integrationId": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
+    "feedStartDate": "2025-01-01",
+    "source": { "sourceName": "Bsale" }
+  }'
+```
 
 ## POST `/source-feeds/:sourceFeedId/sync`
 
 Trigger an on-demand sync of a Source Feed. The response reports how many documents were landed, updated, or skipped.
 
-- **Body:** `SyncSourceFeedDto`.
-- **Response:** `syncSourceFeedAnswerSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `preview` | boolean | No | When `true`, run the full read and landing but roll everything back at the end, so nothing is written and the run is recorded with `outcome: "preview"`. Default `false`. An empty body runs the sync for real. |
+
+**Response:** `{ feed, run }`, the Feed as the listing now shows it and the sync run object that just settled. The documents and Partners the sync landed are not included; read them back through their own endpoints.
+
 - **Status:** `200`.
 
 ```bash
@@ -35,30 +95,72 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FE
   -d '{}'
 ```
 
+```json
+{
+  "feed": {
+    "id": "e4f5a6b7-c8d9-4e0f-a1b2-c3d4e5f6a7b8",
+    "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+    "sourceId": "f5a6b7c8-d9e0-4f1a-b2c3-d4e5f6a7b8c9",
+    "integrationId": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
+    "feedStartDate": "2025-01-01",
+    "lastSyncedAt": "2025-12-31T14:02:11.000Z",
+    "sourceName": "Bsale",
+    "lastSyncRun": { "...": "same object as run" },
+    "createdAt": "2025-01-02T12:00:00.000Z",
+    "updatedAt": "2025-12-31T14:02:11.000Z"
+  },
+  "run": {
+    "id": "a6b7c8d9-e0f1-4a2b-8c3d-4e5f6a7b8c9d",
+    "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+    "integrationId": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
+    "sourceFeedId": "e4f5a6b7-c8d9-4e0f-a1b2-c3d4e5f6a7b8",
+    "sourceId": "f5a6b7c8-d9e0-4f1a-b2c3-d4e5f6a7b8c9",
+    "feedStartDate": "2025-01-01",
+    "sweptTo": "2025-12-31",
+    "landedCount": 12,
+    "skippedCount": 340,
+    "ignoredCount": 3,
+    "rejectedCount": 0,
+    "outcome": "success",
+    "failureCode": null,
+    "report": { "tieOutLines": [], "rejected": [], "divergences": [] },
+    "occurredAt": "2025-12-31T14:02:11.000Z"
+  }
+}
+```
+
 ## PATCH `/source-feeds/:sourceFeedId`
 
 Change the link date on a Source Feed (the earliest date the Feed will import from).
 
-- **Body:** `UpdateSourceFeedDto`.
-- **Response:** `sourceFeedWithSourceNameSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `feedStartDate` | string (`YYYY-MM-DD`) | Yes | The new link date. |
+
+- **Response:** the updated Source Feed object.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FEED_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "feedStartDate": "2024-07-01" }'
+```
 
 ## DELETE `/source-feeds/:sourceFeedId`
 
 Delete a Source Feed. The parent Source and any already-imported documents are unaffected.
 
-- **Response:** `sourceFeedWithSourceNameSchema`.
+- **Response:** the deleted Source Feed object.
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PATCH`, `POST /sync`. |
+| `200` | Success on `GET`, `PATCH`, `DELETE`, `POST /sync`. |
 | `201` | Source Feed created. |
-| `204` | Source Feed deleted. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Source Feed not found. |
 | `502` | External sync failed at the provider. |
-
-<Warning>
-  Unverified: the full discriminant set of `sourceFeedWriteAnswerSchema` (success versus redirect versus error variants) and the exact provider list. Refer to `@sintropix/api-contract` for authoritative shapes.
-</Warning>

@@ -10,96 +10,396 @@ A Bank Movement is a single transaction line pulled from a bank feed or entered 
   All routes are nested under a Bank Account, not directly under the Entity. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`. `:movementId` is a UUID.
 </Note>
 
+## The Bank Movement object
+
+Every read and write on this page returns Movements in this shape. Amounts are non-negative integers in the account currency's minor units; the direction is carried by `side`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Movement id. |
+| `entityId` | uuid | Owning Entity. |
+| `bankAccountId` | uuid | Bank Account the Movement sits on. |
+| `movementDate` | string (`YYYY-MM-DD`) | Date the bank reported the line. |
+| `amount` | integer | Magnitude in minor units, never negative. |
+| `side` | `debit` \| `credit` | Direction against the Bank Account's mapped Ledger Account. `debit` is money in for a `bank` account. |
+| `description` | string | The description the bank reported. |
+| `externalRef` | string \| null | The bank's own reference for the line. Unique per Bank Account when present. |
+| `partnerId` | uuid \| null | Counterparty Partner. |
+| `ledgerEntryId` | uuid \| null | The Ledger Entry that books this Movement. `null` while unbooked. |
+| `ledgerLineId` | uuid \| null | The bank line of that entry. `null` while unbooked. |
+| `ledgerAccountId` | uuid \| null | The Ledger Account that bank line sits on. `null` while unbooked. |
+| `metadata` | array of `{ label, value }` | Additional Information lines (up to 50). |
+| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` | Derived booking status. |
+| `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it regardless of filters. |
+| `partnerName` | string \| null | Name of `partnerId`, for display. |
+| `reconciliationLabel` | string \| null | Counterpart of the booking entry as `"<code> <name>"`, with `" +N"` when there are more counterpart lines. `null` while unbooked. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
+Write answers also return the Bank Account with its computed summary:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Bank Account id. |
+| `entityId` | uuid | Owning Entity. |
+| `name` | string | Display name. |
+| `kind` | `bank` \| `card` | Account kind. |
+| `ledgerAccountId` | uuid | Ledger Account where booked activity accumulates. |
+| `currency` | string | ISO 4217 code, for example `CLP`. |
+| `feed` | object \| null | `{ bankConnectionId, providerAccountId, institutionName, lastSyncedAt }` when the account is fed by a bank connection; `null` otherwise. |
+| `balance` | integer | Signed balance on the Ledger Account's normal side. |
+| `unreconciledCount` | integer | Movements not yet reconciled. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
 ## GET `/movements`
 
-List Movements on a Bank Account. Returns `bankMovementsPageSchema`, a paginated `{ rows, nextCursor }` object.
+List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }` object.
 
-- **Query:** `ListBankMovementsQueryDto` (grep `list-bank-movements-query.dto.ts` for the exact filters, which include a cursor, page size, date range, and status filter).
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cursor` | string | No | The `nextCursor` value from the previous page. Cannot be combined with `aroundMovementId`. |
+| `aroundMovementId` | uuid | No | Return the page that contains this Movement instead of continuing a walk. |
+| `limit` | integer | No | Page size, `1` to `100`. Default `50`. |
+| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` | No | Filter by booking status. |
+| `partnerId` | uuid | No | Filter by counterparty Partner. |
+| `side` | `debit` \| `credit` | No | Filter by direction. |
+| `movementDateFrom` | string (`YYYY-MM-DD`) | No | Earliest movement date, inclusive. |
+| `movementDateTo` | string (`YYYY-MM-DD`) | No | Latest movement date, inclusive. |
+| `amountMin` | integer | No | Minimum magnitude in minor units. Matched against the magnitude on either side. |
+| `amountMax` | integer | No | Maximum magnitude in minor units. |
+| `search` | string | No | Up to 100 characters. Matched against the description, the bank reference, and the Partner name. Blank is ignored. |
+| `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. |
+| `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
+| `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
+
+**Response**
+
+Each row is a Bank Movement object plus `group`: `null` when `groupBy=none`, otherwise `{ by, value, key, movementCount, startsGroup }` where `by` is the `groupBy` value, `value` is the Partner name (nullable), the `YYYY-MM` month, or the status, `movementCount` is the size of the group across the whole result, and `startsGroup` is `true` on the first row of the group. `nextCursor` is `null` on the last page.
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&limit=25" \
   -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "movements": [
+    {
+      "id": "3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11",
+      "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+      "bankAccountId": "c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
+      "movementDate": "2025-12-30",
+      "amount": 1250000,
+      "side": "debit",
+      "description": "TRANSFERENCIA DE ACME SPA",
+      "externalRef": "BCH-2025-1230-0007",
+      "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "ledgerEntryId": null,
+      "ledgerLineId": null,
+      "ledgerAccountId": null,
+      "metadata": [],
+      "status": "unbooked",
+      "runningBalance": 4830000,
+      "partnerName": "Acme SpA",
+      "reconciliationLabel": null,
+      "group": null,
+      "createdAt": "2025-12-31T03:10:22.000Z",
+      "updatedAt": "2025-12-31T03:10:22.000Z"
+    }
+  ],
+  "nextCursor": "{\"groupSortKey\":\"\",\"groupKey\":\"\",\"sortKey\":\"2025-12-30\",\"createdAt\":\"2025-12-31 03:10:22.000000+00\",\"id\":\"3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11\"}"
+}
 ```
 
 ## GET `/movements/:movementId/match-candidates`
 
-List Invoices and Ledger Entries that could plausibly settle this Movement (per Sintropix's matching heuristics).
+List Invoices and Ledger Entries that could plausibly settle this Movement (per Sintropix's matching heuristics). Up to 200 open Ledger Entry Lines on the side that settles the Movement, newest entry date first.
 
-- **Response:** `bankMovementMatchCandidatesSchema`.
+**Response:** `{ candidates: [...] }`, one item per open line:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `line` | object | The open Ledger Entry Line: `id`, `entryId`, `accountId`, `entityId`, `functionalAmount`, `side`, `partnerId`, `transactionCurrency`, `transactionAmount`, `transactionFxRate`, `openAmount` (remaining unsettled amount, nullable), `createdAt`, `updatedAt`. |
+| `entry` | object | `{ id, entryDate, memo }` of the entry the line belongs to. |
+| `account` | object | `{ id, code, name }` of the Ledger Account the line sits on. |
+| `partner` | object \| null | `{ id, name, legalName, taxId }` when the line names a Partner. |
+| `invoice` | object \| null | `{ id, documentNumber, issueDate }` when the line is an Invoice's control line. |
+
+Pass the candidate's `line.id` as `lineId` to `POST /movements/:movementId/match`.
 
 ## GET `/movements/:movementId/reconciliation`
 
-Return the Movement's current booking or match state and the Ledger Lines that discharge it.
+Return the Movement's current booking or match state and the Ledger Lines that discharge it. Only a booked or matched Movement has one.
 
-- **Response:** `bankMovementReconciliationSchema`.
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
+| `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, and `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`). |
+| `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
+| `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount`. `null` when the booking touches no open-item account. |
+| `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.entryDate` and `counterpart.invoiceDocumentNumber` (nullable) added. |
 
 ## GET `/movements/:movementId/erwin-context`
 
 Compact reconciliation context tailored for Erwin (the AI assistant) as it decides how to book a Movement. Present in the public surface because Erwin authenticates as the User via a Key Lease.
 
-- **Response:** `erwinBankMovementContextSchema`.
+**Response**
+
+```json
+{
+  "bankAccount": {
+    "id": "c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
+    "name": "Banco de Chile CLP",
+    "ledgerAccountId": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+    "currency": "CLP"
+  },
+  "movement": {
+    "id": "3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11",
+    "bankAccountId": "c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
+    "movementDate": "2025-12-30",
+    "amount": 1250000,
+    "side": "debit",
+    "description": "TRANSFERENCIA DE ACME SPA",
+    "externalRef": "BCH-2025-1230-0007",
+    "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "status": "unbooked",
+    "runningBalance": 4830000
+  }
+}
+```
 
 ## POST `/movements`
 
 Create a manual Bank Movement on the account. Requires `x-audit-actor` for API-key callers.
 
-- **Body:** `CreateBankMovementDto`.
-- **Response:** `createBankMovementResultSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected with `409` instead of creating a duplicate. |
+| `movementDate` | string (`YYYY-MM-DD`) | Yes | Date of the Movement. |
+| `amount` | integer | Yes | Magnitude in minor units, `0` or greater. |
+| `side` | `debit` \| `credit` | Yes | Direction against the Bank Account's mapped Ledger Account. |
+| `description` | string | Yes | Non-empty description. |
+| `externalRef` | string \| null | No | Bank reference. Must be unique on the Bank Account when present. |
+| `partnerId` | uuid \| null | No | Counterparty Partner. |
+| `metadata` | array of `{ label, value }` | No | Up to 50 Additional Information lines. Each `label` is 1 to 120 characters and each `value` 1 to 500, both trimmed. |
+
+**Response:** `{ movement, bankAccount }`, the new Movement (as a list row, without `group`) and the Bank Account with its refreshed summary.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
-  -d '{ /* see CreateBankMovementDto */ }'
+  -d '{
+    "id": "3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11",
+    "movementDate": "2025-12-30",
+    "amount": 1250000,
+    "side": "debit",
+    "description": "Transferencia de Acme SpA",
+    "externalRef": "BCH-2025-1230-0007",
+    "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "metadata": [{ "label": "Wire reference", "value": "WR-88213" }]
+  }'
 ```
 
 ## PATCH `/movements/:movementId`
 
 Edit an existing Movement (for example, correct a description or counterparty).
 
-- **Body:** `UpdateBankMovementDto`.
-- **Response:** `updateBankMovementResultSchema`.
+**Body:** any subset of the create fields except `id`. Every field is editable while the Movement is unbooked; once booked or matched, only `partnerId` and `metadata` may change.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `movementDate` | string (`YYYY-MM-DD`) | No | Unbooked only. |
+| `amount` | integer | No | Unbooked only. Minor units, `0` or greater. |
+| `side` | `debit` \| `credit` | No | Unbooked only. |
+| `description` | string | No | Unbooked only. Non-empty. |
+| `externalRef` | string \| null | No | Unbooked only. |
+| `partnerId` | uuid \| null | No | `null` clears the Partner. |
+| `metadata` | array of `{ label, value }` | No | Replaces the whole list. |
+
+**Response:** `{ movement, bankAccount }`.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }'
+```
 
 ## DELETE `/movements/:movementId`
 
 Remove a Movement. Booked or matched Movements are refused; unbook or unmatch first.
 
-- **Response:** `deleteBankMovementResultSchema`.
+**Response:** `{ movementId, bankAccount }`, the id of the deleted Movement and the Bank Account with its refreshed summary.
 
 ## POST `/movements/:movementId/book`
 
-Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry from the Movement plus the booking instructions in the body.
+Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry from the Movement plus the booking instructions in the body. You supply the entry header and the counterpart lines; the bank line on the Bank Account's mapped Ledger Account is built for you, so it can never be on the wrong side or for the wrong amount.
 
-- **Body:** `BookBankMovementDto` (target account, dimension values, partner, memo).
-- **Response:** `reconcileBankMovementResultSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id of the Ledger Entry to create. |
+| `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
+| `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
+| `notes` | string \| null | No | Free-text notes. Blank is stored as `null`. |
+| `movementPartnerId` | uuid \| null | No | Set the Movement's Partner in the same write. Omit to keep the current Partner; `null` clears it. |
+| `newCounterpartLines` | array of line objects | Yes | At least one counterpart line (see below). |
+| `bankLineFxRate` | decimal string | Conditional | FX rate for the generated bank line. Required exactly when the Bank Account's currency differs from the Entity's functional currency; omit otherwise. |
+
+**Counterpart line object**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | uuid | Yes | Ledger Account to post to. |
+| `functionalAmount` | integer | Yes | Amount in the functional currency's minor units, `0` or greater. |
+| `side` | `debit` \| `credit` | Yes | Line side. |
+| `partnerId` | uuid \| null | No | Counterparty on this line. |
+| `transactionCurrency` | string \| null | No | ISO 4217 code of a foreign-currency line. |
+| `transactionAmount` | integer \| null | No | Amount in that currency's minor units. |
+| `transactionFxRate` | decimal string \| null | No | Rate used, as a decimal string such as `"943.25"`. `transactionCurrency`, `transactionAmount`, and `transactionFxRate` must be given together or not at all. |
+| `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. |
+
+**Response:** `{ movement, bankAccount, reconciliation }`, where `reconciliation` has the same shape as `GET /movements/:movementId/reconciliation`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/book" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "7d8e9f0a-1b2c-4d3e-8f4a-5b6c7d8e9f0a",
+    "entryDate": "2025-12-30",
+    "memo": "Consulting fee from Acme SpA",
+    "movementPartnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "newCounterpartLines": [
+      {
+        "accountId": "4e5f6a7b-8c9d-4e0f-a1b2-c3d4e5f6a7b8",
+        "functionalAmount": 1250000,
+        "side": "credit",
+        "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+        "dimensionValueIds": []
+      }
+    ]
+  }'
+```
 
 ## POST `/movements/:movementId/match`
 
 Match a Movement to an existing document (Invoice or Ledger Entry) rather than booking a new entry. Sintropix records an Allocation between the Movement's counter-account line and the matched document's open-item line.
 
-- **Body:** `MatchBankMovementDto`.
-- **Response:** `reconcileBankMovementResultSchema`.
+**Body:** the same fields as `POST /book` without `movementPartnerId`, plus the line to settle:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id of the Ledger Entry to create. |
+| `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
+| `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
+| `notes` | string \| null | No | Free-text notes. |
+| `newCounterpartLines` | array of line objects | Yes | At least one line. Include the settlement line on the open-item account (and any realized-FX line); the allocation is sized from it. |
+| `bankLineFxRate` | decimal string | Conditional | Same rule as `POST /book`. |
+| `lineId` | uuid | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. To match an Invoice, pass its control line. |
+
+**Response:** `{ movement, bankAccount, reconciliation }`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/match" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d",
+    "entryDate": "2025-12-30",
+    "memo": "Payment of invoice 1042",
+    "lineId": "5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e",
+    "newCounterpartLines": [
+      {
+        "accountId": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+        "functionalAmount": 1250000,
+        "side": "credit",
+        "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+      }
+    ]
+  }'
+```
 
 ## POST `/movements/:movementId/transfer`
 
-Mark this Movement as one leg of an Internal Transfer. Per ADR 0025, an Internal Transfer is a composed act rather than a first-class aggregate, so both legs must be identified before the transfer is booked.
+Mark this Movement as one leg of an Internal Transfer. An Internal Transfer is a composed act rather than a first-class record, so both legs must be identified before the transfer is booked. Each leg posts its own entry through a bridge account; Sintropix derives the balancing bridge line itself, so it never appears in the body.
 
-- **Body:** `TransferBankMovementDto`.
-- **Response:** `bankMovementWithStatusSchema`.
+**Body:** one of three variants, selected by `kind`. Unknown fields are rejected.
+
+**Common fields (all variants)**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | `start` \| `pair` \| `complete` | Yes | Which variant this is. |
+| `id` | uuid | Yes | Client-generated id of the Ledger Entry to create for this leg. |
+| `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
+| `memo` | string \| null | Yes | Entry memo. |
+| `notes` | string \| null | No | Free-text notes. |
+| `extraLines` | array of line objects | No | Ordinary extra lines (fees, for example), same shape as the counterpart line in `POST /book`. |
+| `functionalAmount` | integer \| null | Conditional | This leg's value in the functional currency. Required when the Bank Account is in a foreign currency, not allowed otherwise. |
+| `bankLineFxRate` | decimal string \| null | Conditional | FX rate for this leg's bank line. Same rule as `functionalAmount`. |
+
+**`kind: "start"`**: open a transfer whose other leg is not yet known.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bridgeAccountId` | uuid | Yes | Bridge (transit) Ledger Account the transfer passes through. |
+
+**`kind: "pair"`**: book both legs at once.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bridgeAccountId` | uuid | Yes | Bridge Ledger Account. |
+| `counterpart` | object | Yes | The other leg: `{ movementId, entry, extraLines?, functionalAmount?, bankLineFxRate? }` where `movementId` is the Movement on the other Bank Account and `entry` is `{ id, entryDate, memo, notes? }` for that leg's entry. |
+
+**`kind: "complete"`**: close a transfer opened earlier with `start`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bridgeLineId` | uuid | Yes | The bridge line the `start` leg posted. |
+
+**Response:** the Bank Movement object (with `status`) for the Movement in the URL.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/transfer" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kind": "pair",
+    "id": "0c1d2e3f-4a5b-4c6d-8e7f-8a9b0c1d2e3f",
+    "entryDate": "2025-12-30",
+    "memo": "Transfer to savings",
+    "bridgeAccountId": "6d7e8f9a-0b1c-4d2e-8f3a-4b5c6d7e8f9a",
+    "counterpart": {
+      "movementId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "entry": {
+        "id": "1d2e3f4a-5b6c-4d7e-8f8a-9b0c1d2e3f4a",
+        "entryDate": "2025-12-30",
+        "memo": "Transfer from checking"
+      }
+    }
+  }'
+```
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success (`GET`, `PATCH`, `POST`). |
+| `200` | Success (`GET`, `PATCH`, `DELETE`, and `POST` actions on an existing Movement). |
 | `201` | Movement created. |
-| `204` | Movement deleted. |
 | `400` | Validation error, or missing `x-audit-actor` on a key call. |
 | `403` | Read-only key attempted a mutation. |
 | `404` | Entity, Bank Account, or Movement not found. |
-| `409` | Domain conflict (already booked, already matched, and so on). |
-
-<Warning>
-  Unverified: the full set of `status` values on `bankMovementWithStatusSchema` and the exact fields of the DTOs above. Refer to `@sintropix/api-contract` and the DTOs alongside the controller for authoritative shapes.
-</Warning>
+| `409` | Domain conflict (already booked, already matched, duplicate `id` or `externalRef`, and so on). |

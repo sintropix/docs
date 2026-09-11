@@ -60,7 +60,13 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
       -H "x-api-key: $SINTROPIX_API_KEY" \
       -H "x-audit-actor: my-agent" \
       -H "Content-Type: application/json" \
-      -d '{ /* see CreatePartnerDto */ }'
+      -d '{
+        "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+        "name": "Servicios Cloud SpA",
+        "type": "vendor",
+        "country": "CL",
+        "taxId": "76123456-0"
+      }'
     ```
 
     Requests to `/api/auth/*` are rejected when they carry `x-api-key`, so keys cannot be used to mint further keys or manage Users.

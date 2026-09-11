@@ -6,15 +6,43 @@ description: "List, create, edit, book, and delete AR and AP Invoices. Attach or
 
 Invoices are Sintropix's model for both AR (issued to customers) and AP (received from suppliers). Each Invoice can be booked to a Ledger Entry and, in Chile, linked to a Documento Tributario Electrónico (DTE) issued through the SII. This page covers listing, creating, editing, booking, and DTE-linking Invoices.
 
+Amounts are integers in the minor units of their currency (`1190000` is CLP 1,190,000; `125050` is USD 1,250.50). Dates are `YYYY-MM-DD` strings, tax periods are `YYYY-MM`, and timestamps are ISO 8601.
+
 ## GET `/invoices`
 
 List every Invoice for the Entity, filtered by direction and document kind.
 
-- **Query:** `ListInvoicesQueryDto` (`direction`, `documentKind`).
-- **Response:** array of `invoiceSchema`.
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `direction` | string | No | `receivable` (AR, issued to a customer) or `payable` (AP, received from a supplier). Omit to list both. |
+| `documentKind` | string | No | `invoice` or `credit_note`. Omit to list both. |
+
+**Response:** an array of Invoice objects.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Invoice id. |
+| `entityId` | uuid | Owning Entity. |
+| `partnerId` | uuid | Counterparty [Partner](/api-reference/partners). |
+| `direction` | string | `receivable` or `payable`. |
+| `documentKind` | string | `invoice` or `credit_note`. |
+| `documentNumber` | string | The number printed on the document. |
+| `currency` | string | ISO 4217 code the document is denominated in. |
+| `total` | integer | Gross total in minor units of `currency`. |
+| `issueDate` | string | `YYYY-MM-DD`. |
+| `dueDate` | string or null | `YYYY-MM-DD`. |
+| `memo` | string or null | Free text. |
+| `metadata` | array | Additional Information lines, each `{ "label": string, "value": string }`. Empty array when none. |
+| `sourceId` | uuid or null | The [Source](/api-reference/sources) the document came from. Null when it was entered directly. |
+| `controlLineId` | uuid or null | The Ledger Entry Line that carries the receivable or payable. Null means the Invoice is not booked. |
+| `controlAccountId` | uuid or null | The Ledger Account the control line sits on. Null exactly when `controlLineId` is null. |
+| `createdAt` | timestamp | Creation time. |
+| `updatedAt` | timestamp | Last update time. |
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices?direction=ar" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices?direction=receivable" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -22,76 +50,375 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices?direction=ar" \
 
 Paginated Invoice listing with richer filters. Use this instead of `GET /invoices` for UI-style pagination.
 
-- **Query:** `ListInvoiceDocumentsQueryDto` (cursor, page size, filters).
-- **Response:** `invoiceDocumentsPageSchema` (`{ rows, nextCursor }`).
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `direction` | string | No | `receivable` or `payable`. Omit to page over both. |
+| `cursor` | uuid | No | The `nextCursor` returned by the previous page. Omit for the first page. |
+| `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
+| `statusFilter` | string | No | `all`, `notPaid`, `paid`, `unbooked`, or `booked`. Default `all`. |
+| `dteType` | string | No | Keep only documents whose DTE has this type code (`33`, `61`, ...). Repeat the parameter to allow several codes. Use `none` for documents with no DTE. |
+| `sourceId` | string | No | A Source id, or `none` for documents that came from no Source. Also scopes the totals in the response. |
+| `partnerId` | uuid | No | Keep only documents of this Partner. |
+| `currency` | string | No | ISO 4217 code. |
+| `paymentStatus` | string | No | `paid`, `partial`, or `unpaid`. |
+| `issueDateFrom` | string | No | `YYYY-MM-DD`, inclusive. |
+| `issueDateTo` | string | No | `YYYY-MM-DD`, inclusive. |
+| `dueDateFrom` | string | No | `YYYY-MM-DD`, inclusive. Documents without a due date are excluded. |
+| `dueDateTo` | string | No | `YYYY-MM-DD`, inclusive. Documents without a due date are excluded. |
+| `taxPeriodFrom` | string | No | `YYYY-MM`, inclusive. Read from the DTE; documents without one are excluded. |
+| `taxPeriodTo` | string | No | `YYYY-MM`, inclusive. |
+| `totalMin` | integer | No | Minimum `total`, in minor units. |
+| `totalMax` | integer | No | Maximum `total`, in minor units. |
+| `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
+| `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. At most 100 characters; blank is ignored. |
+| `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, or `taxPeriod`. Default `issueDate`. |
+| `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `invoices` | array | The Invoice rows on this page (see below). |
+| `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page. |
+| `totalCount` | integer | Documents in scope: the direction and Source requested, ignoring every other filter. |
+| `unbookedCount` | integer | How many of those are not yet booked. |
+| `outstandingTotal` | integer | Sum of the unbooked documents' totals, in the Entity's functional currency. |
+
+Each element of `invoices` is an **Invoice row**: every field of the Invoice object above, plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dte` | object or null | The DTE behind the document (fields listed under `PUT /invoices/:invoiceId/dte`). Null when none. |
+| `partnerName` | string | Name of the Partner. |
+| `sourceName` | string or null | Name of the Source, null when the document came from none. |
+| `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
+| `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
+| `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
+| `group` | object or null | Null unless `groupBy` was requested. Contains `by` (the grouping), `value`, `key` (string), `invoiceCount` (integer, size of the whole group), and `startsGroup` (boolean, true on the first row of each group). |
+
+The type of `group.value` depends on `group.by`:
+
+| `by` | `value` |
+| --- | --- |
+| `partner` | string (Partner name) |
+| `currency` | string |
+| `dteType` | string or null |
+| `bookingStatus` | `unbooked` or `booked` |
+| `paymentStatus` | `paid`, `partial`, `unpaid`, or null |
+| `issueMonth` | `YYYY-MM` |
+| `dueMonth` | `YYYY-MM` or null |
+| `taxPeriod` | `YYYY-MM` or null |
 
 <Note>
-  The `pages` route is declared before `:invoiceId` in the controller so Nest does not read `pages` as an invoice id. Match that ordering when composing URLs.
+  `pages` is a fixed path segment, not an Invoice id: `GET /invoices/pages` always returns a page, never a single Invoice.
 </Note>
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&statusFilter=unbooked&limit=25" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
 
 ## POST `/invoices`
 
-Create an Invoice.
+Create an Invoice. The same request can also book it (`bookingEntryWithLines`) and attach the DTE behind it (`dte`); all three are written together or not at all.
 
-- **Body:** `CreateInvoiceDto`.
-- **Response:** `createInvoiceResultSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Caller-generated id. Retrying with the same id is answered `409`, so a retried request never creates a second Invoice. |
+| `partnerId` | uuid | Yes | Counterparty Partner of the Entity. |
+| `direction` | string | Yes | `receivable` or `payable`. |
+| `documentKind` | string | Yes | `invoice` or `credit_note`. Fixed after creation. |
+| `documentNumber` | string | Yes | Non-empty. The number printed on the document. |
+| `currency` | string | Yes | ISO 4217 code. |
+| `total` | integer | Yes | Gross total in minor units, zero or more. |
+| `issueDate` | string | Yes | `YYYY-MM-DD`. |
+| `dueDate` | string or null | No | `YYYY-MM-DD`. |
+| `memo` | string or null | No | Free text. |
+| `metadata` | array | No | Up to 50 lines of `{ "label": string, "value": string }`. Labels up to 120 characters, values up to 500, both non-blank. Omit for none. |
+| `sourceId` | uuid or null | No | The Source the document came from. Omit or null when entered directly. |
+| `bookingEntryWithLines` | object | No | Book the Invoice in the same request. Same shape and rules as the body of `POST /invoices/:invoiceId/book`. |
+| `dte` | object | No | The Chilean tax document behind the Invoice. Same shape and rules as the body of `PUT /invoices/:invoiceId/dte`. Omit for a document with no DTE. |
+
+**Response** (`201`)
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `invoice` | object | The created Invoice row, as `GET /invoices/pages` would list it. |
+| `bookingEntry` | object or null | The Ledger Entry detail (see `GET /invoices/:invoiceId`). Null unless `bookingEntryWithLines` was sent. |
+| `partner` | object or null | The Partner with its `openReceivable` and `openPayable` totals after booking. Null unless the Invoice was booked. |
+| `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
-  -d '{ /* see CreateInvoiceDto */ }'
+  -d '{
+    "id": "6f1c2b1e-0d1a-4c7b-9a3e-2b8f5d0e1a11",
+    "partnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+    "direction": "payable",
+    "documentKind": "invoice",
+    "documentNumber": "45210",
+    "currency": "CLP",
+    "total": 1190000,
+    "issueDate": "2026-08-14",
+    "dueDate": "2026-09-13",
+    "memo": "Hosting agosto 2026",
+    "metadata": [{ "label": "Orden de compra", "value": "OC-2026-0193" }]
+  }'
+```
+
+Example response:
+
+```json
+{
+  "invoice": {
+    "id": "6f1c2b1e-0d1a-4c7b-9a3e-2b8f5d0e1a11",
+    "entityId": "b2f0c1d4-7e8a-4b9c-8d1e-2f3a4b5c6d7e",
+    "partnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+    "direction": "payable",
+    "documentKind": "invoice",
+    "documentNumber": "45210",
+    "currency": "CLP",
+    "total": 1190000,
+    "issueDate": "2026-08-14",
+    "dueDate": "2026-09-13",
+    "memo": "Hosting agosto 2026",
+    "metadata": [{ "label": "Orden de compra", "value": "OC-2026-0193" }],
+    "sourceId": null,
+    "controlLineId": null,
+    "controlAccountId": null,
+    "createdAt": "2026-08-14T15:02:11.482Z",
+    "updatedAt": "2026-08-14T15:02:11.482Z",
+    "dte": null,
+    "partnerName": "Servicios Cloud SpA",
+    "sourceName": null,
+    "paymentStatus": null,
+    "bookingAccountLabel": null,
+    "bookingExtraLineCount": 0
+  },
+  "bookingEntry": null,
+  "partner": null,
+  "totalCount": 128,
+  "unbookedCount": 7,
+  "outstandingTotal": 4820500
+}
 ```
 
 ## GET `/invoices/:invoiceId`
 
-Return the full Invoice detail (`invoiceDetailSchema`) including lines, links, and the current book status.
+Return the full Invoice detail: the Invoice row (as listed by `GET /invoices/pages`, including `dte`), plus the fields below.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `partnerLegalName` | string or null | Legal name of the Partner. |
+| `partnerTaxId` | string or null | Tax id of the Partner. |
+| `bookingEntry` | object or null | The Ledger Entry that booked the Invoice. Null while unbooked. |
+
+**Ledger Entry detail** (`bookingEntry`)
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Entry id. |
+| `entityId` | uuid | Owning Entity. |
+| `entryDate` | string | `YYYY-MM-DD`. |
+| `memo` | string or null | Entry memo. |
+| `notes` | string or null | Entry notes. |
+| `status` | string | `active`, `deleted`, `reversed`, `scheduled`, or `cancelled`. |
+| `reversalOfEntryId` | uuid or null | Set when this entry reverses another. |
+| `reversedByEntryId` | uuid or null | Set when a live reversal entry points at this one. |
+| `lines` | array | The entry's lines (below). |
+| `relatedInvoices` | array | Invoice objects linked to this entry, each with a `partnerName`. |
+| `relatedMovements` | array | Bank Movements linked to this entry, each with `bankAccountCurrency`, `bankAccountLedgerAccountId`, and `partnerName`. |
+| `allocations` | array | Settlements against this entry's lines. Each carries a `counterpart` with `lineId`, `entryId`, `entryMemo`, `accountId`, `accountCode`, `accountName`, `partnerId`, and `partnerName`. |
+| `createdAt`, `updatedAt` | timestamp | |
+
+Each element of `lines`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Line id. |
+| `entryId` | uuid | Parent entry. |
+| `entityId` | uuid | Owning Entity. |
+| `accountId` | uuid | Ledger Account. |
+| `accountCode` | string | Code of the Ledger Account. |
+| `accountName` | string | Name of the Ledger Account. |
+| `accountType` | string | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense`. |
+| `functionalAmount` | integer | Magnitude in the Entity's functional currency, minor units. |
+| `side` | string | `debit` or `credit`. |
+| `partnerId` | uuid or null | Counterparty Partner. |
+| `partnerName` | string or null | Name of that Partner. |
+| `transactionCurrency` | string or null | Set together with the next two fields when the line was booked in a foreign currency. |
+| `transactionAmount` | integer or null | Amount in `transactionCurrency`, minor units. |
+| `transactionFxRate` | string or null | Decimal string. |
+| `lineDimensionValues` | array | Tags on the line: `{ dimensionId, dimensionName, dimensionValueId, dimensionValueCode, dimensionValueName }`. |
+| `createdAt`, `updatedAt` | timestamp | |
 
 ## PATCH `/invoices/:invoiceId`
 
 Partial update.
 
-- **Body:** `UpdateInvoiceDto`.
-- **Response:** `updateInvoiceResultSchema`.
+**Body:** any subset of the fields below. At least one is required. `documentKind` cannot change (delete and re-create an unbooked Invoice instead), and a `dte` key is ignored; use the `/dte` endpoints for that.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `partnerId` | uuid | No | Counterparty Partner. |
+| `direction` | string | No | `receivable` or `payable`. |
+| `documentNumber` | string | No | Non-empty. |
+| `currency` | string | No | ISO 4217 code. |
+| `total` | integer | No | Minor units, zero or more. |
+| `issueDate` | string | No | `YYYY-MM-DD`. |
+| `dueDate` | string or null | No | `YYYY-MM-DD`, or null to clear. |
+| `memo` | string or null | No | Free text, or null to clear. |
+| `metadata` | array | No | Replaces the whole list. Same limits as on create. |
+| `sourceId` | uuid or null | No | Editable whether or not the Invoice is booked. |
+
+**Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 
 ## DELETE `/invoices/:invoiceId`
 
-Delete the Invoice. Booked Invoices are refused; unbook first.
+Delete the Invoice. Booked Invoices are refused; unbook first. Deleting an Invoice also deletes the DTE behind it, unless another DTE still references that DTE (`409`).
 
-- **Response:** `deleteInvoiceResultSchema`.
+**Response:** `{ "deletedInvoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 
 ## PUT `/invoices/:invoiceId/dte`
 
-Attach or replace the linked DTE reference on an Invoice. The DTE record itself is imported through the [SII feed](/api-reference/sii); this endpoint only links the id.
+Attach or replace the DTE behind an Invoice. The body states the whole tax document: every field is sent on both a first attach and a correction, with `null` where the document says nothing. The DTE's cross-references are managed on the [SII page](/api-reference/sii).
 
-- **Body:** `PutInvoiceDteDto`.
-- **Response:** `updateInvoiceResultSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dteTypeCode` | string | Yes | SII document type code, from `GET /sii/document-types` (`33`, `34`, `61`, ...). |
+| `folio` | integer | Yes | The number the SII assigned, 1 to 9999999999. |
+| `issuerRut` | string | Yes | Issuer RUT in canonical form, digits then hyphen then check digit (`76123456-0`). |
+| `receiverRut` | string or null | Yes | Receiver RUT, same form. |
+| `issuerName` | string or null | Yes | Issuer name as printed. |
+| `receiverName` | string or null | Yes | Receiver name as printed. |
+| `issueDate` | string | Yes | `YYYY-MM-DD`. |
+| `taxPeriod` | string or null | Yes | The F29 / IVA month, `YYYY-MM`. Null when not yet known; it never defaults to the issue month. |
+| `currency` | string | Yes | ISO 4217 code. |
+| `total` | integer | Yes | Gross total printed on the DTE, minor units, zero or more. |
+| `netAmount` | integer or null | No | Net base, minor units. Omit or null when the DTE states none. |
+| `exemptAmount` | integer or null | No | Exempt part of the base, minor units. |
+| `taxAmount` | integer or null | No | Tax amount, minor units. |
+| `externalRef` | string | No | The id an external provider gave the document. Omit when none; must be non-empty if sent. |
+| `metadata` | array | Yes | Additional Information lines, `{ "label": string, "value": string }`. Send `[]` for none. |
+
+One issuer cannot hold two DTEs of the same type and folio within an Entity, and one Invoice holds at most one DTE; either collision is answered `409`.
+
+**Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`. The Invoice row's `dte` carries the stored document:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | DTE id. Use it with the SII endpoints. |
+| `entityId` | uuid | Owning Entity. |
+| `invoiceId` | uuid or null | The Invoice this DTE backs. |
+| `dteTypeCode`, `folio`, `issuerRut`, `receiverRut`, `issuerName`, `receiverName`, `issueDate`, `taxPeriod`, `currency`, `total`, `netAmount`, `exemptAmount`, `taxAmount`, `externalRef`, `metadata` | | As sent in the body. |
+| `createdAt`, `updatedAt` | timestamp | |
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/dte" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dteTypeCode": "33",
+    "folio": 45210,
+    "issuerRut": "76123456-0",
+    "receiverRut": "77654321-7",
+    "issuerName": "Servicios Cloud SpA",
+    "receiverName": "Mi Empresa SpA",
+    "issueDate": "2026-08-14",
+    "taxPeriod": "2026-08",
+    "currency": "CLP",
+    "total": 1190000,
+    "netAmount": 1000000,
+    "exemptAmount": 0,
+    "taxAmount": 190000,
+    "metadata": []
+  }'
+```
 
 ## DELETE `/invoices/:invoiceId/dte`
 
-Remove the DTE link from an Invoice. The DTE record stays; only the association is cleared.
+Remove the DTE from an Invoice. The Invoice stays; the tax document and the references it stated are deleted. Refused with `409` while another DTE still references it.
 
-- **Response:** `updateInvoiceResultSchema`.
+**Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 
 ## POST `/invoices/:invoiceId/book`
 
 Book an existing Invoice to a Ledger Entry using the supplied booking instructions (target counter account, dimensions, partner).
 
-- **Body:** `BookInvoiceDto`.
-- **Response:** `bookInvoiceResultSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `controlAccountId` | uuid | Yes | The receivable or payable Ledger Account that will carry the claim. Exactly one line of `entry.newLedgerEntryLines` must post to it. |
+| `entry` | object | Yes | The Ledger Entry to post (fields below). |
+
+Fields of `entry`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Caller-generated entry id. A retry with the same id is answered `409`. |
+| `entryDate` | string | Yes | `YYYY-MM-DD`. |
+| `memo` | string or null | Yes | Entry memo. |
+| `notes` | string or null | No | Entry notes. |
+| `newLedgerEntryLines` | array | Yes | 2 to 2000 lines. Total debits must equal total credits. |
+
+Each element of `newLedgerEntryLines`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | uuid | Yes | Ledger Account of the Entity. |
+| `functionalAmount` | integer | Yes | Magnitude in the functional currency, minor units, zero or more. |
+| `side` | string | Yes | `debit` or `credit`. |
+| `partnerId` | uuid or null | No | Counterparty. Lines other than the control line default to the Invoice's Partner when omitted. |
+| `transactionCurrency` | string | No | ISO 4217 code. Send together with the next two fields, or none of the three. |
+| `transactionAmount` | integer | No | Amount in `transactionCurrency`, minor units. |
+| `transactionFxRate` | string | No | Decimal string such as `"945.12"`. No exponent or sign. |
+| `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. |
+
+The control line (the one on `controlAccountId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side.
+
+Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT):
+
+```json
+{
+  "controlAccountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c",
+  "entry": {
+    "id": "9c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f",
+    "entryDate": "2026-08-14",
+    "memo": "Factura 45210 Servicios Cloud SpA",
+    "newLedgerEntryLines": [
+      { "accountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "functionalAmount": 1000000, "side": "debit" },
+      { "accountId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "functionalAmount": 190000, "side": "debit" },
+      { "accountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "functionalAmount": 1190000, "side": "credit", "partnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88" }
+    ]
+  }
+}
+```
+
+**Response** (`200`)
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `invoice` | object | The Invoice row, now with `controlLineId` and `controlAccountId` set. |
+| `bookingEntry` | object | The Ledger Entry detail described under `GET /invoices/:invoiceId`. |
+| `partner` | object | The Partner (see [Partners](/api-reference/partners)) with `openReceivable` and `openPayable` after booking. |
+| `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PATCH`, `PUT`, `POST /book`. |
+| `200` | Success on `GET`, `PATCH`, `PUT`, `DELETE`, `POST /book`. `DELETE` answers with the deleted row. |
 | `201` | Invoice created. |
-| `204` | Invoice deleted. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Invoice not found. |
-| `409` | Cannot delete a booked Invoice, DTE reference already linked, and so on. |
-
-<Warning>
-  Unverified: exact fields of `CreateInvoiceDto`, `BookInvoiceDto`, and `PutInvoiceDteDto`. Refer to the DTOs alongside the controller and `@sintropix/api-contract` for authoritative shapes.
-</Warning>
+| `409` | Cannot delete a booked Invoice, Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |

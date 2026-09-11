@@ -1,28 +1,20 @@
 ---
-title: "Sintropix API: Programmatic Access to the ERP Backend"
+title: "Sintropix API: Programmatic Access to Your Books"
 sidebarTitle: "Overview"
-description: "Reference for the Sintropix ERP HTTP API: base path, request and response format, authentication headers, error envelope, and per-Entity scoping."
+description: "Reference for the Sintropix HTTP API: base path, request and response format, authentication headers, error envelope, and per-Entity scoping."
 ---
 
-import { AgentPrompt } from "/snippets/agent-prompt.jsx"
-
-<AgentPrompt />
-
-The Sintropix API is a JSON over HTTPS interface to the ERP backend that owns your ledger, your invoices, your bank movements, and your reports. Every business route is scoped to a single Entity (a legal company with its own books), authenticated with an API key, and validated end-to-end by a shared Zod contract in `@sintropix/api-contract`.
-
-<Warning>
-  This reference documents the ERP backend as implemented in `apps/erp-backend`. The API is currently used by Sintropix's own web client and by Erwin (the AI assistant); a public, versioned, externally supported surface has not been announced. Endpoint paths, request shapes, and response shapes may change without notice.
-</Warning>
+The Sintropix API is a JSON over HTTPS interface to the system that owns your ledger, your invoices, your bank movements, and your reports. Every business route is scoped to a single Entity (a legal company with its own books) and authenticated with an API key. Requests and responses are validated end to end, so field names, types, and enums are consistent across endpoints.
 
 ## Base URL
 
-All routes are mounted under a global `/api` prefix (see `app.setGlobalPrefix('api')` in `apps/erp-backend/src/main.ts`). Sintropix has not published a stable customer-facing base URL; substitute your deployment's origin.
+All routes are mounted under the `/api` prefix:
 
 ```text
 https://api.sintropix.com/api
 ```
 
-The API is not versioned in the URL path. Contract-breaking changes are coordinated through `@sintropix/api-contract` version bumps and the frontend that consumes it.
+The API is not versioned in the URL path.
 
 ## Route Shape
 
@@ -40,9 +32,9 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (staff only), `/api/agents/models`, and `/api/health`.
+A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (staff only), and `/api/health`.
 
-`{entityId}` is always a UUID. The tenant guard rejects a request where the caller has no Entity Membership to that Entity with a `404`; it never returns `403`, so probing does not reveal whether an unknown Entity exists.
+`{entityId}` is always a UUID. A request for an Entity the caller cannot access returns `404`, never `403`, so probing does not reveal whether an unknown Entity exists.
 
 ## Authentication
 
@@ -66,11 +58,11 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-Path parameters that look like UUIDs are validated by `ParseUUIDPipe`; a malformed id returns `400`.
+Path parameters that are ids must be valid UUIDs; a malformed id returns `400`.
 
 ## Response Format
 
-Responses are the resource itself as JSON. There is no top-level `data` wrapper, no `meta` envelope, and no `pagination` block on non-paginated endpoints. The exact shape of every response is the Zod schema exported from `@sintropix/api-contract` and enforced by `nestjs-zod`'s `@ZodSerializerDto` at serialization time, so the compiled schema is the source of truth for field names and types.
+Responses are the resource itself as JSON. There is no top-level `data` wrapper, no `meta` envelope, and no `pagination` block on non-paginated endpoints. Each reference page lists the fields every endpoint returns.
 
 A single resource comes back as an object:
 
@@ -105,7 +97,7 @@ A page endpoint (endpoints whose path ends in `/pages`, plus a handful of report
 
 ## Errors
 
-Non-2xx responses are JSON. Application errors thrown as `HttpException` return the exception body; unhandled errors return `"Internal server error"`. Every response, success or failure, carries a `x-request-id` header for support (`REQUEST_ID_HEADER` in `@sintropix/observability`).
+Non-2xx responses are JSON. Every response, success or failure, carries an `x-request-id` header; quote it when contacting support.
 
 | Status | Meaning |
 | --- | --- |
@@ -113,29 +105,27 @@ Non-2xx responses are JSON. Application errors thrown as `HttpException` return 
 | `201` | Resource created. |
 | `204` | Request succeeded with no response body. |
 | `400` | Body, query, or path failed validation; a required header is missing. |
-| `401` | No valid session or API key. |
-| `403` | Read-only key attempted a mutation; API key used against the auth surface. |
-| `404` | Resource does not exist, or caller has no membership to the requested Entity. |
+| `401` | No valid API key. |
+| `403` | The key is not allowed to perform this action (for example a read-only key attempting a mutation). |
+| `404` | Resource does not exist, or the caller has no access to the requested Entity. |
 | `409` | Domain conflict (for example an already-booked Ledger Entry, a duplicate row). |
 | `429` | Rate limit exceeded on an API key. |
-| `500` | Unhandled server error; Sentry event captured. |
+| `500` | Unhandled server error. |
 
-Domain-level errors carry a stable string `code` in the body — for example `API_KEY_READ_ONLY_ERROR` from `apps/erp-backend/src/auth/error-codes.constants.ts`. Match on `code`, not on the human-readable message.
+Domain-level errors carry a stable string `code` in the body, for example `API_KEY_READ_ONLY_ERROR`. Match on `code`, not on the human-readable message.
 
 ## Rate Limits
 
 Each API key is rate-limited to **25,000 requests per hour** on a sliding window. Exceeding the limit returns `429`; there is no `X-RateLimit-*` header response contract.
 
-## CORS and Same-Site
+## Browser Callers
 
-The API enables CORS only for origins listed in the `CORS_ORIGINS` deployment env var, with credentials enabled. Browser clients must share a registrable domain with the API (for example `app.sintropix.com` and `api.sintropix.com`); the session cookie is same-site and Safari drops it across sites. Server-to-server API-key traffic is unaffected.
+The API is designed for server-to-server use with an API key. Calling it directly from a browser requires your origin to be allowlisted by Sintropix; contact support if you need that.
 
-## What Is Not Documented Here
-
-The following are not part of the current API surface, even though the previous version of this documentation referenced them:
+## What Is Not Part of the API
 
 <Warning>
-  There is **no webhook system**. Sintropix does not push event notifications to external URLs. The only outbound HTTP is a Slack incoming webhook used for internal operational reporting.
+  There is **no webhook system**. Sintropix does not push event notifications to external URLs. Poll the endpoints you care about, or the [Audit Trail](/api-reference/audit-trail) for a change feed.
 </Warning>
 
 <Warning>
@@ -143,9 +133,9 @@ The following are not part of the current API surface, even though the previous 
 </Warning>
 
 <Warning>
-  There is **no `Authorization: Bearer` scheme**. API keys go in `x-api-key`, sessions in a same-site cookie.
+  There is **no `Authorization: Bearer` scheme**. API keys go in the `x-api-key` header.
 </Warning>
 
 <Warning>
-  There is **no `/v1` prefix**. The base path is `/api`; contract versioning is handled through `@sintropix/api-contract`.
+  There is **no `/v1` prefix**. The base path is `/api`.
 </Warning>

@@ -10,8 +10,10 @@ The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for
 
 List the available chart templates that can be used to initialize an Entity's Chart of Accounts.
 
-- **Success response:** Array of `chartTemplateSummarySchema`
+- **Success response:** array of chart template summaries
 - **Status:** 200
+
+Each template summary carries:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -32,14 +34,28 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-templates \
 Read the full Chart of Accounts for an Entity in one document. The response contains all Account Groups and all Ledger Accounts, with derived facts computed on read.
 
 - **Path param:** `entityId` (UUID)
-- **Success response:** `chartOfAccountsSchema` — `{ groups, accounts }`
+- **Success response:** an object with two arrays, `groups` and `accounts`
 - **Status:** 200
+
+Each group in `groups` carries:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Group id |
+| `entityId` | UUID | Owning Entity |
+| `parentGroupId` | UUID or null | Parent group; null for a top-level group |
+| `codePrefix` | string | Group code prefix |
+| `name` | string | Group name |
+| `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
 
 Each account in `accounts` carries:
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | UUID | Account id |
+| `entityId` | UUID | Owning Entity |
 | `groupId` | UUID or null | Parent group |
 | `code` | string | Account code |
 | `name` | string | Account name |
@@ -50,6 +66,43 @@ Each account in `accounts` carries:
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
 | `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, or null when deletable |
 | `isDefaultPurchaseAccount` | boolean | Whether a Partner names this account as its Default Purchase Account |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+```json
+{
+  "groups": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "parentGroupId": null,
+      "codePrefix": "1.1",
+      "name": "Disponible",
+      "type": "asset",
+      "createdAt": "2026-02-01T12:00:00.000Z",
+      "updatedAt": "2026-02-01T12:00:00.000Z"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "groupId": "11111111-1111-4111-8111-111111111111",
+      "code": "1101",
+      "name": "Caja",
+      "type": "asset",
+      "tracking": "balance",
+      "subtype": null,
+      "normalSide": "debit",
+      "hasEntries": false,
+      "deleteBlockedBy": null,
+      "isDefaultPurchaseAccount": false,
+      "createdAt": "2026-02-01T12:00:00.000Z",
+      "updatedAt": "2026-02-01T12:00:00.000Z"
+    }
+  ]
+}
+```
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-of-accounts \
@@ -58,10 +111,10 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-of-accounts 
 
 ## POST /api/entities/:entityId/ledger/chart-initializations
 
-Initialize the Chart of Accounts from a template. The Entity must have an empty chart. The response is the full `chartOfAccountsSchema`.
+Initialize the Chart of Accounts from a template. The Entity must have an empty chart. The response is the full Chart of Accounts, in the same shape as the GET chart-of-accounts response above.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `InitializeChartFromTemplateDto` (from `initializeChartFromTemplateSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -69,7 +122,7 @@ Initialize the Chart of Accounts from a template. The Entity must have an empty 
 | `templateKey` | string | Yes | Template key from chart-templates |
 | `templateVersion` | string | Yes | Template version |
 
-- **Success response:** `chartOfAccountsSchema`
+- **Success response:** the full Chart of Accounts (`groups` and `accounts`, same shape as the GET chart-of-accounts response)
 - **Status:** 201
 
 ```bash
@@ -89,7 +142,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-init
 Create a new Account Group within the Chart of Accounts.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `CreateLedgerAccountGroupDto` (from `createLedgerAccountGroupSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -97,10 +150,25 @@ Create a new Account Group within the Chart of Accounts.
 | `parentGroupId` | UUID or null | No | Parent group id; null for a top-level group |
 | `codePrefix` | string | Yes | Group code prefix, non-empty |
 | `name` | string | Yes | Group name, non-empty |
-| `type` | enum | Yes | Account type (`asset`, `liability`, etc.) |
+| `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 
-- **Success response:** `createLedgerAccountGroupResultSchema` — `{ group }`
+- **Success response:** an object with a single `group` field holding the created Account Group, in the same shape as the `groups` rows of the Chart of Accounts
 - **Status:** 201
+
+```json
+{
+  "group": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "parentGroupId": null,
+    "codePrefix": "1.1",
+    "name": "Disponible",
+    "type": "asset",
+    "createdAt": "2026-02-01T12:00:00.000Z",
+    "updatedAt": "2026-02-01T12:00:00.000Z"
+  }
+}
+```
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/account-groups \
@@ -121,8 +189,10 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/account-gr
 List all Ledger Accounts for an Entity.
 
 - **Path param:** `entityId` (UUID)
-- **Success response:** Array of `ledgerAccountSchema`
+- **Success response:** array of Ledger Accounts
 - **Status:** 200
+
+Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `groupId`, `code`, `name`, `type`, `tracking`, `subtype`, `normalSide`, `createdAt`, `updatedAt`) without the derived `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
@@ -134,24 +204,45 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
 Create a new Ledger Account.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `CreateLedgerAccountDto` (from `createLedgerAccountSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied idempotency id |
 | `name` | string | Yes | Account name, non-empty |
 | `code` | string | Yes | Account code, non-empty |
-| `type` | enum | Yes | Account type |
+| `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | Optional subtype; null or omitted means none |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`; null or omitted means none |
 | `groupId` | UUID | No | Parent group |
 
-- **Success response:** `createLedgerAccountResultSchema` — `{ account }` (with derived facts)
+- **Success response:** an object with a single `account` field holding the created Ledger Account with its derived facts, in the same shape as the `accounts` rows of the Chart of Accounts
 - **Status:** 201
 
 <Note>
-  `normalSide` is derived from `type` by the database. Do not send it in the payload.
+  `normalSide` is derived from `type`. Do not send it in the payload.
 </Note>
+
+```json
+{
+  "account": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "groupId": null,
+    "code": "1101",
+    "name": "Caja",
+    "type": "asset",
+    "tracking": "balance",
+    "subtype": null,
+    "normalSide": "debit",
+    "hasEntries": false,
+    "deleteBlockedBy": null,
+    "isDefaultPurchaseAccount": false,
+    "createdAt": "2026-02-01T12:00:00.000Z",
+    "updatedAt": "2026-02-01T12:00:00.000Z"
+  }
+}
+```
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
@@ -172,18 +263,18 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
 Edit an existing Ledger Account. At least one field must be provided. Accounts with entries can only change type within compatible groups (for example, `income` to `other_income`, or `operating_expense` to `cost_of_goods_sold`).
 
 - **Path params:** `entityId` (UUID), `accountId` (UUID)
-- **Body:** `UpdateLedgerAccountDto` (from `updateLedgerAccountSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | No | Account name |
 | `code` | string | No | Account code |
-| `type` | enum | No | Account type (transition rules apply) |
+| `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | Subtype or null to clear |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, or null to clear |
 | `groupId` | UUID | No | Parent group |
 
-- **Success response:** `updateLedgerAccountResultSchema` — `{ account }`
+- **Success response:** an object with a single `account` field holding the updated Ledger Account with its derived facts, in the same shape as the create response above
 - **Status:** 200
 
 ```bash
@@ -196,10 +287,15 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
 
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 
-Delete a Ledger Account. The account must have no blocking foreign keys (no lines, no Bank Account, no Partner default purchase account).
+Delete a Ledger Account. The account must not be referenced by any Ledger Entry Line, Bank Account, or Partner default purchase account; the `deleteBlockedBy` field of the Chart of Accounts tells you in advance which reference would block the delete.
 
 - **Path params:** `entityId` (UUID), `accountId` (UUID)
-- **Success response:** `deleteLedgerAccountResultSchema` — `{ deletedAccountId }`
+- **Success response:**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `deletedAccountId` | UUID | Id of the removed account |
+
 - **Status:** 200
 
 ```bash

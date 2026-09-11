@@ -6,11 +6,28 @@ description: "List, page through, create, edit, and delete Partners (customers, 
 
 A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD and the paginated Partner listing.
 
+Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
+
 ## GET `/partners`
 
 List every Partner for the Entity, each row enriched with Open Item totals (unsettled AR and AP balances).
 
-- **Response:** array of `partnerWithOpenTotalsSchema`.
+**Response:** an array of Partner objects.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Partner id. |
+| `entityId` | uuid | Owning Entity. |
+| `name` | string | Display name. |
+| `type` | string or null | `customer`, `vendor`, or `employee`. |
+| `defaultPurchaseAccountId` | uuid or null | Ledger Account proposed when booking this vendor's purchase invoices. |
+| `legalName` | string or null | Registered legal name. |
+| `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
+| `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
+| `openReceivable` | integer | Unsettled amount this Partner owes the Entity. |
+| `openPayable` | integer | Unsettled amount the Entity owes this Partner. |
+| `createdAt` | timestamp | Creation time. |
+| `updatedAt` | timestamp | Last update time. |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
@@ -21,48 +38,155 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
 
 Paginated Partner listing for UI use.
 
-- **Query:** `ListPartnersPageQueryDto` (cursor, page size, filters).
-- **Response:** `partnersPageSchema` (`{ rows, nextCursor }`).
+**Query parameters.** Unknown parameters are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cursor` | uuid | No | The `nextCursor` of the previous page. Omit for the first page. |
+| `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
+| `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, `taxId`, and the default purchase account's code and name. At most 100 characters. |
+| `type` | string | No | `customer`, `vendor`, or `employee`. |
+| `country` | string | No | ISO 3166-1 alpha-2 code. |
+| `openReceivableMin` | integer | No | Inclusive lower bound on `openReceivable`. |
+| `openReceivableMax` | integer | No | Inclusive upper bound; must not be below the minimum. |
+| `openPayableMin` | integer | No | Inclusive lower bound on `openPayable`. |
+| `openPayableMax` | integer | No | Inclusive upper bound; must not be below the minimum. |
+| `defaultPurchaseAccountFilter` | string | No | `all`, `assigned`, or `missing`. Default `all`. Requires `type=vendor` unless `all`. |
+| `defaultPurchaseAccountId` | uuid | No | Keep only vendors with this default purchase account. Requires `type=vendor`. |
+| `defaultPurchaseAccountClassification` | string | No | `expense`, `fixed_asset`, or `missing`. Requires `type=vendor`. |
+| `groupBy` | string | No | `none`, `type`, `country`, `defaultPurchaseAccount`, or `defaultPurchaseAccountClassification`. Default `none`. The last two require `type=vendor`. |
+| `sort` | string | No | `name`, `type`, `legalName`, `taxId`, `country`, `openReceivable`, `openPayable`, or `defaultPurchaseAccount`. Default `name`. |
+| `sortDirection` | string | No | `asc` or `desc`. Default `asc`. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `partners` | array | The Partner rows on this page (see below). |
+| `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page. |
+| `totalCount` | integer | Partners matching the filters, across all pages. |
+| `withoutDefaultPurchaseAccountCount` | integer | Of those, how many have no default purchase account. |
+
+Each element of `partners` is a **Partner row**: every field of the Partner object above, plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `countryName` | string or null | Name of `country`. |
+| `defaultPurchaseAccountCode` | string or null | Code of the default purchase account. |
+| `defaultPurchaseAccountName` | string or null | Name of the default purchase account. |
+| `defaultPurchaseAccountClassification` | string | `expense`, `fixed_asset`, or `missing`. |
+| `group` | object or null | Null unless `groupBy` was requested. Contains `by`, `value`, `key` (string), `partnerCount` (integer), `openReceivable` (integer), `openPayable` (integer), and `startsGroup` (boolean, true on the first row of each group). |
+
+The type of `group.value` depends on `group.by`:
+
+| `by` | `value` |
+| --- | --- |
+| `type` | `customer`, `vendor`, `employee`, or null |
+| `country` | string or null |
+| `defaultPurchaseAccount` | string or null |
+| `defaultPurchaseAccountClassification` | `expense`, `fixed_asset`, or `missing` |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/pages?type=vendor&defaultPurchaseAccountFilter=missing&limit=25" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
 
 ## POST `/partners`
 
 Create a Partner.
 
-- **Body:** `CreatePartnerDto`.
-- **Response:** `partnersPageRowSchema`.
+**Body.** Unknown keys are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Caller-generated id. Retrying with the same id is answered `409`, so a retried request never creates a second Partner. |
+| `name` | string | Yes | Non-empty display name. |
+| `type` | string or null | No | `customer`, `vendor`, or `employee`. |
+| `legalName` | string or null | No | Non-empty if sent. |
+| `country` | string or null | No | ISO 3166-1 alpha-2 code known to Sintropix. |
+| `taxId` | string or null | No | Tax registration number. When `country` is `CL` the value must be a valid RUT; separators and dots are accepted and it is stored in canonical form (`76.123.456-0` becomes `76123456-0`). |
+| `defaultPurchaseAccountId` | uuid or null | No | Only for `type: "vendor"`. The account must be an expense-type Ledger Account or a fixed-asset account. |
+
+A `country` and `taxId` pair must be unique within the Entity (`409`).
+
+**Response** (`201`): the created Partner row, as `GET /partners/pages` would list it.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
-  -d '{ /* see CreatePartnerDto */ }'
+  -d '{
+    "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+    "name": "Servicios Cloud SpA",
+    "type": "vendor",
+    "legalName": "Servicios Cloud SpA",
+    "country": "CL",
+    "taxId": "76123456-0",
+    "defaultPurchaseAccountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+  "entityId": "b2f0c1d4-7e8a-4b9c-8d1e-2f3a4b5c6d7e",
+  "name": "Servicios Cloud SpA",
+  "type": "vendor",
+  "defaultPurchaseAccountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+  "legalName": "Servicios Cloud SpA",
+  "country": "CL",
+  "taxId": "76123456-0",
+  "createdAt": "2026-08-14T14:58:03.115Z",
+  "updatedAt": "2026-08-14T14:58:03.115Z",
+  "openReceivable": 0,
+  "openPayable": 0,
+  "countryName": "Chile",
+  "defaultPurchaseAccountCode": "5101",
+  "defaultPurchaseAccountName": "Servicios de hosting",
+  "defaultPurchaseAccountClassification": "expense"
+}
 ```
 
 ## PATCH `/partners/:partnerId`
 
 Update Partner attributes.
 
-- **Body:** `UpdatePartnerDto`.
-- **Response:** `updatePartnerAnswerSchema`.
+**Body:** any subset of the fields below. At least one is required; unknown keys are rejected with `400`. Send `null` to clear a nullable field.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | No | Non-empty. |
+| `type` | string or null | No | `customer`, `vendor`, or `employee`. Changing away from `vendor` requires clearing `defaultPurchaseAccountId`. |
+| `legalName` | string or null | No | Non-empty if sent. |
+| `country` | string or null | No | ISO 3166-1 alpha-2 code. |
+| `taxId` | string or null | No | Same RUT rule as on create when the resulting country is `CL`. |
+| `defaultPurchaseAccountId` | uuid or null | No | Only for vendors; expense-type or fixed-asset account. |
+
+**Response:** `{ "partner": <Partner row>, "previousPartner": <Partner row> }`, the row after and before the update.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "legalName": "Servicios Cloud Limitada", "defaultPurchaseAccountId": null }'
+```
 
 ## DELETE `/partners/:partnerId`
 
 Delete a Partner. Partners with outstanding Open Items or referenced Ledger Lines are refused.
 
-- **Response:** `partnersPageRowSchema`.
+**Response:** the deleted Partner row, as `GET /partners/pages` listed it.
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PATCH`. |
+| `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
 | `201` | Partner created. |
-| `204` | Partner deleted. |
-| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `400` | Validation error (including an invalid RUT or an unknown country), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Partner not found. |
-| `409` | Partner has open items or references and cannot be deleted. |
-
-<Warning>
-  Unverified: the exact set of fields on `CreatePartnerDto` and `UpdatePartnerDto`, including the country-specific tax ids (RUT for Chile, RFC for Mexico, and so on). Refer to the DTOs alongside the controller for authoritative shapes.
-</Warning>
+| `409` | Partner id or tax identity already exists, or the Partner has open items or references and cannot be deleted. |

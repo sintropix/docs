@@ -6,12 +6,14 @@ description: "Create, list, reverse, and unbook Ledger Entries. Manage Scheduled
 
 Ledger Entries are the core double-entry transactions in Sintropix. Each entry has a header (date, memo, notes) and at least two balanced lines. This page covers creating, listing, reversing, and unbooking entries, plus Scheduled Entries and line-level updates.
 
+All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings; timestamps are ISO 8601 datetimes.
+
 ## GET /api/entities/:entityId/ledger/entries
 
 List Ledger Entries with pagination, filtering, and sorting. Defaults to live entries (`active` and `reversed` statuses).
 
 - **Path param:** `entityId` (UUID)
-- **Query params:** `ListLedgerEntriesQueryDto` (from `listLedgerEntriesQuerySchema`)
+- **Query params:**
 
 | Param | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -22,10 +24,34 @@ List Ledger Entries with pagination, filtering, and sorting. Defaults to live en
 | `search` | string | No | — | Memo search |
 | `sort` | enum | No | `date` | `date`, `memo`, or `amount` |
 | `direction` | enum | No | `desc` | `asc` or `desc` |
-| `statuses` | string | No | `active,reversed` | Comma-separated status list |
+| `statuses` | string | No | `active,reversed` | Comma-separated list of `active`, `deleted`, `reversed`, `scheduled`, `cancelled` |
 
-- **Success response:** `ledgerEntriesPageSchema` — `{ entries, nextCursor }`
+- **Success response:** a page of entries
 - **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entries` | array | Ledger Entries on this page, each with the fields below |
+| `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
+
+Each item in `entries` carries the Ledger Entry fields plus three line-derived totals:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Entry id |
+| `entityId` | UUID | Owning Entity |
+| `entryDate` | ISO date | Transaction date |
+| `memo` | string or null | Short description |
+| `notes` | string or null | Longer notes |
+| `status` | enum | `active`, `deleted`, `reversed`, `scheduled`, or `cancelled` |
+| `reversalOfEntryId` | UUID or null | The entry this one reverses; `null` for ordinary entries |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+| `total` | integer | Sum of the entry's debit lines |
+| `lineCount` | integer | Number of lines |
+| `accountNames` | string[] | Distinct names of the accounts the entry touches, debit-side accounts first |
+
+The first nine fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
@@ -37,8 +63,98 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&
 Get the full detail of a single Ledger Entry, including lines, related invoices, related bank movements, and allocations.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Success response:** `ledgerEntryDetailSchema`
+- **Success response:** the Ledger Entry fields (see the list endpoint above) plus:
 - **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `reversedByEntryId` | UUID or null | The live reversal that points at this entry, if any |
+| `lines` | array | The entry's lines, each with the fields below |
+| `relatedInvoices` | array | Invoices this entry books, each with the invoice fields below |
+| `relatedMovements` | array | Bank movements this entry books, each with the movement fields below |
+| `allocations` | array | Allocations that settle one of this entry's lines, each with the allocation fields below |
+
+Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which other endpoints return on their own) plus the names the detail view shows:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Line id |
+| `entryId` | UUID | Parent entry |
+| `accountId` | UUID | Ledger Account the line posts to |
+| `entityId` | UUID | Owning Entity |
+| `functionalAmount` | integer | Nonnegative magnitude in the functional currency |
+| `side` | enum | `debit` or `credit` |
+| `partnerId` | UUID or null | Counterparty partner |
+| `transactionCurrency` | string or null | Foreign currency code, if the line is denominated in another currency |
+| `transactionAmount` | integer or null | Amount in the foreign currency |
+| `transactionFxRate` | decimal string or null | Rate used for conversion |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+| `accountCode` | string | Code of the account |
+| `accountName` | string | Name of the account |
+| `accountType` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
+| `partnerName` | string or null | Name of the partner |
+| `lineDimensionValues` | array | Tags on the line: `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }` |
+
+Each item in `relatedInvoices`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Invoice id |
+| `entityId` | UUID | Owning Entity |
+| `partnerId` | UUID | Customer or vendor |
+| `partnerName` | string or null | Name of the partner |
+| `direction` | enum | `receivable` or `payable` |
+| `documentKind` | enum | `invoice` or `credit_note` |
+| `documentNumber` | string | Number printed on the document |
+| `currency` | string | Denomination currency |
+| `total` | integer | Gross total in `currency` |
+| `issueDate` | ISO date | Issue date |
+| `dueDate` | ISO date or null | Due date |
+| `memo` | string or null | Free text |
+| `metadata` | array | Additional information as `{ label, value }` pairs |
+| `sourceId` | UUID or null | Source the document came from |
+| `controlLineId` | UUID or null | The receivable/payable line that books it; `null` when unbooked |
+| `controlAccountId` | UUID or null | Account of the control line; `null` when unbooked |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+Each item in `relatedMovements`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Movement id |
+| `entityId` | UUID | Owning Entity |
+| `bankAccountId` | UUID | Bank Account the movement belongs to |
+| `bankAccountCurrency` | string | Currency of that Bank Account |
+| `bankAccountLedgerAccountId` | UUID | Ledger Account mapped to that Bank Account |
+| `movementDate` | ISO date | Date on the statement |
+| `amount` | integer | Nonnegative magnitude |
+| `side` | enum | `debit` or `credit` |
+| `description` | string | Description reported by the bank |
+| `externalRef` | string or null | Bank's own reference |
+| `partnerId` | UUID or null | Counterparty partner |
+| `partnerName` | string or null | Name of the partner |
+| `ledgerEntryId` | UUID or null | Entry that books the movement |
+| `ledgerLineId` | UUID or null | Bank line of that entry |
+| `ledgerAccountId` | UUID or null | Account of that bank line |
+| `metadata` | array | Additional information as `{ label, value }` pairs |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+Each item in `allocations`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Allocation id |
+| `entityId` | UUID | Owning Entity |
+| `debitLineId` | UUID | Settled debit line |
+| `creditLineId` | UUID | Settled credit line |
+| `accountId` | UUID | Open-Item Account |
+| `amount` | integer | Settled amount |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+| `counterpart` | object | The other side of the allocation: `{ lineId, entryId, entryMemo, accountId, accountCode, accountName, partnerId, partnerName }` |
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
@@ -50,7 +166,7 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID 
 Create a new Ledger Entry. The entry must have at least two lines and total debits must equal total credits. The client supplies the idempotency id.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `CreateLedgerEntryDto` (from `createLedgerEntrySchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -77,8 +193,54 @@ Each line in `newLedgerEntryLines`:
   The transaction trio (currency, amount, rate) must be provided together or omitted together. The rate is a plain decimal string, never a float.
 </Note>
 
-- **Success response:** `ledgerEntryWithLinesSchema`
+- **Success response:** the Ledger Entry fields plus `ledgerEntryLines`, an array of Ledger Entry Line objects (see the entry detail endpoint) each extended with `dimensionValueIds` (UUID[])
 - **Status:** 201
+
+```json
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "entryDate": "2026-01-15",
+  "memo": "Venta al contado",
+  "notes": null,
+  "status": "active",
+  "reversalOfEntryId": null,
+  "createdAt": "2026-01-15T14:02:11.000Z",
+  "updatedAt": "2026-01-15T14:02:11.000Z",
+  "ledgerEntryLines": [
+    {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "entryId": "33333333-3333-4333-8333-333333333333",
+      "accountId": "11111111-1111-4111-8111-111111111111",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "functionalAmount": 100,
+      "side": "debit",
+      "partnerId": null,
+      "transactionCurrency": null,
+      "transactionAmount": null,
+      "transactionFxRate": null,
+      "createdAt": "2026-01-15T14:02:11.000Z",
+      "updatedAt": "2026-01-15T14:02:11.000Z",
+      "dimensionValueIds": []
+    },
+    {
+      "id": "88888888-8888-4888-8888-888888888888",
+      "entryId": "33333333-3333-4333-8333-333333333333",
+      "accountId": "22222222-2222-4222-8222-222222222222",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "functionalAmount": 100,
+      "side": "credit",
+      "partnerId": null,
+      "transactionCurrency": null,
+      "transactionAmount": null,
+      "transactionFxRate": null,
+      "createdAt": "2026-01-15T14:02:11.000Z",
+      "updatedAt": "2026-01-15T14:02:11.000Z",
+      "dimensionValueIds": []
+    }
+  ]
+}
+```
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries \
@@ -102,7 +264,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries \
 Update an entry's header fields (date, memo, notes). At least one field must be provided.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Body:** `UpdateLedgerEntryDto` (from `updateLedgerEntrySchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -110,7 +272,7 @@ Update an entry's header fields (date, memo, notes). At least one field must be 
 | `memo` | string or null | No | New memo |
 | `notes` | string or null | No | New notes; trimmed, blank becomes null |
 
-- **Success response:** `ledgerEntrySchema`
+- **Success response:** the updated Ledger Entry object (see the list endpoint)
 - **Status:** 200
 
 ```bash
@@ -126,15 +288,23 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$
 Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be after the original entry date and after the ledger lock date.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Body:** `ReverseLedgerEntryDto` (from `reverseLedgerEntrySchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied idempotency id for the reversal entry |
 | `entryDate` | ISO date | Yes | Reversal date |
 
-- **Success response:** `reverseLedgerEntryResultSchema` — `{ reversalEntry, reversedEntry, severedInvoices, severedMovements, settledChainEntries }`
+- **Success response:** every row the reversal changed
 - **Status:** 201
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `reversalEntry` | object | The mirror entry just posted: Ledger Entry fields plus `ledgerEntryLines` (same shape as the create response) |
+| `reversedEntry` | object | The original entry as it now stands, with `status` set to `reversed` |
+| `severedInvoices` | array | Invoices whose booking link was cut (invoice fields as in the entry detail, without `partnerName`) |
+| `severedMovements` | array | Bank movements whose booking link was cut (movement fields as in the entry detail, without `bankAccountCurrency`, `bankAccountLedgerAccountId`, and `partnerName`) |
+| `settledChainEntries` | array | Ledger Entry objects whose status changed because a reversal chain was settled, in the order they changed; empty when nothing else changed |
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID/reverse \
@@ -152,8 +322,15 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 Unbook (soft-delete) a Ledger Entry. The entry status becomes `deleted`. This severs any linked invoices, bank movements, and allocations. If the entry is a reversal, the chain behind it is settled back to its prior state.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Success response:** `unbookLedgerEntryResultSchema` — `{ unbookedEntry, severedInvoices, severedMovements, settledChainEntries }`
+- **Success response:** every row the unbook changed
 - **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `unbookedEntry` | object | The Ledger Entry object with `status` set to `deleted` |
+| `severedInvoices` | array | Invoices whose booking link was cut (same shape as in the reverse response) |
+| `severedMovements` | array | Bank movements whose booking link was cut (same shape as in the reverse response) |
+| `settledChainEntries` | array | Ledger Entry objects whose status changed because a reversal chain was settled; empty when nothing else changed |
 
 ```bash
 curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
@@ -168,8 +345,8 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/
 Schedule a Ledger Entry for future booking. The entry date must be in the future. Scheduled entries cannot carry transaction currency lines.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** Same shape as `CreateLedgerEntryDto`
-- **Success response:** `ledgerEntryWithLinesSchema`
+- **Body:** the same fields as `POST /api/entities/:entityId/ledger/entries` above
+- **Success response:** the Ledger Entry fields plus `ledgerEntryLines` (same shape as the create response), with `status` set to `scheduled`
 - **Status:** 201
 
 ```bash
@@ -194,7 +371,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled-
 Book a Scheduled Entry immediately. The entry date must be on or before today.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Success response:** `ledgerEntryWithLinesSchema`
+- **Success response:** the Ledger Entry fields plus `ledgerEntryLines` (same shape as the create response), with `status` set to `active`
 - **Status:** 200
 
 ```bash
@@ -205,19 +382,19 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled-
 
 ### PATCH /api/entities/:entityId/ledger/scheduled-entries/:entryId
 
-Reschedule a planned entry. Replaces the date, memo, notes, and the entire line set.
+Reschedule a planned entry. Replaces the date, memo, notes, and the entire line set. Fields other than the four below are rejected.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Body:** `RescheduleLedgerEntryDto` (from `rescheduleLedgerEntrySchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `entryDate` | ISO date | Yes | New scheduled date |
 | `memo` | string or null | Yes | New memo |
 | `notes` | string or null | Yes | New notes |
-| `newLedgerEntryLines` | array | Yes | Full new line set, balanced |
+| `newLedgerEntryLines` | array | Yes | Full new line set, balanced; same line fields as the create endpoint |
 
-- **Success response:** `ledgerEntryWithLinesSchema`
+- **Success response:** the Ledger Entry fields plus `ledgerEntryLines` (same shape as the create response)
 - **Status:** 200
 
 ```bash
@@ -241,7 +418,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled
 Cancel a Scheduled Entry. The entry status becomes `cancelled`.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Success response:** `ledgerEntrySchema`
+- **Success response:** the Ledger Entry object with `status` set to `cancelled`
 - **Status:** 200
 
 ```bash
@@ -257,15 +434,20 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/schedule
 List Ledger Entry Lines. Defaults to live entries only. Optionally filter by partner.
 
 - **Path param:** `entityId` (UUID)
-- **Query params:** `ListLedgerEntryLinesQueryDto` (from `listLedgerEntryLinesQuerySchema`)
+- **Query params:**
 
 | Param | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `partnerId` | UUID | No | — | Narrow to one partner's lines |
-| `statuses` | string | No | `active,reversed` | Comma-separated status list |
+| `statuses` | string | No | `active,reversed` | Comma-separated list of `active`, `deleted`, `reversed`, `scheduled`, `cancelled` |
 
-- **Success response:** Array of `listedLedgerEntryLineSchema`
+- **Success response:** an array of Ledger Entry Line objects (see the entry detail endpoint), each extended with:
 - **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `openAmount` | integer or null | Amount not yet settled by allocations; `null` on accounts that do not track open items |
+| `entryDate` | ISO date | Date of the parent entry |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines?partnerId=$PARTNER_ID" \
@@ -277,7 +459,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines?partnerId=$
 List Open Item lines for an Open-Item Account with pagination. Shows unsettled lines by default.
 
 - **Path param:** `entityId` (UUID)
-- **Query params:** `ListOpenItemLinesQueryDto` (from `listOpenItemLinesQuerySchema`)
+- **Query params:**
 
 | Param | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -286,11 +468,29 @@ List Open Item lines for an Open-Item Account with pagination. Shows unsettled l
 | `limit` | integer | No | 50 | Page size, max 100 |
 | `statusFilter` | enum | No | `unsettled` | `unsettled`, `all`, or `settled` |
 | `partnerId` | UUID | No | — | Filter by partner |
-| `sort` | enum | No | `entryDate` | Sort field |
+| `sort` | enum | No | `entryDate` | `entryDate`, `entryMemo`, `partnerName`, `debit`, `credit`, `openAmount`, or `settlementStatus` |
 | `sortDirection` | enum | No | `asc` | `asc` or `desc` |
 
-- **Success response:** `openItemLinesPageSchema` — `{ lines, nextCursor, openTotal, lineCount, partnerOptions }`
+- **Success response:** a page of open-item lines
 - **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `lines` | array | Lines on this page, each with the fields below |
+| `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
+| `openTotal` | integer | Open amount of the whole account, regardless of filter or page |
+| `lineCount` | integer | Line count of the whole account, regardless of filter or page |
+| `partnerOptions` | array | Partners named by the account's lines, as `{ id, name }` |
+
+Each item in `lines` is a Ledger Entry Line object (see the entry detail endpoint) extended with:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `openAmount` | integer or null | Amount not yet settled by allocations |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `partnerName` | string or null | Name of the partner |
+| `settlementStatus` | enum | `open` (nothing settled), `partial`, or `settled` (nothing left open) |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/open-item-lines?accountId=$ACCOUNT_ID&limit=20" \
@@ -302,13 +502,13 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/open-item-lines?a
 Change the partner on a Ledger Entry Line. `null` clears the partner.
 
 - **Path params:** `entityId` (UUID), `lineId` (UUID)
-- **Body:** `UpdateLedgerEntryLinePartnerDto` (from `updateLedgerEntryLinePartnerSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `partnerId` | UUID or null | Yes | New partner or null |
 
-- **Success response:** `ledgerEntryLineSchema`
+- **Success response:** the updated Ledger Entry Line object (see the entry detail endpoint)
 - **Status:** 200
 
 ```bash
@@ -324,13 +524,13 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LI
 Reclassify a Ledger Entry Line to a different Ledger Account. The line must have no Allocation and no document link, and its entry must be open.
 
 - **Path params:** `entityId` (UUID), `lineId` (UUID)
-- **Body:** `UpdateLedgerEntryLineAccountDto` (from `updateLedgerEntryLineAccountSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `accountId` | UUID | Yes | New Ledger Account id |
 
-- **Success response:** `ledgerEntryLineWithNamedDimensionValuesSchema`
+- **Success response:** the updated Ledger Entry Line object plus `lineDimensionValues`, an array of `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`
 - **Status:** 200
 
 ```bash
@@ -346,13 +546,13 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LI
 Replace the Dimension Value tags on a Ledger Entry Line. An empty array untags the line.
 
 - **Path params:** `entityId` (UUID), `lineId` (UUID)
-- **Body:** `UpdateLedgerEntryLineDimensionValuesDto` (from `updateLedgerEntryLineDimensionValuesSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `dimensionValueIds` | UUID[] | Yes | Full replacement tag set |
 
-- **Success response:** `ledgerEntryLineWithNamedDimensionValuesSchema`
+- **Success response:** the updated Ledger Entry Line object plus `lineDimensionValues`, an array of `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`
 - **Status:** 200
 
 ```bash

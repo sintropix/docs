@@ -4,33 +4,100 @@ sidebarTitle: "FX Rates"
 description: "Read a single FX rate, list the most recent published rates, and trigger a rate sync from Banco Central de Chile through the Sintropix ERP API."
 ---
 
-The FX Rates API exposes the currency conversion rates Sintropix uses across every Entity. Rates are pulled from Banco Central de Chile per ADR 0029; the sync endpoint refreshes the local cache and is restricted to staff. The read endpoints are Entity-independent because rates are global.
+The FX Rates API exposes the currency conversion rates Sintropix uses across every Entity. Rates are mirrored as published by Banco Central de Chile; the sync endpoint refreshes the stored rates and is restricted to staff. The read endpoints are Entity-independent because rates are global.
+
+Sintropix tracks three series, all quoted in CLP: `USD/CLP` (dólar observado), `EUR/CLP` (tipo de cambio observado), and `MXN/CLP` (tipo de cambio referencial).
+
+## The FX Rate object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `baseCurrency` | string | ISO 4217 code of the base currency, for example `USD`. |
+| `quoteCurrency` | string | ISO 4217 code of the quote currency, for example `CLP`. |
+| `rateDate` | string (`YYYY-MM-DD`) | The publication date of the rate. |
+| `rate` | decimal string | One major unit of `baseCurrency` equals `rate` major units of `quoteCurrency`, for example `"943.25"`. Always a string, never a float. |
+| `source` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` | Which Banco Central series the rate came from. |
+| `createdAt` | ISO 8601 timestamp | When the rate was stored. |
 
 ## GET `/fx-rates`
 
-Return the FX rate for a currency pair on a given date.
+Return the FX rate for a currency pair on a given date. The `date` is the date being valued (an Invoice's issue date, for example), not necessarily a publication date: the response is the most recent rate published on or before it, and `rateDate` tells you which day that was.
 
-- **Query:** `FxRateQueryDto` (`fromCurrency`, `toCurrency`, `date`).
-- **Response:** `fxRateSchema`.
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `baseCurrency` | string | Yes | Base currency code, for example `USD`. |
+| `quoteCurrency` | string | Yes | Quote currency code, for example `CLP`. |
+| `date` | string (`YYYY-MM-DD`) | Yes | The date to value. |
+
+- **Response:** an FX Rate object.
 
 ```bash
-curl "https://api.sintropix.com/api/fx-rates?fromCurrency=USD&toCurrency=CLP&date=2025-12-31" \
+curl "https://api.sintropix.com/api/fx-rates?baseCurrency=USD&quoteCurrency=CLP&date=2025-12-31" \
   -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "baseCurrency": "USD",
+  "quoteCurrency": "CLP",
+  "rateDate": "2025-12-31",
+  "rate": "943.25",
+  "source": "dolar_observado",
+  "createdAt": "2025-12-31T12:05:00.000Z"
+}
 ```
 
 ## GET `/fx-rates/recent`
 
 List the most recent published rates across all tracked currency pairs.
 
-- **Response:** array of `fxRateSchema`.
+- **Response:** array of FX Rate objects.
 
 ## POST `/fx-rates/sync` (staff only)
 
-Force a sync of published rates from Banco Central de Chile. The response summarizes what was fetched and stored.
+Force a sync of published rates from Banco Central de Chile. The response summarizes what was fetched and stored. Every tracked series is fetched independently, so one failing series does not withhold the others.
 
-- **Body:** `FxSyncRequestDto`.
-- **Response:** `fxSyncResultSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `startDate` | string (`YYYY-MM-DD`) | No | First publication date to fetch. Must be given together with `endDate`, and be on or before it. |
+| `endDate` | string (`YYYY-MM-DD`) | No | Last publication date to fetch. Must be given together with `startDate`. |
+
+An empty body (or no body) syncs the default trailing window: the last 10 days ending today, on the Chilean calendar.
+
+**Response:** `{ series: [...] }`, one entry per tracked series in fetch order:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `baseCurrency` | string | Base currency of the series. |
+| `quoteCurrency` | string | Quote currency of the series. |
+| `source` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` | The series' source. |
+| `fetched` | integer | Rows seen in the provider window. |
+| `inserted` | integer | Rows that were genuinely new. Already-stored rates are not counted. |
+| `failureMessage` | string | Present only when the series failed; `fetched` and `inserted` are then `0`. |
+
 - **Status:** `200`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "startDate": "2025-12-01", "endDate": "2025-12-31" }'
+```
+
+```json
+{
+  "series": [
+    { "baseCurrency": "USD", "quoteCurrency": "CLP", "source": "dolar_observado", "fetched": 22, "inserted": 3 },
+    { "baseCurrency": "EUR", "quoteCurrency": "CLP", "source": "tipo_cambio_observado", "fetched": 22, "inserted": 3 },
+    { "baseCurrency": "MXN", "quoteCurrency": "CLP", "source": "tipo_cambio_referencial", "fetched": 0, "inserted": 0, "failureMessage": "Upstream request timed out" }
+  ]
+}
+```
 
 <Note>
   This route requires `role = staff`. Client callers receive `403`.
@@ -43,9 +110,5 @@ Force a sync of published rates from Banco Central de Chile. The response summar
 | `200` | Success. |
 | `400` | Validation error on query or body, or missing `x-audit-actor` on the sync call. |
 | `403` | `POST /sync` called by a non-staff user. |
-| `404` | No rate found for the requested currency pair and date. |
+| `404` | No rate found for the requested currency pair on or before the given date. |
 | `502` | Upstream error from Banco Central de Chile on sync. |
-
-<Warning>
-  Unverified: the exact fields of `FxSyncRequestDto` (typically a date range or a "since" cursor). Refer to the DTO and `@sintropix/api-contract` for authoritative shapes.
-</Warning>

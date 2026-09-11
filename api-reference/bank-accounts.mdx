@@ -41,11 +41,11 @@ A Bank Account has one of two kinds, validated at creation against the mapped Le
 GET /api/entities/:entityId/bank-accounts
 ```
 
-Returns every Bank Account for the Entity with a computed summary. The response is a bare JSON array of `BankAccountWithSummary`.
+Returns every Bank Account for the Entity with a computed summary. The response is a bare JSON array; each element has the fields below.
 
 ### Response schema
 
-`BankAccountWithSummary` extends `BankAccount` with these fields:
+Each Bank Account in the list carries:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -55,11 +55,13 @@ Returns every Bank Account for the Entity with a computed summary. The response 
 | `kind` | `bank` \| `card` | Account kind |
 | `ledgerAccountId` | UUID | Mapped Ledger Account |
 | `currency` | string | ISO 4217 currency code |
-| `feed` | `BankAccountFeed` \| null | Active feed, if any |
-| `createdAt` | ISO date | Creation timestamp |
-| `updatedAt` | ISO date | Last update timestamp |
+| `feed` | object \| null | Active feed, if any (see below) |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
 | `balance` | integer | Signed balance in minor units |
 | `unreconciledCount` | integer | Movements without a booking entry |
+
+The last two fields (`balance` and `unreconciledCount`) are the summary; endpoints that return a Bank Account without summary omit them.
 
 The `feed` object, when present, contains:
 
@@ -68,7 +70,30 @@ The `feed` object, when present, contains:
 | `bankConnectionId` | UUID | Source Bank Connection |
 | `providerAccountId` | string | Provider-side account handle |
 | `institutionName` | string | Institution display name |
-| `lastSyncedAt` | ISO date \| null | Last successful sync, null until first success |
+| `lastSyncedAt` | ISO datetime \| null | Last successful sync, null until first success |
+
+```json
+[
+  {
+    "id": "0190e000-0000-7000-8000-000000000001",
+    "entityId": "0190a000-0000-7000-8000-000000000001",
+    "name": "Primary Checking",
+    "kind": "bank",
+    "ledgerAccountId": "0190d000-0000-7000-8000-000000000001",
+    "currency": "CLP",
+    "feed": {
+      "bankConnectionId": "0192a8b4-0000-7000-8000-000000000001",
+      "providerAccountId": "acc_123",
+      "institutionName": "Banco de Chile",
+      "lastSyncedAt": "2026-02-01T12:00:00.000Z"
+    },
+    "createdAt": "2026-01-15T09:30:00.000Z",
+    "updatedAt": "2026-02-01T12:00:00.000Z",
+    "balance": 1250000,
+    "unreconciledCount": 3
+  }
+]
+```
 
 ### Example
 
@@ -83,7 +108,7 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
 POST /api/entities/:entityId/bank-accounts
 ```
 
-Creates a new Bank Account. The request body follows `CreateBankAccountSchema`.
+Creates a new Bank Account.
 
 ### Body parameters
 
@@ -97,7 +122,7 @@ Creates a new Bank Account. The request body follows `CreateBankAccountSchema`.
 
 ### Response
 
-Returns `201 Created` with a `BankAccountWithSummary` object.
+Returns `201 Created` with the created Bank Account, including the `balance` and `unreconciledCount` summary fields, in the same shape as the list response.
 
 ### Status codes
 
@@ -141,7 +166,7 @@ Updates the name of an existing Bank Account. Only `name` is editable through th
 
 ### Response
 
-Returns `200 OK` with a `BankAccount` object (without summary fields).
+Returns `200 OK` with the updated Bank Account, in the same shape as the list response minus `balance` and `unreconciledCount`.
 
 ### Status codes
 
@@ -172,7 +197,7 @@ Removes a Bank Account. Deletion is allowed only when the account has no Movemen
 
 ### Response
 
-Returns `200 OK` with a `DeleteBankAccountResult`:
+Returns `200 OK` with:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -205,7 +230,7 @@ Removes the active bank data feed from a Bank Account. The account and its exist
 
 ### Response
 
-Returns `200 OK` with a `BankAccount` object (feed is now null).
+Returns `200 OK` with the Bank Account, in the same shape as the list response minus `balance` and `unreconciledCount`; `feed` is now `null`.
 
 ### Status codes
 
@@ -233,7 +258,7 @@ Triggers a manual sync of the Bank Account's feed. The server reads the latest w
 
 ### Response
 
-Returns `201 Created` with a `BankAccountFeedSyncResult`:
+Returns `201 Created` with:
 
 | Field | Type | Description |
 | --- | --- | --- |

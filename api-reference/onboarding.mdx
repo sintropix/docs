@@ -4,7 +4,7 @@ sidebarTitle: "Onboarding"
 description: "Staff-only endpoints to create Users, look them up by email, grant or revoke Entity Memberships, mint set-password links, and revoke live sessions."
 ---
 
-The Onboarding API is how Sintropix staff provision new Users and control their per-Entity access. Every route on this controller is restricted to `role = staff` (`@Roles([userRoleEnum.enum.staff])` at the class level). Sign-up is disabled by design in v1 (ADR 0015), so User creation happens only through this surface, and set-password links are minted here and delivered to the client through the staff member's existing channel because Sintropix does not send email in v1.
+The Onboarding API is how Sintropix staff provision new Users and control their per-Entity access. Every route below is restricted to Users with `role = staff`. Public sign-up is disabled, so User creation happens only through this surface, and set-password links are minted here and delivered to the client through the staff member's existing channel because Sintropix does not send email.
 
 <Warning>
   Staff-only. A client-role caller (session or API key) receives `403` on every route below.
@@ -12,50 +12,131 @@ The Onboarding API is how Sintropix staff provision new Users and control their 
 
 ## POST `/onboarding/users`
 
-Create a User.
+Create a User. This is the only place a User's role is assigned.
 
-- **Body:** `CreateUserDto`.
-- **Response:** `onboardedUserSchema`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `email` | string | Yes | A valid email address. Must be unique across all Users. |
+| `name` | string | Yes | Display name. Minimum 1 character. |
+| `role` | enum | Yes | One of `staff` or `client`. |
+
+**Response** `200`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | The new User's id. Use it in the `:userId` path segment of the routes below. |
+| `email` | string | The email supplied on creation. |
+| `name` | string | The display name supplied on creation. |
+| `role` | enum | `staff` or `client`. |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/onboarding/users" \
+  --cookie cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "ana.perez@example.com",
+    "name": "Ana Perez",
+    "role": "client"
+  }'
+```
+
+```json
+{
+  "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "email": "ana.perez@example.com",
+  "name": "Ana Perez",
+  "role": "client"
+}
+```
 
 ## GET `/onboarding/users`
 
-Look up a User by email.
+Look up a User by email. Use this to recover a User's id when all you hold is their address.
 
-- **Query:** `FindUserByEmailDto` (`email`).
-- **Response:** `onboardedUserSchema`.
+**Query params**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `email` | string | Yes | The email address to look up. Must be a valid email. |
+
+**Response** `200`: the same User object returned by `POST /onboarding/users` (`id`, `email`, `name`, `role`).
+
+```bash
+curl "https://api.sintropix.com/api/onboarding/users?email=ana.perez%40example.com" \
+  --cookie cookies.txt
+```
 
 ## POST `/onboarding/users/:userId/memberships`
 
-Grant an Entity Membership to a User. `client` Users see and edit exactly the Entities they hold a Membership row for; `staff` Users bypass the check entirely and do not need Memberships.
+Grant an Entity Membership to a User. `client` Users see and edit exactly the Entities they hold a Membership for; `staff` Users bypass the check entirely and do not need Memberships.
 
-- **Body:** `GrantMembershipDto`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entityId` | UUID | Yes | The Entity to grant access to. Must be an existing Entity. |
+
 - **Status:** `204`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships" \
   --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{ "entityId": "…" }'
+  -d '{ "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57" }'
 ```
 
 ## DELETE `/onboarding/users/:userId/memberships`
 
-Revoke an Entity Membership. Body shape matches `POST` (the same `GrantMembershipDto`).
+Revoke an Entity Membership. The body shape matches `POST`.
 
-- **Body:** `GrantMembershipDto`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entityId` | UUID | Yes | The Entity to revoke access to. |
+
 - **Status:** `204`.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships" \
+  --cookie cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{ "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57" }'
+```
 
 ## POST `/onboarding/users/:userId/set-password-link`
 
-Mint a one-time link the User can follow to set (or reset) their password. Delivery is manual: the staff member sends the link to the client over their existing channel (Sintropix has no transactional email provider in v1).
+Mint a one-time link the User can follow to set (or reset) their password. Delivery is manual: the staff member sends the link to the client over their existing channel (Sintropix does not send transactional email). No request body.
 
-- **Response:** `setPasswordLinkSchema`.
+**Response** `200`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `link` | URL | The one-time set-password link to relay to the User. |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/set-password-link" \
+  --cookie cookies.txt
+```
+
+```json
+{
+  "link": "https://app.sintropix.com/set-password?token=eyJhbGciOiJIUzI1NiJ9..."
+}
+```
 
 ## POST `/onboarding/users/:userId/revoke-sessions`
 
-Revoke every active session for a User, forcing a fresh sign-in on their next request. Use after a suspected credential compromise.
+Revoke every active session for a User, forcing a fresh sign-in on their next request. Use after a suspected credential compromise. No request body.
 
 - **Status:** `204`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/revoke-sessions" \
+  --cookie cookies.txt
+```
 
 ## Status codes
 
@@ -63,11 +144,7 @@ Revoke every active session for a User, forcing a fresh sign-in on their next re
 | --- | --- |
 | `200` | Success on `POST /users`, `GET /users`, `POST /set-password-link`. |
 | `204` | Success on membership grant/revoke and session revocation. |
-| `400` | Validation error. |
+| `400` | Validation error, including a `:userId` that is not a UUID. |
 | `403` | Caller is not `staff`. |
 | `404` | User (or referenced Entity) not found. |
 | `409` | Membership already exists on grant, or already absent on revoke. |
-
-<Warning>
-  Unverified: exact fields on `CreateUserDto`, `GrantMembershipDto`, and the returned `setPasswordLinkSchema` payload (whether the link is a full URL or a token to compose one). Refer to the DTOs alongside the controller and `@sintropix/api-contract` for authoritative shapes.
-</Warning>

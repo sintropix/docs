@@ -8,10 +8,10 @@ An Entity is a legal company with its own books, functional currency, and integr
 
 ## POST /api/entities
 
-Create a new Entity. The client supplies the idempotency id, so a retried POST collides on the primary key instead of inserting a twin.
+Create a new Entity. The client supplies the idempotency id, so a retried POST with the same id is rejected as a conflict instead of creating a duplicate.
 
 - **Staff only**
-- **Body:** `CreateEntityDto` (from `createEntitySchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ Create a new Entity. The client supplies the idempotency id, so a retried POST c
 | `taxId` | string | Yes | Tax registration, non-empty; canonicalized for Chile |
 | `currency` | string | Yes | Functional currency code, non-empty |
 
-- **Success response:** `entitySchema` (the created Entity)
+- **Success response:** the created Entity (see [Response shape](#response-shape))
 - **Status:** 201
 
 ```bash
@@ -42,7 +42,7 @@ curl -X POST https://api.sintropix.com/api/entities \
 
 List every Entity the caller can access. Staff see all Entities; clients see only the Entities they hold a membership for.
 
-- **Success response:** Array of `entitySchema`
+- **Success response:** array of Entity objects (see [Response shape](#response-shape))
 - **Status:** 200
 
 ```bash
@@ -55,7 +55,12 @@ curl https://api.sintropix.com/api/entities \
 Check whether the identity fields of an Entity (name, country, taxId, currency) are currently editable. Returns a single boolean flag.
 
 - **Path param:** `entityId` (UUID)
-- **Success response:** `entityEditabilitySchema` — `{ identityFieldsEditable: boolean }`
+- **Success response:**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `identityFieldsEditable` | boolean | `true` when `name`, `country`, `taxId`, and `currency` can still be changed |
+
 - **Status:** 200
 
 ```bash
@@ -68,7 +73,7 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/editability \
 Update the core identity fields of an Entity. At least one field must be provided. The update canonicalizes Chilean tax registrations and requires both `country` and `taxId` when either is supplied.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `UpdateEntityDto` (from `updateEntitySchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -77,7 +82,7 @@ Update the core identity fields of an Entity. At least one field must be provide
 | `taxId` | string | No | Tax registration |
 | `currency` | string | No | Functional currency |
 
-- **Success response:** `entitySchema`
+- **Success response:** the updated Entity (see [Response shape](#response-shape))
 - **Status:** 200
 
 ```bash
@@ -93,13 +98,13 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID \
 Set, move, or clear the ledger lock date. A date freezes the ledger up to and including that date; `null` clears the lock. The lock date cannot move to a date on or after any Scheduled Entry's Entry Date.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `UpdateEntityLedgerLockDateDto` (from `updateEntityLedgerLockDateSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `ledgerLockDate` | ISO date or null | Yes | Lock date or null to clear |
 
-- **Success response:** `entitySchema`
+- **Success response:** the updated Entity (see [Response shape](#response-shape))
 - **Status:** 200
 
 ```bash
@@ -116,13 +121,13 @@ Set or clear the parent Entity that controls this one. An id names the controlli
 
 - **Staff only**
 - **Path param:** `entityId` (UUID)
-- **Body:** `UpdateEntityParentDto` (from `updateEntityParentSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `parentEntityId` | UUID or null | Yes | Controlling Entity id or null |
 
-- **Success response:** `entitySchema`
+- **Success response:** the updated Entity (see [Response shape](#response-shape))
 - **Status:** 200
 
 ```bash
@@ -139,13 +144,13 @@ Set or remove the free-text accounting policies of an Entity. Free text sets the
 
 - **Staff only**
 - **Path param:** `entityId` (UUID)
-- **Body:** `UpdateEntityAccountingPoliciesDto` (from `updateEntityAccountingPoliciesSchema`)
+- **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `accountingPolicies` | string or null | Yes | Policies text or null to remove |
 
-- **Success response:** `entitySchema`
+- **Success response:** the updated Entity (see [Response shape](#response-shape))
 - **Status:** 200
 
 ```bash
@@ -158,7 +163,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/accounting-polic
 
 ## Response shape
 
-The `entitySchema` read shape includes:
+Every endpoint on this page that returns an Entity uses this shape:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -172,6 +177,21 @@ The `entitySchema` read shape includes:
 | `parentEntityId` | UUID or null | Controlling Entity |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "name": "Acme SpA",
+  "country": "CL",
+  "taxId": "76123456-0",
+  "currency": "CLP",
+  "ledgerLockDate": "2026-01-31",
+  "accountingPolicies": null,
+  "parentEntityId": null,
+  "createdAt": "2026-02-01T12:00:00.000Z",
+  "updatedAt": "2026-02-01T12:00:00.000Z"
+}
+```
 
 ## Domain error codes
 
