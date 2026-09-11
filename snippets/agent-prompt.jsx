@@ -8,10 +8,12 @@ export const AgentPrompt = () => {
   }, [status]);
 
   const prompt = `Help me work with the Sintropix ERP through its API.
-Start at https://docs.sintropix.com/llms.txt, then follow its links to the API overview, authentication, and relevant endpoint docs before making requests.
-Help me create an API key at https://app.sintropix.com under Ajustes → Claves de API → Crear clave (guide: https://docs.sintropix.com/guides/api-keys). Store it securely as SINTROPIX_API_KEY; never print or commit it.
+Use https://docs.sintropix.com/llms.txt to find documentation as needed.
+Ask me for my API key through a secure input. If I don’t have one, offer to guide me through creating it at https://app.sintropix.com under Ajustes → Claves de API → Crear clave.
+Store the key securely as SINTROPIX_API_KEY; never print or commit it.
 Confirm the API base URL, send the key in x-api-key, and use GET /api/entities to identify the company to work with.
-Only make changes I authorize, and include x-audit-actor with your agent name on every write. Ground your answers in the returned records.`;
+Only make changes I authorize, and include x-audit-actor with your agent name on every write. Ground your answers in the returned records.
+Once connected, ask me what I want to do.`;
 
   const copyPrompt = async () => {
     try {
