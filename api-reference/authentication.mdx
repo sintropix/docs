@@ -52,7 +52,7 @@ API keys are stand-ins for their owning User. A key authenticates as that User, 
 - The credential is a header (`x-api-key`), not a cookie.
 - The key is barred from the auth surface. Any request to `/api/auth/*` carrying `x-api-key` is rejected with `403` before Better Auth sees it (`apiKeyAuthSurfaceBar` middleware, ADR 0026). A leaked key therefore cannot mint further keys, change passwords, or manage Users.
 - Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) must include a Declared Actor (see below).
-- Each key is rate-limited to **5,000 requests per hour** (Better Auth `apiKey` plugin, sliding window).
+- Each key is rate-limited to **25,000 requests per hour** (Better Auth `apiKey` plugin, sliding window).
 
 Key management (mint, list, revoke) is self-serve in the Sintropix web app over the session; the API does not expose a mint endpoint to key holders. Any User may mint keys — including staff. A staff key therefore reaches every Entity of every client; treat it as a high-value secret.
 
@@ -139,4 +139,4 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
 | `403` with `API_KEY_READ_ONLY_ERROR` | Read-only key used to mutate. Mint a full-power key or drop the write. |
 | `404` on `/api/entities/:entityId/…` | Caller is not a member of the Entity, or the id does not exist. Staff never see this. |
 | `401` on every route | No valid session cookie or API key. |
-| `429` | Key exceeded 5,000 requests in the last hour. Back off. |
+| `429` | Key exceeded 25,000 requests in the last hour. Back off. |

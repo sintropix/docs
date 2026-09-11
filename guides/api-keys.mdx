@@ -4,7 +4,7 @@ sidebarTitle: "Get an API Key"
 description: "Create a Sintropix API key from Settings, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
 ---
 
-Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, inherits the owning User's Role and Memberships, and is rate-limited to 5,000 requests per hour.
+Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, inherits the owning User's Role and Memberships, and is rate-limited to 25,000 requests per hour.
 
 Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sintropix.com). The whole trip takes under a minute.
 
@@ -75,7 +75,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 
 ## Rate Limits
 
-Each key is limited to **5,000 requests per hour** on a sliding window. Requests over the limit return `429 Too Many Requests`; back off and retry after the window resets.
+Each key is limited to **25,000 requests per hour** on a sliding window. Requests over the limit return `429 Too Many Requests`; back off and retry after the window resets.
 
 ## Rotation and Revocation
 

@@ -221,4 +221,4 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVO
 | `403` | Forbidden: not a member of the entity, or not staff. |
 | `404` | Entity, host resource, or attachment not found. |
 | `409` | Attachment already exists, or content type / size mismatch on confirm. |
-| `429` | Rate limit exceeded (5000 requests per hour per API key). |
+| `429` | Rate limit exceeded (25,000 requests per hour per API key). |

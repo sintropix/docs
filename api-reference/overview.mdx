@@ -125,7 +125,7 @@ Domain-level errors carry a stable string `code` in the body — for example `AP
 
 ## Rate Limits
 
-Better Auth's `apiKey` plugin rate-limits each key at **5,000 requests per hour**, sliding window (`rateLimit` in `apps/erp-backend/src/auth/auth.ts`). Session-cookie traffic is not rate-limited at the application layer. Exceeding the limit returns `429`; there is no `X-RateLimit-*` header response contract.
+Better Auth's `apiKey` plugin rate-limits each key at **25,000 requests per hour**, sliding window (`rateLimit` in `apps/erp-backend/src/auth/auth.ts`). Session-cookie traffic is not rate-limited at the application layer. Exceeding the limit returns `429`; there is no `X-RateLimit-*` header response contract.
 
 ## CORS and Same-Site
 
