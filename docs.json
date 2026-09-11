@@ -3,9 +3,9 @@
   "name": "Sintropix",
   "theme": "luma",
   "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
+    "primary": "#3a48b0",
+    "light": "#869efc",
+    "dark": "#5669c2"
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -17,7 +17,6 @@
             "group": "Get Started",
             "pages": [
               "api-reference/overview",
-              "api-reference/authentication",
               "guides/api-keys",
               "quickstart",
               "core-concepts"
@@ -83,5 +82,22 @@
       "label": "Get Started",
       "href": "https://sintropix.com"
     }
+  },
+  "background": {
+    "color": {
+      "light": "#fdfdfd",
+      "dark": "#10141c"
+    }
+  },
+  "fonts": {
+    "family": "Geist"
+  },
+  "appearance": {
+    "default": "light",
+    "strict": false
+  },
+  "styling": {
+    "codeblocks": "system",
+    "eyebrows": "section"
   }
 }
