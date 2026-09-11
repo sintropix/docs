@@ -6,10 +6,6 @@ description: "Initialize, read, and edit the Chart of Accounts for an Entity. Co
 
 The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for an Entity. You can initialize it from a template, create groups and accounts individually, and read the whole chart in one call. This page also covers the Ledger Account endpoints under `entities/:entityId/ledger/accounts`.
 
-<Info>
-  Sources: `apps/erp-backend/src/ledger-core/chart-of-accounts/chart-of-accounts.controller.ts` and `apps/erp-backend/src/ledger-core/ledger/ledger.controller.ts`.
-</Info>
-
 ## GET /api/entities/:entityId/ledger/chart-templates
 
 List the available chart templates that can be used to initialize an Entity's Chart of Accounts.

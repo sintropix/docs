@@ -6,10 +6,6 @@ description: "List Bank Movements for an account, get match candidates and recon
 
 A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a booking status: unbooked, booked to a Ledger Entry, or matched to an existing Invoice or Ledger Entry. This page covers listing, editing, booking, matching, and transferring Bank Movements.
 
-<Info>
-  Source: `apps/erp-backend/src/bank-core/bank-movement/bank-movement.controller.ts`. Domain terms come from `apps/erp-backend/CONTEXT.md`; the internal-transfer model is fixed by ADR 0025.
-</Info>
-
 <Note>
   All routes are nested under a Bank Account, not directly under the Entity. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`. `:movementId` is a UUID.
 </Note>

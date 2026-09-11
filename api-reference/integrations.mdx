@@ -6,10 +6,6 @@ description: "Create, list, and delete Integrations: the linked credentials for 
 
 An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Entity's behalf. Integrations are the credential side; [Source Feeds](/api-reference/source-feeds) are the recurring pull jobs that actually import data using them.
 
-<Info>
-  Source: `apps/erp-backend/src/integration/integration.controller.ts`. Base path: `/api/entities/:entityId/integrations`.
-</Info>
-
 ## POST `/integrations`
 
 Create an Integration.

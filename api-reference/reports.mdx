@@ -4,10 +4,6 @@ sidebarTitle: "Reports"
 description: "Fetch financial reports for an entity including balance sheet, income statement, journal, revenue realization, and ledger reports. All endpoints are read-only and return bare JSON."
 ---
 
-<Info>
-  Source controllers: `apps/erp-backend/src/report/report.controller.ts` and `apps/erp-backend/src/ledger-core/ledger/ledger.controller.ts`
-</Info>
-
 The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
 
 ## Entity reports

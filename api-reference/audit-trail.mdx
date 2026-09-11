@@ -4,10 +4,6 @@ sidebarTitle: "Audit Trail"
 description: "Query the forensic audit trail for an entity. Returns paginated mutation envelopes with actor attribution, diffs, and named resources. GET requests are not audited."
 ---
 
-<Info>
-  Source controller: `apps/erp-backend/src/audit/audit.controller.ts`
-</Info>
-
 The audit trail is a forensic, append-only log of every mutating request against an entity's data. Each row stores the actor, credential type, declared actor, request id, route, method, and a diff of what changed. GET requests do not produce audit records.
 
 ## List audit trail

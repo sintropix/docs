@@ -6,10 +6,6 @@ description: "Create, list, delete, and auto-match Reconciliation Allocations to
 
 An Allocation settles one debit line against one credit line on an Open-Item Account. The match endpoint lets you auto-allocate a selection of lines. This page covers the full CRUD for Allocations plus the match operation.
 
-<Info>
-  Source: `apps/erp-backend/src/ledger-core/reconciliation/reconciliation.controller.ts`.
-</Info>
-
 ## GET /api/entities/:entityId/ledger/allocations
 
 List Allocations for a specific Ledger Entry Line. Returns all `reconciliationAllocationSchema` rows where either the debit or credit side matches the given line.

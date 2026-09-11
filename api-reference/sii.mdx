@@ -6,10 +6,6 @@ description: "List Chilean SII document types, fetch a DTE, and manage cross-DTE
 
 The SII (Servicio de Impuestos Internos) is Chile's national tax authority. A DTE (Documento Tributario Electrónico) is a Chilean e-invoice or credit note issued through the SII. Sintropix imports DTEs from an SII feed and exposes them through the endpoints on this page so callers can read them and manage cross-DTE references (for example, a credit note referencing an original invoice). Sintropix does not emit DTEs on the caller's behalf here; issuance happens in the SII portal or through an integration that populates the feed.
 
-<Info>
-  Source: `apps/erp-backend/src/sii/sii.controller.ts`. Base path: `/api/entities/:entityId/sii`.
-</Info>
-
 ## GET `/sii/document-types`
 
 List the SII document type catalog available to this Entity (invoice, credit note, debit note, and their variants).

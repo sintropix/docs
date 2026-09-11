@@ -6,10 +6,6 @@ description: "Staff-only endpoints to create Users, look them up by email, grant
 
 The Onboarding API is how Sintropix staff provision new Users and control their per-Entity access. Every route on this controller is restricted to `role = staff` (`@Roles([userRoleEnum.enum.staff])` at the class level). Sign-up is disabled by design in v1 (ADR 0015), so User creation happens only through this surface, and set-password links are minted here and delivered to the client through the staff member's existing channel because Sintropix does not send email in v1.
 
-<Info>
-  Source: `apps/erp-backend/src/auth/onboarding/onboarding.controller.ts`. Base path: `/api/onboarding`.
-</Info>
-
 <Warning>
   Staff-only. A client-role caller (session or API key) receives `403` on every route below.
 </Warning>

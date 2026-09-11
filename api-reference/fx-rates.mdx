@@ -6,10 +6,6 @@ description: "Read a single FX rate, list the most recent published rates, and t
 
 The FX Rates API exposes the currency conversion rates Sintropix uses across every Entity. Rates are pulled from Banco Central de Chile per ADR 0029; the sync endpoint refreshes the local cache and is restricted to staff. The read endpoints are Entity-independent because rates are global.
 
-<Info>
-  Source: `apps/erp-backend/src/fx/fx.controller.ts`. Base path: `/api/fx-rates`.
-</Info>
-
 ## GET `/fx-rates`
 
 Return the FX rate for a currency pair on a given date.

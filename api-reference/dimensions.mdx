@@ -6,10 +6,6 @@ description: "Create, update, and delete Dimensions and Dimension Values to tag 
 
 Dimensions are reporting axes you define for an Entity. Each Dimension holds Dimension Values that tag Ledger Entry Lines. Only lines on Result Accounts (income and expense types) can carry Dimension Values. This page covers full CRUD for both Dimensions and their Values.
 
-<Info>
-  Sources: `apps/erp-backend/src/ledger-core/dimension/dimension.controller.ts` and `apps/erp-backend/src/ledger-core/dimension/dimension-value.controller.ts`.
-</Info>
-
 ## GET /api/entities/:entityId/dimensions
 
 List all Dimensions for an Entity.

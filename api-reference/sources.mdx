@@ -6,10 +6,6 @@ description: "List, create, rename, and delete Sources: named origins that group
 
 A Source is a named origin an Entity uses to group documents it pulls from external systems: for example, an SII feed, a supplier email inbox, or a CSV import. A Source is a bucket; the [Source Feeds](/api-reference/source-feeds) attached to it are what actually fetch data.
 
-<Info>
-  Source: `apps/erp-backend/src/source/source.controller.ts`. Base path: `/api/entities/:entityId/sources`.
-</Info>
-
 ## GET `/sources`
 
 List every Source for the Entity, each annotated with the count of Invoices it has produced.

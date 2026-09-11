@@ -6,10 +6,6 @@ description: "List, create, edit, book, and delete AR and AP Invoices. Attach or
 
 Invoices are Sintropix's model for both AR (issued to customers) and AP (received from suppliers). Each Invoice can be booked to a Ledger Entry and, in Chile, linked to a Documento Tributario Electrónico (DTE) issued through the SII. This page covers listing, creating, editing, booking, and DTE-linking Invoices.
 
-<Info>
-  Source: `apps/erp-backend/src/invoice/invoice.controller.ts`. Base path: `/api/entities/:entityId/invoices`.
-</Info>
-
 ## GET `/invoices`
 
 List every Invoice for the Entity, filtered by direction and document kind.

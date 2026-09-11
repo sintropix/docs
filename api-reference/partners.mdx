@@ -6,10 +6,6 @@ description: "List, page through, create, edit, and delete Partners (customers, 
 
 A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD and the paginated Partner listing.
 
-<Info>
-  Source: `apps/erp-backend/src/partner/partner.controller.ts`. Base path: `/api/entities/:entityId/partners`.
-</Info>
-
 ## GET `/partners`
 
 List every Partner for the Entity, each row enriched with Open Item totals (unsettled AR and AP balances).

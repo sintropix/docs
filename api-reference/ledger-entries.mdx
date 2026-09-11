@@ -6,10 +6,6 @@ description: "Create, list, reverse, and unbook Ledger Entries. Manage Scheduled
 
 Ledger Entries are the core double-entry transactions in Sintropix. Each entry has a header (date, memo, notes) and at least two balanced lines. This page covers creating, listing, reversing, and unbooking entries, plus Scheduled Entries and line-level updates.
 
-<Info>
-  Source: `apps/erp-backend/src/ledger-core/ledger/ledger.controller.ts`.
-</Info>
-
 ## GET /api/entities/:entityId/ledger/entries
 
 List Ledger Entries with pagination, filtering, and sorting. Defaults to live entries (`active` and `reversed` statuses).

@@ -6,10 +6,6 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the credentials or handle it needs to fetch from the external system. Syncing a Feed lands new documents into its Source.
 
-<Info>
-  Source: `apps/erp-backend/src/source-feed/source-feed.controller.ts`. Base path: `/api/entities/:entityId/source-feeds`.
-</Info>
-
 ## GET `/source-feeds`
 
 List every Source Feed for the Entity, each annotated with its parent Source name.

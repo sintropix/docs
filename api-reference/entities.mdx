@@ -6,10 +6,6 @@ description: "List, create, and configure the legal companies (Entities) that ow
 
 An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. This page covers the Entity CRUD, ledger-lock date, and accounting policy endpoints.
 
-<Info>
-  Source: `apps/erp-backend/src/entity/entity.controller.ts`.
-</Info>
-
 ## POST /api/entities
 
 Create a new Entity. The client supplies the idempotency id, so a retried POST collides on the primary key instead of inserting a twin.
