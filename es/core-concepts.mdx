@@ -1,0 +1,115 @@
+---
+title: "Conceptos básicos: cómo organiza Sintropix tus datos financieros"
+sidebarTitle: "Conceptos básicos"
+description: "Entiende los bloques fundamentales de Sintropix (entidades, monedas, transacciones, conciliación, listas de cierre y más) antes de empezar."
+---
+
+Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estructuran tus datos financieros, cómo fluyen las transacciones por el sistema y cómo interactúa la capa de IA con tu contabilidad. Familiarizarte con estos bloques hará que el resto de la plataforma sea más fácil de entender y usar.
+
+<AccordionGroup>
+  <Accordion title="Entidad">
+    Una **entidad** es una empresa legal en Sintropix, ya sea un holding o una filial operativa. Cada entidad es una unidad contable autónoma con su propio:
+
+    - **Plan de cuentas**: la lista completa de códigos y nombres de cuenta que se usan para clasificar las transacciones de esa empresa
+    - **Moneda funcional**: la moneda principal en la que esa entidad mide su desempeño financiero (ver más abajo)
+    - **Jurisdicción tributaria**: el país cuyo calendario tributario, obligaciones de declaración y normas locales aplican
+
+    La mayoría de los equipos con presencia en varios países configura una entidad por empresa legal: un holding en Estados Unidos, una SpA chilena, una SAPI de CV mexicana, y así sucesivamente. Puedes agregar, configurar y archivar entidades desde **Ajustes → Entidades** en cualquier momento.
+
+    Sintropix consolida todas tus entidades automáticamente: las transacciones intercompañía se rastrean y se eliminan al generar informes a nivel de grupo.
+  </Accordion>
+
+  <Accordion title="Moneda funcional">
+    La **moneda funcional** es la moneda principal de una entidad, la moneda en la que opera su entorno económico. Sintropix usa la moneda funcional como base para todos los asientos contables dentro de una entidad.
+
+    Ejemplos:
+    - Holding en Estados Unidos → **USD**
+    - Filial chilena → **CLP**
+    - Filial mexicana → **MXN**
+    - Filial colombiana → **COP**
+
+    Cuando una transacción se registra en una moneda distinta de la moneda funcional de la entidad (por ejemplo, una factura en USD recibida por la entidad chilena), Sintropix aplica el tipo de cambio diario y registra la conversión automáticamente. Cualquier diferencia de cambio resultante se contabiliza en la cuenta correspondiente sin intervención manual.
+  </Accordion>
+
+  <Accordion title="Moneda de reporte">
+    La **moneda de reporte** es la moneda única que eliges para los estados financieros consolidados de varias entidades. Es independiente de la moneda funcional de cada entidad y se aplica solo al generar informes a nivel de grupo (estado de resultados, balance general y flujo de caja consolidados).
+
+    La mayoría de los equipos multinacionales de LATAM define su moneda de reporte en **USD**, pero puedes elegir cualquier moneda que requieran tus inversionistas o tu directorio.
+
+    Sintropix convierte los saldos en moneda funcional de cada entidad a la moneda de reporte usando el tipo de cambio adecuado (tipo promedio para las partidas del estado de resultados, tipo de cierre para las del balance) cada vez que se genera un informe consolidado.
+  </Accordion>
+
+  <Accordion title="Transacción">
+    Una **transacción** es cualquier movimiento financiero capturado en Sintropix, ya sea que llegue por una integración o se ingrese manualmente. Las transacciones incluyen:
+
+    - Transferencias bancarias e ingresos de caja (desde las integraciones bancarias)
+    - Pagos de facturas recibidos o realizados
+    - Liquidaciones de nómina (desde Buk, Rankmi)
+    - Rendiciones de gastos de empleados (desde Rinde Gastos, Xpendit, Ramp)
+    - Pagos de suscripciones (desde Stripe, Mercado Pago)
+    - Asientos manuales creados por tu equipo
+
+    Toda transacción está asociada a una entidad específica, tiene fecha, está denominada en una moneda de transacción y se mapea a una o más cuentas del plan de cuentas. Las transacciones sin clasificar aparecen en la **Bandeja de entrada** para su revisión y codificación.
+  </Accordion>
+
+  <Accordion title="Conciliación">
+    La **conciliación** es el proceso de cruzar un movimiento bancario con su documento de respaldo (una factura, una liquidación de nómina, una rendición de gastos) y confirmar que el asiento contable correspondiente es correcto. Una transacción se considera conciliada cuando:
+
+    1. El movimiento bancario está cruzado con un documento de origen (por ejemplo, una factura en tu antigüedad de cuentas por cobrar)
+    2. El asiento en el libro mayor refleja la cuenta, el monto y la moneda correctos
+    3. Un miembro del equipo (o Erwin, si la conciliación automática está habilitada) aprobó el cruce
+
+    Sintropix usa IA para sugerir cruces automáticamente. Tu equipo revisa y aprueba las sugerencias, o gestiona las excepciones que Erwin no pudo cruzar con confianza. El estado de conciliación es visible a nivel de entidad y se refleja en la lista de cierre.
+  </Accordion>
+
+  <Accordion title="Lista de cierre">
+    La **lista de cierre** es la lista estructurada de ítems que deben completarse antes de dar un mes por cerrado. Para cada entidad, hace seguimiento de:
+
+    - Movimientos bancarios sin conciliar como porcentaje de la actividad total
+    - Asientos y ajustes sin aprobar
+    - Partidas pendientes de cuentas por pagar y por cobrar que requieren acción
+    - Calendarios de reconocimiento de ingresos que necesitan revisión
+    - Saldos intercompañía pendientes de confirmación
+
+    Sintropix calcula un **porcentaje de avance** para la lista de cada entidad en tiempo real. Cuando todos los ítems llegan al 100 %, el mes puede bloquearse. Como el libro mayor se actualiza a diario (cierre continuo), la mayoría de los ítems de la lista se resuelve durante el mes: el cierre formal es una revisión breve, no una reconstrucción de varias semanas.
+  </Accordion>
+
+  <Accordion title="Erwin, asistente financiero de IA">
+    **Erwin** es el asistente de IA integrado en Sintropix. A diferencia de un chatbot de IA de propósito general, Erwin tiene acceso directo a tus datos contables en vivo: tu libro mayor real, el estado de conciliación, la antigüedad de cuentas por cobrar, el calendario de cuentas por pagar, el historial de nómina y los saldos bancarios, en todas las entidades que hayas conectado.
+
+    Erwin puede:
+
+    - **Responder preguntas financieras** en lenguaje natural: *"¿Cuál es nuestro ARR consolidado este trimestre?"*, *"¿Qué facturas tienen más de 60 días de vencidas en México?"*
+    - **Generar proyecciones**: flujo de caja a 13 semanas, análisis de runway, modelado de escenarios
+    - **Guiar el cierre**: decirte exactamente qué está bloqueando tu cierre de mes y en qué entidad
+    - **Detectar anomalías**: marcar transacciones duplicadas, patrones de gasto inusuales, exposiciones cambiarias inesperadas y cuentas con variaciones significativas mes a mes
+    - **Proponer asientos**: redactar asientos de ajuste a partir de los hallazgos de la conciliación, para que un miembro del equipo los revise y contabilice
+
+    Erwin está disponible desde la barra de navegación izquierda en cualquier pantalla. Cada respuesta cita los datos subyacentes, así que puedes profundizar en el detalle detrás de cualquier cifra que muestre.
+  </Accordion>
+
+  <Accordion title="Asiento manual">
+    Un **asiento manual** es un par débito/crédito que creas directamente en Sintropix para ajustes contables que ninguna integración cubre. Los usos más comunes incluyen:
+
+    - Provisiones (por ejemplo, provisionar un gasto por servicios antes de que llegue la factura)
+    - Calendarios de depreciación y amortización
+    - Intereses de préstamos intercompañía
+    - Correcciones y reversiones
+    - Asientos de saldos iniciales al migrar desde otro sistema
+
+    Cada asiento manual requiere una fecha, una descripción, un conjunto balanceado de líneas de débito y crédito y un aprobador. Erwin puede proponerte asientos para que los revises; nada se contabiliza hasta que un miembro del equipo autorizado lo aprueba.
+
+    <Warning>
+      Los asientos manuales afectan tu libro mayor en cuanto se contabilizan y se incluyen en todos los informes. Revisa siempre los asientos con cuidado antes de aprobarlos, especialmente durante un período bloqueado.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+<CardGroup cols={2}>
+  <Card title="API de informes" icon="chart-line" href="/api-reference/reports">
+    Mira cómo tus entidades, monedas y transacciones se reflejan en el balance general, el estado de resultados y los informes de libro mayor.
+  </Card>
+  <Card title="API de asientos contables" icon="calendar-check" href="/api-reference/ledger-entries">
+    Contabiliza, reversa y programa los asientos que mantienen tu cierre de mes bajo control.
+  </Card>
+</CardGroup>

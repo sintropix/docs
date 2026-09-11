@@ -1,0 +1,93 @@
+---
+title: "Obtén una clave de API de Sintropix para agentes e integraciones"
+sidebarTitle: "Obtener una clave de API"
+description: "Crea una clave de API de Sintropix desde Ajustes, envíala en el encabezado x-api-key y entiende el alcance, los límites de solicitudes y las reglas de rotación que aplican al acceso programático."
+---
+
+Las claves de API de Sintropix permiten que agentes e integraciones se autentiquen como un Usuario sin una sesión de navegador. Cada clave es una credencial de larga duración que se envía en el encabezado `x-api-key`, hereda el Rol y las Membresías del Usuario propietario y está limitada a 25.000 solicitudes por hora.
+
+Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](https://app.sintropix.com). Todo el proceso toma menos de un minuto.
+
+<Steps>
+  <Step title="Inicia sesión y abre Ajustes">
+    Inicia sesión como el Usuario en cuyo nombre actuará la clave. La clave hereda el Rol de ese Usuario y sus Membresías por Entidad, así que elige un Usuario con el acceso que la integración realmente necesita.
+
+    Haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Ajustes**.
+
+    <Frame caption="El menú de usuario en la esquina inferior izquierda de la aplicación. Ajustes abre la configuración.">
+      <img src="/images/api-keys/01-user-menu.png" alt="Pantalla de inicio de Sintropix con el menú de usuario abierto, mostrando Ajustes y Cerrar sesión" />
+    </Frame>
+  </Step>
+  <Step title="Ve a Claves de API">
+    Ajustes se abre en la página **Empresa**. En la lista Configuración de la izquierda, haz clic en **Claves de API**.
+
+    <Frame caption="Claves de API en la barra lateral de Ajustes.">
+      <img src="/images/api-keys/02-settings-api-keys-nav.png" alt="Ajustes de Sintropix con la barra lateral Configuración y Claves de API resaltado" />
+    </Frame>
+
+    La página lista todas las claves que te pertenecen con su nombre, prefijo, fecha de creación, vencimiento y último uso. Puedes revocar una clave desde el ícono de papelera de cada fila.
+
+    <Frame caption="Claves existentes. Solo se muestra el prefijo; el secreto no vuelve a mostrarse después de la creación.">
+      <img src="/images/api-keys/03-api-keys-list.png" alt="Página Claves de API con las claves existentes y un botón Crear clave" />
+    </Frame>
+  </Step>
+  <Step title="Crea la clave">
+    Haz clic en **Crear clave**. Dale a la clave un nombre descriptivo (por ejemplo `erwin-agent` o `reconciliation-bot`) para poder identificarla después en la lista de claves y en el registro de auditoría, y luego haz clic en **Crear clave** en el diálogo.
+
+    <Frame caption="Nombra la clave según el software que la va a usar.">
+      <img src="/images/api-keys/04-create-key-dialog.png" alt="Diálogo Crear clave de API con un campo Nombre" />
+    </Frame>
+  </Step>
+  <Step title="Copia el secreto">
+    La clave se muestra una sola vez. Cópiala con el botón junto al campo y guárdala en tu gestor de secretos antes de hacer clic en **Listo**. Sintropix no vuelve a mostrar el secreto después de esta pantalla; si lo pierdes, revoca la clave y crea una nueva.
+
+    <Frame caption="El diálogo del secreto de un solo uso. También te recuerda los dos encabezados que necesita toda solicitud que modifica datos.">
+      <img src="/images/api-keys/05-copy-secret.png" alt="Diálogo Copia tu clave de API mostrando el secreto una sola vez, con los encabezados x-api-key y x-audit-actor" />
+    </Frame>
+  </Step>
+  <Step title="Llama a la API">
+    Envía la clave en el encabezado `x-api-key` en cada solicitud:
+
+    ```bash
+    curl https://api.sintropix.com/api/entities \
+      -H "x-api-key: $SINTROPIX_API_KEY"
+    ```
+
+    Toda solicitud que modifica datos (`POST`, `PUT`, `PATCH`, `DELETE`) hecha con una clave debe enviar además un encabezado `x-audit-actor` con el nombre del software que actúa. El valor se registra tal cual en el [registro de auditoría](/api-reference/audit-trail); omitirlo devuelve `400`.
+
+    ```bash
+    curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/partners \
+      -H "x-api-key: $SINTROPIX_API_KEY" \
+      -H "x-audit-actor: my-agent" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+        "name": "Servicios Cloud SpA",
+        "type": "vendor",
+        "country": "CL",
+        "taxId": "76123456-0"
+      }'
+    ```
+
+    Las solicitudes a `/api/auth/*` se rechazan cuando llevan `x-api-key`, así que una clave no puede usarse para crear más claves ni para administrar Usuarios.
+  </Step>
+</Steps>
+
+## Alcance y permisos
+
+- Una clave se autentica como su Usuario propietario, con el Rol global de ese Usuario y sus Membresías por Entidad.
+- Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las que el Usuario propietario es miembro.
+
+## Límites de solicitudes
+
+Cada clave está limitada a **25.000 solicitudes por hora** en una ventana deslizante. Las solicitudes que superan el límite devuelven `429 Too Many Requests`; espera y reintenta cuando la ventana se reinicie.
+
+## Rotación y revocación
+
+- Rota las claves de forma periódica y cada vez que un miembro del equipo con acceso deje la empresa.
+- Revoca una clave de inmediato desde **Ajustes → Claves de API** si sospechas que se filtró. La revocación aplica desde la siguiente solicitud.
+- Toda acción realizada con una clave queda registrada en el [registro de auditoría](/api-reference/audit-trail) bajo el Usuario propietario, así que la actividad de una clave filtrada es rastreable.
+
+<Card title="Descripción general de la API" icon="code" href="/es/api-reference/overview" horizontal>
+  URL base, formato de solicitudes y respuestas, estructura de errores y alcance por Entidad.
+</Card>

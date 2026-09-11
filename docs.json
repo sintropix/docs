@@ -14,67 +14,150 @@
     "href": "https://sintropix.com"
   },
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "API Reference",
-        "groups": [
+        "language": "en",
+        "default": true,
+        "tabs": [
           {
-            "group": "Get Started",
-            "pages": [
-              "api-reference/overview",
-              "guides/api-keys",
-              "quickstart",
-              "core-concepts"
+            "tab": "API Reference",
+            "groups": [
+              {
+                "group": "Get Started",
+                "pages": [
+                  "api-reference/overview",
+                  "guides/api-keys",
+                  "quickstart",
+                  "core-concepts"
+                ]
+              },
+              {
+                "group": "Ledger",
+                "pages": [
+                  "api-reference/entities",
+                  "api-reference/chart-of-accounts",
+                  "api-reference/ledger-entries",
+                  "api-reference/allocations",
+                  "api-reference/dimensions"
+                ]
+              },
+              {
+                "group": "Banking",
+                "pages": [
+                  "api-reference/bank-accounts",
+                  "api-reference/bank-movements",
+                  "api-reference/bank-connections"
+                ]
+              },
+              {
+                "group": "Documents",
+                "pages": [
+                  "api-reference/invoices",
+                  "api-reference/partners",
+                  "api-reference/attachments"
+                ]
+              },
+              {
+                "group": "Reports & Audit",
+                "pages": [
+                  "api-reference/reports",
+                  "api-reference/audit-trail"
+                ]
+              },
+              {
+                "group": "Sources & Integrations",
+                "pages": [
+                  "api-reference/sources",
+                  "api-reference/source-feeds",
+                  "api-reference/integrations",
+                  "api-reference/sii"
+                ]
+              },
+              {
+                "group": "Platform",
+                "pages": [
+                  "api-reference/fx-rates",
+                  "api-reference/reference-data",
+                  "api-reference/onboarding"
+                ]
+              }
             ]
-          },
+          }
+        ]
+      },
+      {
+        "language": "es",
+        "navbar": {
+          "primary": {
+            "type": "button",
+            "label": "Empezar",
+            "href": "https://sintropix.com"
+          }
+        },
+        "tabs": [
           {
-            "group": "Ledger",
-            "pages": [
-              "api-reference/entities",
-              "api-reference/chart-of-accounts",
-              "api-reference/ledger-entries",
-              "api-reference/allocations",
-              "api-reference/dimensions"
-            ]
-          },
-          {
-            "group": "Banking",
-            "pages": [
-              "api-reference/bank-accounts",
-              "api-reference/bank-movements",
-              "api-reference/bank-connections"
-            ]
-          },
-          {
-            "group": "Documents",
-            "pages": [
-              "api-reference/invoices",
-              "api-reference/partners",
-              "api-reference/attachments"
-            ]
-          },
-          {
-            "group": "Reports & Audit",
-            "pages": [
-              "api-reference/reports",
-              "api-reference/audit-trail"
-            ]
-          },
-          {
-            "group": "Sources & Integrations",
-            "pages": [
-              "api-reference/sources",
-              "api-reference/source-feeds",
-              "api-reference/integrations",
-              "api-reference/sii"
-            ]
-          },
-          {
-            "group": "Platform",
-            "pages": [
-              "api-reference/fx-rates",
-              "api-reference/reference-data",
-              "api-reference/onboarding"
+            "tab": "Referencia de la API",
+            "groups": [
+              {
+                "group": "Primeros pasos",
+                "pages": [
+                  "es/index",
+                  "es/api-reference/overview",
+                  "es/guides/api-keys",
+                  "es/quickstart",
+                  "es/core-concepts"
+                ]
+              },
+              {
+                "group": "Libro mayor",
+                "pages": [
+                  "api-reference/entities",
+                  "api-reference/chart-of-accounts",
+                  "api-reference/ledger-entries",
+                  "api-reference/allocations",
+                  "api-reference/dimensions"
+                ]
+              },
+              {
+                "group": "Bancos",
+                "pages": [
+                  "api-reference/bank-accounts",
+                  "api-reference/bank-movements",
+                  "api-reference/bank-connections"
+                ]
+              },
+              {
+                "group": "Documentos",
+                "pages": [
+                  "api-reference/invoices",
+                  "api-reference/partners",
+                  "api-reference/attachments"
+                ]
+              },
+              {
+                "group": "Informes y auditoría",
+                "pages": [
+                  "api-reference/reports",
+                  "api-reference/audit-trail"
+                ]
+              },
+              {
+                "group": "Fuentes e integraciones",
+                "pages": [
+                  "api-reference/sources",
+                  "api-reference/source-feeds",
+                  "api-reference/integrations",
+                  "api-reference/sii"
+                ]
+              },
+              {
+                "group": "Plataforma",
+                "pages": [
+                  "api-reference/fx-rates",
+                  "api-reference/reference-data",
+                  "api-reference/onboarding"
+                ]
+              }
             ]
           }
         ]

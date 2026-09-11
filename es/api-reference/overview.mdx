@@ -1,0 +1,149 @@
+---
+title: "API de Sintropix: acceso programático a tus libros"
+sidebarTitle: "Descripción general"
+description: "Referencia de la API HTTP de Sintropix: ruta base, formato de solicitudes y respuestas, encabezados de autenticación, estructura de errores y alcance por Entidad."
+---
+
+import { AgentPrompt } from "/snippets/agent-prompt.jsx"
+
+<AgentPrompt defaultLang="es" />
+
+La API de Sintropix es una interfaz JSON sobre HTTPS al sistema que gestiona tu contabilidad, tus facturas, tus movimientos bancarios y tus informes. Cada ruta de negocio está acotada a una sola Entidad (una empresa legal con sus propios libros) y se autentica con una clave de API. Las solicitudes y respuestas se validan de extremo a extremo, por lo que los nombres de campo, tipos y enumeraciones son consistentes en todos los endpoints.
+
+<Note>
+  Las páginas de referencia de cada endpoint están disponibles solo en inglés por ahora.
+</Note>
+
+## URL base
+
+Todas las rutas se montan bajo el prefijo `/api`:
+
+```text
+https://api.sintropix.com/api
+```
+
+La API no lleva versión en la ruta de la URL.
+
+## Forma de las rutas
+
+La mayoría de los recursos de negocio viven bajo una sola Entidad:
+
+```text
+/api/entities/{entityId}/<recurso>
+```
+
+Por ejemplo:
+
+```text
+GET  /api/entities/{entityId}/ledger/accounts
+POST /api/entities/{entityId}/invoices
+GET  /api/entities/{entityId}/reports/balance-sheet
+```
+
+Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para el equipo de Sintropix) y `/api/health`.
+
+`{entityId}` es siempre un UUID. Una solicitud sobre una Entidad a la que quien llama no tiene acceso devuelve `404`, nunca `403`, de modo que sondear rutas no revela si una Entidad desconocida existe.
+
+## Autenticación
+
+Los clientes programáticos se autentican con una clave de API en el encabezado `x-api-key`. Las claves se crean en la aplicación de Sintropix; consulta [Obtener una clave de API](/es/guides/api-keys).
+
+Toda solicitud que modifica datos (`POST`, `PUT`, `PATCH`, `DELETE`) debe enviar además un Actor Declarado:
+
+```http
+x-api-key: <secreto>
+x-audit-actor: <etiqueta-de-tu-agente>
+```
+
+`x-audit-actor` es una etiqueta de software autodeclarada (por ejemplo `claude-opus-4.8`) que se guarda tal cual en el [registro de auditoría](/api-reference/audit-trail). Omitirla en una mutación devuelve `400`.
+
+## Formato de las solicitudes
+
+Las solicitudes son JSON plano. Incluye `Content-Type: application/json` en cualquier solicitud con cuerpo.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+Los parámetros de ruta que son identificadores deben ser UUID válidos; un identificador mal formado devuelve `400`.
+
+## Formato de las respuestas
+
+Las respuestas son el recurso en sí como JSON. No hay un envoltorio `data` de nivel superior, ni un bloque `meta`, ni un bloque `pagination` en los endpoints no paginados. Cada página de referencia lista los campos que devuelve cada endpoint.
+
+Un recurso individual se devuelve como un objeto:
+
+```json
+{
+  "id": "…",
+  "name": "…"
+}
+```
+
+Un endpoint de listado devuelve un arreglo JSON sin envoltorio:
+
+```json
+[
+  { "id": "…" },
+  { "id": "…" }
+]
+```
+
+Un endpoint paginado (aquellos cuya ruta termina en `/pages`, más algunos informes) devuelve un objeto `{ rows, nextCursor }`. `nextCursor` es `null` en la última página.
+
+```json
+{
+  "rows": [ /* … */ ],
+  "nextCursor": "…"
+}
+```
+
+<Note>
+  La paginación se habilita endpoint por endpoint, no en todo el sitio. Los endpoints sin `/pages` en su ruta devuelven todas las filas y no aceptan el argumento `cursor`. Revisa la página de referencia del endpoint que estés llamando.
+</Note>
+
+## Errores
+
+Las respuestas distintas de 2xx son JSON. Toda respuesta, exitosa o fallida, lleva un encabezado `x-request-id`; cítalo cuando contactes a soporte.
+
+| Código | Significado |
+| --- | --- |
+| `200` | La solicitud se completó correctamente. |
+| `201` | Recurso creado. |
+| `204` | La solicitud se completó correctamente sin cuerpo de respuesta. |
+| `400` | El cuerpo, la query o la ruta no pasaron la validación, o falta un encabezado obligatorio. |
+| `401` | No hay una clave de API válida. |
+| `403` | La clave no tiene permiso para esta acción (por ejemplo, una clave de solo lectura intentando una mutación). |
+| `404` | El recurso no existe, o quien llama no tiene acceso a la Entidad solicitada. |
+| `409` | Conflicto de dominio (por ejemplo, un asiento contable ya contabilizado o una fila duplicada). |
+| `429` | Se superó el límite de solicitudes de una clave de API. |
+| `500` | Error de servidor no controlado. |
+
+Los errores de dominio llevan en el cuerpo un `code` de tipo string estable, por ejemplo `API_KEY_READ_ONLY_ERROR`. Compara contra `code`, no contra el mensaje legible por humanos.
+
+## Límites de solicitudes
+
+Cada clave de API está limitada a **25.000 solicitudes por hora** en una ventana deslizante. Superar el límite devuelve `429`; no existe un contrato de encabezados `X-RateLimit-*` en la respuesta.
+
+## Llamadas desde el navegador
+
+La API está diseñada para uso servidor a servidor con una clave de API. Llamarla directamente desde un navegador requiere que Sintropix incluya tu origen en una lista de permitidos; contacta a soporte si lo necesitas.
+
+## Qué no forma parte de la API
+
+<Warning>
+  **No hay sistema de webhooks**. Sintropix no envía notificaciones de eventos a URL externas. Consulta periódicamente los endpoints que te interesen, o el [registro de auditoría](/api-reference/audit-trail) como feed de cambios.
+</Warning>
+
+<Warning>
+  **No hay paginación por cursor en la mayoría de los endpoints**. Solo los endpoints cuya ruta termina en `/pages` (más los paginadores de libro mayor, partidas abiertas, diario y asientos contables) devuelven `{ rows, nextCursor }`. El resto devuelve la lista completa.
+</Warning>
+
+<Warning>
+  **No hay esquema `Authorization: Bearer`**. Las claves de API van en el encabezado `x-api-key`.
+</Warning>
+
+<Warning>
+  **No hay prefijo `/v1`**. La ruta base es `/api`.
+</Warning>

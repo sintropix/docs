@@ -1,0 +1,68 @@
+---
+title: "Inicio rápido de Sintropix: pon en marcha tu primera entidad"
+sidebarTitle: "Inicio rápido"
+description: "Conecta tu primera entidad, vincula tus cuentas bancarias e integraciones y empieza a trabajar con Erwin, tu asistente financiero de IA, en menos de una hora."
+---
+
+Empezar a usar Sintropix no requiere una implementación larga. Conectas tu entidad, vinculas tus cuentas y tu libro mayor empieza a poblarse automáticamente. Esta guía recorre los cuatro pasos que te llevan de una cuenta vacía a datos financieros en vivo y a tu primera conversación con Erwin.
+
+<Steps>
+  <Step title="Crea tu cuenta">
+    Ve a [sintropix.com](https://sintropix.com) y regístrate. Durante el onboarding se te pedirá:
+
+    - **Nombrar tu primera entidad**: la empresa legal que configuras primero (por ejemplo, tu holding en Estados Unidos o tu filial operativa principal)
+    - **Elegir su moneda funcional**: la moneda principal de esa entidad (USD para un holding estadounidense, CLP para una filial chilena, MXN para México, etc.)
+    - **Elegir tu moneda de reporte**: la moneda usada en los informes consolidados de varias entidades; la mayoría de los equipos elige USD
+
+    Si operas varias entidades, puedes agregar más filiales desde **Ajustes → Entidades** después de completar la configuración inicial. Cada entidad tiene su propio plan de cuentas, moneda funcional y jurisdicción tributaria.
+  </Step>
+  <Step title="Conecta tus cuentas bancarias">
+    Vincula tus cuentas bancarias para que las transacciones fluyan a tu libro mayor automáticamente, sin importar CSV ni digitar nada a mano.
+
+    Ve a **Integraciones → Bancos** y selecciona tu institución. Sintropix soporta conexiones directas con:
+
+    - **LATAM:** Santander, BCI, Banco de Chile, BICE, Itaú, BBVA, Mercado Pago, Global66
+    - **Estados Unidos:** Mercury
+
+    Una vez conectada, Sintropix descarga tu historial de transacciones y empieza a clasificar los movimientos contra tu plan de cuentas. Las transacciones nuevas aparecen en tu libro mayor dentro de las 24 horas siguientes a su registro en el banco.
+
+    <Tip>
+      Conecta todas las cuentas bancarias de una entidad antes de continuar. La conciliación funciona mejor cuando Sintropix tiene una visión completa de tus movimientos de caja.
+    </Tip>
+  </Step>
+  <Step title="Conecta tus integraciones">
+    Además de los bancos, Sintropix obtiene datos de las herramientas que tu equipo financiero ya usa. Ve a **Integraciones** y conecta lo que aplique a tu stack:
+
+    - **Nómina**: [Buk](https://www.buk.cl) o [Rankmi](https://www.rankmi.com). Las liquidaciones se contabilizan directamente en tu libro mayor, con las líneas de impuestos y beneficios desglosadas automáticamente
+    - **Gastos**: [Rinde Gastos](https://www.rindegastos.com), [Xpendit](https://www.xpendit.com) o [Ramp](https://ramp.com). Las rendiciones aprobadas generan asientos contables sin volver a digitarlas
+    - **CRM**: [HubSpot](https://www.hubspot.com) o [Salesforce](https://www.salesforce.com). Los negocios cerrados alimentan el motor de reconocimiento de ingresos, que mapea los contratos a calendarios de devengo automáticamente
+    - **Pagos**: [Stripe](https://stripe.com) o Mercado Pago. Los eventos de pago se cruzan con las facturas abiertas y el efectivo se aplica en tiempo real
+
+    Cada integración es una conexión única por OAuth o clave de API. Una vez vinculada, los datos fluyen de forma continua, sin exportaciones programadas ni cargas manuales.
+  </Step>
+  <Step title="Conoce a Erwin, tu asistente financiero de IA">
+    Cuando tus cuentas estén conectadas y los datos empiecen a fluir, abre el panel de **Erwin** desde la barra de navegación izquierda. Erwin está integrado directamente en tus datos contables, así que cada respuesta que da se basa en tu libro mayor real, no en un resumen ni en un informe estático.
+
+    Empieza por preguntarle algo práctico:
+
+    - *"¿Qué necesito para cerrar este mes?"*: Erwin revisa tu lista de cierre y te dice exactamente qué está sin conciliar, sin aprobar o faltante
+    - *"Arma una proyección de flujo de caja a 13 semanas"*: Erwin proyecta tu posición de caja usando la antigüedad actual de tus cuentas por cobrar, el calendario de cuentas por pagar y los compromisos de nómina
+    - *"¿Cuál es nuestra tasa de quema consolidada en todas las entidades este trimestre?"*: Erwin extrae y convierte los datos de todas las entidades que hayas conectado
+    - *"¿Por qué cayó nuestro margen bruto en Colombia el mes pasado?"*: Erwin profundiza en el detalle a nivel de cuenta y muestra la causa
+
+    Erwin también puede alertarte de forma proactiva sobre anomalías, como transacciones duplicadas, exposición cambiaria inusual o cuentas vencidas, antes de que se conviertan en problemas al cierre.
+  </Step>
+</Steps>
+
+<Note>
+  En tu primera conexión, la sincronización completa del historial de transacciones y la aparición de sugerencias de conciliación pueden tardar hasta 24 horas. El flujo de transacciones en tiempo real comienza en cuanto termina la sincronización inicial.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="API de informes" icon="chart-line" href="/api-reference/reports">
+    Obtén el balance general, el estado de resultados, el diario y los informes de libro mayor que alimentan el panel después de tu primera sincronización.
+  </Card>
+  <Card title="Obtener una clave de API" icon="key" href="/es/guides/api-keys">
+    Crea una clave para Erwin o para tu propio agente y empieza a llamar a la API en menos de un minuto.
+  </Card>
+</CardGroup>

@@ -1,0 +1,76 @@
+---
+title: "API de Sintropix: acceso programático a tu backend financiero"
+sidebarTitle: "Inicio"
+description: "Construye agentes e integraciones sobre Sintropix. Una API JSON sobre HTTPS para contabilidad, bancos, facturas, informes y conciliación en libros multiempresa y multimoneda."
+---
+
+import { AgentPrompt } from "/snippets/agent-prompt.jsx"
+
+<AgentPrompt defaultLang="es" />
+
+Sintropix expone una API HTTP al mismo backend ERP que usan la aplicación web y Erwin, el asistente de IA integrado en el producto. Cada recurso, desde asientos contables y movimientos bancarios hasta facturas e informes, está disponible como un endpoint JSON acotado a una Entidad, de modo que agentes e integraciones pueden leer y escribir datos financieros directamente.
+
+<CardGroup cols={2}>
+  <Card title="Descripción general de la API" icon="code" href="/es/api-reference/overview">
+    URL base, formato de solicitudes y respuestas, estructura de errores y alcance por Entidad.
+  </Card>
+
+  <Card title="Obtener una clave de API" icon="key" href="/es/guides/api-keys">
+    Crea una clave en la aplicación y conoce los encabezados obligatorios en cada solicitud.
+  </Card>
+
+  <Card title="Inicio rápido" icon="rocket" href="/es/quickstart">
+    Haz tu primera llamada autenticada y registra un asiento contable en pocos minutos.
+  </Card>
+
+  <Card title="Conceptos básicos" icon="book" href="/es/core-concepts">
+    Entidades, el modelo contable, las fuentes y cómo fluyen los datos a través de la API.
+  </Card>
+</CardGroup>
+
+## Explora la API
+
+<Note>
+  La referencia de endpoints está disponible solo en inglés por ahora.
+</Note>
+
+<CardGroup cols={3}>
+  <Card title="Libro mayor" icon="scale-balanced" href="/api-reference/entities">
+    Entidades, plan de cuentas, asientos contables, asignaciones y dimensiones.
+  </Card>
+
+  <Card title="Bancos" icon="building-columns" href="/api-reference/bank-accounts">
+    Cuentas bancarias, movimientos y conexiones para la conciliación automática.
+  </Card>
+
+  <Card title="Documentos" icon="file-invoice" href="/api-reference/invoices">
+    Facturas, terceros y adjuntos en los flujos de cuentas por pagar y por cobrar.
+  </Card>
+
+  <Card title="Informes y auditoría" icon="chart-line" href="/api-reference/reports">
+    Balance general, estado de resultados, flujo de caja y el registro de auditoría completo en JSON.
+  </Card>
+
+  <Card title="Fuentes e integraciones" icon="plug" href="/api-reference/sources">
+    Ingiere datos de bancos, nómina, gastos, CRM y autoridades tributarias.
+  </Card>
+
+  <Card title="Plataforma" icon="gear" href="/api-reference/fx-rates">
+    Tipos de cambio, datos de referencia (países, monedas) y onboarding.
+  </Card>
+</CardGroup>
+
+## Para agentes de IA
+
+La API está diseñada para que la operen agentes:
+
+- Cada ruta de negocio está acotada a una sola Entidad (`/api/entities/{entityId}/...`), así que un agente que trabaja con varias empresas siempre hace explícito el destino.
+- Las solicitudes y respuestas se validan de extremo a extremo, por lo que los nombres de campo, tipos y enumeraciones son estables en todos los endpoints.
+- Los errores devuelven una estructura consistente con códigos legibles por máquina para reintentos y ramificaciones.
+- El [registro de auditoría](/api-reference/audit-trail) guarda cada escritura, así que las acciones de los agentes son rastreables.
+
+Empieza por la [descripción general de la API](/es/api-reference/overview) y [Obtener una clave de API](/es/guides/api-keys), y luego ve directo al recurso que necesites.
+
+<Card title="Obtener una clave de API" icon="key" horizontal href="/es/guides/api-keys">
+  Crea una clave de API de Sintropix y empieza a llamar a la API en pocos minutos.
+</Card>

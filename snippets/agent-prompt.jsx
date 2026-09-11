@@ -1,4 +1,4 @@
-export const AgentPrompt = () => {
+export const AgentPrompt = ({ defaultLang }) => {
   const PROMPTS = {
     en: {
       label: "Copy Prompt",
@@ -7,7 +7,6 @@ export const AgentPrompt = () => {
       copied: "✓ Copied — paste into your agent to get started!",
       errorTitle: "Copy failed. Select and copy the prompt below.",
       textareaLabel: "Full Sintropix agent prompt",
-      switchTo: "Prompt in English",
       text: `Help me work with the Sintropix ERP through its API.
   Use https://docs.sintropix.com/llms.txt to find documentation as needed.
   Ask me for my API key through a secure input. If I don’t have one yet, give me both options: guide me step by step through creating it at https://app.sintropix.com under Ajustes → Claves de API → Crear clave, and point me to the illustrated guide at https://docs.sintropix.com/guides/api-keys. Then wait for me to come back with the key.
@@ -23,7 +22,6 @@ export const AgentPrompt = () => {
       copied: "✓ Copiado — pégalo en tu agente para empezar.",
       errorTitle: "No se pudo copiar. Selecciona y copia el prompt de abajo.",
       textareaLabel: "Prompt completo del agente de Sintropix en español",
-      switchTo: "Prompt en español",
       text: `Ayúdame a trabajar con el ERP de Sintropix a través de su API. Háblame siempre en español.
   Usa https://docs.sintropix.com/llms.txt para encontrar la documentación que necesites.
   Pídeme mi clave de API mediante una entrada segura. Si todavía no tengo una, dame las dos opciones: guíame paso a paso para crearla en https://app.sintropix.com en Ajustes → Claves de API → Crear clave, y muéstrame la guía ilustrada en https://docs.sintropix.com/guides/api-keys. Luego espera a que vuelva con la clave.
@@ -53,15 +51,8 @@ export const AgentPrompt = () => {
   );
 
   const [status, setStatus] = useState("idle");
-  const [lang, setLang] = useState("en");
-
-  // Pick the prompt language from the browser on the client only, so the
-  // server-rendered markup and the first client render stay identical.
-  useEffect(() => {
-    const languages = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
-    const prefersSpanish = languages.some((l) => typeof l === "string" && l.toLowerCase().startsWith("es"));
-    if (prefersSpanish) setLang("es");
-  }, []);
+  // The prompt language follows the page language (English pages omit the prop).
+  const lang = defaultLang in PROMPTS ? defaultLang : "en";
 
   useEffect(() => {
     if (status !== "copied") return;
@@ -70,7 +61,6 @@ export const AgentPrompt = () => {
   }, [status]);
 
   const active = PROMPTS[lang];
-  const other = lang === "en" ? "es" : "en";
 
   const copyPrompt = async () => {
     try {
@@ -79,11 +69,6 @@ export const AgentPrompt = () => {
     } catch {
       setStatus("error");
     }
-  };
-
-  const switchLang = () => {
-    setStatus("idle");
-    setLang(other);
   };
 
   return (
@@ -108,14 +93,6 @@ export const AgentPrompt = () => {
           )}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={switchLang}
-        lang={other}
-        className="-mt-1 block cursor-pointer text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"
-      >
-        {PROMPTS[other].switchTo}
-      </button>
       {status === "error" && (
         <div className="mt-3 text-sm" role="alert">
           <p>{active.errorTitle}</p>
