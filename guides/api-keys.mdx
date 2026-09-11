@@ -71,7 +71,6 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 
 - A key authenticates as its owning User with that User's global Role and per-Entity Memberships.
 - Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities the owning User is a member of.
-- Keys can be issued as read-only or scoped to a single Entity for tighter blast radius. See [Authentication](/api-reference/authentication) for the full model, including Erwin key leases.
 
 ## Rate Limits
 
@@ -83,6 +82,6 @@ Each key is limited to **25,000 requests per hour** on a sliding window. Request
 - Revoke a key immediately from **Ajustes → Claves de API** if you suspect it has leaked. Revocation takes effect on the next request.
 - Every action taken with a key is recorded in the [audit trail](/api-reference/audit-trail) under the owning User, so leaked-key activity is traceable.
 
-<Card title="Full Authentication Reference" icon="key" href="/api-reference/authentication" horizontal>
-  Session cookies, API keys, roles, tenant scoping, and error codes in detail.
+<Card title="API Overview" icon="code" href="/api-reference/overview" horizontal>
+  Base URL, request and response format, error envelope, and per-Entity scoping.
 </Card>

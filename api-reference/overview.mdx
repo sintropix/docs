@@ -4,7 +4,11 @@ sidebarTitle: "Overview"
 description: "Reference for the Sintropix ERP HTTP API: base path, request and response format, authentication headers, error envelope, and per-Entity scoping."
 ---
 
-The Sintropix API is a JSON over HTTPS interface to the ERP backend that owns your ledger, your invoices, your bank movements, and your reports. Every business route is scoped to a single Entity (a legal company with its own books), authenticated with a Better Auth credential (a session cookie in the app, an API key from an integration), and validated end-to-end by a shared Zod contract in `@sintropix/api-contract`.
+import { AgentPrompt } from "/snippets/agent-prompt.jsx"
+
+<AgentPrompt />
+
+The Sintropix API is a JSON over HTTPS interface to the ERP backend that owns your ledger, your invoices, your bank movements, and your reports. Every business route is scoped to a single Entity (a legal company with its own books), authenticated with an API key, and validated end-to-end by a shared Zod contract in `@sintropix/api-contract`.
 
 <Warning>
   This reference documents the ERP backend as implemented in `apps/erp-backend`. The API is currently used by Sintropix's own web client and by Erwin (the AI assistant); a public, versioned, externally supported surface has not been announced. Endpoint paths, request shapes, and response shapes may change without notice.
@@ -36,27 +40,22 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (staff only), [`/api/agents/models`](/api-reference/authentication), and `/api/health`.
+A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (staff only), `/api/agents/models`, and `/api/health`.
 
 `{entityId}` is always a UUID. The tenant guard rejects a request where the caller has no Entity Membership to that Entity with a `404`; it never returns `403`, so probing does not reveal whether an unknown Entity exists.
 
 ## Authentication
 
-Every non-anonymous request carries one of two credentials:
+Programmatic callers authenticate with an API key in the `x-api-key` header. Keys are created in the Sintropix app; see [Get an API Key](/guides/api-keys).
 
-- **Session cookie** issued by Better Auth after a browser sign-in. Same-site only (the SPA and API share a registrable domain).
-- **API key** in the `x-api-key` header. Keys are minted by the owner from the settings UI; the API management surface is barred to key holders (a request to `/api/auth/*` with `x-api-key` returns `403`).
-
-Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) authenticated with an API key must also send a Declared Actor:
+Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) must also send a Declared Actor:
 
 ```http
 x-api-key: <secret>
 x-audit-actor: <your-agent-label>
 ```
 
-`x-audit-actor` is a self-reported software label (for example `claude-opus-4.8`) that lands verbatim in the [Audit Trail](/api-reference/audit-trail). Omitting it on a key-authenticated mutation returns `400`.
-
-See [Authentication](/api-reference/authentication) for the full model, including read-only keys, the Erwin Key Lease, and staff versus client roles.
+`x-audit-actor` is a self-reported software label (for example `claude-opus-4.8`) that lands verbatim in the [Audit Trail](/api-reference/audit-trail). Omitting it on a mutation returns `400`.
 
 ## Request Format
 
@@ -125,7 +124,7 @@ Domain-level errors carry a stable string `code` in the body — for example `AP
 
 ## Rate Limits
 
-Better Auth's `apiKey` plugin rate-limits each key at **25,000 requests per hour**, sliding window (`rateLimit` in `apps/erp-backend/src/auth/auth.ts`). Session-cookie traffic is not rate-limited at the application layer. Exceeding the limit returns `429`; there is no `X-RateLimit-*` header response contract.
+Each API key is rate-limited to **25,000 requests per hour** on a sliding window. Exceeding the limit returns `429`; there is no `X-RateLimit-*` header response contract.
 
 ## CORS and Same-Site
 
