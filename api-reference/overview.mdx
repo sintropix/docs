@@ -4,6 +4,10 @@ sidebarTitle: "Overview"
 description: "Reference for the Sintropix HTTP API: base path, request and response format, authentication headers, error envelope, and per-Entity scoping."
 ---
 
+import { AgentPrompt } from "/snippets/agent-prompt.jsx"
+
+<AgentPrompt />
+
 The Sintropix API is a JSON over HTTPS interface to the system that owns your ledger, your invoices, your bank movements, and your reports. Every business route is scoped to a single Entity (a legal company with its own books) and authenticated with an API key. Requests and responses are validated end to end, so field names, types, and enums are consistent across endpoints.
 
 ## Base URL
