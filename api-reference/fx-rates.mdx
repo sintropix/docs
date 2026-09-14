@@ -4,9 +4,15 @@ sidebarTitle: "FX Rates"
 description: "Read a single FX rate, list the most recent published rates, and trigger a rate sync from Banco Central de Chile through the Sintropix ERP API."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 The FX Rates API exposes the currency conversion rates Sintropix uses across every Entity. Rates are mirrored as published by Banco Central de Chile; the sync endpoint refreshes the stored rates and is restricted to staff. The read endpoints are Entity-independent because rates are global.
 
 Sintropix tracks three series, all quoted in CLP: `USD/CLP` (dólar observado), `EUR/CLP` (tipo de cambio observado), and `MXN/CLP` (tipo de cambio referencial).
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/settings/fx-rates"
+/>
 
 ## The FX Rate object
 

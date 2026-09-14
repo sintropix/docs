@@ -27,6 +27,7 @@
                 "pages": [
                   "api-reference/overview",
                   "guides/api-keys",
+                  "guides/app-links",
                   "quickstart",
                   "core-concepts"
                 ]
@@ -104,6 +105,7 @@
                   "es/index",
                   "es/api-reference/overview",
                   "es/guides/api-keys",
+                  "es/guides/app-links",
                   "es/quickstart",
                   "es/core-concepts"
                 ]

@@ -1,0 +1,116 @@
+---
+title: "Enlaza registros en la aplicación de Sintropix"
+sidebarTitle: "Enlazar a la aplicación"
+description: "Construye enlaces directos desde las respuestas de la API a la aplicación web de Sintropix. Gramática de URLs, la convención ?open= para paneles y el patrón de URL de cada recurso: asientos, facturas, movimientos bancarios, contrapartes, informes y ajustes."
+---
+
+Cada registro que devuelve la API tiene una página en la aplicación web de Sintropix en [app.sintropix.com](https://app.sintropix.com). Cuando menciones un registro a un usuario, incluye su enlace para que pueda abrirlo con un clic. El enlace se construye con los ids que ya tienes en la respuesta de la API; no hace falta ninguna llamada adicional.
+
+<Tip>
+  **Para agentes.** Cada vez que cites un asiento, una factura, un movimiento, una contraparte o un informe en una respuesta, adjunta su URL de la aplicación como enlace Markdown. El usuario lee las cifras en tu respuesta y luego entra a verificar o actuar.
+</Tip>
+
+## Gramática de las URLs
+
+Toda página autenticada vive bajo la Entidad a la que pertenece:
+
+```text
+https://app.sintropix.com/{entityId}/<pagina>[?<parametros>]
+```
+
+- `{entityId}` es el mismo UUID que usas en `/api/entities/{entityId}/...`. Siempre es el primer segmento de la ruta.
+- `<pagina>` es una de las páginas listadas abajo. No hay prefijo de idioma; la aplicación elige el idioma por sí misma.
+- Los parámetros de consulta son opcionales y los valores por defecto se omiten. Pasa los ids como UUID sin adornos y las fechas como `YYYY-MM-DD`.
+
+Los enlaces directos sobreviven al inicio de sesión. Si el usuario no está autenticado, la aplicación muestra el formulario de acceso y luego aterriza en la URL exacta solicitada. Un usuario sin acceso a la Entidad ve una pantalla de "sin acceso" en lugar de una redirección.
+
+## Abrir un registro en un panel lateral
+
+Las facturas, los movimientos bancarios y las partidas abiertas no tienen página propia. Se abren en un panel lateral sobre su listado, y el panel se direcciona con el parámetro `open`:
+
+```text
+https://app.sintropix.com/{entityId}/invoices?open={invoiceId}
+https://app.sintropix.com/{entityId}/banks/{bankAccountId}?open={movementId}
+```
+
+El parámetro `open` es la convención universal: en cualquier página de listado, `?open=<id>` abre el panel de ese registro.
+
+## Mapa de recurso a URL
+
+| Recurso de la API | URL en la aplicación | Notas |
+| --- | --- | --- |
+| Entidad | `/{entityId}/home` | El panel de la Entidad. `/{entityId}/settings/entity` para sus ajustes, `/{entityId}/settings/structure` para matriz y filiales. |
+| Asiento contable | `/{entityId}/entries/{entryId}` | Detalle a página completa. El listado es `/{entityId}/entries`. |
+| Factura, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | Documentos por cobrar. Elige la página según el campo `direction`. |
+| Factura, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | Documentos por pagar. |
+| Adjunto | `/{entityId}/invoices?open={invoiceId}` o `/{entityId}/bills?open={invoiceId}` | Los adjuntos se muestran dentro del panel de la factura. |
+| Cuenta bancaria | `/{entityId}/banks/{bankAccountId}` | La vista de conciliación de esa cuenta. `/{entityId}/banks` lista todas las cuentas. |
+| Movimiento bancario | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Usa el campo `bankAccountId` del movimiento. Cambia `open` por `reconcile` para iniciar su conciliación. |
+| Conexión bancaria | `/{entityId}/settings/bank-accounts` | Las conexiones y sus cuentas asociadas se gestionan aquí. |
+| Contraparte | `/{entityId}/partner-ledger?partners={partnerId}` | Estado de cuenta filtrado por esa contraparte. `/{entityId}/partners` y `/{entityId}/vendors` son los listados de clientes y proveedores. |
+| Cuenta contable | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movimientos de una cuenta. El plan de cuentas está en `/{entityId}/settings/chart-of-accounts`. |
+| Partida abierta | `/{entityId}/receivables?open={entryId}` o `/{entityId}/payables?open={entryId}` | Pasa el id del asiento que contiene la partida. `/{entityId}/open-items` las muestra todas. |
+| Asignación | `/{entityId}/entries/{entryId}` | Las asignaciones no tienen página. Enlaza el asiento que se está liquidando. |
+| Dimensión | `/{entityId}/settings/dimensions?dimension={dimensionId}` | |
+| Fuente | `/{entityId}/sources/{sourceId}` | Documentos importados por esa fuente. Las fuentes se configuran en `/{entityId}/settings/sources`. |
+| Feed de fuente | `/{entityId}/settings/sources` | Los feeds se gestionan dentro de los ajustes de su fuente. |
+| Integración | `/{entityId}/settings/integrations` | |
+| Tipo de cambio | `/{entityId}/settings/fx-rates` | |
+| Registro de auditoría | `/{entityId}/settings/log` | |
+| Claves de API | `/{entityId}/settings/api-keys` | |
+| Erwin | `/{entityId}/agent` | El asistente integrado en la aplicación. |
+
+## Informes
+
+Los informes son páginas con el período en la cadena de consulta. Omite un parámetro para obtener el valor por defecto de la aplicación, que es el año en curso hasta hoy.
+
+| Informe | URL en la aplicación | Parámetros |
+| --- | --- | --- |
+| Balance general | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
+| Balance de ocho columnas | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
+| Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda. |
+| Estado de resultados por dimensión | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
+| Libro mayor | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
+| Libro diario | `/{entityId}/journal` | `from`, `to`, `search` |
+| Libro de contrapartes | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId` |
+| Antigüedad de cuentas por cobrar | `/{entityId}/receivables` | `open` |
+| Antigüedad de cuentas por pagar | `/{entityId}/payables` | `open` |
+| Realización de ingresos | `/{entityId}/revenue-realization` | `from`, `to` |
+| Activos fijos | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` para un activo |
+
+`presentationCurrency` y `presentationRate` deben ir juntos, exactamente como en la [API de informes](/api-reference/reports).
+
+## Filtrar un listado
+
+Las páginas de listado aceptan los mismos filtros que el usuario puede fijar en la interfaz, así que puedes enlazar a una vista precisa en vez de a todo el listado.
+
+| Página | Parámetros útiles |
+| --- | --- |
+| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source` |
+| `/{entityId}/entries` | `search`, `from`, `to`, `status` |
+| `/{entityId}/banks/{bankAccountId}` | `status`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
+
+## Ejemplo
+
+Un agente que acaba de listar las cuentas por pagar vencidas en Chile podría responder:
+
+```markdown
+Hay tres facturas de proveedores con más de 60 días de atraso:
+
+- [F-1042 de Proveedora Andina, CLP 1.190.000](https://app.sintropix.com/9b2f…/bills?open=3f1c…)
+- [F-1050 de Servicios Sur, CLP 480.000](https://app.sintropix.com/9b2f…/bills?open=7d8e…)
+- [F-1061 de Logística Norte, CLP 2.350.000](https://app.sintropix.com/9b2f…/bills?open=9a0b…)
+
+Antigüedad completa: https://app.sintropix.com/9b2f…/payables
+```
+
+El patrón es el mismo para todos los recursos: toma el id de la Entidad de la ruta que llamaste, toma el id del registro de la respuesta y coloca ambos en la URL de ese recurso.
+
+<CardGroup cols={2}>
+  <Card title="Descripción general de la API" icon="code" href="/es/api-reference/overview">
+    URL base, formato de solicitudes y respuestas y alcance por Entidad.
+  </Card>
+  <Card title="Obtener una clave de API" icon="key" href="/es/guides/api-keys">
+    Crea una clave desde Ajustes y empieza a llamar a la API.
+  </Card>
+</CardGroup>

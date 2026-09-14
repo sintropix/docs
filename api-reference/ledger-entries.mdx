@@ -4,9 +4,16 @@ sidebarTitle: "Ledger Entries"
 description: "Create, list, reverse, and unbook Ledger Entries. Manage Scheduled Entries, Ledger Lines, and Open Items for an Entity's books."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 Ledger Entries are the core double-entry transactions in Sintropix. Each entry has a header (date, memo, notes) and at least two balanced lines. This page covers creating, listing, reversing, and unbooking entries, plus Scheduled Entries and line-level updates.
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings; timestamps are ISO 8601 datetimes.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/entries/{entryId}"
+  note="The list is at /{entityId}/entries. An entry's open item is at /{entityId}/receivables?open={entryId} or /{entityId}/payables?open={entryId}."
+/>
 
 ## GET /api/entities/:entityId/ledger/entries
 

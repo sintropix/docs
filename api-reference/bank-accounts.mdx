@@ -4,7 +4,14 @@ sidebarTitle: "Bank Accounts"
 description: "Create, update, list, and delete Bank Accounts for an Entity. Manage bank data feeds and trigger manual syncs via the Sintropix ERP HTTP API."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 A Bank Account is a real-world account an Entity holds at a financial institution, such as a checking account or a credit card. Each account is scoped to a single Entity, denominated in one currency, and mapped to exactly one Ledger Account where its booked activity accumulates. This page covers the endpoints for managing Bank Accounts and their optional bank data feeds.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/banks/{bankAccountId}"
+  note="That page is the reconciliation view for the account. Account settings are at /{entityId}/settings/bank-accounts."
+/>
 
 ## Base path
 

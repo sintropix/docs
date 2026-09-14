@@ -4,9 +4,16 @@ sidebarTitle: "Attachments"
 description: "Upload, confirm, list, retrieve signed URLs, and delete attachments on invoices, bank movements, and ledger entries using the Sintropix ERP HTTP API."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 The Attachments API lets you associate files with invoices, bank movements, and general ledger entries. Every host follows the same two-phase upload pattern: request a presigned upload URL, PUT the file from your client, then confirm the upload so the record is created. You can list attachments, fetch a temporary download URL, and remove an attachment when it is no longer needed.
 
 All three hosts share the same five endpoints. Replace the host path segment with the resource you are targeting.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/invoices?open={invoiceId}"
+  note="Attachments appear inside the Invoice panel. Use /{entityId}/bills?open={invoiceId} when the Invoice direction is payable."
+/>
 
 ## Supported hosts
 

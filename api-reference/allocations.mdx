@@ -4,9 +4,16 @@ sidebarTitle: "Allocations"
 description: "Create, list, delete, and auto-match Reconciliation Allocations to settle Open-Item lines across Ledger Accounts and Partners."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 An Allocation settles one debit line against one credit line on an Open-Item Account. The match endpoint lets you auto-allocate a selection of lines. This page covers the full CRUD for Allocations plus the match operation.
 
 All amounts are integers in the minor unit of the currency (for example, cents).
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/entries/{entryId}"
+  note="Allocations have no page of their own: link the Ledger Entry being settled, or /{entityId}/open-items for the full list."
+/>
 
 ## GET /api/entities/:entityId/ledger/allocations
 

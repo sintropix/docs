@@ -4,9 +4,16 @@ sidebarTitle: "Invoices"
 description: "List, create, edit, book, and delete AR and AP Invoices. Attach or detach a Chilean DTE and paginate over invoice documents for an Entity."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 Invoices are Sintropix's model for both AR (issued to customers) and AP (received from suppliers). Each Invoice can be booked to a Ledger Entry and, in Chile, linked to a Documento Tributario Electrónico (DTE) issued through the SII. This page covers listing, creating, editing, booking, and DTE-linking Invoices.
 
 Amounts are integers in the minor units of their currency (`1190000` is CLP 1,190,000; `125050` is USD 1,250.50). Dates are `YYYY-MM-DD` strings, tax periods are `YYYY-MM`, and timestamps are ISO 8601.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/invoices?open={invoiceId}"
+  note="That page is for direction receivable. For direction payable use /{entityId}/bills?open={invoiceId}."
+/>
 
 ## GET `/invoices`
 

@@ -4,7 +4,14 @@ sidebarTitle: "Entities"
 description: "List, create, and configure the legal companies (Entities) that own separate books, currencies, and integrations in Sintropix."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. This page covers the Entity CRUD, ledger-lock date, and accounting policy endpoints.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/home"
+  note="Its settings are at /{entityId}/settings/entity and its parent and subsidiaries at /{entityId}/settings/structure."
+/>
 
 ## POST /api/entities
 

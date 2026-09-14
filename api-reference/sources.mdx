@@ -4,7 +4,14 @@ sidebarTitle: "Sources"
 description: "List, create, rename, and delete Sources: named origins that group Invoices and other documents imported from external systems into an Entity."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 A Source is a named origin an Entity uses to group documents it pulls from external systems: for example, an SII feed, a supplier email inbox, or a CSV import. A Source is a bucket; the [Source Feeds](/api-reference/source-feeds) attached to it are what actually fetch data.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/sources/{sourceId}"
+  note="Source configuration is at /{entityId}/settings/sources."
+/>
 
 ## GET `/sources`
 

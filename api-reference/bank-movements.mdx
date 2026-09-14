@@ -4,11 +4,18 @@ sidebarTitle: "Bank Movements"
 description: "List Bank Movements for an account, get match candidates and reconciliation state, then book, match, or transfer a movement into the ledger."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a booking status: unbooked, booked to a Ledger Entry, or matched to an existing Invoice or Ledger Entry. This page covers listing, editing, booking, matching, and transferring Bank Movements.
 
 <Note>
   All routes are nested under a Bank Account, not directly under the Entity. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`. `:movementId` is a UUID.
 </Note>
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/banks/{bankAccountId}?open={movementId}"
+  note="Take bankAccountId from the Movement. Use reconcile={movementId} instead of open to start reconciling it."
+/>
 
 ## The Bank Movement object
 

@@ -4,7 +4,14 @@ sidebarTitle: "Source Feeds"
 description: "Configure, sync, edit, and delete Source Feeds: the recurring pull jobs that import documents from external systems into a Source on an Entity."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the [Integration](/api-reference/integrations) it fetches through. Syncing a Feed lands new documents into its Source.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/settings/sources"
+  note="Feeds are managed inside their Source's settings."
+/>
 
 ## The Source Feed object
 

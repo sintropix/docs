@@ -4,7 +4,14 @@ sidebarTitle: "Chart of Accounts"
 description: "Initialize, read, and edit the Chart of Accounts for an Entity. Covers templates, account groups, ledger accounts, and the chart initialization endpoint."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for an Entity. You can initialize it from a template, create groups and accounts individually, and read the whole chart in one call. This page also covers the Ledger Account endpoints under `entities/:entityId/ledger/accounts`.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/settings/chart-of-accounts"
+  note="To show the movements of one account, link /{entityId}/general-ledger?selectedAccountId={accountId} instead."
+/>
 
 ## GET /api/entities/:entityId/ledger/chart-templates
 

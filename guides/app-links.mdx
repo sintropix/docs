@@ -1,0 +1,116 @@
+---
+title: "Link to Records in the Sintropix App"
+sidebarTitle: "Link to the App"
+description: "Build deep links from API responses to the Sintropix web app. URL grammar, the ?open= panel convention, and the URL pattern for every resource: entries, invoices, bank movements, partners, reports, and settings."
+---
+
+Every record the API returns has a page in the Sintropix web app at [app.sintropix.com](https://app.sintropix.com). When you mention a record to a user, include its link so they can open it in one click. The link is built from ids you already have in the API response; no extra call is needed.
+
+<Tip>
+  **For agents.** Whenever you cite an entry, invoice, movement, partner, or report in a reply, attach its app URL as a Markdown link. Users read the numbers in your reply, then click through to verify or act.
+</Tip>
+
+## URL grammar
+
+Every authenticated page lives under the Entity it belongs to:
+
+```text
+https://app.sintropix.com/{entityId}/<page>[?<params>]
+```
+
+- `{entityId}` is the same UUID you use in `/api/entities/{entityId}/...`. It is always the first path segment.
+- `<page>` is one of the pages listed below. There is no locale prefix; the app picks the language itself.
+- Query parameters are optional and default values are dropped. Pass ids as bare UUIDs and dates as `YYYY-MM-DD`.
+
+Deep links survive login. If the user is signed out, the app shows the login form and then lands on the exact URL requested. A user without access to the Entity sees a "no access" screen rather than a redirect.
+
+## Opening a record in a side panel
+
+Invoices, bank movements, and open items do not have a page of their own. They open in a side panel on top of their list, and the panel is addressed with the `open` query parameter:
+
+```text
+https://app.sintropix.com/{entityId}/invoices?open={invoiceId}
+https://app.sintropix.com/{entityId}/banks/{bankAccountId}?open={movementId}
+```
+
+The `open` parameter is the universal convention: whichever list page you are on, `?open=<id>` opens that record's panel.
+
+## Resource to URL map
+
+| API resource | App URL | Notes |
+| --- | --- | --- |
+| Entity | `/{entityId}/home` | The Entity dashboard. `/{entityId}/settings/entity` for its settings, `/{entityId}/settings/structure` for parent and subsidiaries. |
+| Ledger Entry | `/{entityId}/entries/{entryId}` | Full-page detail. The list is `/{entityId}/entries`. |
+| Invoice, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | AR documents. Pick the page from the `direction` field. |
+| Invoice, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | AP documents. |
+| Attachment | `/{entityId}/invoices?open={invoiceId}` or `/{entityId}/bills?open={invoiceId}` | Attachments are shown inside the invoice panel. |
+| Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. |
+| Bank Movement | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Use the `bankAccountId` field on the Movement. Replace `open` with `reconcile` to start reconciling it. |
+| Bank Connection | `/{entityId}/settings/bank-accounts` | Connections and their mapped accounts are managed here. |
+| Partner | `/{entityId}/partner-ledger?partners={partnerId}` | Partner statement filtered to that Partner. `/{entityId}/partners` and `/{entityId}/vendors` are the customer and supplier lists. |
+| Ledger Account | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movements of one account. The chart itself is `/{entityId}/settings/chart-of-accounts`. |
+| Open Item | `/{entityId}/receivables?open={entryId}` or `/{entityId}/payables?open={entryId}` | Pass the id of the Ledger Entry that carries the item. `/{entityId}/open-items` shows all. |
+| Allocation | `/{entityId}/entries/{entryId}` | Allocations have no page. Link the Ledger Entry being settled. |
+| Dimension | `/{entityId}/settings/dimensions?dimension={dimensionId}` | |
+| Source | `/{entityId}/sources/{sourceId}` | Documents imported by that Source. Sources are configured at `/{entityId}/settings/sources`. |
+| Source Feed | `/{entityId}/settings/sources` | Feeds are managed inside their Source's settings. |
+| Integration | `/{entityId}/settings/integrations` | |
+| FX Rate | `/{entityId}/settings/fx-rates` | |
+| Audit Trail | `/{entityId}/settings/log` | |
+| API keys | `/{entityId}/settings/api-keys` | |
+| Erwin | `/{entityId}/agent` | The in-app assistant. |
+
+## Reports
+
+Reports are pages with the period in the query string. Omit a parameter to get the app's default, which is the current year to date.
+
+| Report | App URL | Parameters |
+| --- | --- | --- |
+| Balance Sheet | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
+| Eight-column Balance | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
+| Income Statement | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`). Add `drillDown={accountId}:{columnKey}` to open one cell. |
+| Income Statement by Dimension | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
+| General Ledger | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
+| Journal | `/{entityId}/journal` | `from`, `to`, `search` |
+| Partner Ledger | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId` |
+| Receivables aging | `/{entityId}/receivables` | `open` |
+| Payables aging | `/{entityId}/payables` | `open` |
+| Revenue Realization | `/{entityId}/revenue-realization` | `from`, `to` |
+| Fixed Assets | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` for one asset |
+
+`presentationCurrency` and `presentationRate` must be passed together, exactly as in the [Reports API](/api-reference/reports).
+
+## Filtering a list
+
+List pages accept the same filters the user can set in the UI, so you can link to a precise view instead of the whole list.
+
+| Page | Useful parameters |
+| --- | --- |
+| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source` |
+| `/{entityId}/entries` | `search`, `from`, `to`, `status` |
+| `/{entityId}/banks/{bankAccountId}` | `status`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
+
+## Example
+
+An agent that just listed overdue payables in Chile might answer:
+
+```markdown
+Three supplier invoices are more than 60 days overdue:
+
+- [F-1042 from Proveedora Andina, CLP 1,190,000](https://app.sintropix.com/9b2f…/bills?open=3f1c…)
+- [F-1050 from Servicios Sur, CLP 480,000](https://app.sintropix.com/9b2f…/bills?open=7d8e…)
+- [F-1061 from Logística Norte, CLP 2,350,000](https://app.sintropix.com/9b2f…/bills?open=9a0b…)
+
+Full aging: https://app.sintropix.com/9b2f…/payables
+```
+
+The pattern is the same for every resource: take the Entity id from the route you called, take the record id from the response, and drop both into the URL for that resource.
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="code" href="/api-reference/overview">
+    Base URL, request and response format, and per-Entity scoping.
+  </Card>
+  <Card title="Get an API Key" icon="key" href="/guides/api-keys">
+    Create a key from Settings and start calling the API.
+  </Card>
+</CardGroup>

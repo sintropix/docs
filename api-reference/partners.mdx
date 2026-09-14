@@ -4,9 +4,16 @@ sidebarTitle: "Partners"
 description: "List, page through, create, edit, and delete Partners (customers, suppliers, employees, tax authorities) for an Entity in Sintropix."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD and the paginated Partner listing.
 
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/partner-ledger?partners={partnerId}"
+  note="Partners have no detail page; that link is the statement filtered to the Partner. The customer and supplier lists are /{entityId}/partners and /{entityId}/vendors."
+/>
 
 ## GET `/partners`
 

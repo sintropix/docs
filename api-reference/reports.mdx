@@ -8,6 +8,10 @@ The Reports API surfaces financial and operational read models for a single enti
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
 
+<Tip>
+  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, and `fixed-assets`. Pass the period as `from` and `to`, or as `exerciseStart` and `cutoffDate` for the balances. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
+</Tip>
+
 ## Entity reports
 
 Base path: `GET /api/entities/:entityId/reports`

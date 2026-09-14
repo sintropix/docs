@@ -40,6 +40,10 @@ A handful of routes are Entity-independent: [`/api/entities`](/api-reference/ent
 
 `{entityId}` is always a UUID. A request for an Entity the caller cannot access returns `404`, never `403`, so probing does not reveal whether an unknown Entity exists.
 
+## Linking to the App
+
+Every record has a page in the Sintropix web app at `https://app.sintropix.com/{entityId}/<page>`, where `{entityId}` is the same UUID as in the API route. A Ledger Entry is at `/{entityId}/entries/{entryId}`, a payable Invoice at `/{entityId}/bills?open={invoiceId}`, a Bank Movement at `/{entityId}/banks/{bankAccountId}?open={movementId}`. Include these links whenever you mention a record to a user. The full map is in [Link to the App](/guides/app-links).
+
 ## Authentication
 
 Programmatic callers authenticate with an API key in the `x-api-key` header. Keys are created in the Sintropix app; see [Get an API Key](/guides/api-keys).

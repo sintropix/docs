@@ -4,7 +4,13 @@ sidebarTitle: "Dimensions"
 description: "Create, update, and delete Dimensions and Dimension Values to tag Ledger Entry Lines for segmented reporting."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 Dimensions are reporting axes you define for an Entity. Each Dimension holds Dimension Values that tag Ledger Entry Lines. Only lines on Result Accounts (income and expense types) can carry Dimension Values. This page covers full CRUD for both Dimensions and their Values.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/settings/dimensions?dimension={dimensionId}"
+/>
 
 ## GET /api/entities/:entityId/dimensions
 
