@@ -9,7 +9,7 @@ import AppLink from "/snippets/app-link.mdx"
 A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a booking status: unbooked, booked to a Ledger Entry, or matched to an existing Invoice or Ledger Entry. This page covers listing, editing, booking, matching, and transferring Bank Movements.
 
 <Note>
-  All routes are nested under a Bank Account, not directly under the Entity. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`. `:movementId` is a UUID.
+  Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
 </Note>
 
 <AppLink
@@ -400,12 +400,55 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
   }'
 ```
 
+## POST `/api/entities/:entityId/bank-movements/:movementId/comments`
+
+Post a Comment on a Bank Movement. The author is taken from the session; the Comment appears in the Movement's [audit trail](/api-reference/audit-trail) alongside every other change, and inside the Movement panel of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host Movement.
+
+<Note>
+  This route is nested directly under the Entity, not under a Bank Account. `movementId` alone identifies the Movement.
+</Note>
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
+
+**Response** (`201`): the created Comment.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Comment id. |
+| `entityId` | uuid | Owning Entity. |
+| `authorUserId` | uuid | User the session belonged to. |
+| `body` | string | The text that was posted. |
+| `bankMovementId` | uuid | The Movement the Comment belongs to. |
+| `invoiceId` | null | Always null on this route. |
+| `ledgerEntryId` | null | Always null on this route. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
+**Domain errors**
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `COMMENT_HOST_NOT_FOUND_ERROR` | `404` | The Bank Movement in the URL does not exist under this Entity. The response carries `params: { hostKind: "bank_movement", hostId }`. |
+
+Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before the Comment reaches the database.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-movements/$MOVEMENT_ID/comments" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "body": "Cargo bancario correspondiente al proveedor Acme." }'
+```
+
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | `200` | Success (`GET`, `PATCH`, `DELETE`, and `POST` actions on an existing Movement). |
-| `201` | Movement created. |
+| `201` | Movement or Comment created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key call. |
 | `403` | Read-only key attempted a mutation. |
 | `404` | Entity, Bank Account, or Movement not found. |

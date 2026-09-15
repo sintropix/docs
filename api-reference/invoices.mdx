@@ -420,12 +420,51 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | `partner` | object | The Partner (see [Partners](/api-reference/partners)) with `openReceivable` and `openPayable` after booking. |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
 
+## POST `/invoices/:invoiceId/comments`
+
+Post a Comment on the Invoice. The author is taken from the session; the Comment appears in the Invoice's [audit trail](/api-reference/audit-trail) alongside every other change to the document, and inside the Invoice panel of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host Invoice.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
+
+**Response** (`201`): the created Comment.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Comment id. |
+| `entityId` | uuid | Owning Entity. |
+| `authorUserId` | uuid | User the session belonged to. |
+| `body` | string | The text that was posted. |
+| `invoiceId` | uuid | The Invoice the Comment belongs to. |
+| `ledgerEntryId` | null | Always null on this route. |
+| `bankMovementId` | null | Always null on this route. |
+| `createdAt`, `updatedAt` | timestamp | Row timestamps. |
+
+**Domain errors**
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `COMMENT_HOST_NOT_FOUND_ERROR` | `404` | The Invoice in the URL does not exist under this Entity. The response carries `params: { hostKind: "invoice", hostId }`. |
+
+Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before the Comment reaches the database.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/comments" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "body": "Confirmé con el proveedor: la OC corresponde a este mes." }'
+```
+
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET`, `PATCH`, `PUT`, `DELETE`, `POST /book`. `DELETE` answers with the deleted row. |
-| `201` | Invoice created. |
+| `201` | Invoice or Comment created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Invoice not found. |
 | `409` | Cannot delete a booked Invoice, Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |

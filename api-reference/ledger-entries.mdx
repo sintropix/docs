@@ -570,6 +570,42 @@ curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE
   -d '{"dimensionValueIds": ["dddddddd-dddd-4ddd-8ddd-dddddddddddd"]}'
 ```
 
+## POST /api/entities/:entityId/ledger/entries/:entryId/comments
+
+Post a Comment on a Ledger Entry. The author is taken from the session; the Comment appears in the entry's [audit trail](/api-reference/audit-trail) alongside every other change, and inside the entry view of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host entry.
+
+- **Path params:** `entityId` (UUID), `entryId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
+
+- **Success response:** the created Comment
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Comment id |
+| `entityId` | UUID | Owning Entity |
+| `authorUserId` | UUID | User the session belonged to |
+| `body` | string | The text that was posted |
+| `ledgerEntryId` | UUID | The entry the Comment belongs to |
+| `invoiceId` | null | Always null on this route |
+| `bankMovementId` | null | Always null on this route |
+| `createdAt`, `updatedAt` | ISO datetime | Row timestamps |
+
+- **Status:** 201
+
+The entry must exist under the Entity. When it does not, the response is `404` with `code: "COMMENT_HOST_NOT_FOUND_ERROR"` and `params: { hostKind: "ledger_entry", hostId }`. Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before reaching the database.
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID/comments \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{ "body": "Reclassified after review with the auditor." }'
+```
+
 ## Domain error codes
 
 | Code | Meaning |
@@ -599,13 +635,14 @@ curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE
 | `DIMENSION_VALUE_SET_DUPLICATE_DIMENSION_ERROR` | Multiple values from the same dimension |
 | `RECONCILIATION_ALLOCATION_NOT_FOUND_ERROR` | Allocation not found |
 | `RECONCILIATION_ALLOCATION_NETS_REVERSAL_ERROR` | Allocation nets a reversal |
+| `COMMENT_HOST_NOT_FOUND_ERROR` | Ledger Entry named as a comment host does not exist |
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | 200 | Success (GET, PATCH, DELETE, book) |
-| 201 | Created (POST entries, POST reverse, POST scheduled-entries) |
+| 201 | Created (POST entries, POST reverse, POST scheduled-entries, POST comments) |
 | 400 | Validation error |
 | 401 | Unauthenticated |
 | 403 | Forbidden |
