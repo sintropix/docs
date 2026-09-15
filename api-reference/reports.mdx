@@ -1,7 +1,7 @@
 ---
 title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement, journal, revenue realization, and ledger reports. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement, journal, open positions (receivables and payables), revenue realization, and ledger reports. All endpoints are read-only and return bare JSON."
 ---
 
 The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
@@ -39,6 +39,65 @@ Returns the home dashboard snapshot: cash position, daily balances for the last 
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/home" \
+  -H "Cookie: <session-cookie>"
+```
+
+### Open positions (receivables and payables)
+
+`GET /api/entities/:entityId/reports/open-positions`
+
+Returns open items grouped by ledger account for a single subtype: receivables (asset accounts tracking money owed to the entity) or payables (liability accounts tracking money the entity owes). Use it to build a receivables or payables aging view, drill into a specific account's open lines, or filter down to one partner.
+
+The response always lists every matching account with its open totals. Pass `expandedAccountId` to also load the individual open lines for one account; each account expands independently, and pagination applies only to the expanded account's lines.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `subtype` | enum | Yes | `receivable` or `payable` |
+| `status` | enum | No | `unsettled` (default), `settled`, or `all` |
+| `partnerId` | UUID | No | Restrict lines and account totals to one partner |
+| `expandedAccountId` | UUID | No | Load lines for this one account; omit to return account totals only |
+| `sort` | enum | No | `date` (default), `reference`, `partner`, `debit`, `credit`, `openAmount`, or `status` |
+| `direction` | enum | No | `asc` (default) or `desc` |
+| `cursor` | UUID | No | Id of the last line from the previous page |
+| `limit` | integer | No | Page size for the expanded account's lines (default 50, max 100) |
+| `bookId` | UUID | No | Restrict to a specific book |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `accounts` | array | Every ledger account of the requested subtype that has matching lines, each with the fields below |
+| `lines` | array | Open-item lines for `expandedAccountId`; empty when `expandedAccountId` is not set |
+| `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page of `lines`; `null` on the last page |
+
+Each item in `accounts` extends the Ledger Account with:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `openDebitAmount` | integer | Sum of open amounts on debit lines |
+| `openCreditAmount` | integer | Sum of open amounts on credit lines |
+| `lineCount` | integer | Number of open-item lines under this account for the current filters |
+
+Each item in `lines` extends the ledger entry line with:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `openAmount` | integer | Amount still open on the line, in the functional currency |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `partner` | object or null | `{ id, name }` when the line has a counterparty |
+| `dueDate` | ISO date or null | Due date carried by the source document |
+| `reference` | object or null | Source document; currently `{ kind: "invoice", id, label }` |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/open-positions?subtype=receivable" \
+  -H "Cookie: <session-cookie>"
+```
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/open-positions?subtype=payable&expandedAccountId=<uuid>&limit=50" \
   -H "Cookie: <session-cookie>"
 ```
 
