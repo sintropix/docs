@@ -10,6 +10,10 @@ A Partner is any counterparty on an Entity's books: a customer, a supplier, an e
 
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
+<Note>
+  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /partners/pages` requires a `bookId` query parameter — the `openReceivable` and `openPayable` totals on the page rows are then computed inside that Book. `GET /partners` and the Partner rows returned by create, update, and delete stay outside the rule and surface open totals across every Book.
+</Note>
+
 <AppLink
   url="https://app.sintropix.com/{entityId}/partner-ledger?partners={partnerId}"
   note="Partners have no detail page; that link is the statement filtered to the Partner. The customer and supplier lists are /{entityId}/partners and /{entityId}/vendors."
@@ -64,6 +68,7 @@ Paginated Partner listing for UI use.
 | `groupBy` | string | No | `none`, `type`, `country`, `defaultPurchaseAccount`, or `defaultPurchaseAccountClassification`. Default `none`. The last two require `type=vendor`. |
 | `sort` | string | No | `name`, `type`, `legalName`, `taxId`, `country`, `openReceivable`, `openPayable`, or `defaultPurchaseAccount`. Default `name`. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `asc`. |
+| `bookId` | uuid | Conditional | Required when the Entity has at least one Book; must be omitted otherwise. |
 
 **Response**
 

@@ -10,6 +10,10 @@ An Allocation settles one debit line against one credit line on an Open-Item Acc
 
 All amounts are integers in the minor unit of the currency (for example, cents).
 
+<Note>
+  **Entities with Books.** An Allocation, and every pair inside a match, must stay within a single [Book](/api-reference/books) (or between two common lines). Crossing Books is refused with `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_BOOKS_ERROR` for a single Allocation or `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_BOOKS_ERROR` for a match.
+</Note>
+
 <AppLink
   url="https://app.sintropix.com/{entityId}/entries/{entryId}"
   note="Allocations have no page of their own: link the Ledger Entry being settled, or /{entityId}/open-items for the full list."
@@ -171,6 +175,8 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocation
 | `RECONCILIATION_MATCH_LINE_NOT_FOUND_ERROR` | One or more line ids not found |
 | `RECONCILIATION_MATCH_LINES_ON_DIFFERENT_ACCOUNTS_ERROR` | Selection spans multiple accounts |
 | `RECONCILIATION_MATCH_NOTHING_TO_MATCH_ERROR` | Selection contains no debit/credit pair |
+| `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_BOOKS_ERROR` | Allocation would settle lines from two different Books |
+| `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_BOOKS_ERROR` | Match would settle a selection spanning two Books |
 
 ## Status codes
 

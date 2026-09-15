@@ -1,0 +1,144 @@
+---
+title: "Sintropix Books API: Multi-Book Accounting for One Entity"
+sidebarTitle: "Books"
+description: "Create and list Books, the named measurement bases of an Entity, and pass bookId on every book-scoped read and write once the Entity has at least one Book."
+---
+
+A Book is a named measurement basis of one Entity. Use Books when a company must state the same facts under more than one measure, for example the financial statements its owners read and the return the tax authority reads. The two agree on most Entries; the differences (a depreciation rate, a provision the tax rule refuses, a correction the tax rule adds) are the Entries that name a Book.
+
+An Entity holds 0 to n Books. An Entity with no Book keeps one set of books, exactly as before. An Entity with at least one Book has more than one basis, so every book-scoped read must name which one with a `bookId` query parameter, and every write must state which Book its Entry counts in.
+
+## The model
+
+- **Book.** A named measurement basis of one Entity. Two Entities are free to use the same name.
+- **Common Entry.** A Ledger Entry with no `bookId`. It counts in every Book of the Entity.
+- **Book Entry.** A Ledger Entry that names a `bookId`. It counts in that Book only.
+- **Report.** Reads one Book: the common Entries plus the Entries of that Book.
+
+The database enforces the structural half of the rule so a hand-written statement cannot break it:
+
+- A Book is unique by name inside one Entity.
+- An Entry cannot name a Book of another Entity (composite foreign key).
+- The Book of an Entry is set at insert and never moves. Correct a wrong Book by unbooking and reposting so the trail states the correction.
+- A Reversal stays in the Book of its original. A common Entry is reversed by a common Entry; a Book Entry by an Entry of that Book.
+- An Allocation settles two lines of one Book, or two common lines. Lines of different Books state no offset.
+
+## When `bookId` is required
+
+Once an Entity has at least one Book, every book-scoped read must carry `bookId`, and the server answers `BOOK_REQUIRED_ERROR` (`409`) without it. An Entity with no Book must not send `bookId`.
+
+Book-scoped reads:
+
+- Home dashboard, balance sheet, income statement, income statement by dimension, journal, revenue realization, eight-column balance, general ledger, and partner ledger — see [Reports](/api-reference/reports).
+- Open item lines and match-candidates for a Bank Movement — see [Ledger Entries](/api-reference/ledger-entries) and [Bank Movements](/api-reference/bank-movements).
+- The paginated Partner listing (`GET /partners/pages`) — see [Partners](/api-reference/partners).
+
+Two reads stay outside the rule and never name a Book: the Partner reference list (`GET /partners`), which an Invoice document embeds, and the Partner row returned by a create, an update, or a delete. Both surface open totals across every Book.
+
+Book-scoped writes carry `bookId` on the entry header of the Ledger Entry they post: create Ledger Entry, book Invoice, book Bank Movement, match Bank Movement, and transfer Bank Movement. A reversal takes the Book of its original — do not send `bookId` on `POST /ledger/entries/:entryId/reverse`.
+
+## GET /api/entities/:entityId/books
+
+List the Books of the Entity in creation order.
+
+- **Path param:** `entityId` (UUID)
+- **Success response:** an array of Book objects (see [Response shape](#response-shape))
+- **Status:** 200
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/books \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/books
+
+Create a Book under the Entity. The client supplies the idempotency id, so a retry with the same id is answered as a conflict instead of creating a duplicate.
+
+- **Path param:** `entityId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `name` | string | Yes | Book name, non-empty; unique within the Entity |
+
+- **Success response:** the created Book (see [Response shape](#response-shape))
+- **Status:** 201
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/books \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "Tributario"
+  }'
+```
+
+## GET /api/entities/:entityId/books/:bookId
+
+Read a single Book.
+
+- **Path params:** `entityId` (UUID), `bookId` (UUID)
+- **Success response:** the Book (see [Response shape](#response-shape))
+- **Status:** 200
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/books/$BOOK_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Response shape
+
+Every endpoint on this page that returns a Book uses this shape:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Book id |
+| `entityId` | UUID | Owning Entity |
+| `name` | string | Book name |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "name": "Tributario",
+  "createdAt": "2026-02-01T12:00:00.000Z",
+  "updatedAt": "2026-02-01T12:00:00.000Z"
+}
+```
+
+## Domain error codes
+
+| Code | Meaning |
+| --- | --- |
+| `BOOK_NOT_FOUND_ERROR` | Book not found under the Entity |
+| `BOOK_ALREADY_EXISTS_ERROR` | The `id` is already used for a Book |
+| `BOOK_NAME_ALREADY_EXISTS_ERROR` | Another Book of this Entity already uses the same `name` |
+| `BOOK_REQUIRED_ERROR` | The Entity has Books but the request named none |
+| `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_BOOKS_ERROR` | An Allocation would settle lines from two different Books |
+| `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_BOOKS_ERROR` | A match would settle a selection spanning two Books |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET) |
+| 201 | Created (POST) |
+| 400 | Validation error |
+| 401 | Unauthenticated |
+| 403 | Forbidden |
+| 404 | Entity or Book not found |
+| 409 | Domain rule violation (see `code`) |
+
+## What Books do not change
+
+- **Chart of accounts.** The Books of an Entity share its chart.
+- **Currency.** The Books of an Entity share its functional currency; presentation currency stays a report parameter.
+- **Lock Date.** The Entity's ledger lock date closes every Book at once.
+- **No primary Book.** No Book is the default one; an Entity with Books names the Book it reads, every time.
+- **No auto-derived Entries.** A Book holds what a caller posted in it. Nothing copies, mirrors, or recomputes an Entry from one Book into another.
+- **No rename, no delete.** A Book is additive.

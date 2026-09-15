@@ -36,6 +36,7 @@
                 "group": "Ledger",
                 "pages": [
                   "api-reference/entities",
+                  "api-reference/books",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
                   "api-reference/allocations",
@@ -114,6 +115,7 @@
                 "group": "Libro mayor",
                 "pages": [
                   "api-reference/entities",
+                  "api-reference/books",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
                   "api-reference/allocations",

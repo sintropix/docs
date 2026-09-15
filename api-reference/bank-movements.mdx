@@ -12,6 +12,10 @@ A Bank Movement is a single transaction line pulled from a bank feed or entered 
   All routes are nested under a Bank Account, not directly under the Entity. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`. `:movementId` is a UUID.
 </Note>
 
+<Note>
+  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /movements/:movementId/match-candidates` requires a `bookId` query parameter, and every write that posts a Ledger Entry (`POST /book`, `POST /match`, `POST /transfer`) must name the target Book on the entry header. See [Books](/api-reference/books) for the model and the exact rule.
+</Note>
+
 <AppLink
   url="https://app.sintropix.com/{entityId}/banks/{bankAccountId}?open={movementId}"
   note="Take bankAccountId from the Movement. Use reconcile={movementId} instead of open to start reconciling it."
@@ -122,6 +126,12 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
 ## GET `/movements/:movementId/match-candidates`
 
 List Invoices and Ledger Entries that could plausibly settle this Movement (per Sintropix's matching heuristics). Up to 200 open Ledger Entry Lines on the side that settles the Movement, newest entry date first.
+
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bookId` | uuid | Conditional | Required when the Entity has at least one Book; must be omitted otherwise. The candidates are the open lines of that Book, plus the common ones. |
 
 **Response:** `{ candidates: [...] }`, one item per open line:
 
@@ -258,6 +268,7 @@ Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry
 | `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
 | `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
 | `notes` | string \| null | No | Free-text notes. Blank is stored as `null`. |
+| `bookId` | uuid \| null | Conditional | Book the entry counts in; `null` marks it common. Send (as an id or as `null`) when the Entity has at least one Book; omit otherwise. |
 | `movementPartnerId` | uuid \| null | No | Set the Movement's Partner in the same write. Omit to keep the current Partner; `null` clears it. |
 | `newCounterpartLines` | array of line objects | Yes | At least one counterpart line (see below). |
 | `bankLineFxRate` | decimal string | Conditional | FX rate for the generated bank line. Required exactly when the Bank Account's currency differs from the Entity's functional currency; omit otherwise. |
@@ -311,6 +322,7 @@ Match a Movement to an existing document (Invoice or Ledger Entry) rather than b
 | `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
 | `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
 | `notes` | string \| null | No | Free-text notes. |
+| `bookId` | uuid \| null | Conditional | Same rule as `POST /book`. The Book of the entry must match the Book of the line being settled. |
 | `newCounterpartLines` | array of line objects | Yes | At least one line. Include the settlement line on the open-item account (and any realized-FX line); the allocation is sized from it. |
 | `bankLineFxRate` | decimal string | Conditional | Same rule as `POST /book`. |
 | `lineId` | uuid | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. To match an Invoice, pass its control line. |
@@ -353,6 +365,7 @@ Mark this Movement as one leg of an Internal Transfer. An Internal Transfer is a
 | `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
 | `memo` | string \| null | Yes | Entry memo. |
 | `notes` | string \| null | No | Free-text notes. |
+| `bookId` | uuid \| null | Conditional | Book this leg's entry counts in; `null` marks it common. Send when the Entity has at least one Book; omit otherwise. On a `pair`, `counterpart.entry.bookId` follows the same rule for the other leg. |
 | `extraLines` | array of line objects | No | Ordinary extra lines (fees, for example), same shape as the counterpart line in `POST /book`. |
 | `functionalAmount` | integer \| null | Conditional | This leg's value in the functional currency. Required when the Bank Account is in a foreign currency, not allowed otherwise. |
 | `bankLineFxRate` | decimal string \| null | Conditional | FX rate for this leg's bank line. Same rule as `functionalAmount`. |

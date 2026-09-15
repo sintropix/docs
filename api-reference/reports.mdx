@@ -8,6 +8,10 @@ The Reports API surfaces financial and operational read models for a single enti
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
 
+<Note>
+  **Entities with Books.** Every report on this page reads one [Book](/api-reference/books). When the Entity has at least one Book, pass the `bookId` query parameter on every request; the server answers `BOOK_REQUIRED_ERROR` (`409`) without it. When the Entity has no Book, omit `bookId`.
+</Note>
+
 <Tip>
   **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, and `fixed-assets`. Pass the period as `from` and `to`, or as `exerciseStart` and `cutoffDate` for the balances. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
 </Tip>
@@ -21,6 +25,12 @@ Base path: `GET /api/entities/:entityId/reports`
 `GET /api/entities/:entityId/reports/home`
 
 Returns the home dashboard snapshot: cash position, daily balances for the last 60 days, monthly income for the last 6 months, receivables/payables open positions, and unbooked invoice counts.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -56,6 +66,7 @@ Returns the balance sheet for the requested exercise period.
 | `cutoffDate` | ISO date | Yes | End of the exercise period (must be on or after `exerciseStart`) |
 | `presentationCurrency` | string | No | Currency to present amounts in |
 | `presentationRate` | decimal string | No | Rate used for conversion; required together with `presentationCurrency` |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -101,6 +112,7 @@ Returns the income statement for the requested date range.
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -157,6 +169,7 @@ Returns the income statement broken down by the values of a single dimension (fo
 | `dimensionId` | UUID | Yes | Dimension to split by |
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -198,6 +211,7 @@ Returns a paginated journal of ledger entry lines in chronological order. Each r
 | `search` | string | No | Free-text search (max 200 chars) |
 | `cursor` | string | No | Page cursor (`YYYY-MM-DD~<entryId>~<lineId>`) |
 | `limit` | integer | No | Page size (default 100, max 100) |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -246,6 +260,7 @@ Returns a revenue realization report for the requested period, showing recognize
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -295,6 +310,7 @@ Returns the classic eight-column trial balance: debit, credit, debtor balance, c
 | `cutoffDate` | ISO date | Yes | End of the exercise (must be on or after `exerciseStart`) |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -344,6 +360,7 @@ Returns a paginated walk of one ledger account in ledger order, with a running b
 | `to` | ISO date | No | Window end (must be on or after `from`) |
 | `cursor` | UUID | No | Id of the last line from the previous page |
 | `limit` | integer | No | Page size (default 50, max 100) |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
@@ -398,6 +415,7 @@ Returns the partner ledger for an open-item account, grouped by partner with ope
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `partnerIds` | UUID[] | No | Filter to specific partners (max 100); repeat the param for each id |
 | `includeUnassigned` | boolean | No | Include lines with no partner (default false) |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
 **Response**
 
