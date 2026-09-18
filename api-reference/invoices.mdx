@@ -320,6 +320,8 @@ Attach or replace the DTE behind an Invoice. The body states the whole tax docum
 
 One issuer cannot hold two DTEs of the same type and folio within an Entity, and one Invoice holds at most one DTE; either collision is answered `409`.
 
+**On a booked Invoice.** The write is still accepted, but the block must restate every field of the stored DTE and change only `taxPeriod` (the F29 / IVA month) and/or `metadata` (the Additional Information lines). A field the block leaves unstated keeps its stored value and counts as no change. Any other structural difference — `dteTypeCode`, `folio`, `issuerRut`, `receiverRut`, `issuerName`, `receiverName`, `issueDate`, `currency`, `total`, `netAmount`, `exemptAmount`, `taxAmount`, or `externalRef` — is answered `409` with code `INVOICE_BOOKED_FIELDS_LOCKED_ERROR`; unbook the Invoice first if you need to move one of them. The booking entry (its type, figures, and ledger lines) is not touched when only the period or the metadata changes.
+
 **Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`. The Invoice row's `dte` carries the stored document:
 
 | Field | Type | Description |
@@ -355,7 +357,7 @@ curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE
 
 ## DELETE `/invoices/:invoiceId/dte`
 
-Remove the DTE from an Invoice. The Invoice stays; the tax document and the references it stated are deleted. Refused with `409` while another DTE still references it.
+Remove the DTE from an Invoice. The Invoice stays; the tax document and the references it stated are deleted. Refused with `409` while another DTE still references it. Refused with `409` and code `INVOICE_BOOKED_FIELDS_LOCKED_ERROR` while the Invoice is booked; unbook first.
 
 **Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 
@@ -470,4 +472,4 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOIC
 | `201` | Invoice or Comment created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Invoice not found. |
-| `409` | Cannot delete a booked Invoice, Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
+| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
