@@ -253,6 +253,42 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/
   -d '{"accounts":[{"accountId":"acc_789","currency":"CLP"}]}'
 ```
 
+## Remove one account from a Global66 connection
+
+`DELETE /api/entities/:entityId/bank-connections/:bankConnectionId/accounts/:providerAccountId`
+
+Narrow a Global66 connection by taking one discovered account off its grant, without disconnecting the whole connection. Use it when a wrong account was published into a Global66 grant and you want to keep reading the rest. The server rebuilds the grant from the remaining accounts, keeps the same Global66 tokens, and does not call Global66. This route only applies to Global66 connections.
+
+### Path parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `entityId` | `uuid` | Entity that owns the connection |
+| `bankConnectionId` | `uuid` | Global66 connection to narrow |
+| `providerAccountId` | `string` | Global66 account id to remove from the grant |
+
+### Response
+
+The updated Bank Connection, in the same shape as the create response. `fedBankAccounts` still lists every Bank Account fed by the accounts that remain on the grant.
+
+### Refusals
+
+The endpoint returns `409 Conflict` with a body of `{ "code": "<code>", "params": { ... } }` in these cases:
+
+| Code | When it happens |
+| --- | --- |
+| `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR` | `providerAccountId` is not on the connection's grant |
+| `DISCOVERED_ACCOUNT_FED_ERROR` | The account still feeds a Bank Account. Stop the feed on that Bank Account first, then retry |
+| `BANK_CONNECTION_LAST_ACCOUNT_ERROR` | The account is the only one on the grant. Use the [disconnect](#disconnect-a-bank-connection) endpoint to remove the whole connection instead |
+| `BANK_CONNECTION_GRANT_MISMATCH_ERROR` | The connection is not a Global66 connection |
+| `BANK_CONNECTION_ALREADY_CONNECTED_ERROR` | The narrowed grant equals another existing Global66 connection at the same institution |
+
+```bash
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/$BANK_CONNECTION_ID/accounts/acc_789 \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
 ## Map a discovered account to an existing Bank Account
 
 `POST /api/entities/:entityId/bank-connections/:bankConnectionId/feeds`
