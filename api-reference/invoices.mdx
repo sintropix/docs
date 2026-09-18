@@ -80,7 +80,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `totalMax` | integer | No | Maximum `total`, in minor units. |
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
 | `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. At most 100 characters; blank is ignored. |
-| `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, or `taxPeriod`. Default `issueDate`. |
+| `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
 **Response**
@@ -101,6 +101,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `partnerName` | string | Name of the Partner. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
+| `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked; `0` once it is fully paid. |
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
 | `group` | object or null | Null unless `groupBy` was requested. Contains `by` (the grouping), `value`, `key` (string), `invoiceCount` (integer, size of the whole group), and `startsGroup` (boolean, true on the first row of each group). |
@@ -205,6 +206,7 @@ Example response:
     "partnerName": "Servicios Cloud SpA",
     "sourceName": null,
     "paymentStatus": null,
+    "openAmount": null,
     "bookingAccountLabel": null,
     "bookingExtraLineCount": 0
   },
