@@ -378,6 +378,7 @@ Fields of `entry`:
 | `entryDate` | string | Yes | `YYYY-MM-DD`. |
 | `memo` | string or null | Yes | Entry memo. |
 | `notes` | string or null | No | Entry notes. |
+| `bookId` | uuid or null | Conditional | [Book](/api-reference/books) the entry counts in; `null` marks it common. Send (as an id or as `null`) when the Entity has at least one Book; omit otherwise. |
 | `newLedgerEntryLines` | array | Yes | 2 to 2000 lines. Total debits must equal total credits. |
 
 Each element of `newLedgerEntryLines`:

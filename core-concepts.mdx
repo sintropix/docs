@@ -19,6 +19,17 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     Sintropix consolidates across all your entities automatically — intercompany transactions between entities are tracked and eliminated when generating group-level reports.
   </Accordion>
 
+  <Accordion title="Book">
+    A **Book** is a named measurement basis of a single entity. An entity holds zero or more Books. Use Books when a company must state the same facts under more than one measure — for example, the financial statements its owners read and the return the tax authority reads. The two agree on most entries; the few differences (a depreciation rate, a provision the tax rule refuses, a correction the tax rule adds) are the entries that name a Book.
+
+    - An **entity with no Book** keeps one set of books, exactly as before.
+    - An **entity with at least one Book** has more than one basis. Every report reads one Book (its common entries plus the entries of that Book), and every book-scoped read must name which Book with a `bookId` query parameter.
+    - A ledger entry either names a Book (it counts in that Book only) or names none (a **common entry**, counting in every Book).
+    - A reversal stays in the Book of its original. An allocation, and every pair inside a match, must stay within a single Book.
+
+    Books share the entity's chart of accounts, functional currency, and ledger lock date. See the [Books API](/api-reference/books) for the model and the exact rule.
+  </Accordion>
+
   <Accordion title="Functional Currency">
     The **functional currency** is the primary currency of a given entity — the currency in which that entity's economic environment operates. Sintropix uses the functional currency as the baseline for all accounting entries within an entity.
 
