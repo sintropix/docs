@@ -32,9 +32,15 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
     </Frame>
   </Step>
   <Step title="Crea la clave">
-    Haz clic en **Crear clave**. Dale a la clave un nombre descriptivo (por ejemplo `erwin-agent` o `reconciliation-bot`) para poder identificarla después en la lista de claves y en el registro de auditoría, y luego haz clic en **Crear clave** en el diálogo.
+    Haz clic en **Crear clave**. Dale a la clave un nombre descriptivo (por ejemplo `erwin-agent` o `reconciliation-bot`) para poder identificarla después en la lista de claves y en el registro de auditoría.
 
-    <Frame caption="Nombra la clave según el software que la va a usar.">
+    Si el Usuario propietario pertenece a más de una Entidad, el diálogo muestra además un selector **Empresa**. Déjalo en **Todas las empresas** para que la clave actúe sobre todas las Entidades a las que el Usuario ya tiene acceso, o elige una Entidad para acotar la clave a esa única empresa. Una clave acotada no puede leer ni escribir los datos de las otras Entidades, y la restricción se ve en la columna **Empresa** de la lista de claves.
+
+    Elige una sola Entidad cuando la integración solo necesita trabajar con una empresa (por ejemplo, un bot contable que atiende a un solo cliente), para que una clave filtrada no pueda tocar el resto.
+
+    Haz clic en **Crear clave** en el diálogo para generar la clave.
+
+    <Frame caption="Nombra la clave según el software que la va a usar. El selector Empresa solo aparece cuando el Usuario propietario tiene acceso a más de una empresa.">
       <img src="/images/api-keys/04-create-key-dialog.png" alt="Diálogo Crear clave de API con un campo Nombre" />
     </Frame>
   </Step>
@@ -77,6 +83,7 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
 
 - Una clave se autentica como su Usuario propietario, con el Rol global de ese Usuario y sus Membresías por Entidad.
 - Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las que el Usuario propietario es miembro.
+- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, y `GET /api/entities` lista solo la Entidad acotada. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
 
 ## Límites de solicitudes
 

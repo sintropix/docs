@@ -32,9 +32,15 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
     </Frame>
   </Step>
   <Step title="Create the key">
-    Click **Crear clave**. Give the key a descriptive name (for example `erwin-agent` or `reconciliation-bot`) so you can identify it later in the key list and the audit trail, then click **Crear clave** in the dialog.
+    Click **Crear clave**. Give the key a descriptive name (for example `erwin-agent` or `reconciliation-bot`) so you can identify it later in the key list and the audit trail.
 
-    <Frame caption="Name the key after the software that will use it.">
+    If the owning User belongs to more than one Entity, the dialog also shows an **Empresa** selector. Leave it on **Todas las empresas** to let the key act across every Entity the User can already access, or pick one Entity to confine the key to that single company. A confined key cannot read or write the data of the other Entities, and the confinement is visible in the **Empresa** column of the key list.
+
+    Choose one Entity when the integration only needs to work with one company (for example a bookkeeping bot that services a single client), so a leaked key cannot touch the rest.
+
+    Click **Crear clave** in the dialog to mint the key.
+
+    <Frame caption="Name the key after the software that will use it. The Empresa selector only appears when the owning User has access to more than one company.">
       <img src="/images/api-keys/04-create-key-dialog.png" alt="Crear clave de API dialog with a Nombre field" />
     </Frame>
   </Step>
@@ -77,6 +83,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 
 - A key authenticates as its owning User with that User's global Role and per-Entity Memberships.
 - Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities the owning User is a member of.
+- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, and `GET /api/entities` lists only the confined Entity. Use one-Entity keys when the integration should only ever touch one company.
 
 ## Rate Limits
 
