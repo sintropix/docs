@@ -87,6 +87,36 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocation
   }'
 ```
 
+## POST /api/entities/:entityId/ledger/allocations/bulk
+
+Create up to 100 Allocations in a single request and transaction. Each element is a full `CreateReconciliationAllocationDto` carrying its own client-supplied `id`. The whole batch runs against the same Open-Item Account constraints as the single-create endpoint.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** `BulkCreateReconciliationAllocationsDto` — `{ allocations: CreateReconciliationAllocation[] }` (1 to 100 elements)
+- **Success response:** array of `reconciliationAllocationSchema`, in input order
+- **Status:** 201
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocations/bulk \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "allocations": [
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "debitLineId": "11111111-1111-4111-8111-111111111111",
+        "creditLineId": "22222222-2222-4222-8222-222222222222",
+        "amount": 100
+      }
+    ]
+  }'
+```
+
+<Info>
+  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`).
+</Info>
+
 ## DELETE /api/entities/:entityId/ledger/allocations/:allocationId
 
 Delete an Allocation. This restores the open amounts of the two lines it settled.

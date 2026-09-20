@@ -6,7 +6,18 @@ description: "List, create, edit, book, and delete AR and AP Invoices. Attach or
 
 import AppLink from "/snippets/app-link.mdx"
 
-Invoices are Sintropix's model for both AR (issued to customers) and AP (received from suppliers). Each Invoice can be booked to a Ledger Entry and, in Chile, linked to a Documento Tributario Electrónico (DTE) issued through the SII. This page covers listing, creating, editing, booking, and DTE-linking Invoices.
+Invoices are Sintropix's model for both AR (issued to customers) and AP (received from suppliers). Each Invoice can be booked to a Ledger Entry and, in Chile, linked to a Documento Tributario Electrónico (DTE) issued through the SII. This page covers listing, creating, editing, booking, and DTE-linking Invoices, individually or in bulk.
+
+## Status
+
+Invoices carry two derived, read-only status values on the listing rows:
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| Booking status | `unbooked`, `booked` | Derived from `controlLineId`: an Invoice is `booked` when a Ledger Entry backs it, `unbooked` otherwise. |
+| `paymentStatus` | `paid`, `partial`, `unpaid`, `null` | Derived from the open amount of the Control Line (ADR 0018) in the Entity's functional currency. `null` means the Invoice is not booked and settles nothing yet. |
+
+The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, and `booked`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `notPaid` is the filter a payment run works from.
 
 Amounts are integers in the minor units of their currency (`1190000` is CLP 1,190,000; `125050` is USD 1,250.50). Dates are `YYYY-MM-DD` strings, tax periods are `YYYY-MM`, and timestamps are ISO 8601.
 
@@ -217,6 +228,36 @@ Example response:
   "outstandingTotal": 4820500
 }
 ```
+
+## POST `/invoices/bulk`
+
+Create up to 100 Invoices in a single request and transaction. Each element carries its own client-supplied `id` (required) so a retry collides on the primary key rather than double-inserting.
+
+- **Body:** `BulkCreateInvoicesDto` — `{ invoices: CreateInvoice[] }` (1 to 100 elements).
+- **Response:** array of `createInvoiceResultSchema`, in input order.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/bulk" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "invoices": [ /* CreateInvoice, up to 100 */ ] }'
+```
+
+<Note>
+  The bulk routes are declared before `:invoiceId` in the controller so Nest does not read `bulk` or `book` as an invoice id. Match that ordering when composing URLs.
+</Note>
+
+## POST `/invoices/book`
+
+Book up to 100 already-created Invoices in a single transaction. Each element carries an `invoiceId` plus the booking instructions used by the single-invoice endpoint.
+
+- **Body:** `BulkBookInvoicesDto` — `{ bookings: (BookInvoice & { invoiceId })[] }` (1 to 100 elements).
+- **Response:** array of `bookInvoiceResultSchema`, in input order.
+
+<Info>
+  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`).
+</Info>
 
 ## GET `/invoices/:invoiceId`
 

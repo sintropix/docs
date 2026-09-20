@@ -6,7 +6,19 @@ description: "List Bank Movements for an account, get match candidates and recon
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a booking status: unbooked, booked to a Ledger Entry, or matched to an existing Invoice or Ledger Entry. This page covers listing, editing, booking, matching, and transferring Bank Movements.
+A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, or `reconciled`. This page covers listing, editing, booking, matching, and transferring Bank Movements, individually or in bulk.
+
+## Status
+
+Read endpoints enrich each Movement with a `status` field (`bankMovementWithStatusSchema`) computed from its ledger link and allocations:
+
+| Value | Meaning |
+| --- | --- |
+| `unbooked` | Movement has no Ledger Entry yet. |
+| `booked_pending_allocation` | Movement is booked to a Ledger Entry, but the counterpart Open-Item line still has open amount. |
+| `reconciled` | Movement is booked and every counterpart line is fully allocated. |
+
+You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value.
 
 <Note>
   Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
@@ -223,6 +235,43 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
     "metadata": [{ "label": "Wire reference", "value": "WR-88213" }]
   }'
 ```
+
+## POST `/movements/bulk`
+
+Create up to 100 Movements on the Bank Account in a single request and transaction. Each element carries its own client-supplied `id` (required and unique within the batch) so a retry collides on the primary key rather than double-inserting.
+
+- **Body:** `BulkCreateBankMovementDto` — `{ movements: CreateBankMovement[] }` (1 to 100 elements).
+- **Response:** array of `createBankMovementResultSchema`, in input order.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/bulk" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "movements": [ /* CreateBankMovement, up to 100 */ ] }'
+```
+
+<Note>
+  The bulk routes are declared before `:movementId` in the controller so Nest does not read `bulk`, `book`, or `match` as a movement id. Match that ordering when composing URLs.
+</Note>
+
+## POST `/movements/book`
+
+Book up to 100 already-created Movements in a single transaction. Each element carries a `movementId` plus the booking instructions used by the single-movement endpoint.
+
+- **Body:** `BulkBookBankMovementDto` — `{ bookings: (BookBankMovement & { movementId })[] }` (1 to 100 elements).
+- **Response:** array of `reconcileBankMovementResultSchema`, in input order.
+
+## POST `/movements/match`
+
+Match up to 100 already-created Movements to existing documents in a single transaction. Each element carries a `movementId` plus the match instructions used by the single-movement endpoint.
+
+- **Body:** `BulkMatchBankMovementDto` — `{ matches: (MatchBankMovement & { movementId })[] }` (1 to 100 elements).
+- **Response:** array of `reconcileBankMovementResultSchema`, in input order.
+
+<Info>
+  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`).
+</Info>
 
 ## PATCH `/movements/:movementId`
 
