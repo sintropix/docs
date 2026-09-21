@@ -261,13 +261,13 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/bulk" \
 
 ## POST `/invoices/book`
 
-Book up to 100 already-created Invoices in a single transaction. Each element carries an `invoiceId` plus the booking instructions used by the single-invoice endpoint.
+Book up to 100 already-created Invoices in a single transaction. Each element carries an `invoiceId` plus the booking instructions used by the single-invoice endpoint, including the optional `expectedBookingVersion`.
 
 - **Body:** `BulkBookInvoicesDto` — `{ bookings: (BookInvoice & { invoiceId })[] }` (1 to 100 elements).
 - **Response:** array of `bookInvoiceResultSchema`, in input order.
 
 <Info>
-  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`).
+  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`). An `INVOICE_BOOKING_CHANGED_ERROR` on one element rolls back the whole request; retry the batch without that element (or with its refreshed `expectedBookingVersion`) to book its siblings.
 </Info>
 
 ## GET `/invoices/:invoiceId`
@@ -279,6 +279,7 @@ Return the full Invoice detail: the Invoice row (as listed by `GET /invoices/pag
 | `partnerLegalName` | string or null | Legal name of the Partner. |
 | `partnerTaxId` | string or null | Tax id of the Partner. |
 | `bookingEntry` | object or null | The Ledger Entry that booked the Invoice. Null while unbooked. |
+| `bookingVersion` | string | Opaque token that identifies the current state of the Invoice and its DTE for optimistic concurrency. Pass it back as `expectedBookingVersion` on a later booking write to detect concurrent changes. Changes whenever the Invoice or its DTE is edited, replaced, or removed, even if `updatedAt` is preserved. |
 
 **Ledger Entry detail** (`bookingEntry`)
 
@@ -423,6 +424,7 @@ Book an existing Invoice to a Ledger Entry using the supplied booking instructio
 | --- | --- | --- | --- |
 | `controlAccountId` | uuid | Yes | The receivable or payable Ledger Account that will carry the claim. Exactly one line of `entry.newLedgerEntryLines` must post to it. |
 | `entry` | object | Yes | The Ledger Entry to post (fields below). |
+| `expectedBookingVersion` | string | No | Opaque `bookingVersion` you read earlier from `GET /invoices/:invoiceId`. When sent, the server acquires the Invoice lock, compares it to the current version, and refuses the booking with `409` and code `INVOICE_BOOKING_CHANGED_ERROR` if the Invoice or its DTE changed in between. No Ledger Entry is written on a mismatch. Omit to skip the check. |
 
 Fields of `entry`:
 
@@ -477,6 +479,23 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | `partner` | object | The Partner (see [Partners](/api-reference/partners)) with `openReceivable` and `openPayable` after booking. |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
 
+**Domain errors**
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `INVOICE_BOOKING_CHANGED_ERROR` | `409` | The Invoice or its DTE was edited, replaced, or removed since the `expectedBookingVersion` you sent was read. No Ledger Entry was written. The response carries `params: { invoiceId }`. Re-read the Invoice detail to check whether the change still makes the booking correct, then retry with the new `bookingVersion`. |
+
+### Detecting concurrent changes with `expectedBookingVersion`
+
+Send `expectedBookingVersion` when the booking decision is derived from state you read earlier and any change to the Invoice or its DTE between the read and the write should abort the booking. Typical cases: a scheduled workflow that batches unbooked Invoices, an integration that classifies an Invoice from its stored DTE amounts, or a UI that stages a booking for review.
+
+1. `GET /invoices/:invoiceId` and remember `bookingVersion`.
+2. Build the entry from the values you just read.
+3. `POST /invoices/:invoiceId/book` (or `POST /invoices/book`) with `expectedBookingVersion` set to that token.
+4. On `409 INVOICE_BOOKING_CHANGED_ERROR`, re-read the Invoice and decide whether to rebuild the entry.
+
+The check runs after the server acquires the Invoice lock, so a booking that races a concurrent DTE edit either sees the edit and refuses, or wins the lock and books the pre-edit state without either write being lost. Omit the field when no earlier read exists and any current state is acceptable.
+
 ## POST `/invoices/:invoiceId/comments`
 
 Post a Comment on the Invoice. The author is taken from the session; the Comment appears in the Invoice's [audit trail](/api-reference/audit-trail) alongside every other change to the document, and inside the Invoice panel of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host Invoice.
@@ -524,4 +543,4 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOIC
 | `201` | Invoice or Comment created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Invoice not found. |
-| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
+| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), booking refused because the Invoice or DTE changed since the read (`INVOICE_BOOKING_CHANGED_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
