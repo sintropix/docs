@@ -1,0 +1,140 @@
+---
+title: "Sintropix Agent Channels API: Bind an Outside Place to an Entity"
+sidebarTitle: "Agent Channels"
+description: "Staff-only endpoints to bind a channel on an outside platform (Slack today) to one Entity, so the Sintropix agent knows which company a thread is about."
+---
+
+An Agent Channel binds a place on an outside platform (a Slack channel today) to exactly one Entity. Staff creates the binding once; the Sintropix agent reads it one time when a thread starts and then works on that Entity for the whole thread.
+
+A place answers one Entity. An Entity can hold many places (for example, one Slack channel per topic). Rebinding a place to a different Entity is a delete then a create, so an old binding never reads as the new one.
+
+<Warning>
+  Staff-only. A client-role caller (session or API key) receives `403` on every route below.
+</Warning>
+
+## The Agent Channel object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Agent Channel id. |
+| `entityId` | uuid | Owning Entity. |
+| `platform` | `slack` | The outside platform. One value today; WhatsApp and the in-app chat add a value when they arrive. |
+| `channelId` | string | The id the platform gives the place (for Slack, the channel id such as `C0123ABC`). Unique per `platform`. |
+| `label` | string | The name staff reads the place by, for example `#bulk-contabilidad`. Free text. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
+## POST `/entities/:entityId/agent-channels`
+
+Bind a place to the Entity.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `platform` | `slack` | Yes | The outside platform. |
+| `channelId` | string | Yes | The id the platform gives the place. Trimmed, non-empty. |
+| `label` | string | Yes | Human-readable name for the place. Trimmed, non-empty. |
+
+**Response** (`201`): the created Agent Channel object.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels" \
+  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "platform": "slack",
+    "channelId": "C0123ABC",
+    "label": "#bulk-contabilidad"
+  }'
+```
+
+If another Entity already holds the same `(platform, channelId)` pair, the request is refused with `409` and the domain code `AGENT_CHANNEL_PLACE_TAKEN_ERROR`. Delete the other Entity's binding first, then retry.
+
+## GET `/entities/:entityId/agent-channels`
+
+List every Agent Channel bound to the Entity.
+
+**Response:** an array of Agent Channel objects.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels" \
+  -H "x-api-key: $SINTROPIX_STAFF_API_KEY"
+```
+
+## PATCH `/entities/:entityId/agent-channels/:agentChannelId`
+
+Rename an Agent Channel. `label` is the only editable field. `platform` and `channelId` are set at create time and never move; to point the binding at a different place, delete this row and create a new one.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `label` | string | Yes | New label. Trimmed, non-empty. |
+
+**Response:** the updated Agent Channel object.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels/$AGENT_CHANNEL_ID" \
+  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "label": "#contabilidad-clientes" }'
+```
+
+## DELETE `/entities/:entityId/agent-channels/:agentChannelId`
+
+Release the binding. After the delete the place is free, and another Entity can bind it.
+
+**Response** (`200`): the removed Agent Channel object.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels/$AGENT_CHANNEL_ID" \
+  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## GET `/agent-channels?platform=…&channelId=…`
+
+Reverse lookup: given a place, return the Entity that speaks in it. This route is not scoped to an Entity because the caller only knows the place. The Sintropix agent calls this once at the start of a thread to learn which company the conversation is about.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `platform` | `slack` | Yes | The outside platform. |
+| `channelId` | string | Yes | The id the platform gives the place. |
+
+**Response:** the Agent Channel object, plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entityName` | string | Display name of the Entity the place is bound to, so the caller can name the company without a second call. |
+
+```bash
+curl "https://api.sintropix.com/api/agent-channels?platform=slack&channelId=C0123ABC" \
+  -H "x-api-key: $SINTROPIX_STAFF_API_KEY"
+```
+
+If no Entity has bound the place, the request answers `404` with the domain code `AGENT_CHANNEL_PLACE_UNBOUND_ERROR`. The agent reads this as "no one speaks here" and stays silent.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
+| `201` | Agent Channel created. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `403` | Caller is not a staff User. |
+| `404` | Entity or Agent Channel not found, or reverse lookup found no binding (`AGENT_CHANNEL_PLACE_UNBOUND_ERROR`). |
+| `409` | Another Entity already holds the place (`AGENT_CHANNEL_PLACE_TAKEN_ERROR`). |
+
+## Domain error codes
+
+| Code | When |
+| --- | --- |
+| `AGENT_CHANNEL_NOT_FOUND_ERROR` | The `:agentChannelId` in the path does not belong to the Entity. |
+| `AGENT_CHANNEL_PLACE_TAKEN_ERROR` | Create refused: another Entity already binds the same `(platform, channelId)`. |
+| `AGENT_CHANNEL_PLACE_UNBOUND_ERROR` | Reverse lookup refused: no Entity binds the place. |
+
+Deleting an Entity that still has Agent Channels bound to it is refused; release the bindings first.
