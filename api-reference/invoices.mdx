@@ -19,6 +19,17 @@ Invoices carry two derived, read-only status values on the listing rows:
 
 The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, and `booked`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `notPaid` is the filter a payment run works from.
 
+## Review Status
+
+Separately from the derived statuses above, every Invoice carries a nullable `reviewStatus` field (`reviewStatusEnum`). It is a reminder an accountant sets by hand, cleared by setting the field back to `null`. Both `POST /invoices` and `PATCH /invoices/:invoiceId` accept it in the body.
+
+| Value | Meaning |
+| --- | --- |
+| `null` | Ordinary state (no review flag). |
+| `pending_client_information` | The Invoice is on hold waiting on information from the client. |
+| `pending_statement` | The Invoice is on hold waiting on a supporting statement. |
+| `pending_counterpart` | The Invoice is on hold waiting on its counterpart. |
+
 Amounts are integers in the minor units of their currency (`1190000` is CLP 1,190,000; `125050` is USD 1,250.50). Dates are `YYYY-MM-DD` strings, tax periods are `YYYY-MM`, and timestamps are ISO 8601.
 
 <AppLink

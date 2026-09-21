@@ -20,6 +20,17 @@ Read endpoints enrich each Movement with a `status` field (`bankMovementWithStat
 
 You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value.
 
+## Review Status
+
+Separately from the workflow `status`, every Movement carries a nullable `reviewStatus` field (`reviewStatusEnum`). It is a reminder an accountant sets by hand, cleared by setting the field back to `null`. Both create and update accept it in the body.
+
+| Value | Meaning |
+| --- | --- |
+| `null` | Ordinary state (no review flag). |
+| `pending_client_information` | The Movement is on hold waiting on information from the client. |
+| `pending_statement` | The Movement is on hold waiting on a supporting statement. |
+| `pending_counterpart` | The Movement is on hold waiting on its counterpart. |
+
 <Note>
   Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
 </Note>
