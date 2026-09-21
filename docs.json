@@ -72,7 +72,8 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/sii"
+                  "api-reference/sii",
+                  "api-reference/agent-channels"
                 ]
               },
               {
@@ -151,7 +152,8 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/sii"
+                  "api-reference/sii",
+                  "api-reference/agent-channels"
                 ]
               },
               {
