@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Bank Connections API: Link and Manage Bank Feeds"
 sidebarTitle: "Bank Connections"
-description: "Create, list, reconnect, map, and disconnect Bank Connections for an Entity. Connect to providers like Fintoc or Global66 and feed discovered accounts into Bank Accounts."
+description: "Create, list, reconnect, map, and disconnect Bank Connections for an Entity. Connect to providers like Fintoc, Global66, or dLocal Go and feed discovered accounts into Bank Accounts."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Bank Connection is an Entity-scoped grant to read bank data from a Provider (for example, Fintoc or Global66). It stores encrypted credentials and a health status. A Connection can expose discovered accounts, which you then map to existing Bank Accounts or use to create new ones. Removing a Connection cascades and removes every feed it held.
+A Bank Connection is an Entity-scoped grant to read bank data from a Provider (for example, Fintoc, Global66, or dLocal Go). It stores encrypted credentials and a health status. A Connection can expose discovered accounts, which you then map to existing Bank Accounts or use to create new ones. Removing a Connection cascades and removes every feed it held.
 
 All routes live under `/api/entities/:entityId/bank-connections`. Path parameters are UUIDs.
 
@@ -71,6 +71,17 @@ Finalize the connection after the widget journey completes. The shape is a discr
 | `accounts[].accountId` | `string` | Yes | Account id at Global66 |
 | `accounts[].currency` | `string` | Yes | ISO 4217 code (e.g. `CLP`) |
 
+### Request body (dLocal Go)
+
+Use this variant to connect a dLocal Go merchant. dLocal Go is a payment processor that reports payments and settlements, and the feed lands those as inflows and outflows on the mapped Bank Account.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `provider` | `'dlocal'` | Yes | Provider identifier |
+| `id` | `uuid` | Yes | Client-supplied id for idempotency |
+| `apiKey` | `string` | Yes | dLocal Go API key that names the merchant |
+| `secretKey` | `string` | Yes | dLocal Go secret key paired with the API key |
+
 ### Response
 
 The created connection plus any fed Bank Accounts (empty on creation). Every endpoint on this page that returns a Bank Connection uses this shape:
@@ -79,7 +90,7 @@ The created connection plus any fed Bank Accounts (empty on creation). Every end
 | --- | --- | --- |
 | `id` | `uuid` | Connection id |
 | `entityId` | `uuid` | Owning Entity |
-| `provider` | `fintoc` or `global66` | Provider that holds the grant |
+| `provider` | `fintoc`, `global66`, or `dlocal` | Provider that holds the grant |
 | `providerRef` | `string` | Provider-side reference for the link |
 | `institutionName` | `string` | Institution display name |
 | `holderId` | `string` | Provider-side id of the account holder |
@@ -112,6 +123,19 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections 
     "provider": "fintoc",
     "id": "0192a8b4-0000-7000-8000-000000000001",
     "exchangeToken": "ex_tok_123"
+  }'
+```
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "provider": "dlocal",
+    "id": "0192a8b4-0000-7000-8000-000000000001",
+    "apiKey": "dlocal_api_key",
+    "secretKey": "dlocal_secret_key"
   }'
 ```
 
