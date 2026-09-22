@@ -66,6 +66,7 @@ Each account in `accounts` carries:
 | `groupId` | UUID or null | Parent group |
 | `code` | string | Account code |
 | `name` | string | Account name |
+| `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
 | `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing` |
@@ -97,6 +98,7 @@ Each account in `accounts` carries:
       "groupId": "11111111-1111-4111-8111-111111111111",
       "code": "1101",
       "name": "Caja",
+      "description": "Petty cash held at the office",
       "type": "asset",
       "tracking": "balance",
       "subtype": null,
@@ -199,7 +201,7 @@ List all Ledger Accounts for an Entity.
 - **Success response:** array of Ledger Accounts
 - **Status:** 200
 
-Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `groupId`, `code`, `name`, `type`, `tracking`, `subtype`, `normalSide`, `createdAt`, `updatedAt`) without the derived `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
+Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `normalSide`, `createdAt`, `updatedAt`) without the derived `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
@@ -218,6 +220,7 @@ Create a new Ledger Account.
 | `id` | UUID | Yes | Client-supplied idempotency id |
 | `name` | string | Yes | Account name, non-empty |
 | `code` | string | Yes | Account code, non-empty |
+| `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
 | `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`; null or omitted means none |
@@ -238,6 +241,7 @@ Create a new Ledger Account.
     "groupId": null,
     "code": "1101",
     "name": "Caja",
+    "description": "Petty cash held at the office",
     "type": "asset",
     "tracking": "balance",
     "subtype": null,
@@ -276,6 +280,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | --- | --- | --- | --- |
 | `name` | string | No | Account name |
 | `code` | string | No | Account code |
+| `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
 | `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, or null to clear |
