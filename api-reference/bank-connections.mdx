@@ -215,7 +215,6 @@ Each element of `accounts` carries:
 | `balance.available` | `integer \| null` | Available balance in minor units; null when the institution does not report it |
 | `balance.limit` | `integer \| null` | Credit limit in minor units; null when the institution does not report it |
 | `refreshedAt` | `ISO datetime \| null` | When the Provider last refreshed this account |
-| `observed` | `boolean` | `true` when the Provider reads the account but the feed does not land its movements yet. Always `false` for Fintoc |
 | `fedBankAccount` | `object \| null` | The Bank Account this account already feeds, as `{ id, name }`, or null |
 
 Each element of `mappableBankAccounts` carries `id` (`uuid`), `name` (`string`), and `currency` (`string`). Each element of `ledgerAccounts` carries `id` (`uuid`), `code` (`string`), and `name` (`string`).
@@ -232,7 +231,6 @@ Each element of `mappableBankAccounts` carries `id` (`uuid`), `name` (`string`),
       "currency": "CLP",
       "balance": { "available": 1250000, "current": 1250000, "limit": null },
       "refreshedAt": "2026-02-01T12:00:00.000Z",
-      "observed": false,
       "fedBankAccount": null
     }
   ],
