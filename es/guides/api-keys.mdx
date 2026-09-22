@@ -59,12 +59,18 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
       -H "x-api-key: $SINTROPIX_API_KEY"
     ```
 
-    Toda solicitud que modifica datos (`POST`, `PUT`, `PATCH`, `DELETE`) hecha con una clave debe enviar además un encabezado `x-audit-actor` con el nombre del software que actúa. El valor se registra tal cual en el [registro de auditoría](/api-reference/audit-trail); omitirlo devuelve `400`.
+    Toda solicitud que modifica datos (`POST`, `PUT`, `PATCH`, `DELETE`) hecha con una clave debe enviar además dos encabezados:
+
+    - `x-audit-actor` nombra al software que actúa (por ejemplo `my-agent`).
+    - `x-audit-reason` explica por qué se realiza el cambio, en una sola línea de texto plano de hasta 500 caracteres.
+
+    Ambos valores se registran tal cual en el sobre del [registro de auditoría](/api-reference/audit-trail). Omitir `x-audit-actor` devuelve `400`. Un `x-audit-reason` ausente o vacío devuelve `400` con el código `AUDIT_REASON_REQUIRED_ERROR`; un valor de más de 500 caracteres devuelve `400` con el código `AUDIT_REASON_TOO_LONG_ERROR`.
 
     ```bash
     curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/partners \
       -H "x-api-key: $SINTROPIX_API_KEY" \
       -H "x-audit-actor: my-agent" \
+      -H "x-audit-reason: Crear Servicios Cloud SpA desde el correo de onboarding de julio" \
       -H "Content-Type: application/json" \
       -d '{
         "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",

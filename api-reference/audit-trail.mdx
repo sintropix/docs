@@ -57,6 +57,7 @@ Each **envelope**:
 | `credentialType` | enum | `session`, `api_key`, or `system`. |
 | `apiKeyId` | UUID or `null` | The API key used, for `api_key` requests. |
 | `declaredActor` | string or `null` | Value of the `x-audit-actor` header on API-key mutations. |
+| `declaredReason` | string or `null` | Value of the `x-audit-reason` header (trimmed) explaining why the change was made. Required on API-key mutations; optional on browser sessions. `null` on rows written before the header existed. |
 | `route` | string | The endpoint pattern that produced the mutation. |
 | `method` | string | HTTP method, for example `POST`. |
 | `params` | object | Path parameters of the request. |
@@ -109,6 +110,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?limit=50"
       "credentialType": "api_key",
       "apiKeyId": "7a1e4d2c-3b5f-4e6a-8c9d-0f1a2b3c4d5e",
       "declaredActor": "my-agent",
+      "declaredReason": "Rename Acme Ltd to its legal name after the vendor update email",
       "route": "/entities/:entityId/partners/:partnerId",
       "method": "PATCH",
       "params": { "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57", "partnerId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e" },
@@ -147,6 +149,7 @@ The audit trail is row-level and automatic: every write is recorded by the datab
 - **Actor:** `actorUserId` plus name and role of the authenticated user
 - **Credential type:** `session` for browser sessions, `api_key` for API key requests, `system` for changes made by Sintropix itself
 - **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity)
+- **Declared reason:** the value of the `x-audit-reason` header (trimmed, up to 500 characters) explaining why the change was made; required on API-key mutations, optional on browser sessions
 - **Request id:** a server-generated unique id grouping all changes in one request
 - **Route and HTTP method:** the endpoint that produced the mutation
 - **Entity id:** the entity scope the change occurred within

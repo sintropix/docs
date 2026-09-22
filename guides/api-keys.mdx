@@ -59,12 +59,18 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
       -H "x-api-key: $SINTROPIX_API_KEY"
     ```
 
-    Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) made with a key must also send an `x-audit-actor` header naming the software that is acting. The value is recorded verbatim in the [audit trail](/api-reference/audit-trail); omitting it returns `400`.
+    Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) made with a key must send two extra headers:
+
+    - `x-audit-actor` names the software that is acting (for example `my-agent`).
+    - `x-audit-reason` states why the change is being made, as one line of plain text up to 500 characters.
+
+    Both values are recorded verbatim on the [audit trail](/api-reference/audit-trail) envelope. Omitting `x-audit-actor` returns `400`. A missing or blank `x-audit-reason` returns `400` with code `AUDIT_REASON_REQUIRED_ERROR`; a value longer than 500 characters returns `400` with code `AUDIT_REASON_TOO_LONG_ERROR`.
 
     ```bash
     curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/partners \
       -H "x-api-key: $SINTROPIX_API_KEY" \
       -H "x-audit-actor: my-agent" \
+      -H "x-audit-reason: Create Servicios Cloud SpA from the July onboarding email" \
       -H "Content-Type: application/json" \
       -d '{
         "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
