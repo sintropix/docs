@@ -48,14 +48,17 @@ Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-refere
 
 Los clientes programáticos se autentican con una clave de API en el encabezado `x-api-key`. Las claves se crean en la aplicación de Sintropix; consulta [Obtener una clave de API](/es/guides/api-keys).
 
-Toda solicitud que modifica datos (`POST`, `PUT`, `PATCH`, `DELETE`) debe enviar además un Actor Declarado:
+Toda solicitud que modifica datos (`POST`, `PUT`, `PATCH`, `DELETE`) hecha con una clave de API debe enviar además un Actor Declarado y una Razón Declarada:
 
 ```http
 x-api-key: <secreto>
 x-audit-actor: <etiqueta-de-tu-agente>
+x-audit-reason: <por qué realizas este cambio>
 ```
 
 `x-audit-actor` es una etiqueta de software autodeclarada (por ejemplo `claude-opus-4.8`) que se guarda tal cual en el [registro de auditoría](/api-reference/audit-trail). Omitirla en una mutación devuelve `400`.
+
+`x-audit-reason` es una explicación de una sola línea, en texto plano, de por qué se realiza el cambio (máx. 500 caracteres). El servidor recorta los espacios al inicio y al final, y guarda el valor en el Sobre de Auditoría. Un valor ausente o vacío devuelve `400` con el código `AUDIT_REASON_REQUIRED_ERROR`; un valor de más de 500 caracteres devuelve `400` con el código `AUDIT_REASON_TOO_LONG_ERROR`.
 
 ## Formato de las solicitudes
 
