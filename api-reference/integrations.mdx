@@ -10,6 +10,8 @@ An Integration is a linked external system: the credentials, tokens, and configu
 
 An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Mercado Pago authorization and a Mercado Libre authorization). Each external account still belongs to a single Entity.
 
+The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile.
+
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/integrations"
 />
@@ -22,8 +24,8 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `mercadopago` \| `mercadolibre` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for Mercado Pago and Mercado Libre, the account ID). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` \| `mercadopago` \| `mercadolibre` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for Mercado Pago and Mercado Libre, the account ID). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago` and `mercadolibre`, which are OAuth authorizations, not document integrations. |
 | `feed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when no Feed is configured. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
@@ -39,8 +41,10 @@ This route is for document integrations only. Mercado Pago and Mercado Libre use
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` | Yes | The external system to link. `mercadopago` and `mercadolibre` are not accepted here. |
-| `accessToken` | string | Yes | The provider's API access token. Whitespace is trimmed; must be non-empty. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` | Yes | The external system to link. `mercadopago` and `mercadolibre` are not accepted here. |
+| `accessToken` | string | Conditional | The provider's API access token. Required for `bsale` and `wasabil`; whitespace is trimmed and must be non-empty. Omit for `sii_mirror`, which reads Sintropix's SII mirror using the Entity's RUT and takes no credential. |
+
+For `sii_mirror`, Sintropix verifies at connect time that the Entity's country is Chile and that the mirror already follows the Entity's RUT. The connect is refused otherwise (see [Status codes](#status-codes)).
 
 - **Response:** the Integration object (its `feed` is `null` on creation).
 
@@ -69,6 +73,19 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
 }
 ```
 
+Connect the SII Mirror on a Chilean Entity with no `accessToken`:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "e7a1b2c3-d4e5-4f6a-8b9c-0d1e2f3a4b5c",
+    "kind": "sii_mirror"
+  }'
+```
+
 ## GET `/integrations`
 
 List every Integration for the Entity, including any Mercado Pago or Mercado Libre authorization connected from the app.
@@ -87,5 +104,5 @@ Remove an Integration. Any attached Source Feed is removed as part of the same o
 | --- | --- |
 | `200` | Success on `GET`, `DELETE`. |
 | `201` | Integration created. |
-| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `400` | Validation error, missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
 | `404` | Entity or Integration not found. |
