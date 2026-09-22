@@ -8,7 +8,7 @@ import AppLink from "/snippets/app-link.mdx"
 
 An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Entity's behalf. Integrations are the credential side. [Source Feeds](/api-reference/source-feeds) are the recurring pull jobs that actually import data using them.
 
-An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Mercado Pago authorization). Each external account still belongs to a single Entity.
+An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Mercado Pago authorization and a Mercado Libre authorization). Each external account still belongs to a single Entity.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/integrations"
@@ -22,9 +22,9 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `mercadopago` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for Mercado Pago, the account ID). `null` when a document provider could not determine it at connect time. |
-| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago`, which is not a document integration. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `mercadopago` \| `mercadolibre` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for Mercado Pago and Mercado Libre, the account ID). `null` when a document provider could not determine it at connect time. |
+| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago` and `mercadolibre`, which are OAuth authorizations, not document integrations. |
 | `feed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when no Feed is configured. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
@@ -32,14 +32,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted.
 
-This route is for document integrations only. Mercado Pago uses OAuth and is connected from **Settings → Integrations** in the Sintropix app; it cannot be created through this endpoint.
+This route is for document integrations only. Mercado Pago and Mercado Libre use OAuth and are connected from **Settings → Integrations** in the Sintropix app; they cannot be created through this endpoint.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` | Yes | The external system to link. `mercadopago` is not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` | Yes | The external system to link. `mercadopago` and `mercadolibre` are not accepted here. |
 | `accessToken` | string | Yes | The provider's API access token. Whitespace is trimmed; must be non-empty. |
 
 - **Response:** the Integration object (its `feed` is `null` on creation).
@@ -71,13 +71,13 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
 
 ## GET `/integrations`
 
-List every Integration for the Entity, including any Mercado Pago authorization connected from the app.
+List every Integration for the Entity, including any Mercado Pago or Mercado Libre authorization connected from the app.
 
 - **Response:** array of Integration objects.
 
 ## DELETE `/integrations/:integrationId`
 
-Remove an Integration. Any attached Source Feed is removed as part of the same operation. For a Mercado Pago Integration, this removes the stored authorization on Sintropix; the grant on Mercado Pago's side is not revoked.
+Remove an Integration. Any attached Source Feed is removed as part of the same operation. For a Mercado Pago or Mercado Libre Integration, this removes the stored authorization on Sintropix; the grant on the provider's side is not revoked.
 
 - **Response:** the Integration object as it stood before deletion, including its `feed` if it had one.
 
