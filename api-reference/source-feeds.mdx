@@ -164,7 +164,17 @@ Delete a Source Feed. The parent Source and any already-imported documents are u
 
 ## File attachments
 
-Some providers carry the source files of each document (the PDF and the XML). When a sync runs against such an Integration, after the documents land it also attaches those files to the [Invoice](/api-reference/invoices) of each landed or skipped document, as [Attachments](/api-reference/attachments). Today only `sii_mirror` carries files; other providers report no files and this section does not apply.
+Some providers carry the source files of each document (the PDF and the XML). When a sync runs against such an Integration, after the documents land it also attaches those files to the [Invoice](/api-reference/invoices) of each landed or skipped document, as [Attachments](/api-reference/attachments).
+
+The providers that carry files today:
+
+| Provider `kind` | Documents with files attached |
+| --- | --- |
+| `sii_mirror` | All issued and received DTEs. |
+| `bsale` | Sales documents. Purchases keep their PDF and XML as evidence lines on the Source Feed, because the Bsale purchase `urlPdf` answers HTML rather than a PDF. |
+| `wasabil` | Issued and received documents. |
+
+Other providers (for example `fintoc_fiscal`, `mercadopago`, `mercadolibre`) report no files and this section does not apply.
 
 **Gap rule.** The sync attaches only the kinds the Invoice does not already have. Any PDF already on the Invoice satisfies the PDF slot, whether an earlier sync or a user attached it. Same for XML. If a user later deletes a file that a sync attached, the next sync attaches it again.
 
