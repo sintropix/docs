@@ -43,7 +43,7 @@ Every route on this page returns Feeds in this shape.
 | `rejectedCount` | integer | Documents refused with a reason. |
 | `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
 | `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
-| `report` | object | `{ tieOutLines, rejected, divergences, tieOutMismatch? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected }`). `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `document_inactive`, `sii_not_accepted`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. |
+| `report` | object | `{ tieOutLines, rejected, divergences, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected }`). `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `document_inactive`, `sii_not_accepted`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (today, `sii_mirror`); see [File attachments](#file-attachments). |
 | `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
@@ -161,6 +161,69 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$F
 Delete a Source Feed. The parent Source and any already-imported documents are unaffected.
 
 - **Response:** the deleted Source Feed object.
+
+## File attachments
+
+Some providers carry the source files of each document (the PDF and the XML). When a sync runs against such an Integration, after the documents land it also attaches those files to the [Invoice](/api-reference/invoices) of each landed or skipped document, as [Attachments](/api-reference/attachments). Today only `sii_mirror` carries files; other providers report no files and this section does not apply.
+
+**Gap rule.** The sync attaches only the kinds the Invoice does not already have. Any PDF already on the Invoice satisfies the PDF slot, whether an earlier sync or a user attached it. Same for XML. If a user later deletes a file that a sync attached, the next sync attaches it again.
+
+**Cap.** One sync attaches at most 200 files, newest documents first. The rest are counted in `deferred` and picked up on the next sync.
+
+**Filename.** Attached files are named `DTE-<dteTypeCode>-<folio>-<issuerRut>.<pdf|xml>`, for example `DTE-46-10-78404916-7.xml`.
+
+**Preview.** A sync with `preview: true` reads no bytes. Its `report.files.attached` counts the files the sync would attach.
+
+**Failures never fail the sync.** A file that could not be read or attached is listed in `failed[]` with a `reason`, and the next sync retries it.
+
+### File report shape
+
+`report.files` on the sync run object:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `attached` | integer | Files the sync added to an Invoice. |
+| `held` | integer | Files the Invoice already had (a matching PDF or XML was already attached). |
+| `missing` | integer | Files the provider does not hold. |
+| `deferred` | integer | Files past the per-sync cap. The next sync attaches them. |
+| `failed` | array | Files the sync could not attach. See below. |
+
+Each entry in `failed[]`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `externalRef` | string | The document's provider-side id. |
+| `dteTypeCode` | string | SII document type code. |
+| `folio` | integer | Document folio. |
+| `kind` | `pdf` \| `xml` | Which file failed. |
+| `reason` | enum | One of `not_found`, `unavailable`, `integrity_failure`, `too_large`, `attach_failed`. |
+| `detail` | string | Operator-facing error code. |
+
+```json
+{
+  "report": {
+    "tieOutLines": [],
+    "rejected": [],
+    "divergences": [],
+    "files": {
+      "attached": 24,
+      "held": 316,
+      "missing": 2,
+      "deferred": 0,
+      "failed": [
+        {
+          "externalRef": "sii:issued:33:1042",
+          "dteTypeCode": "33",
+          "folio": 1042,
+          "kind": "pdf",
+          "reason": "integrity_failure",
+          "detail": "sha256_mismatch"
+        }
+      ]
+    }
+  }
+}
+```
 
 ## Status codes
 
