@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Bank Movements API: Book, Match, and Transfer"
 sidebarTitle: "Bank Movements"
-description: "List Bank Movements for an account, get match candidates and reconciliation state, then book, match, or transfer a movement into the ledger."
+description: "List Bank Movements for an account, get match candidates and reconciliation state, book or match a movement, and record internal transfers."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, or `reconciled`. This page covers listing, editing, booking, matching, and transferring Bank Movements, individually or in bulk.
+A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, or `reconciled`. This page covers listing, editing, booking, and matching Bank Movements, individually or in bulk. It also shows how to record an internal transfer between two Bank Accounts.
 
 ## Status
 
@@ -36,7 +36,7 @@ Separately from the workflow `status`, every Movement carries a nullable `review
 </Note>
 
 <Note>
-  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /movements/:movementId/match-candidates` requires a `bookId` query parameter, and every write that posts a Ledger Entry (`POST /book`, `POST /match`, `POST /transfer`) must name the target Book on the entry header. See [Books](/api-reference/books) for the model and the exact rule.
+  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /movements/:movementId/match-candidates` requires a `bookId` query parameter, and every write that posts a Ledger Entry (`POST /book`, `POST /match`) must name the target Book on the entry header. See [Books](/api-reference/books) for the model and the exact rule.
 </Note>
 
 <AppLink
@@ -410,67 +410,54 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
   }'
 ```
 
-## POST `/movements/:movementId/transfer`
+## Record an internal transfer
 
-Mark this Movement as one leg of an Internal Transfer. An Internal Transfer is a composed act rather than a first-class record, so both legs must be identified before the transfer is booked. Each leg posts its own entry through a bridge account; Sintropix derives the balancing bridge line itself, so it never appears in the body.
+An Internal Transfer moves money between two Bank Accounts of the same Entity, for example from checking to savings or through a currency conversion. It is never income or expense. There is no dedicated transfer endpoint. You record a transfer with `POST /book` and an Allocation.
 
-**Body:** one of three variants, selected by `kind`. Unknown fields are rejected.
+Each leg of the transfer passes through a bridge account. A bridge account is an open-item Ledger Account with sub-type `internal_transfer` (see [Chart of Accounts](/api-reference/chart-of-accounts)). An open line on the bridge account is money in transit. The Allocation that joins the two bridge lines shows that both legs arrived.
 
-**Common fields (all variants)**
+1. Book each leg with `POST /movements/:movementId/book`. Put one counterpart line on the bridge account, on the side opposite to the bank line. Add extra lines, such as a bank fee or realized FX, as needed. The Entry must balance. Keep the id of the bridge line from the response.
+2. Join the two bridge lines with an Allocation, in one of two ways:
+   - Call [Match Lines](/api-reference/allocations) (`POST /api/entities/:entityId/ledger/allocations/match`) with the two bridge line ids in `lineIds`. Use this for cross-currency transfers.
+   - Book only the first leg, then call `POST /movements/:movementId/match` on the second Movement with `lineId` set to the open bridge line. The settlement line and the bridge line must have the same currency.
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `kind` | `start` \| `pair` \| `complete` | Yes | Which variant this is. |
-| `id` | uuid | Yes | Client-generated id of the Ledger Entry to create for this leg. |
-| `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
-| `memo` | string \| null | Yes | Entry memo. |
-| `notes` | string \| null | No | Free-text notes. |
-| `bookId` | uuid \| null | Conditional | Book this leg's entry counts in; `null` marks it common. Send when the Entity has at least one Book; omit otherwise. On a `pair`, `counterpart.entry.bookId` follows the same rule for the other leg. |
-| `extraLines` | array of line objects | No | Ordinary extra lines (fees, for example), same shape as the counterpart line in `POST /book`. |
-| `functionalAmount` | integer \| null | Conditional | This leg's value in the functional currency. Required when the Bank Account is in a foreign currency, not allowed otherwise. |
-| `bankLineFxRate` | decimal string \| null | Conditional | FX rate for this leg's bank line. Same rule as `functionalAmount`. |
-
-**`kind: "start"`**: open a transfer whose other leg is not yet known.
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `bridgeAccountId` | uuid | Yes | Bridge (transit) Ledger Account the transfer passes through. |
-
-**`kind: "pair"`**: book both legs at once.
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `bridgeAccountId` | uuid | Yes | Bridge Ledger Account. |
-| `counterpart` | object | Yes | The other leg: `{ movementId, entry, extraLines?, functionalAmount?, bankLineFxRate? }` where `movementId` is the Movement on the other Bank Account and `entry` is `{ id, entryDate, memo, notes? }` for that leg's entry. |
-
-**`kind: "complete"`**: close a transfer opened earlier with `start`.
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `bridgeLineId` | uuid | Yes | The bridge line the `start` leg posted. |
-
-**Response:** the Bank Movement object (with `status`) for the Movement in the URL.
+Give both bridge lines the same functional amount. Sintropix does not refuse unequal bridge lines. The Allocation takes the smaller amount, and the difference stays as an Open Amount on the bridge account. If only one leg has arrived, book it and leave its bridge line open until the other leg arrives.
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/transfer" \
+# Leg A: money out of checking, into the bridge account
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$CHECKING_ID/movements/$MOVEMENT_A_ID/book" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
   -d '{
-    "kind": "pair",
     "id": "0c1d2e3f-4a5b-4c6d-8e7f-8a9b0c1d2e3f",
     "entryDate": "2025-12-30",
     "memo": "Transfer to savings",
-    "bridgeAccountId": "6d7e8f9a-0b1c-4d2e-8f3a-4b5c6d7e8f9a",
-    "counterpart": {
-      "movementId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
-      "entry": {
-        "id": "1d2e3f4a-5b6c-4d7e-8f8a-9b0c1d2e3f4a",
-        "entryDate": "2025-12-30",
-        "memo": "Transfer from checking"
-      }
-    }
+    "newCounterpartLines": [
+      { "accountId": "6d7e8f9a-0b1c-4d2e-8f3a-4b5c6d7e8f9a", "functionalAmount": 150000, "side": "debit" }
+    ]
   }'
+
+# Leg B: money into savings, out of the bridge account
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$SAVINGS_ID/movements/$MOVEMENT_B_ID/book" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "1d2e3f4a-5b6c-4d7e-8f8a-9b0c1d2e3f4a",
+    "entryDate": "2025-12-30",
+    "memo": "Transfer from checking",
+    "newCounterpartLines": [
+      { "accountId": "6d7e8f9a-0b1c-4d2e-8f3a-4b5c6d7e8f9a", "functionalAmount": 150000, "side": "credit" }
+    ]
+  }'
+
+# Join the two bridge lines taken from the book responses
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocations/match" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "lineIds": ["'"$BRIDGE_LINE_A_ID"'", "'"$BRIDGE_LINE_B_ID"'"] }'
 ```
 
 ## POST `/api/entities/:entityId/bank-movements/:movementId/comments`
