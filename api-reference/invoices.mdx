@@ -39,12 +39,13 @@ Amounts are integers in the minor units of their currency (`1190000` is CLP 1,19
 
 ## GET `/invoices`
 
-List every Invoice for the Entity, filtered by direction and document kind.
+List every Invoice for the Entity, filtered by direction and document kind. Pass `ids` instead to read the full detail of up to 100 specific Invoices in one request.
 
 **Query parameters**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `ids` | uuid[] | No | 1 to 100 Invoice ids. Repeat the parameter for each id (`?ids=A&ids=B`). Cannot be combined with any other query parameter. See [Reading several Invoices by id](#reading-several-invoices-by-id). |
 | `direction` | string | No | `receivable` (AR, issued to a customer) or `payable` (AP, received from a supplier). Omit to list both. |
 | `documentKind` | string | No | `invoice` or `credit_note`. Omit to list both. |
 
@@ -72,6 +73,20 @@ List every Invoice for the Entity, filtered by direction and document kind.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices?direction=receivable" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+### Reading several Invoices by id
+
+When you pass `ids`, the response is an array of Invoice detail objects instead of plain Invoice objects. Each element has the same shape as the response of [`GET /invoices/:invoiceId`](#get-invoices-invoiceid), including `dte`, `attachmentCount`, and `bookingEntry`. Use this when you already hold a set of Invoice ids and need their full detail without one request per Invoice.
+
+- Results follow the order of `ids`. A repeated id is returned once, at its first position.
+- Ids the Entity does not hold are left out of the array rather than refused. Compare the returned `id` values against the ids you sent.
+- Combining `ids` with `direction`, `documentKind`, or any other query parameter returns 400.
+- Sintropix reads every element from one consistent snapshot.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices?ids=$INVOICE_ID_1&ids=$INVOICE_ID_2" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -126,6 +141,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked; `0` once it is fully paid. |
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
+| `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the Invoice. |
 | `group` | object or null | Null unless `groupBy` was requested. Contains `by` (the grouping), `value`, `key` (string), `invoiceCount` (integer, size of the whole group), and `startsGroup` (boolean, true on the first row of each group). |
 
 The type of `group.value` depends on `group.by`:
@@ -234,7 +250,8 @@ Example response:
     "paymentStatus": null,
     "openAmount": null,
     "bookingAccountLabel": null,
-    "bookingExtraLineCount": 0
+    "bookingExtraLineCount": 0,
+    "attachmentCount": 0
   },
   "bookingEntry": null,
   "partner": null,

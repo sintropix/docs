@@ -21,12 +21,24 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 
 ## GET /api/entities/:entityId/ledger/allocations
 
-List Allocations for a specific Ledger Entry Line. Returns every Allocation where either the debit or credit side matches the given line.
+List the Allocations of a set of Ledger Entry Lines. Returns every Allocation where either the debit or credit side is one of the lines in scope. Name the lines directly with `lineIds`, or pass `entryId` to read the Allocations of every line of one Ledger Entry in a single request.
 
 - **Path param:** `entityId` (UUID)
-- **Query param:** `lineId` (UUID, required)
+- **Query params:** pass exactly one of the two below. Passing both, or neither, returns 400.
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lineIds` | UUID[] | One of | 1 to 100 line ids. Repeat the parameter for each id (`?lineIds=A&lineIds=B`). Duplicate ids are read once. |
+| `entryId` | UUID | One of | A live Ledger Entry (`active` or `reversed`). Scopes the read to every line of that entry. |
+
 - **Success response:** an array of Allocation objects with the fields below
 - **Status:** 200
+
+If any id in `lineIds` is not a line of the Entity, Sintropix returns 404 with `LEDGER_ENTRY_LINE_NOT_FOUND_ERROR` and the missing `lineId` in `params`. If `entryId` names no live entry of the Entity, Sintropix returns 404 with `LEDGER_ENTRY_NOT_FOUND_ERROR`.
+
+<Warning>
+  The single `lineId` query parameter is no longer accepted. To read the Allocations of one line, pass it as `lineIds=$LINE_ID`.
+</Warning>
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -40,7 +52,12 @@ List Allocations for a specific Ledger Entry Line. Returns every Allocation wher
 | `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocations?lineId=$LINE_ID" \
+# Allocations of two lines
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocations?lineIds=$LINE_ID_1&lineIds=$LINE_ID_2" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+
+# Allocations of every line of one entry
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocations?entryId=$ENTRY_ID" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -207,6 +224,8 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocation
 | `RECONCILIATION_MATCH_NOTHING_TO_MATCH_ERROR` | Selection contains no debit/credit pair |
 | `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_BOOKS_ERROR` | Allocation would settle lines from two different Books |
 | `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_BOOKS_ERROR` | Match would settle a selection spanning two Books |
+| `LEDGER_ENTRY_LINE_NOT_FOUND_ERROR` | A line named in `lineIds` does not exist (list) |
+| `LEDGER_ENTRY_NOT_FOUND_ERROR` | `entryId` names no live entry (list) |
 
 ## Status codes
 
