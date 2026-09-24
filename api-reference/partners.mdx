@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Partners API: Manage Customers, Suppliers, and Counterparties"
 sidebarTitle: "Partners"
-description: "List, page through, create, edit, and delete Partners (customers, suppliers, employees, tax authorities) for an Entity in Sintropix."
+description: "List, create, edit, and delete Partners (customers, suppliers, employees) for an Entity, and set vendor Booking Templates that book invoices automatically."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD and the paginated Partner listing.
+A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, and vendor Booking Templates.
 
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
@@ -32,6 +32,7 @@ List every Partner for the Entity, each row enriched with Open Item totals (unse
 | `name` | string | Display name. |
 | `type` | string or null | `customer`, `vendor`, or `employee`. |
 | `defaultPurchaseAccountId` | uuid or null | Ledger Account proposed when booking this vendor's purchase invoices. |
+| `booksAutomatically` | boolean | Whether Sintropix books this vendor's new purchase invoices from its [Booking Template](#booking-templates). Always `false` for a Partner without a template. |
 | `legalName` | string or null | Registered legal name. |
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
@@ -171,11 +172,12 @@ Update Partner attributes.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | No | Non-empty. |
-| `type` | string or null | No | `customer`, `vendor`, or `employee`. Changing away from `vendor` requires clearing `defaultPurchaseAccountId`. |
+| `type` | string or null | No | `customer`, `vendor`, or `employee`. Changing away from `vendor` requires clearing `defaultPurchaseAccountId` and removing any Booking Template. |
 | `legalName` | string or null | No | Non-empty if sent. |
 | `country` | string or null | No | ISO 3166-1 alpha-2 code. |
 | `taxId` | string or null | No | Same RUT rule as on create when the resulting country is `CL`. |
 | `defaultPurchaseAccountId` | uuid or null | No | Only for vendors; expense-type or fixed-asset account. |
+| `booksAutomatically` | boolean | No | Turn automatic booking from the [Booking Template](#booking-templates) on or off. Only for vendors. `true` requires a saved template (`409`). Not accepted on create: a new Partner starts with `false`. |
 
 **Response:** `{ "partner": <Partner row>, "previousPartner": <Partner row> }`, the row after and before the update.
 
@@ -193,6 +195,99 @@ Delete a Partner. Partners with outstanding Open Items or referenced Ledger Line
 
 **Response:** the deleted Partner row, as `GET /partners/pages` listed it.
 
+## Booking Templates
+
+A Booking Template tells Sintropix how to book a vendor's purchase invoices. It is an ordered list of lines. Each line takes one amount from the Invoice or its DTE and posts it to a Ledger Account on a side. With the vendor's `booksAutomatically` switch on, Sintropix books each new purchase invoice of that vendor when it is created, but only when the Invoice fits the template exactly.
+
+Use a template for a vendor whose invoices you always book with the same entry shape, such as a hosting provider billed to one expense account plus IVA. Invoices that do not fit land unbooked, and you book them by hand with [`POST /invoices/:invoiceId/book`](/api-reference/invoices).
+
+Templates and the switch are for Partners of `type: "vendor"` only. The Partner's default purchase account is unaffected.
+
+### Template lines
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `amountSource` | string | Where the line's amount comes from: `invoice_total` (the Invoice `total`), `dte_net_amount`, `dte_exempt_amount`, or `dte_tax_amount` (the DTE's `netAmount`, `exemptAmount`, or `taxAmount`, where `taxAmount` is IVA). |
+| `accountId` | uuid | Ledger Account of the Entity the line posts to. |
+| `side` | string | `debit` or `credit`. |
+
+A template needs at least 2 and at most 2000 lines. Exactly one line uses `invoice_total`: the **Control Line**. It must follow the control line rules of [Book invoice](/api-reference/invoices) for a payable invoice: a `credit` on an open-item payable liability account. No other line may post to the Control Line's account.
+
+While a template uses an account as its Control Line, that account's type, subtype, and tracking cannot change (`LEDGER_ACCOUNT_FACT_PINNED_ERROR`). An account any template line uses cannot be deleted.
+
+### When an Invoice is booked automatically
+
+Sintropix books a new Invoice from the template only when all of these hold:
+
+1. The create request sent no `bookingEntryWithLines`. An explicit booking always wins.
+2. The Invoice is `direction: "payable"` and `documentKind: "invoice"`. Credit notes are never booked automatically.
+3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked.
+4. The Invoice and its DTE are in the Entity's functional currency, and the Invoice has no Review Status.
+5. The vendor has `booksAutomatically` set to `true`.
+6. Every line's source has a value on the DTE, and none is negative.
+7. The Control Line amount is not `0`. Other lines with an amount of `0` are dropped.
+8. The remaining lines balance exactly. There is no rounding tolerance.
+
+The booking follows every rule of Book invoice, including the Lock Date. If any condition fails, the Invoice and its DTE are still created, unbooked, and Sintropix stores no reason. In `POST /invoices/bulk` and the source-feed sync, one Invoice that does not fit never blocks the others. Invoices that exist before you turn the switch on are not booked.
+
+The [Audit Trail](/api-reference/audit-trail) credits an automatic booking to the system, with the declared actor `booking-template`.
+
+### GET `/partners/:partnerId/booking-template`
+
+Read a Partner's template.
+
+**Response:** `{ "partner": <Partner row>, "lines": [<line>] }`. The Partner row has the shape `GET /partners/pages` lists. `lines` is empty when the Partner has no template.
+
+### PUT `/partners/:partnerId/booking-template`
+
+Save a template. The body replaces the whole list of lines; the order of `lines` is the order of the template.
+
+**Body:** `{ "lines": [<line>] }`. Unknown keys are rejected with `400`.
+
+**Response:** the saved template, in the shape `GET` answers.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/booking-template" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lines": [
+      { "amountSource": "dte_net_amount", "accountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "side": "debit" },
+      { "amountSource": "dte_tax_amount", "accountId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f", "side": "debit" },
+      { "amountSource": "invoice_total", "accountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "side": "credit" }
+    ]
+  }'
+```
+
+With this template, an Invoice with a `total` of `1190000` and a DTE stating `netAmount` `1000000` and `taxAmount` `190000` is booked. The net and tax lines are debited, and the payable is credited. A DTE whose amounts do not add up to the total leaves the Invoice unbooked.
+
+Then turn the switch on:
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "booksAutomatically": true }'
+```
+
+### DELETE `/partners/:partnerId/booking-template`
+
+Remove the template. This also turns `booksAutomatically` off.
+
+**Response:** the Partner and its now empty `lines`, in the shape `GET` answers.
+
+### Error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `PARTNER_BOOKING_TEMPLATE_REQUIRES_VENDOR_ERROR` | `409` | The Partner is not a vendor, or a `PATCH` would change the type of a Partner that holds a template. |
+| `PARTNER_BOOKS_AUTOMATICALLY_REQUIRES_BOOKING_TEMPLATE_ERROR` | `409` | `booksAutomatically: true` was sent for a Partner without a template. |
+| `CONTROL_ACCOUNT_IN_ENTRY_LINES_MORE_THAN_ONCE_ERROR` | `400` | Another line posts to the Control Line's account. |
+
+A Control Line on the wrong side or on an account Book invoice refuses as a payable control account is answered with the same error Book invoice returns.
+
 ## Status codes
 
 | Status | Meaning |
@@ -201,4 +296,4 @@ Delete a Partner. Partners with outstanding Open Items or referenced Ledger Line
 | `201` | Partner created. |
 | `400` | Validation error (including an invalid RUT or an unknown country), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Partner not found. |
-| `409` | Partner id or tax identity already exists, or the Partner has open items or references and cannot be deleted. |
+| `409` | Partner id or tax identity already exists, the Partner has open items or references and cannot be deleted, or a Booking Template rule is violated. |
