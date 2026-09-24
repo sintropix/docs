@@ -35,7 +35,7 @@ Book-scoped reads:
 
 Two reads stay outside the rule and never name a Book: the Partner reference list (`GET /partners`), which an Invoice document embeds, and the Partner row returned by a create, an update, or a delete. Both surface open totals across every Book.
 
-Book-scoped writes carry `bookId` on the entry header of the Ledger Entry they post: create Ledger Entry, book Invoice, book Bank Movement, match Bank Movement, and transfer Bank Movement. A reversal takes the Book of its original — do not send `bookId` on `POST /ledger/entries/:entryId/reverse`.
+Book-scoped writes carry `bookId` on the entry header of the Ledger Entry they post: create Ledger Entry, book Invoice, book Bank Movement, and match Bank Movement. A reversal takes the Book of its original — do not send `bookId` on `POST /ledger/entries/:entryId/reverse`.
 
 ## GET /api/entities/:entityId/books
 
