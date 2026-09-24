@@ -201,7 +201,7 @@ Return the Movement's current booking or match state and the Ledger Lines that d
 | `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, and `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`). |
 | `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
 | `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount`. `null` when the booking touches no open-item account. |
-| `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.entryDate` and `counterpart.invoiceDocumentNumber` (nullable) added. |
+| `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.entryDate`, `counterpart.invoiceDocumentNumber` (nullable), and `counterpart.openAmount` added. `counterpart.openAmount` is the balance still unsettled on the counterpart line, such as an Invoice, after every Allocation against it. It is nullable. A value above `0` means the Movement settled the counterpart only in part. |
 
 ## GET `/movements/:movementId/erwin-context`
 
