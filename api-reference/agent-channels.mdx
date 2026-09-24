@@ -118,6 +118,28 @@ curl "https://api.sintropix.com/api/agent-channels?platform=slack&channelId=C012
 
 If no Entity has bound the place, the request answers `404` with the domain code `AGENT_CHANNEL_PLACE_UNBOUND_ERROR`. The agent reads this as "no one speaks here" and stays silent.
 
+## Choose the agent's model in a Slack channel
+
+In a bound Slack channel, anyone in the channel can pick the model the Sintropix agent uses with the `/model` slash command.
+
+| Command | Result |
+| --- | --- |
+| `/model` | Shows the channel's current model and the available options. |
+| `/model <name>` | Sets the channel's model. The name is case-insensitive. |
+
+| Name | Model |
+| --- | --- |
+| `gpt-sol` (default) | OpenAI GPT-6 Sol |
+| `opus` | Anthropic Claude Opus 5.5 |
+
+```text
+/model opus
+```
+
+A change applies only to threads that start after it. A thread keeps the model it started with, so an open conversation never switches models midway. Each scheduled run starts a new thread, so it uses the channel's current model.
+
+The choice belongs to one channel. Other channels bound to the same Entity keep their own model. An unknown name changes nothing, and the agent replies with the list of options. In an unbound channel or a direct message, the agent replies that no one speaks there and changes nothing.
+
 ## Status codes
 
 | Status | Meaning |
