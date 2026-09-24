@@ -367,13 +367,16 @@ Attach or replace the DTE behind an Invoice. The body states the whole tax docum
 | `total` | integer | Yes | Gross total printed on the DTE, minor units, zero or more. |
 | `netAmount` | integer or null | No | Net base, minor units. Omit or null when the DTE states none. |
 | `exemptAmount` | integer or null | No | Exempt part of the base, minor units. |
-| `taxAmount` | integer or null | No | Tax amount, minor units. |
+| `taxAmount` | integer or null | No | Tax amount, minor units. The whole IVA, including any part the buyer withholds. |
+| `withheldIvaAmount` | integer or null | No | The part of `taxAmount` the buyer withholds, minor units. Omit or null when the DTE withholds no IVA. |
 | `externalRef` | string | No | The id an external provider gave the document. Omit when none; must be non-empty if sent. |
 | `metadata` | array | Yes | Additional Information lines, `{ "label": string, "value": string }`. Send `[]` for none. |
 
+**Withheld IVA.** On a factura de compra (type `46`), the buyer withholds the IVA and pays it to the SII directly, so `total` leaves the withheld part out. State the whole IVA in `taxAmount` and the withheld part in `withheldIvaAmount`. A total withholding has `withheldIvaAmount` equal to `taxAmount`. For example, a 46 with a net of 1.000.000 CLP and a total withholding states `"netAmount": 1000000`, `"taxAmount": 190000`, `"withheldIvaAmount": 190000`, and `"total": 1000000`. DTEs that a Source Feed lands carry the amount the provider states, and a later Sync reports a changed amount as a divergence.
+
 One issuer cannot hold two DTEs of the same type and folio within an Entity, and one Invoice holds at most one DTE; either collision is answered `409`.
 
-**On a booked Invoice.** The write is still accepted, but the block must restate every field of the stored DTE and change only `taxPeriod` (the F29 / IVA month) and/or `metadata` (the Additional Information lines). A field the block leaves unstated keeps its stored value and counts as no change. Any other structural difference — `dteTypeCode`, `folio`, `issuerRut`, `receiverRut`, `issuerName`, `receiverName`, `issueDate`, `currency`, `total`, `netAmount`, `exemptAmount`, `taxAmount`, or `externalRef` — is answered `409` with code `INVOICE_BOOKED_FIELDS_LOCKED_ERROR`; unbook the Invoice first if you need to move one of them. The booking entry (its type, figures, and ledger lines) is not touched when only the period or the metadata changes.
+**On a booked Invoice.** The write is still accepted, but the block must restate every field of the stored DTE and change only `taxPeriod` (the F29 / IVA month) and/or `metadata` (the Additional Information lines). A field the block leaves unstated keeps its stored value and counts as no change. Any other structural difference — `dteTypeCode`, `folio`, `issuerRut`, `receiverRut`, `issuerName`, `receiverName`, `issueDate`, `currency`, `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, or `externalRef` — is answered `409` with code `INVOICE_BOOKED_FIELDS_LOCKED_ERROR`; unbook the Invoice first if you need to move one of them. The booking entry (its type, figures, and ledger lines) is not touched when only the period or the metadata changes.
 
 **Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`. The Invoice row's `dte` carries the stored document:
 
@@ -382,7 +385,7 @@ One issuer cannot hold two DTEs of the same type and folio within an Entity, and
 | `id` | uuid | DTE id. Use it with the SII endpoints. |
 | `entityId` | uuid | Owning Entity. |
 | `invoiceId` | uuid or null | The Invoice this DTE backs. |
-| `dteTypeCode`, `folio`, `issuerRut`, `receiverRut`, `issuerName`, `receiverName`, `issueDate`, `taxPeriod`, `currency`, `total`, `netAmount`, `exemptAmount`, `taxAmount`, `externalRef`, `metadata` | | As sent in the body. |
+| `dteTypeCode`, `folio`, `issuerRut`, `receiverRut`, `issuerName`, `receiverName`, `issueDate`, `taxPeriod`, `currency`, `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `externalRef`, `metadata` | | As sent in the body. |
 | `createdAt`, `updatedAt` | timestamp | |
 
 ```bash

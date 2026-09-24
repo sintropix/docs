@@ -60,6 +60,7 @@ Fetch a single DTE with its detail, including its amounts and any references to 
 | `netAmount` | integer or null | Net base, minor units. |
 | `exemptAmount` | integer or null | Exempt part of the base, minor units. |
 | `taxAmount` | integer or null | Tax amount, minor units. |
+| `withheldIvaAmount` | integer or null | The part of `taxAmount` the buyer withholds, minor units. Mostly stated on a factura de compra (type `46`). Null when the DTE withholds no IVA. |
 | `externalRef` | string or null | The id an external provider gave the document. Null when entered by hand. |
 | `metadata` | array | Additional Information lines, `{ "label": string, "value": string }`. |
 | `statedDteReferences` | array | References this DTE makes to other DTEs. Each has `targetDteId` (uuid), `referenceCode` (integer or null), `targetDteTypeCode` (string), and `targetFolio` (integer). |
@@ -89,6 +90,7 @@ Example response for a credit note that voids an invoice:
   "netAmount": 1000000,
   "exemptAmount": 0,
   "taxAmount": 190000,
+  "withheldIvaAmount": null,
   "externalRef": null,
   "metadata": [{ "label": "Razón", "value": "Anula factura por error en glosa" }],
   "statedDteReferences": [
