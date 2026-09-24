@@ -72,7 +72,7 @@ Each account in `accounts` carries:
 | `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
-| `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, or null when deletable |
+| `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, `booking_template`, or null when deletable |
 | `isDefaultPurchaseAccount` | boolean | Whether a Partner names this account as its Default Purchase Account |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
@@ -299,7 +299,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
 
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 
-Delete a Ledger Account. The account must not be referenced by any Ledger Entry Line, Bank Account, or Partner default purchase account; the `deleteBlockedBy` field of the Chart of Accounts tells you in advance which reference would block the delete.
+Delete a Ledger Account. The account must not be referenced by any Ledger Entry Line, Bank Account, Partner default purchase account, or vendor [Booking Template](/api-reference/partners#booking-templates) line; the `deleteBlockedBy` field of the Chart of Accounts tells you in advance which reference would block the delete.
 
 - **Path params:** `entityId` (UUID), `accountId` (UUID)
 - **Success response:**
@@ -321,10 +321,11 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | Code | Meaning |
 | --- | --- |
 | `LEDGER_ACCOUNT_CODE_ALREADY_EXISTS_ERROR` | Account code already in use |
-| `LEDGER_ACCOUNT_IN_USE_ERROR` | Delete blocked by entries, bank account, or default purchase account |
+| `LEDGER_ACCOUNT_IN_USE_ERROR` | Delete blocked by entries, bank account, default purchase account, or Booking Template |
 | `LEDGER_ACCOUNT_TYPE_LOCKED_ERROR` | Type change not allowed for an account with entries |
 | `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
 | `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed |
+| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
 | `LEDGER_ACCOUNT_GROUP_NOT_FOUND_ERROR` | Referenced group does not exist |

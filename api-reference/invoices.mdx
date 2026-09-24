@@ -178,7 +178,7 @@ Create an Invoice. The same request can also book it (`bookingEntryWithLines`) a
 | Field | Type | Description |
 | --- | --- | --- |
 | `invoice` | object | The created Invoice row, as `GET /invoices/pages` would list it. |
-| `bookingEntry` | object or null | The Ledger Entry detail (see `GET /invoices/:invoiceId`). Null unless `bookingEntryWithLines` was sent. |
+| `bookingEntry` | object or null | The Ledger Entry detail (see `GET /invoices/:invoiceId`). Null unless `bookingEntryWithLines` was sent or the vendor's [Booking Template](/api-reference/partners#booking-templates) booked the Invoice. |
 | `partner` | object or null | The Partner with its `openReceivable` and `openPayable` totals after booking. Null unless the Invoice was booked. |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
 
@@ -201,6 +201,10 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices" \
     "metadata": [{ "label": "Orden de compra", "value": "OC-2026-0193" }]
   }'
 ```
+
+<Note>
+  **Automatic booking.** When you omit `bookingEntryWithLines`, Sintropix books a payable invoice (not a credit note) from its vendor's [Booking Template](/api-reference/partners#booking-templates) if the vendor has `booksAutomatically` on and the Invoice fits the template exactly. The same applies to each element of `POST /invoices/bulk` and to Invoices the source-feed sync creates. An Invoice that does not fit is still created, unbooked, and the request does not fail.
+</Note>
 
 Example response:
 
