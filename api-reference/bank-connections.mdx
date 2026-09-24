@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Bank Connections API: Link and Manage Bank Feeds"
 sidebarTitle: "Bank Connections"
-description: "Create, list, reconnect, map, and disconnect Bank Connections for an Entity. Connect to providers like Fintoc, Global66, or dLocal Go and feed discovered accounts into Bank Accounts."
+description: "Create, list, reconnect, map, and disconnect Bank Connections for an Entity. Connect to providers like Fintoc, Global66, dLocal Go, or Cardda and feed discovered accounts into Bank Accounts."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Bank Connection is an Entity-scoped grant to read bank data from a Provider (for example, Fintoc, Global66, or dLocal Go). It stores encrypted credentials and a health status. A Connection can expose discovered accounts, which you then map to existing Bank Accounts or use to create new ones. Removing a Connection cascades and removes every feed it held.
+A Bank Connection is an Entity-scoped grant to read bank data from a Provider (for example, Fintoc, Global66, dLocal Go, or Cardda). It stores encrypted credentials and a health status. A Connection can expose discovered accounts, which you then map to existing Bank Accounts or use to create new ones. Removing a Connection cascades and removes every feed it held.
 
 All routes live under `/api/entities/:entityId/bank-connections`. Path parameters are UUIDs.
 
@@ -82,6 +82,24 @@ Use this variant to connect a dLocal Go merchant. dLocal Go is a payment process
 | `apiKey` | `string` | Yes | dLocal Go API key that names the merchant |
 | `secretKey` | `string` | Yes | dLocal Go secret key paired with the API key |
 
+### Request body (Cardda)
+
+Use this variant to connect a Cardda company. Cardda is a prepaid wallet and card provider. The company holds one CLP wallet, and every card movement lands on that wallet. The API key selects the company, and the connection discovers that company's one CLP wallet as its only account. Sintropix reads the company and the wallet before it stores the key, so a key that cannot read is refused at connect.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `provider` | `'cardda'` | Yes | Provider identifier |
+| `id` | `uuid` | Yes | Client-supplied id for idempotency |
+| `apiKey` | `string` | Yes | Cardda API key that selects the company |
+
+After you map the wallet to a Bank Account, the feed lands Cardda transactions as follows:
+
+- Only approved rows that affect the balance land as Movements. Pending rows, declined rows, and rows that do not affect the balance stay out of the books.
+- The reported balance is the wallet amount minus the pending holds that affect the balance.
+- The Movement date is the transaction's `authorized_at`, or `created_at` when `authorized_at` is absent. Sintropix reads that timestamp as the calendar day in Santiago (Chile).
+
+Cardda issues no renewable token, so the reconnect endpoint does not apply. If the company revokes the key, disconnect the connection and connect again with a new key.
+
 ### Response
 
 The created connection plus any fed Bank Accounts (empty on creation). Every endpoint on this page that returns a Bank Connection uses this shape:
@@ -90,7 +108,7 @@ The created connection plus any fed Bank Accounts (empty on creation). Every end
 | --- | --- | --- |
 | `id` | `uuid` | Connection id |
 | `entityId` | `uuid` | Owning Entity |
-| `provider` | `fintoc`, `global66`, or `dlocal` | Provider that holds the grant |
+| `provider` | `fintoc`, `global66`, `dlocal`, or `cardda` | Provider that holds the grant |
 | `providerRef` | `string` | Provider-side reference for the link |
 | `institutionName` | `string` | Institution display name |
 | `holderId` | `string` | Provider-side id of the account holder |
@@ -136,6 +154,18 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections 
     "id": "0192a8b4-0000-7000-8000-000000000001",
     "apiKey": "dlocal_api_key",
     "secretKey": "dlocal_secret_key"
+  }'
+```
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "provider": "cardda",
+    "id": "0192a8b4-0000-7000-8000-000000000001",
+    "apiKey": "cardda_api_key"
   }'
 ```
 
@@ -323,6 +353,9 @@ Create a feed that attaches a discovered account to an existing local Bank Accou
 | --- | --- | --- | --- |
 | `bankAccountId` | `uuid` | Yes | Local Bank Account to feed |
 | `providerAccountId` | `string` | Yes | Provider's opaque handle for the account |
+| `feedStartDate` | `ISO date` | Yes | Day the feed begins, for every Provider. Must not be older than 90 days or in the future. The Bank Account must already hold every row before this day, and the sync loads Provider movements from this day on |
+
+This endpoint used to always start the feed today. You now choose the day, so you can start the feed on or before a pending movement at the Provider.
 
 ### Response
 
@@ -335,9 +368,18 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bank-connections/
   -H "x-audit-actor: my-agent" \
   -d '{
     "bankAccountId": "0192a8b4-0000-7000-8000-000000000002",
-    "providerAccountId": "acc_123"
+    "providerAccountId": "acc_123",
+    "feedStartDate": "2026-09-01"
   }'
 ```
+
+### Refusals
+
+The endpoint returns `400 Bad Request` with a body of `{ "code": "<code>", "params": { ... } }` in this case:
+
+| Code | When it happens |
+| --- | --- |
+| `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR` | `feedStartDate` is after the oldest pending hold at the Provider, such as an open Cardda hold. A feed that starts later would never land the hold once the Provider approves it. `params` carries `feedStartDate` and `earliestPendingDate`. Retry with a `feedStartDate` on or before `earliestPendingDate` |
 
 ## Create a Bank Account from a discovered account
 
