@@ -22,7 +22,7 @@ You can also filter (`status=...`) and group (`groupBy=status`) the `GET /moveme
 
 ## Review Status
 
-Separately from the workflow `status`, every Movement carries a nullable `reviewStatus` field (`reviewStatusEnum`). It is a reminder an accountant sets by hand, cleared by setting the field back to `null`. Both create and update accept it in the body.
+Separately from the workflow `status`, every Movement carries a nullable `reviewStatus` field (`reviewStatusEnum`). It is a reminder an accountant usually sets by hand, cleared by setting the field back to `null`. Erwin also sets `pending_statement` when it loads unbilled credit card movements (see below). Both create and update accept it in the body.
 
 | Value | Meaning |
 | --- | --- |
@@ -30,6 +30,26 @@ Separately from the workflow `status`, every Movement carries a nullable `review
 | `pending_client_information` | The Movement is on hold waiting on information from the client. |
 | `pending_statement` | The Movement is on hold waiting on a supporting statement. |
 | `pending_counterpart` | The Movement is on hold waiting on its counterpart. |
+
+### Unbilled credit card movements
+
+Erwin can load the unbilled movements (movimientos no facturados) of a credit card before the bank issues the monthly statement. Your team can then reconcile card spend during the month instead of waiting for the statement. To run it, ask Erwin in a Slack channel bound to the Entity through an [Agent Channel](/api-reference/agent-channels). BCI is the first supported bank. The Entity needs a BCI login Credential for Erwin to read the bank's site.
+
+Each movement Erwin loads is provisional until the statement arrives:
+
+- Erwin creates it with `reviewStatus: pending_statement` on the `card` Bank Account of its section. The national (CLP) and international (USD) sections of a card are two separate Bank Accounts.
+- Erwin loads only posted movements dated from 5 days before today to 2 days before today. It skips today, yesterday, and pending authorizations, because the bank can still reverse them.
+- The `description` names the counterpart and the purpose, for example `Uber · viaje`. The `metadata` lines hold the facts that help reconciliation, such as the bank's original description, the card's last 4 digits, the original currency and amount, and the installment number.
+- One `metadata` line labeled `Clave no facturado` holds the movement's key. The key is the bank's movement ID, or `<date>|<amount in minor units>|<side>|<description>` when the bank shows no ID.
+
+Erwin reads the existing `pending_statement` Movements of the window before it creates anything, and creates only keys the ERP does not have yet. You can run it again during the month without creating duplicates. Erwin never edits or deletes a Movement it did not create in that run. It reports any Movement that does not agree with the bank's site.
+
+To list the provisional Movements of a card account, filter by the review status:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$CARD_ACCOUNT_ID/movements?reviewStatus=pending_statement" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
 
 <Note>
   Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
@@ -96,6 +116,7 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `aroundMovementId` | uuid | No | Return the page that contains this Movement instead of continuing a walk. |
 | `limit` | integer | No | Page size, `1` to `100`. Default `50`. |
 | `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` | No | Filter by booking status. |
+| `reviewStatus` | `pending_client_information` \| `pending_statement` \| `pending_counterpart` | No | Filter by review status. |
 | `partnerId` | uuid | No | Filter by counterparty Partner. |
 | `side` | `debit` \| `credit` | No | Filter by direction. |
 | `movementDateFrom` | string (`YYYY-MM-DD`) | No | Earliest movement date, inclusive. |
