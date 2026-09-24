@@ -21,13 +21,14 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 
 ## GET /api/entities/:entityId/ledger/entries
 
-List Ledger Entries with pagination, filtering, and sorting. Defaults to live entries (`active` and `reversed` statuses).
+List Ledger Entries with pagination, filtering, and sorting. Defaults to live entries (`active` and `reversed` statuses). Pass `ids` instead to read the full detail of up to 100 specific entries in one request.
 
 - **Path param:** `entityId` (UUID)
 - **Query params:**
 
 | Param | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
+| `ids` | UUID[] | No | — | 1 to 100 entry ids. Repeat the parameter for each id (`?ids=A&ids=B`). Cannot be combined with any other query parameter. See [Reading several entries by id](#reading-several-entries-by-id). |
 | `cursor` | UUID | No | — | Last entry id of the previous page |
 | `limit` | integer | No | 50 | Page size, max 100 |
 | `from` | ISO date | No | — | Earliest entry date |
@@ -61,11 +62,26 @@ Each item in `entries` carries the Ledger Entry fields plus three line-derived t
 | `total` | integer | Sum of the entry's debit lines |
 | `lineCount` | integer | Number of lines |
 | `accountNames` | string[] | Distinct names of the accounts the entry touches, debit-side accounts first |
+| `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the entry |
 
 The first nine fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+### Reading several entries by id
+
+When you pass `ids`, the response is an array of Ledger Entry detail objects instead of a `{ entries, nextCursor }` page. Each element has the same shape as the response of [`GET /api/entities/:entityId/ledger/entries/:entryId`](#get-api-entities-entityid-ledger-entries-entryid), including `lines`, `relatedInvoices`, `relatedMovements`, and `allocations`. Use this when you already hold a set of entry ids and need their full detail without one request per entry.
+
+- Results follow the order of `ids`. A repeated id is returned once, at its first position.
+- Ids the Entity does not hold are left out of the array rather than refused. Compare the returned `id` values against the ids you sent.
+- Combining `ids` with `cursor`, `limit`, `statuses`, or any other query parameter returns 400.
+- Sintropix reads every element from one consistent snapshot.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?ids=$ENTRY_ID_1&ids=$ENTRY_ID_2" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
