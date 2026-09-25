@@ -118,6 +118,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `totalMax` | integer | No | Maximum `total`, in minor units. |
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
 | `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. At most 100 characters; blank is ignored. |
+| `comments` | string | No | `with` keeps only documents that have at least one Comment; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
 | `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
@@ -143,6 +144,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the Invoice. |
+| `commentCount` | integer | Number of Comments on the Invoice. |
 | `group` | object or null | Null unless `groupBy` was requested. Contains `by` (the grouping), `value`, `key` (string), `invoiceCount` (integer, size of the whole group), and `startsGroup` (boolean, true on the first row of each group). |
 
 The type of `group.value` depends on `group.by`:
@@ -164,6 +166,13 @@ The type of `group.value` depends on `group.by`:
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&statusFilter=unbooked&limit=25" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+To find the payable documents that someone has commented on, pass `comments=with`:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&comments=with" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -252,7 +261,8 @@ Example response:
     "openAmount": null,
     "bookingAccountLabel": null,
     "bookingExtraLineCount": 0,
-    "attachmentCount": 0
+    "attachmentCount": 0,
+    "commentCount": 0
   },
   "bookingEntry": null,
   "partner": null,
