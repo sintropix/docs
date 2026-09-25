@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Partners API: Manage Customers, Suppliers, and Counterparties"
 sidebarTitle: "Partners"
-description: "List, create, edit, and delete Partners (customers, suppliers, employees) for an Entity, and set vendor Booking Templates that book invoices automatically."
+description: "List, create, edit, merge, and delete Partners (customers, suppliers, employees) for an Entity, manage Aliases, and set vendor Booking Templates."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, and vendor Booking Templates.
+A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, [Aliases](#aliases), [merging duplicate Partners](#merge-partners), and vendor Booking Templates.
 
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
@@ -21,7 +21,7 @@ Amounts are integers in the minor units of the Entity's functional currency. Tim
 
 ## GET `/partners`
 
-List every Partner for the Entity, each row enriched with Open Item totals (unsettled AR and AP balances).
+List every Partner for the Entity, each row enriched with Open Item totals (unsettled AR and AP balances). The list includes Merged Partners. To keep only active Partners, drop rows where `mergedIntoPartnerId` is not null.
 
 **Response:** an array of Partner objects.
 
@@ -36,6 +36,8 @@ List every Partner for the Entity, each row enriched with Open Item totals (unse
 | `legalName` | string or null | Registered legal name. |
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
+| `aliases` | string[] | Other names that find this Partner, in name order. See [Aliases](#aliases). |
+| `mergedIntoPartnerId` | uuid or null | The Partner this one was [merged](#merge-partners) into. Null for an active Partner. |
 | `openReceivable` | integer | Unsettled amount this Partner owes the Entity. |
 | `openPayable` | integer | Unsettled amount the Entity owes this Partner. |
 | `createdAt` | timestamp | Creation time. |
@@ -48,7 +50,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
 
 ## GET `/partners/pages`
 
-Paginated Partner listing for UI use.
+Paginated Partner listing for UI use. Merged Partners are never listed.
 
 **Query parameters.** Unknown parameters are rejected with `400`.
 
@@ -56,7 +58,7 @@ Paginated Partner listing for UI use.
 | --- | --- | --- | --- |
 | `cursor` | uuid | No | The `nextCursor` of the previous page. Omit for the first page. |
 | `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
-| `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, `taxId`, and the default purchase account's code and name. At most 100 characters. |
+| `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, `taxId`, and the default purchase account's code and name. Also matches [Aliases](#aliases), ignoring case, accents, punctuation, and spacing. At most 100 characters. |
 | `type` | string | No | `customer`, `vendor`, or `employee`. |
 | `country` | string | No | ISO 3166-1 alpha-2 code. |
 | `openReceivableMin` | integer | No | Inclusive lower bound on `openReceivable`. |
@@ -178,6 +180,9 @@ Update Partner attributes.
 | `taxId` | string or null | No | Same RUT rule as on create when the resulting country is `CL`. |
 | `defaultPurchaseAccountId` | uuid or null | No | Only for vendors; expense-type or fixed-asset account. |
 | `booksAutomatically` | boolean | No | Turn automatic booking from the [Booking Template](#booking-templates) on or off. Only for vendors. `true` requires a saved template (`409`). Not accepted on create: a new Partner starts with `false`. |
+| `aliases` | string[] | No | The full list of [Aliases](#aliases). An existing Alias you leave out is removed. Send `[]` to remove all. Not accepted on create. |
+
+A Merged Partner cannot be updated (`409`, `PARTNER_MERGED_ERROR`).
 
 **Response:** `{ "partner": <Partner row>, "previousPartner": <Partner row> }`, the row after and before the update.
 
@@ -191,9 +196,94 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTN
 
 ## DELETE `/partners/:partnerId`
 
-Delete a Partner. Partners with outstanding Open Items or referenced Ledger Lines are refused.
+Delete a Partner. Partners with outstanding Open Items or referenced Ledger Lines are refused. A Merged Partner is never deleted (`409`, `PARTNER_MERGED_ERROR`).
 
 **Response:** the deleted Partner row, as `GET /partners/pages` listed it.
+
+## Aliases
+
+An Alias is another name that finds a Partner. Use Aliases when one counterparty appears under several spellings, such as `AMAZON WEB SERVICES` and `Amazon Web Services, Inc.`.
+
+- Two names count as the same name when they differ only in case, accents, punctuation, or spacing.
+- Each name belongs to at most one Partner per Entity. An Alias that matches another Partner's display name or Alias is refused with `409` (`PARTNER_ALIAS_TAKEN_ERROR`). The error `params` hold the `alias`, plus the `partnerId` and `partnerName` of the Partner that already has it.
+- An Alias needs at least one letter or digit (`400`).
+- Partner search on `GET /partners/pages` and in the app's Partner pickers matches Aliases.
+- An Alias never sets a Partner on a Bank Movement.
+
+Aliases also decide where Source Feed documents from foreign counterparties land. The SII gives every counterparty outside Chile the RUT `55555555-5`, so Sintropix finds a foreign Partner by the name the provider states. It first looks for the Partner that holds that name as an Alias. It then looks for a Partner whose display name is the same name, and takes the oldest if several match. It never picks a Merged Partner. Add a spelling as an Alias to route future documents with that spelling to the right Partner.
+
+Set Aliases with the `aliases` field of `PATCH /partners/:partnerId`. The list replaces the current Aliases:
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "aliases": ["AMAZON WEB SERVICES", "AWS EMEA SARL"] }'
+```
+
+## Merge Partners
+
+Merge a duplicate Partner into the Partner you want to keep. The duplicate becomes a **Merged Partner**, and its name and Aliases become Aliases of the kept Partner. In the app, use the **Fusionar** row action on the Partners page.
+
+<Warning>
+  A merge cannot be undone.
+</Warning>
+
+### POST `/partners/:partnerId/merge`
+
+Merge the Partner in the path into `targetPartnerId`, the Partner that stays. The merge runs all-or-nothing, and the [Audit Trail](/api-reference/audit-trail) records every row it changes.
+
+**Body.** Unknown keys are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `targetPartnerId` | uuid | Yes | The Partner that stays. Must belong to the same Entity. |
+
+**Response** (`200`): `{ "partner": <Partner row>, "mergedPartner": <Partner row> }`. `partner` is the kept Partner after the merge. `mergedPartner` is the merged one, with `mergedIntoPartnerId` set. The moved lines, Invoices, and Bank Movements are not included; read them back through their own endpoints.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$DUPLICATE_PARTNER_ID/merge" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "targetPartnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88" }'
+```
+
+### What a merge moves
+
+Sintropix moves these records from the merged Partner to the kept Partner:
+
+- Every Ledger Line in an Entry dated after the Entity's Lock Date, unless the Entry is deleted or cancelled.
+- Every Invoice that is unbooked or whose Control Line moves.
+- Every Bank Movement that is unbooked or whose bank line moves.
+
+Lines on or before the Lock Date stay on the merged Partner, because the Lock Date freezes them. The Partner Ledger shows that history under the merged Partner's name.
+
+The kept Partner takes these fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, `type`, and `defaultPurchaseAccountId`. It takes the merged Partner's Booking Template and `booksAutomatically` only when it is a vendor with no template. Otherwise, Sintropix removes the merged Partner's template.
+
+The merge also clears every Recommendation that names the merged Partner. A Partner merged earlier into the merged Partner now points at the kept Partner.
+
+### After a merge
+
+A Merged Partner:
+
+- Does not appear in `GET /partners/pages`, Partner search, or pickers. `GET /partners` still returns it.
+- Is never matched by a Source Feed.
+- Cannot be edited, deleted, merged, or given a Booking Template (`409`, `PARTNER_MERGED_ERROR`).
+- Cannot be named on a new or updated Ledger Line, Invoice, or Bank Movement. Those writes return `409` with `LEDGER_ENTRY_LINE_PARTNER_MERGED_ERROR`, `INVOICE_PARTNER_MERGED_ERROR`, or `BANK_MOVEMENT_PARTNER_MERGED_ERROR`. Use the Partner in `mergedIntoPartnerId` instead.
+
+### When a merge is refused
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `PARTNER_MERGE_INTO_ITSELF_ERROR` | `409` | `targetPartnerId` is the Partner in the path. |
+| `PARTNER_MERGED_ERROR` | `409` | Either Partner is already a Merged Partner. `params.mergedIntoPartnerId` names the Partner it was merged into. |
+| `PARTNER_MERGE_TAX_IDENTITY_CONFLICT_ERROR` | `409` | Both Partners have a tax identity and the two differ, so they are two legal persons. |
+| `PARTNER_MERGE_LOCKED_OPEN_LINES_ERROR` | `409` | The merged Partner has lines with an Open Amount on or before the Lock Date. `params.lines` lists each one with its Entry and, for a Control Line, its Invoice. Settle them first. |
+| `PARTNER_ALIAS_TAKEN_ERROR` | `409` | A name of the merged Partner is already an Alias of a third Partner. |
+
+A merge is also refused when an Invoice without a DTE would collide with an Invoice of the kept Partner that has the same direction, kind, and number.
 
 ## Booking Templates
 
@@ -298,8 +388,8 @@ A Control Line on the wrong side or on an account Book invoice refuses as a paya
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
+| `200` | Success on `GET`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the deleted row. |
 | `201` | Partner created. |
 | `400` | Validation error (including an invalid RUT or an unknown country), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Partner not found. |
-| `409` | Partner id or tax identity already exists, the Partner has open items or references and cannot be deleted, or a Booking Template rule is violated. |
+| `409` | Partner id or tax identity already exists, the Partner has open items or references and cannot be deleted, an Alias is taken, the Partner is merged, a merge is refused, or a Booking Template rule is violated. |
