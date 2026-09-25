@@ -125,16 +125,24 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `amountMin` | integer | No | Minimum magnitude in minor units. Matched against the magnitude on either side. |
 | `amountMax` | integer | No | Maximum magnitude in minor units. |
 | `search` | string | No | Up to 100 characters. Matched against the description, the bank reference, and the Partner name. Blank is ignored. |
+| `comments` | `with` \| `without` | No | `with` keeps only Movements that have at least one Comment; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
 | `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. |
 | `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
 | `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
 
 **Response**
 
-Each row is a Bank Movement object plus `attachmentCount` (integer, the number of [attachments](/api-reference/attachments) on the Movement) and `group`: `null` when `groupBy=none`, otherwise `{ by, value, key, movementCount, startsGroup }` where `by` is the `groupBy` value, `value` is the Partner name (nullable), the `YYYY-MM` month, or the status, `movementCount` is the size of the group across the whole result, and `startsGroup` is `true` on the first row of the group. `nextCursor` is `null` on the last page.
+Each row is a Bank Movement object plus `attachmentCount` (integer, the number of [attachments](/api-reference/attachments) on the Movement), `commentCount` (integer, the number of Comments on the Movement), and `group`: `null` when `groupBy=none`, otherwise `{ by, value, key, movementCount, startsGroup }` where `by` is the `groupBy` value, `value` is the Partner name (nullable), the `YYYY-MM` month, or the status, `movementCount` is the size of the group across the whole result, and `startsGroup` is `true` on the first row of the group. `nextCursor` is `null` on the last page.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&limit=25" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+To list only the unbooked Movements that nobody has commented on yet, add `comments=without`:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&comments=without" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -160,6 +168,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
       "partnerName": "Acme SpA",
       "reconciliationLabel": null,
       "attachmentCount": 0,
+      "commentCount": 0,
       "group": null,
       "createdAt": "2025-12-31T03:10:22.000Z",
       "updatedAt": "2025-12-31T03:10:22.000Z"
