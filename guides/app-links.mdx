@@ -44,6 +44,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Invoice, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | AR documents. Pick the page from the `direction` field. |
 | Invoice, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | AP documents. |
 | Attachment | `/{entityId}/invoices?open={invoiceId}` or `/{entityId}/bills?open={invoiceId}` | Attachments are shown inside the invoice panel. |
+| To-do | `/{entityId}/todos` | Staff only. A linked To-do also shows in the panel of its Invoice, Bank Movement, or Ledger Entry. |
 | Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. |
 | Bank Movement | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Use the `bankAccountId` field on the Movement. Replace `open` with `reconcile` to start reconciling it. |
 | Bank Connection | `/{entityId}/settings/bank-accounts` | Connections and their mapped accounts are managed here. |

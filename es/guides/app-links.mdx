@@ -44,6 +44,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Factura, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | Documentos por cobrar. Elige la página según el campo `direction`. |
 | Factura, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | Documentos por pagar. |
 | Adjunto | `/{entityId}/invoices?open={invoiceId}` o `/{entityId}/bills?open={invoiceId}` | Los adjuntos se muestran dentro del panel de la factura. |
+| Pendiente (To-do) | `/{entityId}/todos` | Solo staff. Un pendiente vinculado también aparece en el panel de su factura, movimiento bancario o asiento contable. |
 | Cuenta bancaria | `/{entityId}/banks/{bankAccountId}` | La vista de conciliación de esa cuenta. `/{entityId}/banks` lista todas las cuentas. |
 | Movimiento bancario | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Usa el campo `bankAccountId` del movimiento. Cambia `open` por `reconcile` para iniciar su conciliación. |
 | Conexión bancaria | `/{entityId}/settings/bank-accounts` | Las conexiones y sus cuentas asociadas se gestionan aquí. |
