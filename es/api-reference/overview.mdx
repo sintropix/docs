@@ -129,6 +129,10 @@ Los errores de dominio llevan en el cuerpo un `code` de tipo string estable, por
 
 Cada clave de API está limitada a **25.000 solicitudes por hora** en una ventana deslizante. Superar el límite devuelve `429`; no existe un contrato de encabezados `X-RateLimit-*` en la respuesta.
 
+## Estado del servicio
+
+Sintropix publica el estado en vivo de la API del ERP y de la app de clientes en [status.sintropix.com](https://status.sintropix.com). Revísalo cuando las solicitudes fallen con errores `5xx` o se agote el tiempo de espera, antes de contactar a soporte.
+
 ## Llamadas desde el navegador
 
 La API está diseñada para uso servidor a servidor con una clave de API. Llamarla directamente desde un navegador requiere que Sintropix incluya tu origen en una lista de permitidos; contacta a soporte si lo necesitas.
