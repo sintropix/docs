@@ -68,6 +68,7 @@ List every Invoice for the Entity, filtered by direction and document kind. Pass
 | `sourceId` | uuid or null | The [Source](/api-reference/sources) the document came from. Null when it was entered directly. |
 | `controlLineId` | uuid or null | The Ledger Entry Line that carries the receivable or payable. Null means the Invoice is not booked. |
 | `controlAccountId` | uuid or null | The Ledger Account the control line sits on. Null exactly when `controlLineId` is null. |
+| `recommendation` | object or null | The agent [Recommendation](/api-reference/recommendations) waiting for review on this Invoice. Null when there is none. |
 | `createdAt` | timestamp | Creation time. |
 | `updatedAt` | timestamp | Last update time. |
 
@@ -465,6 +466,7 @@ Each element of `newLedgerEntryLines`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `id` | uuid | Yes | Caller-generated line id. Must not already exist. See [Ledger Entries](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries). |
 | `accountId` | uuid | Yes | Ledger Account of the Entity. |
 | `functionalAmount` | integer | Yes | Magnitude in the functional currency, minor units, zero or more. |
 | `side` | string | Yes | `debit` or `credit`. |
@@ -486,9 +488,9 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
     "entryDate": "2026-08-14",
     "memo": "Factura 45210 Servicios Cloud SpA",
     "newLedgerEntryLines": [
-      { "accountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "functionalAmount": 1000000, "side": "debit" },
-      { "accountId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "functionalAmount": 190000, "side": "debit" },
-      { "accountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "functionalAmount": 1190000, "side": "credit", "partnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88" }
+      { "id": "4d5e6f7a-8b9c-4d0e-8f1a-2b3c4d5e6f7a", "accountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "functionalAmount": 1000000, "side": "debit" },
+      { "id": "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", "accountId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "functionalAmount": 190000, "side": "debit" },
+      { "id": "6f7a8b9c-0d1e-4f2a-8b3c-4d5e6f7a8b9c", "accountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "functionalAmount": 1190000, "side": "credit", "partnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88" }
     ]
   }
 }

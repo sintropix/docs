@@ -55,6 +55,7 @@
                 "group": "Documents",
                 "pages": [
                   "api-reference/invoices",
+                  "api-reference/recommendations",
                   "api-reference/partners",
                   "api-reference/attachments"
                 ]
@@ -135,6 +136,7 @@
                 "group": "Documentos",
                 "pages": [
                   "api-reference/invoices",
+                  "api-reference/recommendations",
                   "api-reference/partners",
                   "api-reference/attachments"
                 ]
