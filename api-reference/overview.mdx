@@ -129,6 +129,10 @@ Domain-level errors carry a stable string `code` in the body, for example `API_K
 
 Each API key is rate-limited to **25,000 requests per hour** on a sliding window. Exceeding the limit returns `429`; there is no `X-RateLimit-*` header response contract.
 
+## Service Status
+
+Sintropix publishes the live status of the ERP API and the Client app at [status.sintropix.com](https://status.sintropix.com). Check it when requests fail with `5xx` errors or time out, before you contact support.
+
 ## Browser Callers
 
 The API is designed for server-to-server use with an API key. Calling it directly from a browser requires your origin to be allowlisted by Sintropix; contact support if you need that.
