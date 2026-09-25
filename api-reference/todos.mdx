@@ -1,0 +1,197 @@
+---
+title: "To-dos API: Track Pending Work per Entity"
+sidebarTitle: "To-dos"
+description: "Staff-only endpoints to create, list, check off, and delete To-dos for an Entity, optionally linked to an Invoice, Bank Movement, or Ledger Entry."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+A To-do is a line of pending work that staff tracks for an Entity and checks off when it is done. A To-do stands alone or links to at most one record: an Invoice, a Bank Movement, or a Ledger Entry. Use To-dos to leave yourself or your team a reminder, such as "Ask the client for the signed contract", on the record it concerns.
+
+To-dos are independent of an Invoice's [Review Status](/api-reference/invoices#review-status) and of Comments. Setting or clearing one never changes the others.
+
+<Warning>
+  Staff-only. A client-role caller (session or API key) receives `403` on every route below, even on an Entity it is a member of.
+</Warning>
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/todos"
+  note="Linked To-dos also appear in the panel of their Invoice, Bank Movement, or Ledger Entry."
+/>
+
+## Linked records
+
+Link a To-do to a record by sending exactly one of `invoiceId`, `bankMovementId`, or `ledgerEntryId` when you create it. The record must belong to the same Entity. The link is set on creation and cannot be changed later.
+
+When the linked record goes away, Sintropix keeps the To-do and clears its link, so it becomes stand-alone. This happens when you:
+
+- Delete the Invoice or the Bank Movement.
+- [Unbook](/api-reference/ledger-entries) the Ledger Entry (its status becomes `deleted`).
+- Cancel the Scheduled Entry (its status becomes `cancelled`).
+
+You cannot link a new To-do to an Unbooked Ledger Entry or a cancelled Scheduled Entry.
+
+## The To-do object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Client-supplied id sent on creation. |
+| `entityId` | UUID | Entity that owns the To-do. |
+| `text` | string | What needs doing. 1 to 500 characters after trimming. |
+| `completedAt` | ISO datetime or null | When the To-do was checked off. `null` while it is open. |
+| `invoiceId` | UUID or null | Linked Invoice, if any. |
+| `bankMovementId` | UUID or null | Linked Bank Movement, if any. |
+| `ledgerEntryId` | UUID or null | Linked Ledger Entry, if any. |
+| `link` | object or null | Summary of the linked record. `null` for a stand-alone To-do. See below. |
+| `createdAt` | ISO datetime | When the To-do was created. |
+| `updatedAt` | ISO datetime | When the To-do was last updated. |
+
+### The `link` object
+
+`link.kind` tells you which record the To-do points to. Each kind carries the fields you need to display the record and open it in the app.
+
+| `kind` | Fields |
+| --- | --- |
+| `invoice` | `id`, `direction`, `documentKind`, `documentNumber`, `partnerName` |
+| `bank_movement` | `id`, `bankAccountId`, `movementDate`, `amount`, `side`, `bankAccountCurrency` |
+| `ledger_entry` | `id`, `entryDate`, `memo` |
+
+```json
+{
+  "id": "7c1e4b2a-9d3f-4a6e-8b0c-5f2d1e7a9c34",
+  "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
+  "text": "Ask the supplier for the credit note",
+  "completedAt": null,
+  "invoiceId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "bankMovementId": null,
+  "ledgerEntryId": null,
+  "link": {
+    "kind": "invoice",
+    "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+    "direction": "payable",
+    "documentKind": "invoice",
+    "documentNumber": "10452",
+    "partnerName": "Proveedora Andina SpA"
+  },
+  "createdAt": "2026-09-25T14:02:11.000Z",
+  "updatedAt": "2026-09-25T14:02:11.000Z"
+}
+```
+
+## GET `/api/entities/:entityId/todos`
+
+List the To-dos of an Entity, open and completed, oldest first. Pass one link filter to list only the To-dos of that record. With no filter, the response holds every To-do of the Entity.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `invoiceId` | UUID | No | Only To-dos linked to this Invoice. |
+| `bankMovementId` | UUID | No | Only To-dos linked to this Bank Movement. |
+| `ledgerEntryId` | UUID | No | Only To-dos linked to this Ledger Entry. |
+
+Send at most one filter. Sending two returns `400`.
+
+**Response** `200`: an array of To-do objects.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/todos?invoiceId=$INVOICE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST `/api/entities/:entityId/todos`
+
+Create a To-do. You supply the `id`, so a retried request with the same id returns `409` instead of creating a duplicate.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id. |
+| `text` | string | Yes | 1 to 500 characters after trimming. |
+| `invoiceId` | UUID | No | Link to this Invoice. |
+| `bankMovementId` | UUID | No | Link to this Bank Movement. |
+| `ledgerEntryId` | UUID | No | Link to this Ledger Entry. |
+
+Send at most one link id. Omit all three for a stand-alone To-do.
+
+**Response** `201`: the created To-do object, including `link`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/todos" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -d '{
+    "id": "7c1e4b2a-9d3f-4a6e-8b0c-5f2d1e7a9c34",
+    "text": "Ask the supplier for the credit note",
+    "invoiceId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b"
+  }'
+```
+
+## PATCH `/api/entities/:entityId/todos/:todoId`
+
+Edit the text of a To-do, check it off, or reopen it. Send at least one field.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `text` | string | No | New text, 1 to 500 characters after trimming. |
+| `completed` | boolean | No | `true` checks the To-do off. `false` reopens it and sets `completedAt` to `null`. |
+
+Sintropix sets `completedAt` for you. Checking off a To-do that is already completed keeps its original `completedAt`.
+
+**Response** `200`: the updated To-do object.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/todos/$TODO_ID" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -d '{ "completed": true }'
+```
+
+## DELETE `/api/entities/:entityId/todos/:todoId`
+
+Delete a To-do permanently.
+
+**Response** `200`: the deleted To-do object.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/todos/$TODO_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Errors
+
+To-do domain errors carry a `code` and a `params` object in the body.
+
+| Status | `code` | `params` | When |
+| --- | --- | --- | --- |
+| `404` | `TODO_NOT_FOUND_ERROR` | `{ todoId }` | No To-do with that id exists on the Entity. |
+| `404` | `TODO_LINKED_RECORD_NOT_FOUND_ERROR` | `{ linkKind, recordId }` | The linked record does not exist, belongs to another Entity, or is an Unbooked or cancelled Ledger Entry. `linkKind` is `invoice`, `bank_movement`, or `ledger_entry`. |
+| `409` | `TODO_ALREADY_EXISTS_ERROR` | `{ todoId }` | A To-do with the supplied `id` already exists. |
+
+```json
+{
+  "requestId": "b6f0c1d2-3e4a-5b6c-7d8e-9f0a1b2c3d4e",
+  "statusCode": 404,
+  "code": "TODO_LINKED_RECORD_NOT_FOUND_ERROR",
+  "params": {
+    "linkKind": "ledger_entry",
+    "recordId": "5a9d2c7e-1b3f-4e8a-9c0d-6f2b1a8e4d73"
+  }
+}
+```
+
+## Status codes
+
+| Code | Meaning |
+| --- | --- |
+| `200` | Success (GET, PATCH, DELETE). |
+| `201` | To-do created. |
+| `400` | Validation error: blank or too-long `text`, more than one link id or filter, or an empty PATCH body. |
+| `401` | Unauthenticated. |
+| `403` | Caller is not staff. |
+| `404` | To-do or linked record not found. |
+| `409` | A To-do with that `id` already exists. |
+| `429` | Rate limit exceeded (25,000 requests per hour per API key). |

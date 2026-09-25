@@ -57,7 +57,8 @@
                   "api-reference/invoices",
                   "api-reference/recommendations",
                   "api-reference/partners",
-                  "api-reference/attachments"
+                  "api-reference/attachments",
+                  "api-reference/todos"
                 ]
               },
               {
@@ -138,7 +139,8 @@
                   "api-reference/invoices",
                   "api-reference/recommendations",
                   "api-reference/partners",
-                  "api-reference/attachments"
+                  "api-reference/attachments",
+                  "api-reference/todos"
                 ]
               },
               {
