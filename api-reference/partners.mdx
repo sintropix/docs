@@ -207,7 +207,7 @@ Templates and the switch are for Partners of `type: "vendor"` only. The Partner'
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `amountSource` | string | Where the line's amount comes from: `invoice_total` (the Invoice `total`), `dte_net_amount`, `dte_exempt_amount`, or `dte_tax_amount` (the DTE's `netAmount`, `exemptAmount`, or `taxAmount`, where `taxAmount` is IVA). |
+| `amountSource` | string | Where the line's amount comes from: `invoice_total` (the Invoice `total`), `dte_net_amount`, `dte_exempt_amount`, `dte_tax_amount`, or `dte_withheld_iva_amount` (the DTE's `netAmount`, `exemptAmount`, `taxAmount`, or `withheldIvaAmount`, where `taxAmount` is the whole IVA). |
 | `accountId` | uuid | Ledger Account of the Entity the line posts to. |
 | `side` | string | `debit` or `credit`. |
 
@@ -224,7 +224,7 @@ Sintropix books a new Invoice from the template only when all of these hold:
 3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked.
 4. The Invoice and its DTE are in the Entity's functional currency, and the Invoice has no Review Status.
 5. The vendor has `booksAutomatically` set to `true`.
-6. Every line's source has a value on the DTE, and none is negative.
+6. Every line's source has a value on the DTE, and none is negative. A DTE that withholds no IVA gives a `dte_withheld_iva_amount` line `0`.
 7. The Control Line amount is not `0`. Other lines with an amount of `0` are dropped.
 8. The remaining lines balance exactly. There is no rounding tolerance.
 
@@ -261,6 +261,8 @@ curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER
 ```
 
 With this template, an Invoice with a `total` of `1190000` and a DTE stating `netAmount` `1000000` and `taxAmount` `190000` is booked. The net and tax lines are debited, and the payable is credited. A DTE whose amounts do not add up to the total leaves the Invoice unbooked.
+
+To also book the vendor's facturas de compra (type `46`), add a `credit` line with `dte_withheld_iva_amount` on the withheld IVA account. A 46 with a `total` of `1000000`, `netAmount` `1000000`, `taxAmount` `190000`, and `withheldIvaAmount` `190000` is booked with the withheld IVA credited. On a 33, which withholds no IVA, that line is `0` and is dropped, so the same template books both.
 
 Then turn the switch on:
 
