@@ -264,6 +264,10 @@ With this template, an Invoice with a `total` of `1190000` and a DTE stating `ne
 
 To also book the vendor's facturas de compra (type `46`), add a `credit` line with `dte_withheld_iva_amount` on the withheld IVA account. A 46 with a `total` of `1000000`, `netAmount` `1000000`, `taxAmount` `190000`, and `withheldIvaAmount` `190000` is booked with the withheld IVA credited. On a 33, which withholds no IVA, that line is `0` and is dropped, so the same template books both.
 
+<Note>
+The `wasabil` Source Feed lands every 46 with `withheldIvaAmount` null, because Wasabil no longer states which IVA is withheld. A `dte_withheld_iva_amount` line has no amount on these DTEs, so the entry does not balance and the Invoice lands unbooked. For a Wasabil vendor's 46s, book the withheld IVA `credit` line from `dte_tax_amount` instead. That template books the vendor's 46s with a total withholding, but not its 33s.
+</Note>
+
 Then turn the switch on:
 
 ```bash
