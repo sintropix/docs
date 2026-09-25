@@ -208,6 +208,7 @@ Each line in `newLedgerEntryLines`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied line id. Must not already exist. |
 | `accountId` | UUID | Yes | Ledger Account id |
 | `functionalAmount` | integer | Yes | Nonnegative magnitude |
 | `side` | enum | Yes | `debit` or `credit` |
@@ -220,6 +221,8 @@ Each line in `newLedgerEntryLines`:
 <Note>
   The transaction trio (currency, amount, rate) must be provided together or omitted together. The rate is a plain decimal string, never a float.
 </Note>
+
+You choose the `id` of every line, the same way you choose the entry `id`. Because you know each line id before the write, a later request can name a line before it exists. For example, a [Recommendation](/api-reference/recommendations) Plan can book an Invoice and then match a Movement to its Control Line. A line id that already exists answers `409 LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` with `params: { lineIds }`, and Sintropix writes nothing.
 
 - **Success response:** the Ledger Entry fields plus `ledgerEntryLines`, an array of Ledger Entry Line objects (see the entry detail endpoint) each extended with `dimensionValueIds` (UUID[])
 - **Status:** 201
@@ -281,8 +284,8 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries \
     "memo": "Venta al contado",
     "notes": null,
     "newLedgerEntryLines": [
-      { "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 100, "side": "debit" },
-      { "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 100, "side": "credit" }
+      { "id": "77777777-7777-4777-8777-777777777777", "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 100, "side": "debit" },
+      { "id": "88888888-8888-4888-8888-888888888888", "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 100, "side": "credit" }
     ]
   }'
 ```
@@ -388,8 +391,8 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled-
     "memo": "Future rent",
     "notes": null,
     "newLedgerEntryLines": [
-      { "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 500, "side": "debit" },
-      { "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 500, "side": "credit" }
+      { "id": "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 500, "side": "debit" },
+      { "id": "c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2", "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 500, "side": "credit" }
     ]
   }'
 ```
@@ -435,8 +438,8 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/scheduled
     "memo": "Updated future rent",
     "notes": null,
     "newLedgerEntryLines": [
-      { "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 600, "side": "debit" },
-      { "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 600, "side": "credit" }
+      { "id": "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1", "accountId": "11111111-1111-4111-8111-111111111111", "functionalAmount": 600, "side": "debit" },
+      { "id": "d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2", "accountId": "22222222-2222-4222-8222-222222222222", "functionalAmount": 600, "side": "credit" }
     ]
   }'
 ```
@@ -636,6 +639,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `LEDGER_ENTRY_ALREADY_EXISTS_ERROR` | Entry id already used |
 | `LEDGER_ENTRY_NOT_FOUND_ERROR` | Entry not found |
 | `LEDGER_ENTRY_LINE_NOT_FOUND_ERROR` | Line not found |
+| `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` | One or more line ids already used |
 | `LEDGER_ENTRY_DATE_LOCKED_ERROR` | Entry date is on or before the ledger lock date |
 | `LEDGER_ENTRY_FROZEN_ERROR` | Entry is frozen (locked date) |
 | `LEDGER_ENTRY_LOCKED_ERROR` | Ledger is locked |

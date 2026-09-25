@@ -1,0 +1,228 @@
+---
+title: "Sintropix Recommendations API: Advise, Approve, Discard"
+sidebarTitle: "Recommendations"
+description: "Leave an agent Recommendation on a Bank Movement or Invoice, then approve its Plan in one all-or-nothing write or discard it. Covers statuses, Plans, and errors."
+---
+
+A Recommendation is an agent's advice on one Bank Movement or one Invoice, stored on that record. It proposes how to book or match the record, asks a person a question, or reports that a record is missing. A person then approves it or discards it, in the app or through the API. Until someone approves it, a Recommendation changes nothing in the books.
+
+Use Recommendations when an agent or integration prepares reconciliation work but a person should confirm it. The agent writes the Recommendation. The person reviews the proposed steps and approves them with one write.
+
+<Note>
+  Each host has one route under its own path:
+
+  - Bank Movement: `/api/entities/:entityId/bank-accounts/:bankAccountId/movements/:movementId/recommendation`
+  - Invoice: `/api/entities/:entityId/invoices/:invoiceId/recommendation`
+
+  Both routes accept the same bodies and return the same errors. This page writes `…/recommendation` for either one.
+</Note>
+
+## Which records can hold a Recommendation
+
+| Host | Accepts a Recommendation when |
+| --- | --- |
+| Bank Movement | The Movement is `unbooked`. |
+| Invoice | The Invoice is unbooked, or booked with open amount left on its Control Line. |
+
+A record holds at most one Recommendation. Writing a new one replaces the current one.
+
+Every Bank Movement and Invoice row carries a `recommendation` field. It holds the Recommendation as written, or `null` when the record has none. Use it to find records that are waiting for review.
+
+## Statuses
+
+| `status` | Fields | Meaning | Can be approved |
+| --- | --- | --- | --- |
+| `confident` | `reason`, `plan` | One Plan fits and the evidence is clear. | Yes, runs `plan`. |
+| `needs_clarification` | `question`, `options` | The agent needs a fact only a person has. Each option carries a `label` and a `plan`. | Yes, when `options` is not empty. The approver picks one option. |
+| `missing` | `reason` | A record that should exist does not, for example a bill that never arrived. | No. Discard it once resolved. |
+
+A `needs_clarification` Recommendation with an empty `options` array is an open question. A person answers it in the record's Comments, and the agent writes a new Recommendation from the answer.
+
+## Plans
+
+A Plan is an ordered list of acts that an approval runs. Each act matches one existing API route. It carries the path ids of that route and the same body that route takes.
+
+| `act` | Path ids | Body key | Same body as |
+| --- | --- | --- | --- |
+| `bookMovement` | `bankAccountId`, `movementId` | `booking` | [`POST /movements/:movementId/book`](/api-reference/bank-movements#post-movements-movementid-book) |
+| `match` | `bankAccountId`, `movementId` | `match` | [`POST /movements/:movementId/match`](/api-reference/bank-movements#post-movements-movementid-match) |
+| `bookInvoice` | `invoiceId` | `booking` | [`POST /invoices/:invoiceId/book`](/api-reference/invoices#post-invoices-invoiceid-book) |
+| `matchLines` | none | `lineIds` at the top level of the act | [`POST /ledger/allocations/match`](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match) |
+
+A Plan needs at least one act. Keep these rules in mind when you build one:
+
+- **You choose every id.** Each entry `id` and each line `id` in the Plan is a UUID you generate. See [Ledger Entry Line ids](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries).
+- **A later act can name a line an earlier act creates.** Use the line `id` you gave it. For example, one Plan can book an Invoice and then match a Movement to the Invoice's Control Line.
+- **An act can target a record other than the host.** A Plan on one leg of an internal transfer can book both legs and match the bridge lines.
+- **Sintropix validates the acts only on approval.** A `PUT` checks the shape of the Plan, not whether each booking balances or each line is still open. Check the bodies before you write them.
+
+## PUT `…/recommendation`
+
+Set or replace the Recommendation of a record. Setting one changes no books.
+
+**Body:** one of three shapes, chosen by `status`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id of this Recommendation. Use a new id on every change. |
+| `status` | string | Yes | `confident`, `needs_clarification`, or `missing`. |
+| `reason` | string | `confident`, `missing` | Why the agent advises this. Non-blank. |
+| `plan` | array of acts | `confident` | The Plan to run on approval. |
+| `question` | string | `needs_clarification` | The question for a person. Non-blank, up to 4,000 characters. |
+| `options` | array of `{ label, plan }` | `needs_clarification` | The possible answers, each with a non-blank `label` and its own `plan`. Send `[]` for an open question. |
+
+A `needs_clarification` Recommendation also posts `question` as a Comment on the record, authored by the caller. The Comment stays in the record's [audit trail](/api-reference/audit-trail) after the Recommendation is gone.
+
+Retrying a `PUT` with the same `id` and the same body changes nothing and posts no second Comment. Sending the current `id` with a different body answers `409 RECOMMENDATION_ALREADY_EXISTS_ERROR`. An approval names a Recommendation by its `id`, so a new body always needs a new `id`.
+
+**Response** (`200`): the host's own update answer plus `comment`.
+
+- Bank Movement: `{ movement, bankAccount, comment }`
+- Invoice: the same answer as `PATCH /invoices/:invoiceId`, plus `comment`
+
+`comment` is the Comment that asks the question, or `null` for other statuses and for a retry.
+
+This example proposes matching a Movement to the Control Line of an open Invoice:
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/recommendation" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e",
+    "status": "confident",
+    "reason": "Mismo monto que la Factura 60 de Arriendos Sur; el RUT está en la glosa.",
+    "plan": [
+      {
+        "act": "match",
+        "bankAccountId": "'"$BANK_ACCOUNT_ID"'",
+        "movementId": "'"$MOVEMENT_ID"'",
+        "match": {
+          "id": "9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d",
+          "entryDate": "2026-09-20",
+          "memo": "Pago Factura 60 Arriendos Sur",
+          "lineId": "5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e",
+          "newCounterpartLines": [
+            {
+              "id": "6c7d8e9f-0a1b-4c2d-8e3f-4a5b6c7d8e9f",
+              "accountId": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+              "functionalAmount": 450000,
+              "side": "debit",
+              "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+            }
+          ]
+        }
+      }
+    ]
+  }'
+```
+
+A question with two options, where each `plan` matches the Movement to a different Invoice:
+
+```json
+{
+  "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "status": "needs_clarification",
+  "question": "¿Este pago de $450.000 es la Factura 60 o la 61 de Arriendos Sur?",
+  "options": [
+    { "label": "Factura 60 · $450.000 · vence 20-09", "plan": [{ "act": "match", "...": "..." }] },
+    { "label": "Factura 61 · $450.000 · vence 20-10", "plan": [{ "act": "match", "...": "..." }] }
+  ]
+}
+```
+
+## GET `…/recommendation`
+
+Read the Recommendation of a record with every record in its Plan named, so you can show it to a person without extra reads.
+
+**Response** (`200`): `{ recommendation }`, where `recommendation` is `null` when the record has none. Otherwise it has the fields written with `PUT`, except that each act in `plan` (and in each option's `plan`) is replaced by its named detail:
+
+| `act` | Detail fields |
+| --- | --- |
+| `bookMovement` | `movement`, `entry` (`id`, `entryDate`, `memo`), `newLines` |
+| `match` | `movement`, `target`, `entry`, `newLines` |
+| `bookInvoice` | `invoice`, `controlAccount`, `entry`, `newLines` |
+| `matchLines` | `targets` |
+
+- `movement` names the Movement with its date, amount, side, description, and Bank Account.
+- `invoice` names the Invoice with its document kind, number, direction, issue date, total, currency, and Partner.
+- Each item in `newLines` is a line the act creates, with its `account` and `partner` named.
+- Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`.
+
+A named record is `null` when the Plan names a record the Entity does not hold. Approving that Plan fails.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/recommendation" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST `…/recommendation/approve`
+
+Run the Plan of the current Recommendation, then clear it. Sintropix runs every act in order in one transaction, through the same checks as the act's own route. If any act fails, nothing is written and the Recommendation stays.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `recommendationId` | uuid | Yes | The `id` of the Recommendation you reviewed. |
+| `optionIndex` | integer | Conditional | Zero-based index of the option to run. Required for a `needs_clarification` Recommendation; must be omitted for `confident`. |
+
+**Response** (`200`): the host's own update answer plus `acts`. `acts` holds one result per act, in Plan order. Each result carries its `act` and the same answer as the act's own route.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/recommendation/approve" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "recommendationId": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "optionIndex": 0 }'
+```
+
+## DELETE `…/recommendation`
+
+Discard the Recommendation of a record. Discarding changes no books, and any Comment a question posted stays.
+
+**Response** (`200`): the host's own update answer. For a Bank Movement, `{ movement, bankAccount }`. For an Invoice, the same answer as `PATCH /invoices/:invoiceId`.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/recommendation" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## When Sintropix clears a Recommendation
+
+A Recommendation advises on the record as it stood when the agent wrote it. Sintropix clears it when the record's reconciliation changes:
+
+- Booking or matching the Bank Movement.
+- Unbooking the Ledger Entry that booked the Bank Movement.
+- Booking the Invoice.
+- Creating or deleting an Allocation on the Invoice's Control Line.
+
+An approval that names a cleared or replaced Recommendation answers `409 RECOMMENDATION_STALE_ERROR`. Read the record again and review its current Recommendation.
+
+## Domain errors
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `BANK_MOVEMENT_ALREADY_RECONCILED_ERROR` | `409` | `PUT` on a Bank Movement that is already booked. |
+| `RECOMMENDATION_INVOICE_SETTLED_ERROR` | `409` | `PUT` on a booked Invoice whose Control Line has no open amount. `params: { invoiceId, controlLineId }`. |
+| `RECOMMENDATION_ALREADY_EXISTS_ERROR` | `409` | `PUT` reused the `id` of the current Recommendation with a different body. `params: { recommendationId }`. |
+| `RECOMMENDATION_STALE_ERROR` | `409` | The approval named a Recommendation the record no longer holds. `params: { recommendationId, currentRecommendationId }`, where `currentRecommendationId` is `null` when the record holds none. |
+| `RECOMMENDATION_NOT_APPROVABLE_ERROR` | `409` | The Recommendation is `missing`, which has no Plan. |
+| `RECOMMENDATION_QUESTION_OPEN_ERROR` | `409` | The question has no options. Answer it in the Comments. |
+| `RECOMMENDATION_OPTION_REQUIRED_ERROR` | `400` | Approving a question without `optionIndex`. `params` carries `optionCount`. |
+| `RECOMMENDATION_OPTION_NOT_FOUND_ERROR` | `400` | `optionIndex` is out of range. `params` carries `optionIndex` and `optionCount`. |
+| `RECOMMENDATION_OPTION_UNEXPECTED_ERROR` | `400` | `optionIndex` sent for a `confident` Recommendation. |
+
+An act that fails on approval answers with the error of its own route, for example `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` or `INVOICE_BOOKING_CHANGED_ERROR`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on every route. |
+| `400` | Validation error, an option error above, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `403` | Read-only key attempted a mutation. |
+| `404` | Entity, Bank Account, Bank Movement, or Invoice not found. |
+| `409` | Domain conflict (see above), or a Plan act refused by its own route. |
