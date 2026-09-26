@@ -8,6 +8,8 @@ An Agent Channel binds a place on an outside platform (a Slack channel today) to
 
 A place answers one Entity. An Entity can hold many places (for example, one Slack channel per topic). Rebinding a place to a different Entity is a delete then a create, so an old binding never reads as the new one.
 
+A scheduled run belongs to the Entity of the conversation that created it. The agent creates a schedule only in a channel bound to that same Entity. If you rebind the channel to a different Entity, the agent skips the schedule's runs, so an old schedule never reports on the new Entity.
+
 <Warning>
   Staff-only. A client-role caller (session or API key) receives `403` on every route below.
 </Warning>
