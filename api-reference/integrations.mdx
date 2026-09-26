@@ -10,6 +10,8 @@ An Integration is a linked external system: the credentials, tokens, and configu
 
 An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Mercado Pago authorization and a Mercado Libre authorization). Each external account still belongs to a single Entity.
 
+The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Entity can connect several mailboxes, but each mailbox can belong to only one Entity. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
+
 The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile.
 
 <AppLink
@@ -24,9 +26,9 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` \| `mercadopago` \| `mercadolibre` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for Mercado Pago and Mercado Libre, the account ID). `null` when a document provider could not determine it at connect time. |
-| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago` and `mercadolibre`, which are OAuth authorizations, not document integrations. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` \| `mercadopago` \| `mercadolibre` \| `gmail` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address). `null` when a document provider could not determine it at connect time. |
+| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago`, `mercadolibre`, and `gmail`, which are OAuth authorizations, not document integrations. |
 | `feed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when no Feed is configured. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
@@ -34,14 +36,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted.
 
-This route is for document integrations only. Mercado Pago and Mercado Libre use OAuth and are connected from **Settings → Integrations** in the Sintropix app; they cannot be created through this endpoint.
+This route is for document integrations only. Mercado Pago, Mercado Libre, and Gmail use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` | Yes | The external system to link. `mercadopago` and `mercadolibre` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` | Yes | The external system to link. `mercadopago`, `mercadolibre`, and `gmail` are not accepted here. |
 | `accessToken` | string | Conditional | The provider's API access token. Required for `bsale` and `wasabil`; whitespace is trimmed and must be non-empty. Omit for `sii_mirror`, which reads Sintropix's SII mirror using the Entity's RUT and takes no credential. |
 
 For `sii_mirror`, Sintropix verifies at connect time that the Entity's country is Chile and that the mirror already follows the Entity's RUT. The connect is refused otherwise (see [Status codes](#status-codes)).
@@ -88,13 +90,13 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
 
 ## GET `/integrations`
 
-List every Integration for the Entity, including any Mercado Pago or Mercado Libre authorization connected from the app.
+List every Integration for the Entity, including any Mercado Pago, Mercado Libre, or Gmail authorization connected from the app.
 
 - **Response:** array of Integration objects.
 
 ## DELETE `/integrations/:integrationId`
 
-Remove an Integration. Any attached Source Feed is removed as part of the same operation. For a Mercado Pago or Mercado Libre Integration, this removes the stored authorization on Sintropix; the grant on the provider's side is not revoked.
+Remove an Integration. Any attached Source Feed is removed as part of the same operation. For a Mercado Pago, Mercado Libre, or Gmail Integration, this removes the stored authorization on Sintropix; the grant on the provider's side is not revoked.
 
 - **Response:** the Integration object as it stood before deletion, including its `feed` if it had one.
 
