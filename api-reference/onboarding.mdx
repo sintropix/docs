@@ -1,10 +1,10 @@
 ---
 title: "Sintropix Onboarding API: Provision Users and Grant Memberships"
 sidebarTitle: "Onboarding"
-description: "Staff-only endpoints to create Users, look them up by email, grant or revoke Entity Memberships, mint set-password links, and revoke live sessions."
+description: "Staff-only endpoints to create Users, look them up by email, grant Organization Memberships with a Role, mint set-password links, and revoke sessions."
 ---
 
-The Onboarding API is how Sintropix staff provision new Users and control their per-Entity access. Every route below is restricted to Users with `role = staff`. Public sign-up is disabled, so User creation happens only through this surface, and set-password links are minted here and delivered to the client through the staff member's existing channel because Sintropix does not send email.
+The Onboarding API is how Sintropix staff provision new Users and control which Organizations they can access. Every route below is restricted to Users with `role = staff`. Public sign-up is disabled, so User creation happens only through this surface, and set-password links are minted here and delivered to the client through the staff member's existing channel because Sintropix does not send email.
 
 <Warning>
   Staff-only. A client-role caller (session or API key) receives `403` on every route below.
@@ -12,7 +12,7 @@ The Onboarding API is how Sintropix staff provision new Users and control their 
 
 ## POST `/onboarding/users`
 
-Create a User. This is the only place a User's role is assigned.
+Create a User. This is the only place a User's global role is assigned. Access to client Entities comes from the Organization Memberships granted below.
 
 **Body**
 
@@ -68,15 +68,41 @@ curl "https://api.sintropix.com/api/onboarding/users?email=ana.perez%40example.c
   --cookie cookies.txt
 ```
 
+## GET `/onboarding/users/:userId/memberships`
+
+List the Organization Memberships a User holds. Each Membership gives the User one Role across every Entity of that [Organization](/api-reference/organizations).
+
+**Response** `200`: an array of Memberships.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `role` | enum | `staff`, `client`, or `viewer`. See [Access and roles](/api-reference/overview#access-and-roles). |
+| `organization` | object | `{ id, name }` of the Organization. |
+
+```bash
+curl "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships" \
+  --cookie cookies.txt
+```
+
+```json
+[
+  {
+    "role": "client",
+    "organization": { "id": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d", "name": "Grupo Acme" }
+  }
+]
+```
+
 ## POST `/onboarding/users/:userId/memberships`
 
-Grant an Entity Membership to a User. `client` Users see and edit exactly the Entities they hold a Membership for; `staff` Users bypass the check entirely and do not need Memberships.
+Grant a User a Membership in an Organization with one Role. The User reaches every Entity of the Organization, including Entities added to it later. A User holds at most one Membership per Organization.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `entityId` | UUID | Yes | The Entity to grant access to. Must be an existing Entity. |
+| `organizationId` | UUID | Yes | The Organization to grant access to. Must be an existing Organization. |
+| `role` | enum | Yes | `staff`, `client`, or `viewer`. |
 
 - **Status:** `204`.
 
@@ -84,26 +110,37 @@ Grant an Entity Membership to a User. `client` Users see and edit exactly the En
 curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships" \
   --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{ "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57" }'
+  -d '{ "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d", "role": "client" }'
 ```
 
-## DELETE `/onboarding/users/:userId/memberships`
+## PATCH `/onboarding/users/:userId/memberships/:organizationId`
 
-Revoke an Entity Membership. The body shape matches `POST`.
+Change the Role of an existing Membership.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `entityId` | UUID | Yes | The Entity to revoke access to. |
+| `role` | enum | Yes | `staff`, `client`, or `viewer`. |
 
 - **Status:** `204`.
 
 ```bash
-curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships" \
+curl -X PATCH "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships/$ORGANIZATION_ID" \
   --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{ "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57" }'
+  -d '{ "role": "viewer" }'
+```
+
+## DELETE `/onboarding/users/:userId/memberships/:organizationId`
+
+Revoke a User's Membership in an Organization. The User loses access to every Entity of the Organization. No request body.
+
+- **Status:** `204`.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID/memberships/$ORGANIZATION_ID" \
+  --cookie cookies.txt
 ```
 
 ## POST `/onboarding/users/:userId/set-password-link`
@@ -142,9 +179,9 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/revoke-ses
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `POST /users`, `GET /users`, `POST /set-password-link`. |
-| `204` | Success on membership grant/revoke and session revocation. |
+| `200` | Success on `POST /users`, `GET /users`, `GET /memberships`, `POST /set-password-link`. |
+| `204` | Success on Membership grant, role change, revoke, and session revocation. |
 | `400` | Validation error, including a `:userId` that is not a UUID. |
 | `403` | Caller is not `staff`. |
-| `404` | User (or referenced Entity) not found. |
-| `409` | Membership already exists on grant, or already absent on revoke. |
+| `404` | User or Organization not found (`ORGANIZATION_NOT_FOUND_ERROR`), or no Membership to change or revoke (`ORGANIZATION_MEMBERSHIP_NOT_FOUND_ERROR`). |
+| `409` | The User already holds a Membership in this Organization (`ORGANIZATION_MEMBERSHIP_ALREADY_EXISTS_ERROR`). |

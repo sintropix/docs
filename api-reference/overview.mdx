@@ -36,9 +36,26 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (staff only), and `/api/health`.
+A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (staff only), and `/api/health`.
 
 `{entityId}` is always a UUID. A request for an Entity the caller cannot access returns `404`, never `403`, so probing does not reveal whether an unknown Entity exists.
+
+## Access and roles
+
+Access to an Entity comes from an **Organization Membership**. An [Organization](/api-reference/organizations) groups the Entities a client runs as one business, and every Entity belongs to exactly one Organization. A Membership gives a User one Role in an Organization. That Role applies to every Entity of the Organization, including Entities added later.
+
+| Role | Read Entity data | Write Entity data | Sintropix work |
+| --- | --- | --- | --- |
+| `staff` | Yes | Yes | Yes |
+| `client` | Yes | Yes | No |
+| `viewer` | Yes | No | No |
+
+- **Read** covers `GET` requests on Entity routes, including the [Audit Trail](/api-reference/audit-trail). **Write** covers `POST`, `PUT`, `PATCH`, and `DELETE`.
+- **Sintropix work** covers routes reserved for the accounting team: credentials, automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), honorarium sync, accounting policies, the parent Entity, Entity creation, the staff workload and booking-actor reports, and [FX rate sync](/api-reference/fx-rates).
+- An Entity outside your Organizations returns `404`. An action your Role doesn't allow returns `403` with `PERMISSION_DENIED_ERROR`.
+- Users with the global `role = staff` keep access to every Entity and are the only callers who can manage Organizations and Memberships.
+
+Sintropix staff grant Memberships through the [Onboarding API](/api-reference/onboarding).
 
 ## Linking to the App
 
@@ -69,7 +86,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-Path parameters that are ids must be valid UUIDs; a malformed id returns `400`.
+Path parameters that are ids must be valid UUIDs; a malformed id returns `400`. A malformed `entityId` returns `404`, like any Entity you can't reach.
 
 ## Response Format
 
@@ -117,7 +134,7 @@ Non-2xx responses are JSON. Every response, success or failure, carries an `x-re
 | `204` | Request succeeded with no response body. |
 | `400` | Body, query, or path failed validation; a required header is missing. |
 | `401` | No valid API key. |
-| `403` | The key is not allowed to perform this action (for example a read-only key attempting a mutation). |
+| `403` | The caller is not allowed to perform this action (for example a read-only key attempting a mutation, or a `viewer` attempting a write). Role refusals carry `PERMISSION_DENIED_ERROR`. |
 | `404` | Resource does not exist, or the caller has no access to the requested Entity. |
 | `409` | Domain conflict (for example an already-booked Ledger Entry, a duplicate row). |
 | `429` | Rate limit exceeded on an API key. |

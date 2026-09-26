@@ -11,7 +11,7 @@ A place answers one Entity. An Entity can hold many places (for example, one Sla
 A scheduled run belongs to the Entity of the conversation that created it. The agent creates a schedule only in a channel bound to that same Entity. If you rebind the channel to a different Entity, the agent skips the schedule's runs, so an old schedule never reports on the new Entity.
 
 <Warning>
-  Staff-only. A client-role caller (session or API key) receives `403` on every route below.
+  Staff-only. The Entity routes below require the `staff` Role in the Entity's Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. See [Access and roles](/api-reference/overview#access-and-roles).
 </Warning>
 
 ## The Agent Channel object
@@ -149,7 +149,7 @@ The choice belongs to one channel. Other channels bound to the same Entity keep 
 | `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
 | `201` | Agent Channel created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
-| `403` | Caller is not a staff User. |
+| `403` | Caller does not hold the `staff` Role in the Entity's Organization (`PERMISSION_DENIED_ERROR`). |
 | `404` | Entity or Agent Channel not found, or reverse lookup found no binding (`AGENT_CHANNEL_PLACE_UNBOUND_ERROR`). |
 | `409` | Another Entity already holds the place (`AGENT_CHANNEL_PLACE_TAKEN_ERROR`). |
 

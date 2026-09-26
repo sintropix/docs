@@ -4,13 +4,13 @@ sidebarTitle: "Obtener una clave de API"
 description: "Crea una clave de API de Sintropix desde Ajustes, envíala en el encabezado x-api-key y entiende el alcance, los límites de solicitudes y las reglas de rotación que aplican al acceso programático."
 ---
 
-Las claves de API de Sintropix permiten que agentes e integraciones se autentiquen como un Usuario sin una sesión de navegador. Cada clave es una credencial de larga duración que se envía en el encabezado `x-api-key`, hereda el Rol y las Membresías del Usuario propietario y está limitada a 25.000 solicitudes por hora.
+Las claves de API de Sintropix permiten que agentes e integraciones se autentiquen como un Usuario sin una sesión de navegador. Cada clave es una credencial de larga duración que se envía en el encabezado `x-api-key`, actúa como el Usuario propietario con sus Membresías de Organización y está limitada a 25.000 solicitudes por hora.
 
 Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](https://app.sintropix.com). Todo el proceso toma menos de un minuto.
 
 <Steps>
   <Step title="Inicia sesión y abre Ajustes">
-    Inicia sesión como el Usuario en cuyo nombre actuará la clave. La clave hereda el Rol de ese Usuario y sus Membresías por Entidad, así que elige un Usuario con el acceso que la integración realmente necesita.
+    Inicia sesión como el Usuario en cuyo nombre actuará la clave. La clave actúa con las Membresías de Organización de ese Usuario y sus Roles, así que elige un Usuario con el acceso que la integración realmente necesita.
 
     El inicio de sesión siempre pide la **Verificación en dos pasos**. Después de la contraseña, ingresa el código de 6 dígitos de tu aplicación de autenticación o uno de tus códigos de respaldo de un solo uso. En tu primer inicio de sesión, Sintropix te pide escanear un código QR con una aplicación de autenticación, confirmar un código y guardar 10 códigos de respaldo antes de continuar. Solo una sesión con verificación en dos pasos puede crear claves de API.
 
@@ -91,9 +91,9 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
 
 ## Alcance y permisos
 
-- Una clave se autentica como su Usuario propietario, con el Rol global de ese Usuario y sus Membresías por Entidad.
-- Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las que el Usuario propietario es miembro.
-- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, y `GET /api/entities` lista solo la Entidad acotada. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
+- Una clave se autentica como su Usuario propietario, con el Rol global de ese Usuario y sus Membresías de Organización. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
+- Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las Organizaciones en las que el Usuario propietario tiene una Membresía, y solo puede hacer lo que el Rol del Usuario allí permite. Una clave de un `viewer` solo puede leer.
+- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, `GET /api/entities` lista solo la Entidad acotada y `GET /api/organizations` devuelve un arreglo vacío. Una clave acotada no puede crear Entidades. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
 
 ## Límites de solicitudes
 

@@ -19,6 +19,18 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
     Sintropix consolida todas tus entidades automáticamente: las transacciones intercompañía se rastrean y se eliminan al generar informes a nivel de grupo.
   </Accordion>
 
+  <Accordion title="Organización">
+    Una **Organización** agrupa las entidades que un cliente gestiona como un solo negocio, por ejemplo una holding y sus filiales. Cada entidad pertenece a exactamente una Organización.
+
+    El acceso pasa por la Organización. Un Usuario tiene una **Membresía de Organización** con un Rol, y ese Rol aplica a todas las entidades de la Organización, incluidas las que se agreguen después:
+
+    - **`staff`**: lee y escribe los libros, y realiza trabajo contable de Sintropix como pendientes, automatizaciones y creación de entidades
+    - **`client`**: lee y escribe los libros
+    - **`viewer`**: solo lee
+
+    Mover una entidad a otra Organización traslada su acceso con ella. Consulta la [API de Organizaciones](/api-reference/organizations) y [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
+  </Accordion>
+
   <Accordion title="Moneda funcional">
     La **moneda funcional** es la moneda principal de una entidad, la moneda en la que opera su entorno económico. Sintropix usa la moneda funcional como base para todos los asientos contables dentro de una entidad.
 

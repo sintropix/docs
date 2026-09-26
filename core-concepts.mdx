@@ -19,6 +19,18 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     Sintropix consolidates across all your entities automatically — intercompany transactions between entities are tracked and eliminated when generating group-level reports.
   </Accordion>
 
+  <Accordion title="Organization">
+    An **Organization** groups the entities a client runs as one business, such as a holding and its subsidiaries. Every entity belongs to exactly one Organization.
+
+    Access goes through the Organization. A User holds an **Organization Membership** with one Role, and that Role applies to every entity of the Organization, including entities added later:
+
+    - **`staff`**: reads and writes the books, and does Sintropix accounting work such as To-dos, automations, and creating entities
+    - **`client`**: reads and writes the books
+    - **`viewer`**: reads only
+
+    Moving an entity to another Organization moves its access with it. See the [Organizations API](/api-reference/organizations) and [Access and roles](/api-reference/overview#access-and-roles).
+  </Accordion>
+
   <Accordion title="Book">
     A **Book** is a named measurement basis of a single entity. An entity holds zero or more Books. Use Books when a company must state the same facts under more than one measure — for example, the financial statements its owners read and the return the tax authority reads. The two agree on most entries; the few differences (a depreciation rate, a provision the tax rule refuses, a correction the tax rule adds) are the entries that name a Book.
 
