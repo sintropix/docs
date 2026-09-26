@@ -316,7 +316,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$
 
 ## POST /api/entities/:entityId/ledger/entries/:entryId/reverse
 
-Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be after the original entry date and after the ledger lock date. The reversal takes the Book of the original; do not send `bookId`.
+Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be on or after the original entry date and after the ledger lock date. The reversal takes the Book of the original; do not send `bookId`.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
 - **Body:**
@@ -649,7 +649,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `LEDGER_ENTRY_NOT_ACTIVE_ERROR` | Entry is not active |
 | `LEDGER_ENTRY_OVER_CORRECTED_ERROR` | Entry already has a reversal |
 | `LEDGER_REVERSAL_NETTING_BLOCKED_ERROR` | Reversal would net an existing allocation |
-| `LEDGER_REVERSAL_DATE_BEFORE_ORIGINAL_ERROR` | Reversal date is not after the original |
+| `LEDGER_REVERSAL_DATE_BEFORE_ORIGINAL_ERROR` | Reversal date is before the original |
 | `LEDGER_ENTRY_LINE_IN_REVERSAL_PAIR_ERROR` | Line is part of a reversal pair |
 | `LEDGER_ENTRY_LINE_PARTNER_PINNED_ERROR` | Partner cannot be changed (pinned by constraint) |
 | `LEDGER_ENTRY_LINE_PARTNER_NOT_FOUND_ERROR` | Partner not found |
