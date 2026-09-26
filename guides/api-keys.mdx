@@ -12,6 +12,8 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
   <Step title="Sign in and open Settings">
     Sign in as the User the key should act on behalf of. The key inherits that User's Role and per-Entity Memberships, so choose a User with the access the integration actually needs.
 
+    Sign-in always asks for two-step verification (**Verificación en dos pasos**). After the password, enter the 6-digit code from your authenticator app, or one of your single-use backup codes. On your first sign-in, Sintropix asks you to scan a QR code with an authenticator app, confirm a code, and save 10 backup codes before you can continue. Only a session with two-step verification can create API keys.
+
     Click your name at the bottom of the left sidebar and choose **Ajustes**.
 
     <Frame caption="The user menu at the bottom-left of the app. Ajustes opens Settings.">
@@ -82,6 +84,8 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
     ```
 
     Requests to `/api/auth/*` are rejected when they carry `x-api-key`, so keys cannot be used to mint further keys or manage Users.
+
+    Requests made with an API key do not ask for a two-step verification code. The second factor is checked once, when the key is created.
   </Step>
 </Steps>
 

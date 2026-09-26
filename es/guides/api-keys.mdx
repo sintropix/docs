@@ -12,6 +12,8 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
   <Step title="Inicia sesión y abre Ajustes">
     Inicia sesión como el Usuario en cuyo nombre actuará la clave. La clave hereda el Rol de ese Usuario y sus Membresías por Entidad, así que elige un Usuario con el acceso que la integración realmente necesita.
 
+    El inicio de sesión siempre pide la **Verificación en dos pasos**. Después de la contraseña, ingresa el código de 6 dígitos de tu aplicación de autenticación o uno de tus códigos de respaldo de un solo uso. En tu primer inicio de sesión, Sintropix te pide escanear un código QR con una aplicación de autenticación, confirmar un código y guardar 10 códigos de respaldo antes de continuar. Solo una sesión con verificación en dos pasos puede crear claves de API.
+
     Haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Ajustes**.
 
     <Frame caption="El menú de usuario en la esquina inferior izquierda de la aplicación. Ajustes abre la configuración.">
@@ -82,6 +84,8 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
     ```
 
     Las solicitudes a `/api/auth/*` se rechazan cuando llevan `x-api-key`, así que una clave no puede usarse para crear más claves ni para administrar Usuarios.
+
+    Las solicitudes hechas con una clave de API no piden un código de verificación en dos pasos. El segundo factor se comprueba una sola vez, al crear la clave.
   </Step>
 </Steps>
 
