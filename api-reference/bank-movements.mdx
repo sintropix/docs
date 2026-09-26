@@ -15,8 +15,8 @@ Read endpoints enrich each Movement with a `status` field (`bankMovementWithStat
 | Value | Meaning |
 | --- | --- |
 | `unbooked` | Movement has no Ledger Entry yet. |
-| `booked_pending_allocation` | Movement is booked to a Ledger Entry, but the counterpart Open-Item line still has open amount, or part of the Movement still sits on the [Suspense Account](#overpayments-and-the-suspense-account). |
-| `reconciled` | Movement is booked and every counterpart line is fully allocated. |
+| `booked_pending_allocation` | Movement is booked, but part of it still sits on the [Suspense Account](#overpayments-and-the-suspense-account). Assign the rest to clear it. |
+| `reconciled` | Movement is booked and nothing sits on the Suspense Account. A counterpart Open-Item line that is not yet fully allocated, such as an unsettled Customer line, still reads `reconciled`. |
 
 You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value.
 
@@ -87,7 +87,6 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` | Derived booking status. |
 | `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it regardless of filters. |
 | `partnerName` | string \| null | Name of `partnerId`, for display. |
-| `reconciliationLabel` | string \| null | Counterpart of the booking entry as `"<code> <name>"`, with `" +N"` when there are more counterpart lines. `null` while unbooked. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 Write answers also return the Bank Account with its computed summary:
@@ -166,7 +165,6 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
       "status": "unbooked",
       "runningBalance": 4830000,
       "partnerName": "Acme SpA",
-      "reconciliationLabel": null,
       "attachmentCount": 0,
       "commentCount": 0,
       "group": null,
