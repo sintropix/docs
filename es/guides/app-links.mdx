@@ -46,7 +46,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Adjunto | `/{entityId}/invoices?open={invoiceId}` o `/{entityId}/bills?open={invoiceId}` | Los adjuntos se muestran dentro del panel de la factura. |
 | Pendiente (To-do) | `/{entityId}/todos` | Solo staff. Un pendiente vinculado también aparece en el panel de su factura, movimiento bancario o asiento contable. |
 | Cuenta bancaria | `/{entityId}/banks/{bankAccountId}` | La vista de conciliación de esa cuenta. `/{entityId}/banks` lista todas las cuentas. |
-| Movimiento bancario | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Usa el campo `bankAccountId` del movimiento. Cambia `open` por `reconcile` para iniciar su conciliación. |
+| Movimiento bancario | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Usa el campo `bankAccountId` del movimiento. La pestaña **Conciliación** del panel es donde el usuario lo concilia. |
 | Conexión bancaria | `/{entityId}/settings/bank-accounts` | Las conexiones y sus cuentas asociadas se gestionan aquí. |
 | Contraparte | `/{entityId}/partner-ledger?partners={partnerId}` | Estado de cuenta filtrado por esa contraparte. `/{entityId}/partners` y `/{entityId}/vendors` son los listados de clientes y proveedores. |
 | Cuenta contable | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movimientos de una cuenta. El plan de cuentas está en `/{entityId}/settings/chart-of-accounts`. |
