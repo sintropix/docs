@@ -529,5 +529,5 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/partner-ledger
 | 200 | Success |
 | 400 | Invalid query parameters |
 | 401 | Unauthenticated |
-| 403 | Not a member of this entity |
-| 404 | Entity or referenced resource not found |
+| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`) |
+| 404 | Entity or referenced resource not found, or the Entity is outside your Organizations |

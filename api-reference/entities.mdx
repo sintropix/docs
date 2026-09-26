@@ -6,7 +6,7 @@ description: "List, create, and configure the legal companies (Entities) that ow
 
 import AppLink from "/snippets/app-link.mdx"
 
-An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. This page covers the Entity CRUD, ledger-lock date, and accounting policy endpoints.
+An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. Every Entity belongs to exactly one [Organization](/api-reference/organizations), and Users reach it through their Membership in that Organization. This page covers the Entity CRUD, ledger-lock date, accounting policy, and Organization move endpoints.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/home"
@@ -15,9 +15,11 @@ An Entity is a legal company with its own books, functional currency, and integr
 
 ## POST /api/entities
 
-Create a new Entity. The client supplies the idempotency id, so a retried POST with the same id is rejected as a conflict instead of creating a duplicate.
+Create a new Entity in an Organization. The client supplies the idempotency id, so a retried POST with the same id is rejected as a conflict instead of creating a duplicate.
 
-- **Staff only**
+- **Requires the `staff` Role** in the target Organization. List the Organizations you can create in with [`GET /api/organizations`](/api-reference/organizations).
+- An Organization you hold no Membership in returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`. A `client` or `viewer` Membership returns `403` with `PERMISSION_DENIED_ERROR`.
+- An API key confined to one Entity can't create Entities and receives `403`.
 - **Body:**
 
 | Field | Type | Required | Description |
@@ -27,6 +29,7 @@ Create a new Entity. The client supplies the idempotency id, so a retried POST w
 | `country` | string | Yes | ISO country code, non-empty |
 | `taxId` | string | Yes | Tax registration, non-empty; canonicalized for Chile |
 | `currency` | string | Yes | Functional currency code, non-empty |
+| `organizationId` | UUID | Yes | Organization the Entity belongs to |
 
 - **Success response:** the created Entity (see [Response shape](#response-shape))
 - **Status:** 201
@@ -41,13 +44,14 @@ curl -X POST https://api.sintropix.com/api/entities \
     "name": "Acme SpA",
     "country": "CL",
     "taxId": "76.123.456-0",
-    "currency": "CLP"
+    "currency": "CLP",
+    "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d"
   }'
 ```
 
 ## GET /api/entities
 
-List every Entity the caller can access. Staff see all Entities; clients see only the Entities they hold a membership for.
+List every Entity the caller can access. You see every Entity of each Organization you hold a Membership in, whatever your Role.
 
 - **Success response:** array of Entity objects (see [Response shape](#response-shape))
 - **Status:** 200
@@ -77,7 +81,7 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/editability \
 
 ## PATCH /api/entities/:entityId
 
-Update the core identity fields of an Entity. At least one field must be provided. The update canonicalizes Chilean tax registrations and requires both `country` and `taxId` when either is supplied.
+Update the core identity fields of an Entity. At least one field must be provided. To change the Organization, use `PATCH /api/entities/:entityId/organization` below. The update canonicalizes Chilean tax registrations and requires both `country` and `taxId` when either is supplied.
 
 - **Path param:** `entityId` (UUID)
 - **Body:**
@@ -124,9 +128,9 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger-lock-date
 
 ## PATCH /api/entities/:entityId/parent
 
-Set or clear the parent Entity that controls this one. An id names the controlling Entity; `null` makes it a root. The parent must exist, must not be the Entity itself, and must not create a cycle.
+Set or clear the parent Entity that controls this one. An id names the controlling Entity; `null` makes it a root. The parent must exist, must not be the Entity itself, and must not create a cycle. A parent you can't reach returns `404`, the same as an unknown one.
 
-- **Staff only**
+- **Requires the `staff` Role** in the Entity's Organization
 - **Path param:** `entityId` (UUID)
 - **Body:**
 
@@ -149,7 +153,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/parent \
 
 Set or remove the free-text accounting policies of an Entity. Free text sets the rules; `null` removes them.
 
-- **Staff only**
+- **Requires the `staff` Role** in the Entity's Organization
 - **Path param:** `entityId` (UUID)
 - **Body:**
 
@@ -168,6 +172,30 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/accounting-polic
   -d '{"accountingPolicies": "Purchases below 100000 CLP go to expenses."}'
 ```
 
+## PATCH /api/entities/:entityId/organization
+
+Move an Entity to another Organization. Members of the old Organization lose access to the Entity. Members of the new Organization gain it with their Role there.
+
+- **Global `staff` only**
+- **Path param:** `entityId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `organizationId` | UUID | Yes | The Organization to move the Entity to |
+
+- **Status:** 204
+- An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/organization \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Client merged the company into its main group" \
+  -d '{"organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d"}'
+```
+
 ## Response shape
 
 Every endpoint on this page that returns an Entity uses this shape:
@@ -182,6 +210,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ledgerLockDate` | ISO date or null | Ledger freeze date |
 | `accountingPolicies` | string or null | Free-text policies |
 | `parentEntityId` | UUID or null | Controlling Entity |
+| `organizationId` | UUID | Organization the Entity belongs to |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
@@ -195,6 +224,7 @@ Every endpoint on this page that returns an Entity uses this shape:
   "ledgerLockDate": "2026-01-31",
   "accountingPolicies": null,
   "parentEntityId": null,
+  "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
   "createdAt": "2026-02-01T12:00:00.000Z",
   "updatedAt": "2026-02-01T12:00:00.000Z"
 }
@@ -208,15 +238,18 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ENTITY_PARENT_NOT_FOUND_ERROR` | Named parent Entity does not exist |
 | `ENTITY_SELF_PARENT_ERROR` | An Entity cannot control itself |
 | `ENTITY_PARENT_CYCLE_ERROR` | Parent would create a control cycle |
+| `ORGANIZATION_NOT_FOUND_ERROR` | Named Organization does not exist or is outside your reach |
+| `PERMISSION_DENIED_ERROR` | Your Role in the Organization doesn't allow this action |
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | 200 | Success (GET, PATCH) |
+| 204 | Success (PATCH organization) |
 | 201 | Created (POST) |
 | 400 | Validation error |
 | 401 | Unauthenticated |
-| 403 | Forbidden (staff-only endpoint) |
-| 404 | Entity not found |
+| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`), or a global-staff-only endpoint |
+| 404 | Entity or Organization not found, or outside your reach |
 | 409 | Domain rule violation (see `code`) |

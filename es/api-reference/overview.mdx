@@ -40,9 +40,26 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para el equipo de Sintropix) y `/api/health`.
+Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para el equipo de Sintropix) y `/api/health`.
 
 `{entityId}` es siempre un UUID. Una solicitud sobre una Entidad a la que quien llama no tiene acceso devuelve `404`, nunca `403`, de modo que sondear rutas no revela si una Entidad desconocida existe.
+
+## Acceso y roles
+
+El acceso a una Entidad proviene de una **Membresía de Organización**. Una [Organización](/api-reference/organizations) agrupa las Entidades que un cliente gestiona como un solo negocio, y cada Entidad pertenece a exactamente una Organización. Una Membresía le da a un Usuario un Rol en una Organización. Ese Rol aplica a todas las Entidades de la Organización, incluidas las que se agreguen después.
+
+| Rol | Leer datos de la Entidad | Escribir datos de la Entidad | Trabajo de Sintropix |
+| --- | --- | --- | --- |
+| `staff` | Sí | Sí | Sí |
+| `client` | Sí | Sí | No |
+| `viewer` | Sí | No | No |
+
+- **Leer** cubre las solicitudes `GET` sobre rutas de Entidad, incluido el [Audit Trail](/api-reference/audit-trail). **Escribir** cubre `POST`, `PUT`, `PATCH` y `DELETE`.
+- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), sincronización de honorarios, políticas contables, la Entidad matriz, la creación de Entidades, los reportes de carga de trabajo y de actores de registro del equipo, y la [sincronización de tipos de cambio](/api-reference/fx-rates).
+- Una Entidad fuera de tus Organizaciones devuelve `404`. Una acción que tu Rol no permite devuelve `403` con `PERMISSION_DENIED_ERROR`.
+- Los Usuarios con el rol global `role = staff` mantienen acceso a todas las Entidades y son los únicos que pueden administrar Organizaciones y Membresías.
+
+El equipo de Sintropix otorga las Membresías mediante la [API de Onboarding](/api-reference/onboarding).
 
 ## Autenticación
 
@@ -69,7 +86,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-Los parámetros de ruta que son identificadores deben ser UUID válidos; un identificador mal formado devuelve `400`.
+Los parámetros de ruta que son identificadores deben ser UUID válidos; un identificador mal formado devuelve `400`. Un `entityId` mal formado devuelve `404`, como cualquier Entidad a la que no tienes acceso.
 
 ## Formato de las respuestas
 
@@ -117,7 +134,7 @@ Las respuestas distintas de 2xx son JSON. Toda respuesta, exitosa o fallida, lle
 | `204` | La solicitud se completó correctamente sin cuerpo de respuesta. |
 | `400` | El cuerpo, la query o la ruta no pasaron la validación, o falta un encabezado obligatorio. |
 | `401` | No hay una clave de API válida. |
-| `403` | La clave no tiene permiso para esta acción (por ejemplo, una clave de solo lectura intentando una mutación). |
+| `403` | Quien llama no tiene permiso para esta acción (por ejemplo, una clave de solo lectura intentando una mutación, o un `viewer` intentando escribir). Los rechazos por Rol llevan `PERMISSION_DENIED_ERROR`. |
 | `404` | El recurso no existe, o quien llama no tiene acceso a la Entidad solicitada. |
 | `409` | Conflicto de dominio (por ejemplo, un asiento contable ya contabilizado o una fila duplicada). |
 | `429` | Se superó el límite de solicitudes de una clave de API. |

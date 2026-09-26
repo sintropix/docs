@@ -4,13 +4,13 @@ sidebarTitle: "Get an API Key"
 description: "Create a Sintropix API key from Settings, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
 ---
 
-Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, inherits the owning User's Role and Memberships, and is rate-limited to 25,000 requests per hour.
+Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, acts as the owning User with that User's Organization Memberships, and is rate-limited to 25,000 requests per hour.
 
 Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sintropix.com). The whole trip takes under a minute.
 
 <Steps>
   <Step title="Sign in and open Settings">
-    Sign in as the User the key should act on behalf of. The key inherits that User's Role and per-Entity Memberships, so choose a User with the access the integration actually needs.
+    Sign in as the User the key should act on behalf of. The key acts with that User's Organization Memberships and their Roles, so choose a User with the access the integration actually needs.
 
     Sign-in always asks for two-step verification (**Verificación en dos pasos**). After the password, enter the 6-digit code from your authenticator app, or one of your single-use backup codes. On your first sign-in, Sintropix asks you to scan a QR code with an authenticator app, confirm a code, and save 10 backup codes before you can continue. Only a session with two-step verification can create API keys.
 
@@ -91,9 +91,9 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 
 ## Scope and Permissions
 
-- A key authenticates as its owning User with that User's global Role and per-Entity Memberships.
-- Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities the owning User is a member of.
-- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, and `GET /api/entities` lists only the confined Entity. Use one-Entity keys when the integration should only ever touch one company.
+- A key authenticates as its owning User, with that User's global Role and Organization Memberships. See [Access and roles](/api-reference/overview#access-and-roles).
+- Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities of the Organizations the owning User holds a Membership in, and only do what the User's Role there allows. A key owned by a `viewer` can only read.
+- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, `GET /api/entities` lists only the confined Entity, and `GET /api/organizations` returns an empty array. A confined key can't create Entities. Use one-Entity keys when the integration should only ever touch one company.
 
 ## Rate Limits
 

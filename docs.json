@@ -83,6 +83,7 @@
                 "pages": [
                   "api-reference/fx-rates",
                   "api-reference/reference-data",
+                  "api-reference/organizations",
                   "api-reference/onboarding"
                 ]
               }
@@ -165,6 +166,7 @@
                 "pages": [
                   "api-reference/fx-rates",
                   "api-reference/reference-data",
+                  "api-reference/organizations",
                   "api-reference/onboarding"
                 ]
               }

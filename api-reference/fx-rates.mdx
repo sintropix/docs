@@ -106,7 +106,7 @@ curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
 ```
 
 <Note>
-  This route requires `role = staff`. Client callers receive `403`.
+  This route requires the `staff` Role in at least one Organization. Other callers receive `403` with `PERMISSION_DENIED_ERROR`.
 </Note>
 
 ## Status codes
@@ -115,6 +115,6 @@ curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
 | --- | --- |
 | `200` | Success. |
 | `400` | Validation error on query or body, or missing `x-audit-actor` on the sync call. |
-| `403` | `POST /sync` called by a non-staff user. |
+| `403` | `POST /sync` called by a User with no `staff` Role in any Organization. |
 | `404` | No rate found for the requested currency pair on or before the given date. |
 | `502` | Upstream error from Banco Central de Chile on sync. |

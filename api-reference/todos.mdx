@@ -11,7 +11,7 @@ A To-do is a line of pending work that staff tracks for an Entity and checks off
 To-dos are independent of an Invoice's [Review Status](/api-reference/invoices#review-status) and of Comments. Setting or clearing one never changes the others.
 
 <Warning>
-  Staff-only. A client-role caller (session or API key) receives `403` on every route below, even on an Entity it is a member of.
+  Staff-only. Every route below requires the `staff` Role in the Entity's Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. See [Access and roles](/api-reference/overview#access-and-roles).
 </Warning>
 
 <AppLink
@@ -191,7 +191,7 @@ To-do domain errors carry a `code` and a `params` object in the body.
 | `201` | To-do created. |
 | `400` | Validation error: blank or too-long `text`, more than one link id or filter, or an empty PATCH body. |
 | `401` | Unauthenticated. |
-| `403` | Caller is not staff. |
+| `403` | Caller does not hold the `staff` Role in the Entity's Organization (`PERMISSION_DENIED_ERROR`). |
 | `404` | To-do or linked record not found. |
 | `409` | A To-do with that `id` already exists. |
 | `429` | Rate limit exceeded (25,000 requests per hour per API key). |
