@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Bank Movements API: Book, Match, and Transfer"
 sidebarTitle: "Bank Movements"
-description: "List Bank Movements for an account, get match candidates and reconciliation state, book or match a movement, and record internal transfers."
+description: "List Bank Movements, get match candidates, book or match a movement, assign an overpayment from the Suspense Account, and record internal transfers."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, or `reconciled`. This page covers listing, editing, booking, and matching Bank Movements, individually or in bulk. It also shows how to record an internal transfer between two Bank Accounts.
+A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, or `reconciled`. This page covers listing, editing, booking, and matching Bank Movements, individually or in bulk. It also covers assigning the rest of an overpaid Match, and recording an internal transfer between two Bank Accounts.
 
 ## Status
 
@@ -15,7 +15,7 @@ Read endpoints enrich each Movement with a `status` field (`bankMovementWithStat
 | Value | Meaning |
 | --- | --- |
 | `unbooked` | Movement has no Ledger Entry yet. |
-| `booked_pending_allocation` | Movement is booked to a Ledger Entry, but the counterpart Open-Item line still has open amount. |
+| `booked_pending_allocation` | Movement is booked to a Ledger Entry, but the counterpart Open-Item line still has open amount, or part of the Movement still sits on the [Suspense Account](#overpayments-and-the-suspense-account). |
 | `reconciled` | Movement is booked and every counterpart line is fully allocated. |
 
 You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value.
@@ -312,6 +312,8 @@ Match up to 100 already-created Movements to existing documents in a single tran
 - **Body:** `BulkMatchBankMovementDto` — `{ matches: (MatchBankMovement & { movementId })[] }` (1 to 100 elements).
 - **Response:** array of `reconcileBankMovementResultSchema`, in input order.
 
+Each element follows the same rules as the single-movement Match, including the [Suspense line](#overpayments-and-the-suspense-account) for the rest.
+
 <Info>
   Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`).
 </Info>
@@ -408,6 +410,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 Match a Movement to an existing document (Invoice or Ledger Entry) rather than booking a new entry. Sintropix records an Allocation between the Movement's counter-account line and the matched document's open-item line.
 
+The settlement line can settle at most the target's Open Amount. When the Movement is larger than your counterpart lines, Sintropix books the rest on the Entity's Suspense Account. See [Overpayments and the Suspense Account](#overpayments-and-the-suspense-account).
+
 **Body:** the same fields as `POST /book` without `movementPartnerId`, plus the line to settle:
 
 | Field | Type | Required | Description |
@@ -417,11 +421,11 @@ Match a Movement to an existing document (Invoice or Ledger Entry) rather than b
 | `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
 | `notes` | string \| null | No | Free-text notes. |
 | `bookId` | uuid \| null | Conditional | Same rule as `POST /book`. The Book of the entry must match the Book of the line being settled. |
-| `newCounterpartLines` | array of line objects | Yes | At least one line. Include the settlement line on the open-item account (and any realized-FX line); the allocation is sized from it. |
+| `newCounterpartLines` | array of line objects | Yes | At least one line, each with a `functionalAmount` above `0`. Include the settlement line on the open-item account (and any realized-FX line); the allocation is sized from it. The settlement line cannot exceed the target's Open Amount, and the lines together cannot exceed the Movement. Do not send a line for the rest. Sintropix adds it on the Suspense Account. |
 | `bankLineFxRate` | decimal string | Conditional | Same rule as `POST /book`. |
 | `lineId` | uuid | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. To match an Invoice, pass its control line. |
 
-**Response:** `{ movement, bankAccount, reconciliation }`.
+**Response:** `{ movement, bankAccount, reconciliation }`. When a rest is left, `reconciliation.entry.lines` includes the Suspense line and `movement.status` is `booked_pending_allocation`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/match" \
@@ -444,6 +448,110 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
     ]
   }'
 ```
+
+## Overpayments and the Suspense Account
+
+A Movement can pay more than the document you match it to. For example, a customer transfers 1,000,000 against an invoice with 700,000 open. The extra 300,000 might pay another invoice, belong to another Partner, or cover an invoice that has not arrived yet. Sintropix doesn't credit it to the invoice's Partner. It books the rest on the Entity's Suspense Account instead.
+
+The Suspense Account is an `asset` Open-Item Account with sub-type `suspense`, shown as **Asignación pendiente** in the starter chart. Each Entity has at most one. See [Chart of Accounts](/api-reference/chart-of-accounts) to create or mark it. Its lines carry no Partner, and only Match, Assign, and Unassign write them.
+
+The flow for the example above:
+
+| Step | Ledger Entry lines | Movement `status` |
+| --- | --- | --- |
+| Match invoice A (700,000 open) | Bank debit 1,000,000, Clients credit 700,000, Suspense credit 300,000 | `booked_pending_allocation` |
+| Assign 300,000 to invoice B | Bank debit 1,000,000, Clients credit 700,000, Clients credit 300,000 | `reconciled` |
+| Unassign the 300,000 line | Back to the first Entry. Invoice B reopens. | `booked_pending_allocation` |
+
+Keep these rules in mind:
+
+- A Match that leaves a rest is refused with `BANK_MOVEMENT_SUSPENSE_ACCOUNT_MISSING_ERROR` when the Entity has no Suspense Account. A Match with no rest works without one.
+- Assign and Unassign edit the Match's Ledger Entry in place. They do not create a new Entry. They work only on an active Entry dated after the Lock Date.
+- To undo the whole Match, unbook the Movement. [Reversing](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries-entryid-reverse) the Entry is refused while it still has a Suspense line.
+- On a foreign-currency Bank Account, the Suspense line is stated in the Bank Account's currency at `bankLineFxRate`.
+- The Suspense Account cannot be a Match or Assign target, and you cannot post to it through manual entries or Reclassify.
+
+## POST `/movements/:movementId/assign`
+
+Move part or all of a Movement's Suspense line into new lines of the same Ledger Entry. Use it when you find out what the rest of an overpaid Match pays. Requires `x-audit-actor` for API-key callers.
+
+Assign works in two ways:
+
+- **Settle an open item.** Set `lineId` to the open line to settle, such as another Invoice's control line. Include a settlement line on that line's account. Sintropix allocates it against the target, up to the target's Open Amount, the same way as Match.
+- **Categorize to accounts.** Set `lineId` to `null` and send plain lines on any account, for example other income or a bank fee.
+
+The Suspense line shrinks by the net amount the new lines take. It goes away when nothing is left, and the Movement becomes `reconciled` once its open items are settled.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lineId` | uuid \| null | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. Pass `null` to assign to plain account lines. |
+| `newCounterpartLines` | array of line objects | Yes | At least one counterpart line, in the same shape as `POST /book`, each with a `functionalAmount` above `0`. Together they cannot take more than the Suspense line holds. |
+
+**Response:** `{ movement, bankAccount, reconciliation }`, the same shape as `POST /match`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/assign" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lineId": "7e8f9a0b-1c2d-4e3f-8a4b-5c6d7e8f9a0b",
+    "newCounterpartLines": [
+      {
+        "id": "8f9a0b1c-2d3e-4f4a-8b5c-6d7e8f9a0b1c",
+        "accountId": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+        "functionalAmount": 300000,
+        "side": "credit",
+        "partnerId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
+      }
+    ]
+  }'
+```
+
+<Warning>
+  Assign is not idempotent. If a request may have succeeded, read `GET /movements/:movementId/reconciliation` before you retry it.
+</Warning>
+
+## POST `/movements/:movementId/unassign`
+
+Move one counterpart line of the Movement's Ledger Entry back to the Suspense line. Sintropix removes the line's Allocations, so any document it settled reopens. Use it to correct an Assign or a Match line without unbooking the whole Movement. Requires `x-audit-actor` for API-key callers.
+
+The Entity must have a Suspense Account. Sintropix creates the Suspense line if the Entry has none. You cannot unassign the bank line, the Suspense line, or a line that another record holds, such as a Fixed Asset.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lineId` | uuid | Yes | The counterpart line to move back to the Suspense line. Take it from `reconciliation.entry.lines`. |
+
+**Response:** `{ movement, bankAccount, reconciliation }`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/unassign" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "lineId": "8f9a0b1c-2d3e-4f4a-8b5c-6d7e8f9a0b1c" }'
+```
+
+### Match, Assign, and Unassign errors
+
+Each error answers `409` with the `code` and the `params` shown. Amounts are functional amounts in minor units.
+
+| Code | Meaning |
+| --- | --- |
+| `BANK_MOVEMENT_MATCH_SETTLEMENT_EXCEEDS_OPEN_AMOUNT_ERROR` | The settlement line is larger than the target's Open Amount. `params: { lineId, openAmount, settlementAmount }`. |
+| `BANK_MOVEMENT_MATCH_COUNTERPARTS_EXCEED_MOVEMENT_ERROR` | The counterpart lines add up to more than the Movement. `params: { movementSide, bankLineAmount, counterpartNetAmount }`. |
+| `BANK_MOVEMENT_MATCH_TARGET_ON_SUSPENSE_ACCOUNT_ERROR` | `lineId` names a line on the Suspense Account. `params: { lineId }`. |
+| `BANK_MOVEMENT_SUSPENSE_ACCOUNT_MISSING_ERROR` | The Match leaves a rest, or Unassign needs a Suspense line, but the Entity has no Suspense Account. |
+| `BANK_MOVEMENT_NO_SUSPENSE_LINE_ERROR` | Assign was called on a Movement whose Entry has no Suspense line. `params: { movementId, ledgerEntryId }`. |
+| `BANK_MOVEMENT_ASSIGN_EXCEEDS_SUSPENSE_LINE_ERROR` | The new lines take more than the Suspense line holds. `params: { suspenseLineId, suspenseAmount, assignedAmount }`. |
+| `BANK_MOVEMENT_ASSIGN_TAKES_NOTHING_FROM_SUSPENSE_LINE_ERROR` | The new lines take nothing from the Suspense line, for example because lines on the Movement's own side outweigh the others. `params: { suspenseLineId, assignedAmount }`. |
+| `BANK_MOVEMENT_UNASSIGN_LINE_NOT_COUNTERPART_ERROR` | `lineId` is not a counterpart line of the Movement's Entry. `params: { movementId, lineId }`. |
+| `BANK_MOVEMENT_UNASSIGN_LINE_PINNED_ERROR` | Another record, such as a Fixed Asset, holds the line. `params: { lineId }`. |
+| `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line you sent posts to the Suspense Account. `params: { ledgerAccountId }`. |
 
 ## Record an internal transfer
 

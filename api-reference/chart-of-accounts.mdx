@@ -69,7 +69,7 @@ Each account in `accounts` carries:
 | `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
-| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing` |
+| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
 | `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, `booking_template`, or null when deletable |
@@ -223,7 +223,7 @@ Create a new Ledger Account.
 | `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`; null or omitted means none |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`; null or omitted means none |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the created Ledger Account with its derived facts, in the same shape as the `accounts` rows of the Chart of Accounts
@@ -283,7 +283,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, or null to clear |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, or null to clear |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the updated Ledger Account with its derived facts, in the same shape as the create response above
@@ -296,6 +296,17 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
   -H "x-audit-actor: my-agent" \
   -d '{"name": "Caja chica"}'
 ```
+
+### The Suspense Account
+
+The sub-type `suspense` marks the Entity's Suspense Account. When a [bank Match](/api-reference/bank-movements#overpayments-and-the-suspense-account) pays more than the target's Open Amount, Sintropix books the rest there until you assign it. The `sintropix-ifrs-starter` template includes one, `1.5.5 Asignación pendiente`. Without a Suspense Account, a Match that leaves a rest is refused.
+
+To mark an account as the Suspense Account, create it or `PATCH` it with `type: "asset"`, `tracking: "open_item"`, and `subtype: "suspense"`. These rules apply:
+
+- Only an `asset` account can take the sub-type.
+- An Entity has at most one Suspense Account. A second one is refused with `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR`.
+- An account takes the sub-type only while it has no lines. Otherwise Sintropix returns `LEDGER_ACCOUNT_SUSPENSE_REQUIRES_NO_LINES_ERROR`.
+- Only Match, Assign, and Unassign post to it. Manual entries, Reclassify, Scheduled Entries, Bank Account mapping, Booking Templates, and Fixed Asset Classes that name it are refused with `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR`.
 
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 
@@ -328,6 +339,9 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
+| `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR` | The Entity already has a Suspense Account |
+| `LEDGER_ACCOUNT_SUSPENSE_REQUIRES_NO_LINES_ERROR` | Only an account with no lines can become the Suspense Account |
+| `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | The Suspense Account cannot be used here. Only bank Match, Assign, and Unassign post to it |
 | `LEDGER_ACCOUNT_GROUP_NOT_FOUND_ERROR` | Referenced group does not exist |
 | `LEDGER_ACCOUNT_GROUP_ALREADY_EXISTS_ERROR` | Group code prefix already in use |
 | `LEDGER_ACCOUNT_GROUP_ID_ALREADY_EXISTS_ERROR` | Group id already exists |
