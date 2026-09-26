@@ -326,6 +326,8 @@ Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be
 | `id` | UUID | Yes | Client-supplied idempotency id for the reversal entry |
 | `entryDate` | ISO date | Yes | Reversal date |
 
+An Entry that still holds a line on the Suspense Account is refused with `LEDGER_REVERSAL_ENTRY_HAS_SUSPENSE_LINE_ERROR`. Unbook the Bank Movement instead, or [assign](/api-reference/bank-movements#post-movements-movementid-assign) the rest first.
+
 - **Success response:** every row the reversal changed
 - **Status:** 201
 
@@ -653,6 +655,10 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `LEDGER_ENTRY_LINE_PARTNER_NOT_FOUND_ERROR` | Partner not found |
 | `LEDGER_ENTRY_LINE_PARTNERS_NOT_FOUND_ERROR` | Multiple partners not found |
 | `LEDGER_ENTRY_LINE_ACCOUNT_PINNED_ERROR` | Account cannot be changed (pinned by constraint) |
+| `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line posts to the Suspense Account, which only bank Match, Assign, and Unassign can use |
+| `LEDGER_ENTRY_LINE_PARTNER_ON_SUSPENSE_ACCOUNT_ERROR` | A line on the Suspense Account cannot carry a Partner |
+| `LEDGER_ENTRY_LINE_RECLASSIFY_SUSPENSE_ACCOUNT_ERROR` | Reclassify cannot move a line to or from the Suspense Account |
+| `LEDGER_REVERSAL_ENTRY_HAS_SUSPENSE_LINE_ERROR` | Entry holds a Suspense line and cannot be reversed |
 | `LEDGER_ENTRY_NOT_SCHEDULED_ERROR` | Entry is not a Scheduled Entry |
 | `LEDGER_ENTRY_SCHEDULED_DATE_NOT_FUTURE_ERROR` | Scheduled date must be in the future |
 | `LEDGER_ENTRY_SCHEDULED_NOT_DUE_ERROR` | Scheduled entry is not yet due |
