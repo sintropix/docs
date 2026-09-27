@@ -39,8 +39,10 @@ A Bank Account has one of two kinds, validated at creation against the mapped Le
 
 | Kind | Mapped Ledger Account type |
 | --- | --- |
-| `bank` | Asset |
+| `bank` | Asset, with the sub-type `cash` ([Cash Account](/api-reference/chart-of-accounts#cash-accounts)) |
 | `card` | Liability |
+
+Creating a Bank Account of kind `bank` on a Ledger Account that is not a Cash Account returns `BANK_ACCOUNT_LEDGER_ACCOUNT_NOT_CASH_ERROR` (`409`). While the Bank Account exists, the Ledger Account keeps the sub-type `cash`.
 
 ## List bank accounts
 
@@ -124,7 +126,7 @@ Creates a new Bank Account.
 | `id` | UUID | Yes | Client-supplied identifier for idempotency |
 | `name` | string | Yes | Display name (non-empty) |
 | `kind` | `bank` \| `card` | Yes | Account kind |
-| `ledgerAccountId` | UUID | Yes | Ledger Account to map; type must match kind |
+| `ledgerAccountId` | UUID | Yes | Ledger Account to map; type must match kind, and a `bank` account must map to a Cash Account |
 | `currency` | string | Yes | ISO 4217 currency code |
 
 ### Response
@@ -138,7 +140,7 @@ Returns `201 Created` with the created Bank Account, including the `balance` and
 | 201 | Created |
 | 400 | Validation error or kind/type mismatch |
 | 404 | Entity or Ledger Account not found |
-| 409 | `id` already exists |
+| 409 | `id` already exists, or `BANK_ACCOUNT_LEDGER_ACCOUNT_NOT_CASH_ERROR` for a `bank` account mapped to a Ledger Account without the sub-type `cash` |
 
 ### Example
 
