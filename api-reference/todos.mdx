@@ -8,7 +8,7 @@ import AppLink from "/snippets/app-link.mdx"
 
 A To-do is a line of pending work that staff tracks for an Entity and checks off when it is done. A To-do stands alone or links to at most one record: an Invoice, a Bank Movement, or a Ledger Entry. Use To-dos to leave yourself or your team a reminder, such as "Ask the client for the signed contract", on the record it concerns.
 
-To-dos are independent of an Invoice's [Review Status](/api-reference/invoices#review-status) and of Comments. Setting or clearing one never changes the others.
+To-dos are independent of a record's [Recommendation](/api-reference/recommendations) and of Comments. Setting or clearing one never changes the others.
 
 <Warning>
   Staff-only. Every route below requires the `staff` Role in the Entity's Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. See [Access and roles](/api-reference/overview#access-and-roles).

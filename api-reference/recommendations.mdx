@@ -1,10 +1,10 @@
 ---
 title: "Sintropix Recommendations API: Advise, Approve, Discard"
 sidebarTitle: "Recommendations"
-description: "Leave an agent Recommendation on a Bank Movement or Invoice, then approve its Plan in one all-or-nothing write or discard it. Covers statuses, Plans, and errors."
+description: "Leave a Recommendation on a Bank Movement or Invoice, mark a record waiting, then approve its Plan in one all-or-nothing write or discard it."
 ---
 
-A Recommendation is an agent's advice on one Bank Movement or one Invoice, stored on that record. It proposes how to book or match the record, asks a person a question, or reports that a record is missing. A person then approves it or discards it, in the app or through the API. Until someone approves it, a Recommendation changes nothing in the books.
+A Recommendation is the mark of pending work on one Bank Movement or one Invoice, stored on that record. It proposes how to book or match the record, asks a person a question, or marks the record as waiting on something. An agent such as Erwin or a person can write it. A person then approves it or discards it, in the app or through the API. Until someone approves it, a Recommendation changes nothing in the books.
 
 Use Recommendations when an agent or integration prepares reconciliation work but a person should confirm it. The agent writes the Recommendation. The person reviews the proposed steps and approves them with one write.
 
@@ -21,12 +21,12 @@ Use Recommendations when an agent or integration prepares reconciliation work bu
 
 | Host | Accepts a Recommendation when |
 | --- | --- |
-| Bank Movement | The Movement is `unbooked`. |
+| Bank Movement | The Movement is `unbooked`, or booked by an entry that still has a line on the [Suspense Account](/api-reference/bank-movements#overpayments-and-the-suspense-account). |
 | Invoice | The Invoice is unbooked, or booked with open amount left on its Control Line. |
 
 A record holds at most one Recommendation. Writing a new one replaces the current one.
 
-Every Bank Movement and Invoice row carries a `recommendation` field. It holds the Recommendation as written, or `null` when the record has none. Use it to find records that are waiting for review.
+Every Bank Movement and Invoice row carries a `recommendation` field. It holds the Recommendation as written, or `null` when the record has none. To find records by Recommendation, filter [`GET /movements`](/api-reference/bank-movements#get-movements) or [`GET /invoices/pages`](/api-reference/invoices) with `recommendationStatus`. It takes `confident`, `needs_clarification`, `waiting`, or `none` (records with no Recommendation).
 
 ## Statuses
 
@@ -34,9 +34,11 @@ Every Bank Movement and Invoice row carries a `recommendation` field. It holds t
 | --- | --- | --- | --- |
 | `confident` | `reason`, `plan` | One Plan fits and the evidence is clear. | Yes, runs `plan`. |
 | `needs_clarification` | `question`, `options` | The agent needs a fact only a person has. Each option carries a `label` and a `plan`. | Yes, when `options` is not empty. The approver picks one option. |
-| `missing` | `reason` | A record that should exist does not, for example a bill that never arrived. | No. Discard it once resolved. |
+| `waiting` | `reason`, `checkBack` | The record waits on something outside Sintropix, for example a bill that has not arrived or the other leg of a transfer. `checkBack` says in free text when to look again, for example `a fin de mes`. | No. Discard it once resolved. |
 
 A `needs_clarification` Recommendation with an empty `options` array is an open question. A person answers it in the record's Comments, and the agent writes a new Recommendation from the answer.
+
+A record that waits stays unbooked. For example, when only one leg of an internal transfer has arrived, leave that leg unbooked and mark it `waiting`. Do not book it to the bridge account. In the app, a person marks a record waiting from its side panel. The mark replaces any Recommendation on the record.
 
 ## Plans
 
@@ -65,8 +67,9 @@ Set or replace the Recommendation of a record. Setting one changes no books.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id of this Recommendation. Use a new id on every change. |
-| `status` | string | Yes | `confident`, `needs_clarification`, or `missing`. |
-| `reason` | string | `confident`, `missing` | Why the agent advises this. Non-blank. |
+| `status` | string | Yes | `confident`, `needs_clarification`, or `waiting`. |
+| `reason` | string | `confident`, `waiting` | Why the agent advises this, or what the record waits on. Non-blank. |
+| `checkBack` | string | `waiting` | Free text that says when to look at the record again. Non-blank. |
 | `plan` | array of acts | `confident` | The Plan to run on approval. |
 | `question` | string | `needs_clarification` | The question for a person. Non-blank, up to 4,000 characters. |
 | `options` | array of `{ label, plan }` | `needs_clarification` | The possible answers, each with a non-blank `label` and its own `plan`. Send `[]` for an open question. |
@@ -116,6 +119,17 @@ curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BA
       }
     ]
   }'
+```
+
+A record waiting on a document that has not arrived yet:
+
+```json
+{
+  "id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+  "status": "waiting",
+  "reason": "Falta la factura de Arriendos Sur por este pago.",
+  "checkBack": "a fin de mes"
+}
 ```
 
 A question with two options, where each `plan` matches the Movement to a different Invoice:
@@ -192,12 +206,13 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVO
 
 ## When Sintropix clears a Recommendation
 
-A Recommendation advises on the record as it stood when the agent wrote it. Sintropix clears it when the record's reconciliation changes:
+A Recommendation advises on the record as it stood when it was written. Sintropix clears it when the record's reconciliation changes:
 
 - Booking or matching the Bank Movement.
 - Unbooking the Ledger Entry that booked the Bank Movement.
+- [Assigning or unassigning](/api-reference/bank-movements#overpayments-and-the-suspense-account) the Bank Movement's Suspense line.
 - Booking the Invoice.
-- Creating or deleting an Allocation on the Invoice's Control Line.
+- Creating or deleting an Allocation on a line of the Bank Movement or the Invoice.
 
 An approval that names a cleared or replaced Recommendation answers `409 RECOMMENDATION_STALE_ERROR`. Read the record again and review its current Recommendation.
 
@@ -205,11 +220,11 @@ An approval that names a cleared or replaced Recommendation answers `409 RECOMME
 
 | Code | Status | Meaning |
 | --- | --- | --- |
-| `BANK_MOVEMENT_ALREADY_RECONCILED_ERROR` | `409` | `PUT` on a Bank Movement that is already booked. |
+| `RECOMMENDATION_MOVEMENT_SETTLED_ERROR` | `409` | `PUT` on a booked Bank Movement whose entry has no line on the Suspense Account. `params: { movementId, ledgerEntryId }`. |
 | `RECOMMENDATION_INVOICE_SETTLED_ERROR` | `409` | `PUT` on a booked Invoice whose Control Line has no open amount. `params: { invoiceId, controlLineId }`. |
 | `RECOMMENDATION_ALREADY_EXISTS_ERROR` | `409` | `PUT` reused the `id` of the current Recommendation with a different body. `params: { recommendationId }`. |
 | `RECOMMENDATION_STALE_ERROR` | `409` | The approval named a Recommendation the record no longer holds. `params: { recommendationId, currentRecommendationId }`, where `currentRecommendationId` is `null` when the record holds none. |
-| `RECOMMENDATION_NOT_APPROVABLE_ERROR` | `409` | The Recommendation is `missing`, which has no Plan. |
+| `RECOMMENDATION_NOT_APPROVABLE_ERROR` | `409` | The Recommendation is `waiting`, which has no Plan. `params: { recommendationId, status }`. |
 | `RECOMMENDATION_QUESTION_OPEN_ERROR` | `409` | The question has no options. Answer it in the Comments. |
 | `RECOMMENDATION_OPTION_REQUIRED_ERROR` | `400` | Approving a question without `optionIndex`. `params` carries `optionCount`. |
 | `RECOMMENDATION_OPTION_NOT_FOUND_ERROR` | `400` | `optionIndex` is out of range. `params` carries `optionIndex` and `optionCount`. |
