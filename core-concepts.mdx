@@ -108,7 +108,18 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - **Surface anomalies**: flag duplicate transactions, unusual spending patterns, unexpected FX exposures, and accounts that moved significantly month-over-month
     - **Draft journal entries**: propose adjusting entries based on reconciliation findings, which a team member can review and post
 
-    Erwin is available from the left navigation bar on any screen. Every response cites the underlying data, so you can drill into the detail behind any number he surfaces.
+    Every response cites the underlying data, so you can drill into the detail behind any number he surfaces.
+
+    **Chat with Erwin in the app.** Anyone with a Membership in the Entity's Organization can chat with Erwin. Click **Erwin** at the bottom right of any Entity page, including the settings pages. Erwin opens in a floating window and shows his answer and each step he takes as he works. Press Escape or click the close button to hide the window. The conversation stays open until you start a **New thread**.
+
+    Erwin knows which page you're on and which record you have open, so you can ask *"¿Por qué este movimiento no está conciliado?"* without naming the movement. Click **Past threads** to see your 50 most recent conversations in the Entity and reopen any of them. Your conversations are private. Nobody else in the Organization can read them.
+
+    In the app, Erwin acts with your rights, not his own:
+
+    - He can only do what your Role allows. If you're a `viewer`, Erwin can read but his writes are refused.
+    - He opens the Entity's Credentials, such as bank logins, only when you're `staff`.
+    - He can't create scheduled tasks from the app. Ask for those in a Slack channel bound through an [Agent Channel](/api-reference/agent-channels).
+    - Each change he makes appears in the [audit trail](/api-reference/audit-trail) with you as the actor and `erwin` as the declared actor.
 
     **Company wiki.** Erwin keeps a wiki for each entity. It records what your team has taught him that the ERP doesn't hold: who approves what, how you book a recurring supplier, quirks of a bank account, and how people want their reports. Erwin checks the wiki before he works on a subject it covers, so he doesn't ask you the same question twice.
 
