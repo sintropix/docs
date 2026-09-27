@@ -12,7 +12,9 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
   <Step title="Inicia sesión y abre Ajustes">
     Inicia sesión como el Usuario en cuyo nombre actuará la clave. La clave actúa con las Membresías de Organización de ese Usuario y sus Roles, así que elige un Usuario con el acceso que la integración realmente necesita.
 
-    El inicio de sesión siempre pide la **Verificación en dos pasos**. Después de la contraseña, ingresa el código de 6 dígitos de tu aplicación de autenticación o uno de tus códigos de respaldo de un solo uso. En tu primer inicio de sesión, Sintropix te pide escanear un código QR con una aplicación de autenticación, confirmar un código y guardar 10 códigos de respaldo antes de continuar. Solo una sesión con verificación en dos pasos puede crear claves de API.
+    El inicio de sesión siempre pide la **Verificación en dos pasos**. Por defecto, Sintropix te envía un código de 6 dígitos por correo después de la contraseña. El código vence a los 5 minutos. Haz clic en **Enviar otro código** para recibir uno nuevo; solo sirve el último. Después de 5 códigos incorrectos, debes ingresar tu contraseña de nuevo. En tu primer inicio de sesión, Sintropix te pide confirmar tu contraseña y te envía un código por correo para activar la verificación en dos pasos.
+
+    Si prefieres una aplicación de autenticación, elige **Usar una aplicación de autenticación** durante la configuración, o más tarde haz clic en **Configurar aplicación de autenticación** en **Ajustes** > **Seguridad**. Escaneas un código QR, confirmas un código y guardas 10 códigos de respaldo. Desde entonces, el inicio de sesión pide el código de la aplicación o un código de respaldo, y Sintropix deja de enviarte códigos por correo. Solo una sesión con verificación en dos pasos puede crear claves de API.
 
     Haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Ajustes**.
 
