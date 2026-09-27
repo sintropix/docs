@@ -97,7 +97,18 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
     - **Detectar anomalías**: marcar transacciones duplicadas, patrones de gasto inusuales, exposiciones cambiarias inesperadas y cuentas con variaciones significativas mes a mes
     - **Proponer asientos**: redactar asientos de ajuste a partir de los hallazgos de la conciliación, para que un miembro del equipo los revise y contabilice
 
-    Erwin está disponible desde la barra de navegación izquierda en cualquier pantalla. Cada respuesta cita los datos subyacentes, así que puedes profundizar en el detalle detrás de cualquier cifra que muestre.
+    Cada respuesta cita los datos subyacentes, así que puedes profundizar en el detalle detrás de cualquier cifra que muestre.
+
+    **Conversa con Erwin en la aplicación.** Cualquier persona con una Membership en la Organization de la entidad puede conversar con Erwin. Haz clic en **Erwin**, abajo a la derecha de cualquier página de la entidad, incluidas las páginas de configuración. Erwin se abre en una ventana flotante y muestra su respuesta y cada paso que da mientras trabaja. Presiona Escape o haz clic en el botón de cerrar para ocultar la ventana. La conversación sigue abierta hasta que inicies una **Nueva conversación**.
+
+    Erwin sabe en qué página estás y qué registro tienes abierto, así que puedes preguntar *"¿Por qué este movimiento no está conciliado?"* sin nombrar el movimiento. Haz clic en **Conversaciones anteriores** para ver tus 50 conversaciones más recientes en la entidad y reabrir cualquiera. Tus conversaciones son privadas. Nadie más en la Organization puede leerlas.
+
+    En la aplicación, Erwin actúa con tus permisos, no con los suyos:
+
+    - Solo puede hacer lo que tu Role permite. Si eres `viewer`, Erwin puede leer, pero sus escrituras se rechazan.
+    - Abre las Credentials de la entidad, como los accesos bancarios, solo si eres `staff`.
+    - No puede crear tareas programadas desde la aplicación. Pídelas en un canal de Slack vinculado mediante un [Agent Channel](/api-reference/agent-channels).
+    - Cada cambio que hace aparece en el [registro de auditoría](/api-reference/audit-trail) contigo como actor y `erwin` como actor declarado.
 
     **Wiki de la empresa.** Erwin mantiene una wiki para cada entidad. En ella registra lo que tu equipo le enseña y que el ERP no guarda: quién aprueba qué, cómo contabilizar un proveedor recurrente, las particularidades de una cuenta bancaria y cómo prefiere cada persona sus reportes. Erwin consulta la wiki antes de trabajar en un tema que ella cubre, así no te pregunta dos veces lo mismo.
 
