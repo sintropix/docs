@@ -34,7 +34,7 @@ Each movement Erwin loads is provisional until the statement arrives:
 Before it creates anything, Erwin reads the `Clave no facturado` keys of every Movement in the window, and creates only keys the ERP does not have yet. You can run it again during the month without creating duplicates. Erwin never edits or deletes a Movement it did not create in that run. It reports any Movement that does not agree with the bank's site. Your team checks the loaded Movements against the statement at month-end close.
 
 <Note>
-  Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
+  Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. Two routes sit directly under the Entity instead: [`GET …/bank-movements/pages`](#get-api-entities-entityid-bank-movements-pages), which lists Movements across every Bank Account, and `POST …/bank-movements/:movementId/comments`.
 </Note>
 
 <Note>
@@ -108,7 +108,7 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `amountMax` | integer | No | Maximum magnitude in minor units. |
 | `search` | string | No | Up to 100 characters. Matched against the description, the bank reference, and the Partner name. Blank is ignored. |
 | `comments` | `with` \| `without` | No | `with` keeps only Movements that have at least one Comment; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
-| `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. |
+| `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. `bankAccount` is refused with `400`, because this listing covers one Bank Account. |
 | `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
 | `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
 
@@ -159,6 +159,73 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
   "nextCursor": "{\"groupSortKey\":\"\",\"groupKey\":\"\",\"sortKey\":\"2025-12-30\",\"createdAt\":\"2025-12-31 03:10:22.000000+00\",\"id\":\"3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11\"}"
 }
 ```
+
+## GET `/api/entities/:entityId/bank-movements/pages`
+
+List Movements across every Bank Account of the Entity. Use it to build a single queue of the work still to reconcile, instead of reading each Bank Account in turn. Returns the same paginated `{ movements, nextCursor }` object as `GET /movements`, and rows are grouped by Bank Account by default.
+
+<Note>
+  This route sits directly under the Entity, not under a Bank Account.
+</Note>
+
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cursor` | string | No | The `nextCursor` value from the previous page. |
+| `limit` | integer | No | Page size, `1` to `100`. Default `50`. |
+| `status` | string | No | One or more of `unbooked`, `booked_pending_allocation`, and `reconciled`, separated by commas. Omit to return every status. |
+| `groupBy` | `bankAccount` \| `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `bankAccount`. |
+| `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field within each group. Default `movementDate`. |
+| `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
+
+This listing takes no other parameters. Any unknown parameter, including the per-account filters of `GET /movements` such as `partnerId` or `search`, is refused with `400`.
+
+**Response**
+
+Each row has the same shape as a `GET /movements` row. Read `bankAccountId` to know which account a Movement sits on. `runningBalance` is the balance of that Movement's own Bank Account.
+
+With `groupBy=bankAccount`, `group.value` is the Bank Account name and `group.key` is `bankAccount:<bankAccountId>`. Groups come in alphabetical order of the account name, ignoring case and accents. If someone renames a Bank Account while you page through the list, you can see a row twice or miss one.
+
+To list every Movement still to reconcile, ask for the two statuses that are not `reconciled`:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-movements/pages?status=unbooked,booked_pending_allocation" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "movements": [
+    {
+      "id": "3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11",
+      "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+      "bankAccountId": "c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
+      "movementDate": "2025-12-30",
+      "amount": 1250000,
+      "side": "debit",
+      "description": "TRANSFERENCIA DE ACME SPA",
+      "status": "unbooked",
+      "runningBalance": 4830000,
+      "partnerName": "Acme SpA",
+      "attachmentCount": 0,
+      "commentCount": 0,
+      "group": {
+        "by": "bankAccount",
+        "value": "Banco de Chile CLP",
+        "key": "bankAccount:c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
+        "movementCount": 12,
+        "startsGroup": true
+      }
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+The example shows only some fields of each row.
+
+In the app, **Data › Banks** shows the number of `unbooked` and `booked_pending_allocation` Movements across every account on a **Movements to reconcile** button (**Movimientos por conciliar** in Spanish). The button opens this list at `/{entityId}/banks/unreconciled`. Selecting a row opens the Movement in its Bank Account.
 
 ## GET `/movements/:movementId/match-candidates`
 
