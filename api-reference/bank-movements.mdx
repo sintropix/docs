@@ -20,18 +20,44 @@ Read endpoints enrich each Movement with a `status` field (`bankMovementWithStat
 
 You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value.
 
-## Unbilled credit card movements
+## Credit card movements
 
-Erwin can load the unbilled movements (movimientos no facturados) of a credit card before the bank issues the monthly statement. Your team can then reconcile card spend during the month instead of waiting for the statement. To run it, ask Erwin in a Slack channel bound to the Entity through an [Agent Channel](/api-reference/agent-channels). BCI is the first supported bank. The Entity needs a BCI login Credential for Erwin to read the bank's site.
+Erwin can load the movements of a credit card into the card's Bank Accounts. To run it, ask Erwin in a Slack channel bound to the Entity through an [Agent Channel](/api-reference/agent-channels). There are two ways to load a card:
 
-Each movement Erwin loads is provisional until the statement arrives:
+- **From a statement** (estado de cuenta facturado). Use this for each monthly statement. The statement is final, and after the load the Bank Account's balance equals the statement's billed balance.
+- **From unbilled movements** (movimientos no facturados). Use this every few days during the month, so your team can reconcile card spend before the statement arrives. These movements are provisional.
 
-- Erwin creates it on the `card` Bank Account of its section. The national (CLP) and international (USD) sections of a card are two separate Bank Accounts.
-- Erwin loads only posted movements dated from 5 days before today to 2 days before today. It skips today, yesterday, and pending authorizations, because the bank can still reverse them.
-- The `description` names the counterpart and the purpose, for example `Uber · viaje`. The `metadata` lines hold the facts that help reconciliation, such as the bank's original description, the card's last 4 digits, the original currency and amount, and the installment number.
-- One `metadata` line labeled `Clave no facturado` holds the movement's key. The key is the bank's movement ID, or `<date>|<amount in minor units>|<side>|<description>` when the bank shows no ID.
+Both ways follow the same rules:
 
-Before it creates anything, Erwin reads the `Clave no facturado` keys of every Movement in the window, and creates only keys the ERP does not have yet. You can run it again during the month without creating duplicates. Erwin never edits or deletes a Movement it did not create in that run. It reports any Movement that does not agree with the bank's site. Your team checks the loaded Movements against the statement at month-end close.
+- Each section of a card is a separate `card` Bank Account. The national (CLP) and international (USD) sections are two Bank Accounts. Erwin finds each one by the card's last 4 digits and the currency. Erwin never creates a Bank Account. It stops and asks if it finds none or more than one.
+- Erwin loads only posted movements, never pending authorizations. It copies the `movementDate`, `amount`, `side`, and `description` exactly as the bank shows them. A charge is a `credit`, and a payment or refund is a `debit`.
+- Every movement gets a key in `externalRef` that never changes.
+- `metadata` holds only these labels, in this order, and only when the bank shows the fact: `Tarjeta`, `Comercio`, `Rubro`, `Ciudad`, `País`, `Monto origen`, `Cuota`, `Monto total compra`, `Fecha de compra`, `Referencia banco`, and `Leído de`. Erwin attaches no files.
+- Erwin sets `partnerId` only when it is sure of the Partner. It never creates a Partner or changes one a movement already has.
+- Erwin never creates adjustment movements to make a balance agree, never deletes a movement, and never books one. It reports each difference instead.
+
+### From a statement
+
+Send the statement file (PDF or Excel) in the Slack channel, or ask Erwin to download it from the bank's site. Before it writes anything, Erwin checks that:
+
+- the statement adds up: the previous balance, plus charges, minus payments and refunds, equals the billed balance.
+- the Bank Account's `runningBalance` on the day before the period starts is minus the previous statement's balance. A debt reads negative. If the Bank Account has no movements yet, Erwin first creates a `Saldo inicial` movement for the previous balance.
+- the period has no movements from other loads, such as unbilled movements. If it does, Erwin stops and reports them for a person to reconcile.
+
+Erwin then asks a person to approve the load, with the period, line count, totals, and check results. Each statement needs its own approval, even within the same conversation. Erwin dates a line from before the period at the period's start, and puts its own date in `Fecha de compra`. It dates installments (cuotas) at the statement's billing date (fecha de facturación). The key of each line is `estado:<billing date>:<line number>`, for example `estado:2026-08-25:001`. A statement movement is final, and later loads never change it. After the load, Erwin reports whether the closing `runningBalance` equals minus the billed balance.
+
+### From unbilled movements
+
+Erwin reads the bank's site, so the Entity needs a login Credential for the bank. BCI, BICE, and Santander are supported. Each run rereads the whole open period, from the day after the last billing date to 2 days before today. It skips today and yesterday, because the bank can still reverse those movements.
+
+The key is `no-facturado:<bank ID>`. When the bank shows no ID, the key is `no-facturado:<date>:<amount in minor units>:<side>:<n>`, where `n` counts the movements with the same date, amount, and side. Erwin pairs each site movement with an existing Movement by key first. If there is no key match, it pairs with the one Movement that has the same amount and side, dated at most 3 days away. Then:
+
+- An unpaired site movement is created.
+- A paired `unbooked` Movement gets the site's current date, description, amount, and metadata. A booked one gets only new metadata and a Partner. Erwin replaces the whole `metadata` list rather than adding to it.
+- Erwin changes only Movements whose key starts with `no-facturado:`. It reports pairs with Movements from other loads without changing them.
+- A `no-facturado:` Movement the site no longer shows is reported, not deleted. It is often a reversed authorization.
+
+You can run it as often as you like without creating duplicates. There is no balance check. Your team reconciles the unbilled movements against the statement at month-end close.
 
 <Note>
   Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
