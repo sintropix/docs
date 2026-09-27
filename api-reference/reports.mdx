@@ -1,7 +1,7 @@
 ---
-title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
+title: "ERP Reports: Balance Sheet, Income, Cash Flow, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement, journal, open positions (receivables and payables), revenue realization, and ledger reports. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement, cash flow statement, journal, open positions, revenue realization, and ledger reports."
 ---
 
 The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
@@ -13,7 +13,7 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 </Note>
 
 <Tip>
-  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, and `fixed-assets`. Pass the period as `from` and `to`, or as `exerciseStart` and `cutoffDate` for the balances. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
+  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, and `fixed-assets`. Pass the period as `from` and `to`, or as `exerciseStart` and `cutoffDate` for the balances. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
 </Tip>
 
 ## Entity reports
@@ -252,6 +252,159 @@ Each item in `dimensionValues`. A positive amount is a profit.
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement-by-dimension?dimensionId=<uuid>&from=2024-01-01&to=2024-12-31" \
+  -H "Cookie: <session-cookie>"
+```
+
+### Cash flow statement
+
+`GET /api/entities/:entityId/reports/cash-flow`
+
+Returns the cash flow statement for the period, prepared with the direct method (IAS 7). Use it to show where cash came from and where it went, grouped into operating, investing, and financing activities.
+
+The statement reads every live entry in the period that posts to a Cash Account. A Cash Account is a Ledger Account with the sub-type `cash` (see [Cash Accounts](/api-reference/chart-of-accounts#cash-accounts)). Each entry's cash lands on the other accounts of the entry, classified by their [cash flow category](/api-reference/chart-of-accounts#cash-flow-categories):
+
+- A transfer between two Cash Accounts moves no flow.
+- A line on an `internal_transfer` account counts as cash in transit. This is cash that left one of your accounts and has not yet reached the other.
+- A payment or collection allocated to an Invoice follows the Allocation to the Invoice. Its amount is spread pro rata over the Invoice's lines, with taxes absorbed into the other lines. For example, a supplier payment for a fixed asset bought on credit counts as `fixed_assets`, not `supplier_payments`.
+- A line on the Suspense Account, or on an account without a category, lands in `unclassified`. Set a `cashFlowCategory` on that account to move it into an activity.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `exerciseStart` | ISO date | Yes | Start of the period |
+| `cutoffDate` | ISO date | Yes | End of the period (must be on or after `exerciseStart`) |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
+
+**Response**
+
+A positive amount is cash in; a negative amount is cash out. The totals always satisfy `closingCash = openingCash + netChange + fxEffect + cashInTransit`. `closingCash` equals the balance of the Cash Accounts at `cutoffDate`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `exerciseStart` | ISO date | As requested |
+| `cutoffDate` | ISO date | As requested |
+| `functionalCurrency` | string | The entity's functional currency |
+| `openingCash` | integer | Balance of the Cash Accounts before `exerciseStart` |
+| `closingCash` | integer | Balance of the Cash Accounts at `cutoffDate` |
+| `netChange` | integer | Net flow of every activity plus `unclassified` |
+| `fxEffect` | integer | Effect of exchange rate changes on cash; currently always `0` |
+| `cashInTransit` | integer | Net amount posted to `internal_transfer` accounts in the period |
+| `activities` | array | Always three items, `operating`, `investing`, and `financing`, each with the fields below |
+| `unclassified` | object | `{ total, accounts }`: flows on accounts with no category or on the Suspense Account |
+
+Each item in `activities`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `activity` | enum | `operating`, `investing`, or `financing` |
+| `total` | integer | Net flow of the activity |
+| `categories` | array | Every category of the activity, in catalog order, even at zero. Each is `{ category, total, accounts }` |
+
+Each item in an `accounts` array, in code order. An account whose flows net to zero is left out.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `accountId` | UUID | Ledger Account id |
+| `code` | string | Account code |
+| `name` | string | Account name |
+| `amount` | integer | Net flow classified on the account |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/cash-flow?exerciseStart=2026-01-01&cutoffDate=2026-09-30" \
+  -H "Cookie: <session-cookie>"
+```
+
+```json
+{
+  "exerciseStart": "2026-01-01",
+  "cutoffDate": "2026-09-30",
+  "functionalCurrency": "CLP",
+  "openingCash": 12000000,
+  "closingCash": 15500000,
+  "netChange": 3500000,
+  "fxEffect": 0,
+  "cashInTransit": 0,
+  "activities": [
+    {
+      "activity": "operating",
+      "total": 5500000,
+      "categories": [
+        {
+          "category": "customer_receipts",
+          "total": 9000000,
+          "accounts": [
+            { "accountId": "11111111-1111-4111-8111-111111111111", "code": "4101", "name": "Ingresos por servicios", "amount": 9000000 }
+          ]
+        },
+        {
+          "category": "supplier_payments",
+          "total": -3500000,
+          "accounts": [
+            { "accountId": "22222222-2222-4222-8222-222222222222", "code": "6101", "name": "Arriendos", "amount": -3500000 }
+          ]
+        }
+      ]
+    },
+    {
+      "activity": "investing",
+      "total": -2000000,
+      "categories": [
+        {
+          "category": "fixed_assets",
+          "total": -2000000,
+          "accounts": [
+            { "accountId": "33333333-3333-4333-8333-333333333333", "code": "1401", "name": "Equipos computacionales", "amount": -2000000 }
+          ]
+        }
+      ]
+    },
+    { "activity": "financing", "total": 0, "categories": [] }
+  ],
+  "unclassified": { "total": 0, "accounts": [] }
+}
+```
+
+The example omits the categories at zero for brevity. A real response lists every category of each activity.
+
+### Cash flow statement entries
+
+`GET /api/entities/:entityId/reports/cash-flow/entries`
+
+Returns the entries behind one line of the cash flow statement. Use it to explain a figure, for example to list the payments that make up `supplier_payments` or the entries left in `unclassified`.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `exerciseStart` | ISO date | Yes | Start of the period |
+| `cutoffDate` | ISO date | Yes | End of the period (must be on or after `exerciseStart`) |
+| `category` | enum | Yes | A cash flow category, `unclassified`, or `cash_in_transit` |
+| `accountId` | UUID | No | Narrow the entries to one account of the line |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entries` | array | Entries in date order, then by entry id, then by account code, each with the fields below |
+
+Each item in `entries` is one entry as it lands on one account of the line. An entry that touches several accounts of the line appears once per account.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entryId` | UUID | Ledger Entry id |
+| `entryDate` | ISO date | Date of the entry |
+| `memo` | string or null | Memo of the entry |
+| `accountId` | UUID | Account the amount is classified on |
+| `accountCode` | string | Account code |
+| `accountName` | string | Account name |
+| `amount` | integer | Cash flow on this account; positive is cash in |
+| `traced` | boolean | `true` when the amount followed an Allocation to an Invoice |
+| `invoiceId` | UUID or null | Invoice the amount was traced to; `null` when `traced` is `false` |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/cash-flow/entries?exerciseStart=2026-01-01&cutoffDate=2026-09-30&category=unclassified" \
   -H "Cookie: <session-cookie>"
 ```
 

@@ -69,7 +69,9 @@ Each account in `accounts` carries:
 | `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
-| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense` |
+| `subtype` | enum or null | `cash`, `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense` |
+| `cashFlowCategory` | enum or null | [Cash flow category](#cash-flow-categories) set on the account; null when none is set |
+| `defaultCashFlowCategory` | enum or null | Category the cash flow statement uses while `cashFlowCategory` is null; null when the account has no default |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
 | `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, `booking_template`, or null when deletable |
@@ -102,6 +104,8 @@ Each account in `accounts` carries:
       "type": "asset",
       "tracking": "balance",
       "subtype": null,
+      "cashFlowCategory": null,
+      "defaultCashFlowCategory": null,
       "normalSide": "debit",
       "hasEntries": false,
       "deleteBlockedBy": null,
@@ -201,7 +205,7 @@ List all Ledger Accounts for an Entity.
 - **Success response:** array of Ledger Accounts
 - **Status:** 200
 
-Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `normalSide`, `createdAt`, `updatedAt`) without the derived `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
+Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `cashFlowCategory`, `normalSide`, `createdAt`, `updatedAt`) without the derived `defaultCashFlowCategory`, `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
@@ -223,7 +227,8 @@ Create a new Ledger Account.
 | `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`; null or omitted means none |
+| `subtype` | enum or null | No | `cash`, `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`; null or omitted means none |
+| `cashFlowCategory` | enum or null | No | [Cash flow category](#cash-flow-categories); null or omitted uses the default |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the created Ledger Account with its derived facts, in the same shape as the `accounts` rows of the Chart of Accounts
@@ -245,6 +250,8 @@ Create a new Ledger Account.
     "type": "asset",
     "tracking": "balance",
     "subtype": null,
+    "cashFlowCategory": null,
+    "defaultCashFlowCategory": null,
     "normalSide": "debit",
     "hasEntries": false,
     "deleteBlockedBy": null,
@@ -283,7 +290,8 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, or null to clear |
+| `subtype` | enum or null | No | `cash`, `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, or null to clear |
+| `cashFlowCategory` | enum or null | No | [Cash flow category](#cash-flow-categories), or null to clear it and use the default. You can change it at any time |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the updated Ledger Account with its derived facts, in the same shape as the create response above
@@ -295,6 +303,58 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -d '{"name": "Caja chica"}'
+```
+
+### Cash Accounts
+
+The sub-type `cash` marks a Cash Account: an account that holds cash, such as a bank current account or petty cash. The [cash flow statement](/api-reference/reports#cash-flow-statement) reads the entries that post to Cash Accounts, and its closing cash equals their balance. The `sintropix-ifrs-starter` template marks its cash and bank accounts as `cash`.
+
+To mark an account as a Cash Account, create it or `PATCH` it with `type: "asset"`, `tracking: "balance"`, and `subtype: "cash"`. These rules apply:
+
+- Only an `asset` account with `balance` tracking can take the sub-type.
+- A [Bank Account](/api-reference/bank-accounts#bank-account-kinds) of kind `bank` must map to a Cash Account.
+- While a Bank Account of kind `bank` maps the account, removing or changing its sub-type returns `LEDGER_ACCOUNT_FACT_PINNED_ERROR` (`409`). Delete the Bank Account first.
+
+### Cash flow categories
+
+Every account can carry an optional `cashFlowCategory`. It decides where the [cash flow statement](/api-reference/reports#cash-flow-statement) shows the cash that an entry moves on the account. A category never changes a posted amount, so you can set, change, or clear it at any time.
+
+| Category | Activity |
+| --- | --- |
+| `customer_receipts` | Operating |
+| `supplier_payments` | Operating |
+| `employee_payments` | Operating |
+| `taxes` | Operating |
+| `other_operating` | Operating |
+| `fixed_assets` | Investing |
+| `other_investing` | Investing |
+| `borrowings` | Financing |
+| `interest` | Financing |
+| `dividends` | Financing |
+| `equity_contributions` | Financing |
+
+While `cashFlowCategory` is null, the account uses `defaultCashFlowCategory`, derived from its sub-type first and then its type:
+
+| Account | Default category |
+| --- | --- |
+| Sub-type `receivable` or `unbilled_receivable` | `customer_receipts` |
+| Sub-type `payable` | `supplier_payments` |
+| Sub-type `fixed_asset` | `fixed_assets` |
+| Sub-type `cash`, `internal_transfer`, `migration_clearing`, or `suspense` | None |
+| Type `income` | `customer_receipts` |
+| Type `cost_of_goods_sold` or `operating_expense` | `supplier_payments` |
+| Type `other_income` or `other_expense` | `other_operating` |
+| Type `equity` | `equity_contributions` |
+| Type `asset` or `liability` with no sub-type | None |
+
+The statement reports cash on an account with no category and no default under `unclassified`. For example, set `borrowings` on a bank loan liability account to report its drawdowns and repayments as financing:
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"cashFlowCategory": "borrowings"}'
 ```
 
 ### The Suspense Account
@@ -336,7 +396,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_TYPE_LOCKED_ERROR` | Type change not allowed for an account with entries |
 | `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
 | `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed |
-| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template |
+| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template or a Bank Account of kind `bank` |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
 | `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR` | The Entity already has a Suspense Account |
