@@ -12,7 +12,9 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
   <Step title="Sign in and open Settings">
     Sign in as the User the key should act on behalf of. The key acts with that User's Organization Memberships and their Roles, so choose a User with the access the integration actually needs.
 
-    Sign-in always asks for two-step verification (**Verificación en dos pasos**). After the password, enter the 6-digit code from your authenticator app, or one of your single-use backup codes. On your first sign-in, Sintropix asks you to scan a QR code with an authenticator app, confirm a code, and save 10 backup codes before you can continue. Only a session with two-step verification can create API keys.
+    Sign-in always asks for two-step verification (**Verificación en dos pasos**). By default, Sintropix emails you a 6-digit code after the password. The code expires after 5 minutes. Click **Enviar otro código** for a new one; only the latest code works. After 5 wrong codes, you must enter your password again. On your first sign-in, Sintropix asks you to confirm your password and emails you a code to activate two-step verification.
+
+    If you prefer an authenticator app, choose **Usar una aplicación de autenticación** during setup, or later click **Configurar aplicación de autenticación** under **Ajustes** > **Seguridad**. You scan a QR code, confirm a code, and save 10 backup codes. From then on, sign-in asks for the code from the app or a backup code, and Sintropix stops emailing codes. Only a session with two-step verification can create API keys.
 
     Click your name at the bottom of the left sidebar and choose **Ajustes**.
 
