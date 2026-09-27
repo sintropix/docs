@@ -50,12 +50,14 @@ A Plan is an ordered list of acts that an approval runs. Each act matches one ex
 | `match` | `bankAccountId`, `movementId` | `match` | [`POST /movements/:movementId/match`](/api-reference/bank-movements#post-movements-movementid-match) |
 | `bookInvoice` | `invoiceId` | `booking` | [`POST /invoices/:invoiceId/book`](/api-reference/invoices#post-invoices-invoiceid-book) |
 | `matchLines` | none | `lineIds` at the top level of the act | [`POST /ledger/allocations/match`](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match) |
+| `assign` | `bankAccountId`, `movementId` | `assignment` | [`POST /movements/:movementId/assign`](/api-reference/bank-movements#post-movements-movementid-assign) |
 
 A Plan needs at least one act. Keep these rules in mind when you build one:
 
 - **You choose every id.** Each entry `id` and each line `id` in the Plan is a UUID you generate. See [Ledger Entry Line ids](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries).
 - **A later act can name a line an earlier act creates.** Use the line `id` you gave it. For example, one Plan can book an Invoice and then match a Movement to the Invoice's Control Line.
 - **An act can target a record other than the host.** A Plan on one leg of an internal transfer can book both legs and match the bridge lines.
+- **An `assign` clears the rest parked on the Suspense Account.** Use it on a Bank Movement booked with a Suspense line. With a `lineId`, it settles that open line. With `lineId: null`, it books the amount to the accounts of its lines. It adds lines to the Ledger Entry that booked the Movement, so it names no entry of its own.
 - **Sintropix validates the acts only on approval.** A `PUT` checks the shape of the Plan, not whether each booking balances or each line is still open. Check the bodies before you write them.
 
 ## PUT `…/recommendation`
@@ -132,6 +134,35 @@ A record waiting on a document that has not arrived yet:
 }
 ```
 
+A Plan that assigns the rest of an overpaid Movement to the Control Line of another Invoice:
+
+```json
+{
+  "id": "3c4d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f",
+  "status": "confident",
+  "reason": "El resto de $300.000 coincide con la Factura 61 de Arriendos Sur.",
+  "plan": [
+    {
+      "act": "assign",
+      "bankAccountId": "4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f8a",
+      "movementId": "5e6f7a8b-9c0d-4e1f-8a2b-4c5d6e7f8a9b",
+      "assignment": {
+        "lineId": "7e8f9a0b-1c2d-4e3f-8a4b-5c6d7e8f9a0b",
+        "newCounterpartLines": [
+          {
+            "id": "8f9a0b1c-2d3e-4f4a-8b5c-6d7e8f9a0b1c",
+            "accountId": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+            "functionalAmount": 300000,
+            "side": "credit",
+            "partnerId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
 A question with two options, where each `plan` matches the Movement to a different Invoice:
 
 ```json
@@ -158,11 +189,12 @@ Read the Recommendation of a record with every record in its Plan named, so you 
 | `match` | `movement`, `target`, `entry`, `newLines` |
 | `bookInvoice` | `invoice`, `controlAccount`, `entry`, `newLines` |
 | `matchLines` | `targets` |
+| `assign` | `movement`, `target`, `newLines` |
 
 - `movement` names the Movement with its date, amount, side, description, and Bank Account.
 - `invoice` names the Invoice with its document kind, number, direction, issue date, total, currency, and Partner.
 - Each item in `newLines` is a line the act creates, with its `account` and `partner` named.
-- Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`.
+- Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`. The `target` of an `assign` is `null` when its `lineId` is `null`.
 
 A named record is `null` when the Plan names a record the Entity does not hold. Approving that Plan fails.
 
