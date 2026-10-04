@@ -47,6 +47,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | To-do | `/{entityId}/todos` | Staff only. A linked To-do also shows in the panel of its Invoice, Bank Movement, or Ledger Entry. |
 | Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. |
 | Bank Movement | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Use the `bankAccountId` field on the Movement. Replace `open` with `reconcile` to start reconciling it. |
+| Bank Movements of every account | `/{entityId}/banks/movements` | Every Movement of the Entity, grouped by Bank Account. Add `status=unreconciled` for the ones still to reconcile, and `open={movementId}` to open one in its panel without leaving the list. |
 | Bank Connection | `/{entityId}/settings/bank-accounts` | Connections and their mapped accounts are managed here. |
 | Partner | `/{entityId}/partner-ledger?partners={partnerId}` | Partner statement filtered to that Partner. `/{entityId}/partners` and `/{entityId}/vendors` are the customer and supplier lists. |
 | Ledger Account | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movements of one account. The chart itself is `/{entityId}/settings/chart-of-accounts`. |
@@ -77,6 +78,7 @@ Reports are pages with the period in the query string. Omit a parameter to get t
 | Receivables aging | `/{entityId}/receivables` | `open` |
 | Payables aging | `/{entityId}/payables` | `open` |
 | Revenue Realization | `/{entityId}/revenue-realization` | `from`, `to` |
+| Cash Flow | `/{entityId}/cash-flow` | `exerciseStart`, `cutoffDate`, `groupBy` (`month`, `quarter`, `year`). Add `drillDown={category}@{columnKey}`, or `drillDown={category}:{accountId}@{columnKey}` for one account, to open the entries of one cell. `columnKey` is the first day of the period column, or `total`. |
 | Fixed Assets | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` for one asset |
 
 `presentationCurrency` and `presentationRate` must be passed together, exactly as in the [Reports API](/api-reference/reports).
@@ -87,9 +89,10 @@ List pages accept the same filters the user can set in the UI, so you can link t
 
 | Page | Useful parameters |
 | --- | --- |
-| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source` |
+| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source`, `followUpKind` (`proposal`, `question`, `waiting`, `none`) |
 | `/{entityId}/entries` | `search`, `from`, `to`, `status` |
-| `/{entityId}/banks/{bankAccountId}` | `status`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
+| `/{entityId}/banks/{bankAccountId}` | `status` (`unbooked`, `booked_pending_allocation`, `reconciled`, `unreconciled`), `followUpKind`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
+| `/{entityId}/banks/movements` | The same as one Bank Account, without `amountMin` and `amountMax`, plus `groupBy` (`bankAccount`, `none`, `partner`, `movementMonth`, `status`) |
 
 ## Example
 
