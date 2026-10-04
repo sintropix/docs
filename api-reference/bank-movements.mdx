@@ -48,7 +48,7 @@ Erwin then asks a person to approve the load, with the period, line count, total
 
 ### From unbilled movements
 
-Erwin reads the bank's site, so the Entity needs a login Credential for the bank. BCI, BICE, and Santander are supported. Each run rereads the whole open period, from the day after the last billing date to 2 days before today. It skips today and yesterday, because the bank can still reverse those movements.
+Erwin reads the bank's site, so the Entity needs a login Credential for the bank. BCI, BICE, and Santander are supported. For Santander, a person signs in by hand and Erwin continues in their session. See [Sign in to a bank by hand](/api-reference/agent-channels#sign-in-to-a-bank-by-hand). Each run rereads the whole open period, from the day after the last billing date to 2 days before today. It skips today and yesterday, because the bank can still reverse those movements.
 
 The key is `no-facturado:<bank ID>`. When the bank shows no ID, the key is `no-facturado:<date>:<amount in minor units>:<side>:<n>`, where `n` counts the movements with the same date, amount, and side. Erwin pairs each site movement with an existing Movement by key first. If there is no key match, it pairs with the one Movement that has the same amount and side, dated at most 3 days away. Then:
 
@@ -91,7 +91,7 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `ledgerLineId` | uuid \| null | The bank line of that entry. `null` while unbooked. |
 | `ledgerAccountId` | uuid \| null | The Ledger Account that bank line sits on. `null` while unbooked. |
 | `metadata` | array of `{ label, value }` | Additional Information lines (up to 50). |
-| `recommendation` | object \| null | The [Recommendation](/api-reference/recommendations) on this Movement, which marks its pending work. `null` when there is none. |
+| `followUp` | object \| null | The [Follow-up](/api-reference/follow-ups) on this Movement, which marks its pending work. `null` when there is none. |
 | `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` | Derived booking status. |
 | `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it regardless of filters. |
 | `partnerName` | string \| null | Name of `partnerId`, for display. |
@@ -124,8 +124,8 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `cursor` | string | No | The `nextCursor` value from the previous page. Cannot be combined with `aroundMovementId`. |
 | `aroundMovementId` | uuid | No | Return the page that contains this Movement instead of continuing a walk. |
 | `limit` | integer | No | Page size, `1` to `100`. Default `50`. |
-| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` | No | Filter by booking status. |
-| `recommendationStatus` | `confident` \| `needs_clarification` \| `waiting` \| `none` | No | Filter by the status of the Movement's [Recommendation](/api-reference/recommendations). `none` keeps Movements with no Recommendation. |
+| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `unreconciled` | No | Filter by booking status. `unreconciled` keeps every Movement still to reconcile, both `unbooked` and `booked_pending_allocation`. |
+| `followUpKind` | `proposal` \| `question` \| `waiting` \| `none` | No | Filter by the kind of the Movement's [Follow-up](/api-reference/follow-ups). `none` keeps Movements with no Follow-up. |
 | `partnerId` | uuid | No | Filter by counterparty Partner. |
 | `side` | `debit` \| `credit` | No | Filter by direction. |
 | `movementDateFrom` | string (`YYYY-MM-DD`) | No | Earliest movement date, inclusive. |
