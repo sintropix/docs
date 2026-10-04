@@ -70,7 +70,7 @@ Los informes son páginas con el período en la cadena de consulta. Omite un par
 | --- | --- | --- |
 | Balance general | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Balance de ocho columnas | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
-| Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda. |
+| Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`), `dimension` (el id de una dimensión, para abrir las cuentas por sus valores). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda, o `drillDown={accountId}:{columnKey}:{dimensionValueId}` para abrir la celda de un valor (`unassigned` para las líneas sin valor). |
 | Estado de resultados por dimensión | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | Libro mayor | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Libro diario | `/{entityId}/journal` | `from`, `to`, `search` |

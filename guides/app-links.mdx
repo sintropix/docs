@@ -70,7 +70,7 @@ Reports are pages with the period in the query string. Omit a parameter to get t
 | --- | --- | --- |
 | Balance Sheet | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Eight-column Balance | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
-| Income Statement | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`). Add `drillDown={accountId}:{columnKey}` to open one cell. |
+| Income Statement | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`), `dimension` (a Dimension id, to open accounts by its values). Add `drillDown={accountId}:{columnKey}` to open one cell, or `drillDown={accountId}:{columnKey}:{dimensionValueId}` to open one value's cell (`unassigned` for the lines with no value). |
 | Income Statement by Dimension | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | General Ledger | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Journal | `/{entityId}/journal` | `from`, `to`, `search` |
