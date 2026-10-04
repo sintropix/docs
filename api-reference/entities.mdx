@@ -31,7 +31,7 @@ Create a new Entity in an Organization. The client supplies the idempotency id, 
 | `currency` | string | Yes | Functional currency code, non-empty |
 | `organizationId` | UUID | Yes | Organization the Entity belongs to |
 
-- **Success response:** the created Entity (see [Response shape](#response-shape))
+- **Success response:** the created Entity with `organizationName` (see [Response shape](#response-shape))
 - **Status:** 201
 
 ```bash
@@ -51,9 +51,9 @@ curl -X POST https://api.sintropix.com/api/entities \
 
 ## GET /api/entities
 
-List every Entity the caller can access. You see every Entity of each Organization you hold a Membership in, whatever your Role.
+List every Entity the caller can access. You see every Entity of each Organization you hold a Membership in, whatever your Role. Being a Superadmin adds no Entities to this list. An OAuth access token sees only the Entities of the Organization it was approved for.
 
-- **Success response:** array of Entity objects (see [Response shape](#response-shape))
+- **Success response:** array of Entity objects, each with `organizationName` (see [Response shape](#response-shape)). Group the rows by `organizationId` to show Entities per Organization.
 - **Status:** 200
 
 ```bash
@@ -176,7 +176,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/accounting-polic
 
 Move an Entity to another Organization. Members of the old Organization lose access to the Entity. Members of the new Organization gain it with their Role there.
 
-- **Global `staff` only**
+- **Superadmin only, from a signed-in session.** A request with an API key or an OAuth access token returns `403` with `SUPERADMIN_SESSION_REQUIRED`, and any other User gets `403` with `SUPERADMIN_REQUIRED`. A Superadmin can move any Entity without holding a Membership in either Organization.
 - **Path param:** `entityId` (UUID)
 - **Body:**
 
@@ -189,10 +189,8 @@ Move an Entity to another Organization. Members of the old Organization lose acc
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/organization \
+  --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "x-audit-reason: Client merged the company into its main group" \
   -d '{"organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d"}'
 ```
 
@@ -211,6 +209,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `accountingPolicies` | string or null | Free-text policies |
 | `parentEntityId` | UUID or null | Controlling Entity |
 | `organizationId` | UUID | Organization the Entity belongs to |
+| `organizationName` | string | Name of that Organization. Returned by `GET /api/entities` and `POST /api/entities` only. |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
@@ -240,6 +239,8 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ENTITY_PARENT_CYCLE_ERROR` | Parent would create a control cycle |
 | `ORGANIZATION_NOT_FOUND_ERROR` | Named Organization does not exist or is outside your reach |
 | `PERMISSION_DENIED_ERROR` | Your Role in the Organization doesn't allow this action |
+| `SUPERADMIN_SESSION_REQUIRED` | The Organization move was sent with an API key or token instead of a signed-in session |
+| `SUPERADMIN_REQUIRED` | The Organization move was sent by a User who is not a Superadmin |
 
 ## Status codes
 
@@ -250,6 +251,6 @@ Every endpoint on this page that returns an Entity uses this shape:
 | 201 | Created (POST) |
 | 400 | Validation error |
 | 401 | Unauthenticated |
-| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`), or a global-staff-only endpoint |
+| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`), or the Organization move without a Superadmin session |
 | 404 | Entity or Organization not found, or outside your reach |
 | 409 | Domain rule violation (see `code`) |

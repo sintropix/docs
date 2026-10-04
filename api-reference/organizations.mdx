@@ -9,16 +9,18 @@ An Organization groups the Entities that a client runs as one business. Every En
 Use this page to manage Organizations themselves. To grant, change, or revoke a User's Membership, use the [Onboarding API](/api-reference/onboarding). To move an Entity to another Organization, use [`PATCH /api/entities/:entityId/organization`](/api-reference/entities).
 
 <Warning>
-  Every route below except `GET /organizations` is restricted to Users with the global `role = staff`. Any other caller receives `403`.
+  Every route below except `GET /organizations` is restricted to a Superadmin, and only from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User receives `403` with `SUPERADMIN_REQUIRED`.
 </Warning>
+
+A Superadmin is a User Sintropix designates to manage access. No API route grants Superadmin. Being a Superadmin does not open any Entity's books: a Superadmin reads and writes an Entity only through a Membership of its Organization, like any other User.
 
 ## GET `/organizations`
 
 List the Organizations you can create Entities in, each with the Entities it holds. Use it to pick the `organizationId` for [`POST /api/entities`](/api-reference/entities).
 
-- Global `staff` Users see every Organization.
-- Other Users see the Organizations where they hold the `staff` Role.
+- Every signed-in User can call it. You see only the Organizations where you hold the `staff` Role. A Superadmin sees only their own `staff` Organizations here too.
 - An API key confined to one Entity receives an empty array.
+- An OAuth access token sees at most the one Organization it was approved for. See [Connect an app with OAuth](/guides/connected-apps).
 
 **Response** `200`: an array of Organization summaries.
 
@@ -66,10 +68,8 @@ Create an empty Organization. Add Entities to it by creating them with its `orga
 
 ```bash
 curl -X POST https://api.sintropix.com/api/organizations \
+  --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "x-audit-reason: New client group" \
   -d '{"name": "Grupo Acme"}'
 ```
 
@@ -89,7 +89,7 @@ Get one Organization with the Entities it holds. The response has the same shape
 
 ```bash
 curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
-  -H "x-api-key: $SINTROPIX_STAFF_API_KEY"
+  --cookie cookies.txt
 ```
 
 ## PATCH `/organizations/:organizationId`
@@ -100,10 +100,8 @@ Rename an Organization. The body and validation rules match `POST /organizations
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
+  --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "x-audit-reason: Client renamed its group" \
   -d '{"name": "Grupo Acme Holding"}'
 ```
 
@@ -117,9 +115,7 @@ An Organization that still holds an Entity can't be deleted. The request returns
 
 ```bash
 curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
-  -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "x-audit-reason: Duplicate group"
+  --cookie cookies.txt
 ```
 
 ## GET `/organizations/:organizationId/members`
@@ -137,7 +133,7 @@ List the Users who hold a Membership in the Organization.
 
 ```bash
 curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
-  -H "x-api-key: $SINTROPIX_STAFF_API_KEY"
+  --cookie cookies.txt
 ```
 
 ```json
@@ -158,6 +154,8 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | `ORGANIZATION_NOT_FOUND_ERROR` | `404` | No Organization has this id. |
 | `ORGANIZATION_NAME_ALREADY_EXISTS_ERROR` | `409` | Another Organization already uses this name, ignoring case. |
 | `ORGANIZATION_NOT_EMPTY_ERROR` | `409` | The Organization still holds at least one Entity. |
+| `SUPERADMIN_SESSION_REQUIRED` | `403` | The request carries an API key or an OAuth access token. Superadmin routes accept only a signed-in session. |
+| `SUPERADMIN_REQUIRED` | `403` | The signed-in User is not a Superadmin. |
 
 ## Status codes
 
@@ -167,6 +165,6 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | `201` | Organization created. |
 | `204` | Success on `DELETE`. |
 | `400` | Validation error, including a blank or too-long name, or an `:organizationId` that is not a UUID. |
-| `403` | Caller is not global `staff`. |
+| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), or the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`). |
 | `404` | Organization not found. |
 | `409` | Duplicate name, or the Organization still holds an Entity. |

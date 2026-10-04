@@ -40,7 +40,7 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para el equipo de Sintropix) y `/api/health`.
+Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para Superadmins) y `/api/health`.
 
 `{entityId}` es siempre un UUID. Una solicitud sobre una Entidad a la que quien llama no tiene acceso devuelve `404`, nunca `403`, de modo que sondear rutas no revela si una Entidad desconocida existe.
 
@@ -55,15 +55,18 @@ El acceso a una Entidad proviene de una **Membresía de Organización**. Una [Or
 | `viewer` | Sí | No | No |
 
 - **Leer** cubre las solicitudes `GET` sobre rutas de Entidad, incluido el [Audit Trail](/api-reference/audit-trail). **Escribir** cubre `POST`, `PUT`, `PATCH` y `DELETE`.
-- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), sincronización de honorarios, políticas contables, la Entidad matriz, la creación de Entidades, los reportes de carga de trabajo y de actores de registro del equipo, y la [sincronización de tipos de cambio](/api-reference/fx-rates).
+- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), [bandejas de correo](/api-reference/integrations#email-inboxes-staff-only), sincronización de honorarios, políticas contables, la Entidad matriz, la creación de Entidades y la [sincronización de tipos de cambio](/api-reference/fx-rates).
 - Una Entidad fuera de tus Organizaciones devuelve `404`. Una acción que tu Rol no permite devuelve `403` con `PERMISSION_DENIED_ERROR`.
-- Los Usuarios con el rol global `role = staff` mantienen acceso a todas las Entidades y son los únicos que pueden administrar Organizaciones y Membresías.
+- Ningún Rol es global. Un Usuario sin Membresía en una Organización no puede acceder a sus Entidades, sin importar el Rol que tenga en otras.
 
-El equipo de Sintropix otorga las Membresías mediante la [API de Onboarding](/api-reference/onboarding).
+Un **Superadmin** es un Usuario que Sintropix designa para administrar el acceso: Usuarios, Organizaciones, Membresías y el traslado de Entidades entre Organizaciones, mediante la [API de Onboarding](/api-reference/onboarding) y la [API de Organizaciones](/api-reference/organizations). Estas rutas solo aceptan una sesión iniciada en el navegador. Una solicitud con una clave de API o un token de acceso OAuth recibe `403` con `SUPERADMIN_SESSION_REQUIRED`, aunque sea de un Superadmin, y cualquier otro Usuario recibe `403` con `SUPERADMIN_REQUIRED`. Ser Superadmin no abre ningún libro: un Superadmin accede a una Entidad solo mediante una Membresía, como todos los demás.
 
 ## Autenticación
 
-Los clientes programáticos se autentican con una clave de API en el encabezado `x-api-key`. Las claves se crean en la aplicación de Sintropix; consulta [Obtener una clave de API](/es/guides/api-keys).
+Los clientes programáticos se autentican de una de dos formas:
+
+- **Clave de API** en el encabezado `x-api-key`. Las claves se crean en la aplicación de Sintropix; consulta [Obtener una clave de API](/es/guides/api-keys).
+- **Token de acceso OAuth** en el encabezado `Authorization: Bearer <token>`. Una app obtiene uno cuando un Usuario la aprueba para una Organización; consulta [Conectar una app con OAuth](/es/guides/connected-apps). Un token actúa como ese Usuario solo en esa Organización, con acceso de lectura o de lectura y escritura, y nunca más allá del Rol del Usuario. Claude y ChatGPT lo usan para conectarse al [servidor MCP de Sintropix](/es/guides/mcp-server).
 
 Toda solicitud que modifica datos (`POST`, `PUT`, `PATCH`, `DELETE`) hecha con una clave de API debe enviar además un Actor Declarado y una Razón Declarada:
 
@@ -76,6 +79,8 @@ x-audit-reason: <por qué realizas este cambio>
 `x-audit-actor` es una etiqueta de software autodeclarada (por ejemplo `claude-opus-4.8`) que se guarda tal cual en el [registro de auditoría](/api-reference/audit-trail). Omitirla en una mutación devuelve `400`.
 
 `x-audit-reason` es una explicación de una sola línea, en texto plano, de por qué se realiza el cambio (máx. 500 caracteres). El servidor recorta los espacios al inicio y al final, y guarda el valor en el Sobre de Auditoría. Un valor ausente o vacío devuelve `400` con el código `AUDIT_REASON_REQUIRED_ERROR`; un valor de más de 500 caracteres devuelve `400` con el código `AUDIT_REASON_TOO_LONG_ERROR`.
+
+Una solicitud que modifica datos hecha con un token de acceso OAuth también debe enviar `x-audit-reason`. No necesita `x-audit-actor`: el registro de auditoría nombra la app aprobada.
 
 ## Formato de las solicitudes
 
@@ -133,7 +138,7 @@ Las respuestas distintas de 2xx son JSON. Toda respuesta, exitosa o fallida, lle
 | `201` | Recurso creado. |
 | `204` | La solicitud se completó correctamente sin cuerpo de respuesta. |
 | `400` | El cuerpo, la query o la ruta no pasaron la validación, o falta un encabezado obligatorio. |
-| `401` | No hay una clave de API válida. |
+| `401` | No hay una clave de API, sesión ni token de acceso OAuth válidos. Un token vencido o revocado también devuelve `401`. |
 | `403` | Quien llama no tiene permiso para esta acción (por ejemplo, una clave de solo lectura intentando una mutación, o un `viewer` intentando escribir). Los rechazos por Rol llevan `PERMISSION_DENIED_ERROR`. |
 | `404` | El recurso no existe, o quien llama no tiene acceso a la Entidad solicitada. |
 | `409` | Conflicto de dominio (por ejemplo, un asiento contable ya contabilizado o una fila duplicada). |
@@ -165,7 +170,7 @@ La API está diseñada para uso servidor a servidor con una clave de API. Llamar
 </Warning>
 
 <Warning>
-  **No hay esquema `Authorization: Bearer`**. Las claves de API van en el encabezado `x-api-key`.
+  Las claves de API van en el encabezado `x-api-key`, nunca en `Authorization: Bearer`. El encabezado `Authorization: Bearer` lleva solo tokens de acceso OAuth de [apps conectadas](/es/guides/connected-apps).
 </Warning>
 
 <Warning>

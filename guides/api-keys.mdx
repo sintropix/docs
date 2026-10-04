@@ -14,6 +14,8 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 
     Sign-in always asks for two-step verification (**Verificación en dos pasos**). By default, Sintropix emails you a 6-digit code after the password. The code expires after 5 minutes. Click **Enviar otro código** for a new one; only the latest code works. After 5 wrong codes, you must enter your password again. On your first sign-in, Sintropix asks you to confirm your password and emails you a code to activate two-step verification.
 
+    If you forgot your password, click **¿Olvidaste tu contraseña?** on the sign-in page and enter your email. If the address has a Sintropix account, you receive a link to choose a new password. The link expires after 1 hour and works once. Setting the new password signs you out of every session, and the next sign-in still asks for the second factor.
+
     If you prefer an authenticator app, choose **Usar una aplicación de autenticación** during setup, or later click **Configurar aplicación de autenticación** under **Ajustes** > **Seguridad**. You scan a QR code, confirm a code, and save 10 backup codes. From then on, sign-in asks for the code from the app or a backup code, and Sintropix stops emailing codes. Only a session with two-step verification can create API keys.
 
     Click your name at the bottom of the left sidebar and choose **Ajustes**.
@@ -93,7 +95,8 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 
 ## Scope and Permissions
 
-- A key authenticates as its owning User, with that User's global Role and Organization Memberships. See [Access and roles](/api-reference/overview#access-and-roles).
+- A key authenticates as its owning User, with that User's Organization Memberships. See [Access and roles](/api-reference/overview#access-and-roles).
+- A key never does Superadmin work, even when a Superadmin owns it. Managing Users, Organizations, and Memberships needs a signed-in session; a key gets `403` with `SUPERADMIN_SESSION_REQUIRED`.
 - Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities of the Organizations the owning User holds a Membership in, and only do what the User's Role there allows. A key owned by a `viewer` can only read.
 - A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, `GET /api/entities` lists only the confined Entity, and `GET /api/organizations` returns an empty array. A confined key can't create Entities. Use one-Entity keys when the integration should only ever touch one company.
 

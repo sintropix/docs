@@ -1,0 +1,96 @@
+---
+title: "Lee tus libros desde Claude o ChatGPT con el servidor MCP de Sintropix"
+sidebarTitle: "Conectar Claude o ChatGPT"
+description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados y el balance general. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
+---
+
+El servidor MCP de Sintropix permite que un asistente de IA compatible con el Model Context Protocol (MCP), como Claude o ChatGPT, lea tus libros. Preguntas en lenguaje natural, por ejemplo "¿Cuánto me deben mis clientes?", y el asistente responde con tus datos de Sintropix.
+
+El servidor solo lee. No puede crear, cambiar ni eliminar nada en Sintropix.
+
+```text
+https://mcp.sintropix.com/mcp
+```
+
+## Conéctate
+
+<Steps>
+  <Step title="Agrega el servidor a tu asistente">
+    En los ajustes de tu asistente, agrega un conector personalizado (o servidor MCP personalizado) y pega la URL del servidor `https://mcp.sintropix.com/mcp`. El servidor usa OAuth, así que no necesitas una clave de API ni ningún otro secreto.
+  </Step>
+  <Step title="Inicia sesión en Sintropix">
+    El asistente abre Sintropix en tu navegador. Inicia sesión con tu contraseña y tu segundo factor. Si aún no activaste la verificación en dos pasos, Sintropix te pide hacerlo primero.
+  </Step>
+  <Step title="Elige la Organización">
+    Elige la Organización que leerá el asistente (**Elige la organización**). Si tienes Membresía en una sola Organización, Sintropix se salta esta pantalla.
+  </Step>
+  <Step title="Aprueba">
+    Revisa la solicitud: el nombre de la app, el dominio al que te devuelve (**Te devolverá a**), la Organización y el acceso, que es **Solo lectura**. Haz clic en **Permitir**. El asistente queda conectado.
+  </Step>
+</Steps>
+
+Cada conexión lee una Organización, y todas sus empresas (Entidades). Para leer otra Organización, vuelve a aprobar el asistente y elige esa Organización. Cada aprobación aparece como una fila propia en **Ajustes** > **Apps conectadas**.
+
+## Acceso
+
+- El asistente lee como tú, en la Organización que aprobaste, con tu Rol en ella. Todos los Roles pueden leer, así que los Usuarios `staff`, `client` y `viewer` pueden conectarse.
+- Si pierdes tu Membresía en la Organización, la conexión termina.
+- Revoca la conexión cuando quieras desde **Ajustes** > **Apps conectadas** en la app de Sintropix. El asistente pierde el acceso de inmediato y te pide iniciar sesión otra vez la próxima vez que necesite Sintropix.
+- El token de acceso dura 1 hora, y el asistente lo renueva solo. Si el asistente pasa 30 días sin renovarlo, te pide iniciar sesión otra vez.
+
+Consulta [Conectar una app con OAuth](/es/guides/connected-apps) para ver todas las reglas de las apps conectadas.
+
+## Herramientas
+
+El servidor expone cinco herramientas de solo lectura. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
+
+| Herramienta | Pregunta que responde | Entradas |
+| --- | --- | --- |
+| `list_entities` | ¿Qué empresas puedo leer? | Ninguna |
+| `get_receivables` | ¿Cuánto me deben mis clientes? | `entityId` |
+| `get_payables` | ¿Qué facturas no he pagado? | `entityId` |
+| `get_income_statement` | ¿Cuánto gané en un período? | `entityId`, `from` y `to` opcionales |
+| `get_balance_sheet` | ¿Qué tengo y qué debo en una fecha? | `entityId`, `cutoffDate` opcional |
+
+### `list_entities`
+
+Lista las empresas que lee la conexión. Cada elemento tiene `entityId`, `name`, `taxId`, `country`, `currency` y `organization` (el nombre de la Organización). El asistente la llama primero para encontrar el `entityId` que usan las demás herramientas.
+
+### `get_receivables` y `get_payables`
+
+Listan las líneas abiertas de cada Cuenta Contable por cobrar o por pagar de la empresa, de la más antigua a la más reciente. Cada línea tiene su fecha, fecha de vencimiento, Partner, factura, glosa y monto abierto. Un monto abierto positivo se le debe a la empresa en `get_receivables`, y lo debe la empresa en `get_payables`.
+
+- Una línea sin factura es una Partida No Aplicada, como un pago recibido a cuenta. El asistente la informa junto a lo adeudado, nunca neteada contra ello.
+- Cada cuenta devuelve hasta 100 líneas abiertas. `openLinesNotShown` cuenta el resto.
+- Estas herramientas leen las cuentas cuyo Subtipo es `receivable` o `payable` en el [plan de cuentas](/api-reference/chart-of-accounts). Si la empresa no marca ninguna cuenta con ese Subtipo, la respuesta no trae cuentas y trae una `note` que lo indica. Eso no significa que no se deba nada: el asistente lee los saldos con `get_balance_sheet`.
+
+### `get_income_statement`
+
+Devuelve el estado de resultados de un período: ingresos, costo de ventas, gastos operacionales, otros ingresos y otros gastos, cada uno con sus cuentas y su total. También devuelve la utilidad bruta, el resultado operacional, el margen operacional (una razón, `null` sin ingresos) y el resultado neto.
+
+| Entrada | Tipo | Valor por defecto |
+| --- | --- | --- |
+| `entityId` | UUID | Obligatoria |
+| `from` | `YYYY-MM-DD` | 1 de enero del año de `to` |
+| `to` | `YYYY-MM-DD` | Hoy en Chile |
+
+### `get_balance_sheet`
+
+Devuelve el balance general en una fecha: activos, pasivos y patrimonio, cada uno con sus cuentas y su total. La sección de patrimonio también trae el resultado de ejercicios anteriores y el resultado del ejercicio hasta la fecha. El ejercicio comienza el 1 de enero.
+
+| Entrada | Tipo | Valor por defecto |
+| --- | --- | --- |
+| `entityId` | UUID | Obligatoria |
+| `cutoffDate` | `YYYY-MM-DD` | Hoy en Chile |
+
+## Preguntas de ejemplo
+
+- "¿Qué empresas puedes ver?"
+- "¿Cuánto le deben los clientes a Acme SpA, de lo más antiguo a lo más reciente?"
+- "¿Qué facturas de Acme SpA están vencidas?"
+- "¿Cuál fue el resultado neto de Acme SpA de enero a junio?"
+- "Muéstrame el balance general de Acme SpA al cierre del mes pasado."
+
+<Card title="Conectar una app con OAuth" icon="plug" href="/es/guides/connected-apps" horizontal>
+  Scopes, tokens, aprobaciones y cómo listar y revocar apps conectadas.
+</Card>

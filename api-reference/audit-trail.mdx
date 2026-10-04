@@ -53,11 +53,13 @@ Each **envelope**:
 | `occurredAt` | ISO datetime | When the request was processed. |
 | `requestId` | string | Server-generated unique id for the request. |
 | `actorUserId` | UUID or `null` | The authenticated user, when there was one. |
-| `actor` | object or `null` | `{ id, name, role }` of the authenticated user, where `role` is `staff` or `client`. |
-| `credentialType` | enum | `session`, `api_key`, or `system`. |
+| `actor` | object or `null` | `{ id, name, role }` of the authenticated user. `role` is the user's current Membership Role in the entity's Organization (`staff`, `client`, or `viewer`), or `null` when they hold no Membership there. |
+| `credentialType` | enum | `session`, `api_key`, `oauth`, or `system`. `oauth` marks a write made by a [connected app](/guides/connected-apps) with an OAuth access token. |
 | `apiKeyId` | UUID or `null` | The API key used, for `api_key` requests. |
+| `connectedAppClientId` | string or `null` | The OAuth `client_id` of the connected app, for `oauth` requests. |
+| `connectedAppName` | string or `null` | The name the connected app declared for itself, as it read at the time of the write, for `oauth` requests. |
 | `declaredActor` | string or `null` | Value of the `x-audit-actor` header on API-key mutations. |
-| `declaredReason` | string or `null` | Value of the `x-audit-reason` header (trimmed) explaining why the change was made. Required on API-key mutations; optional on browser sessions. `null` on rows written before the header existed. |
+| `declaredReason` | string or `null` | Value of the `x-audit-reason` header (trimmed) explaining why the change was made. Required on API-key and OAuth-token mutations; optional on browser sessions. `null` on rows written before the header existed. |
 | `route` | string | The endpoint pattern that produced the mutation. |
 | `method` | string | HTTP method, for example `POST`. |
 | `params` | object | Path parameters of the request. |
@@ -109,6 +111,8 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?limit=50"
       "actor": { "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b", "name": "Ana Perez", "role": "client" },
       "credentialType": "api_key",
       "apiKeyId": "7a1e4d2c-3b5f-4e6a-8c9d-0f1a2b3c4d5e",
+      "connectedAppClientId": null,
+      "connectedAppName": null,
       "declaredActor": "my-agent",
       "declaredReason": "Rename Acme Ltd to its legal name after the vendor update email",
       "route": "/entities/:entityId/partners/:partnerId",

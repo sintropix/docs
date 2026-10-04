@@ -1,0 +1,163 @@
+---
+title: "Conecta una app a Sintropix con OAuth"
+sidebarTitle: "Conectar una app con OAuth"
+description: "Permite que una app actúe por un Usuario de Sintropix en una Organización mediante OAuth 2.1 con PKCE: descubrimiento, registro, scopes, tokens, las pantallas de aprobación y cómo los Usuarios listan y revocan las apps conectadas."
+---
+
+Una app conectada es una app que un Usuario aprobó para actuar en su nombre en una Organización. Sintropix es un servidor de autorización OAuth 2.1: la app envía al Usuario a Sintropix, el Usuario inicia sesión y aprueba, y la app recibe un token de acceso que envía como `Authorization: Bearer <token>` en las solicitudes a la API.
+
+Usa OAuth cuando tu app actúa por Usuarios que inician sesión ellos mismos, como un asistente de IA o una herramienta de terceros. Usa una [clave de API](/es/guides/api-keys) para tu propia integración de servidor a servidor. Claude y ChatGPT se conectan así mediante el [servidor MCP de Sintropix](/es/guides/mcp-server).
+
+## Qué puede hacer un token
+
+- **Una Organización.** El Usuario elige una Organización al aprobar. El token llega solo a las Entidades de esa Organización. Cualquier otra Entidad devuelve `404`, y `GET /api/organizations` lista como máximo esa Organización. La misma app aprobada para dos Organizaciones son dos apps conectadas, y cada una se revoca por separado.
+- **Lectura, o lectura y escritura.** La app pide el scope `read`, y `write` si necesita cambiar datos. El Rol del Usuario limita el resultado: un `viewer` aprueba solo lectura, aunque la app pida `write`.
+- **Nunca más allá del Rol.** El token actúa con el Rol actual del Usuario. Si el Rol del Usuario pasa a `viewer`, un token de lectura y escritura deja de escribir. Si el Usuario pierde la Membresía, la aprobación y sus tokens terminan.
+- **Razón Declarada en las escrituras.** Todo `POST`, `PUT`, `PATCH` o `DELETE` debe enviar `x-audit-reason`, con las mismas reglas que para las claves de API. No se necesita `x-audit-actor`: el [registro de auditoría](/api-reference/audit-trail) guarda `credentialType: "oauth"` y el `client_id` y el nombre de la app.
+- **Sin administración de la cuenta.** Un token se rechaza en las rutas de Superadmin (`SUPERADMIN_SESSION_REQUIRED`), en la administración de claves de API, al listar o revocar apps conectadas, en los ajustes de verificación en dos pasos y en toda ruta `/api/auth/*` fuera del flujo OAuth.
+
+## Endpoints
+
+Sintropix publica los metadatos de su servidor de autorización en:
+
+```text
+https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
+```
+
+| Endpoint | URL |
+| --- | --- |
+| Registro | `POST https://api.sintropix.com/api/auth/oauth2/register` |
+| Autorización | `GET https://api.sintropix.com/api/auth/oauth2/authorize` |
+| Token | `POST https://api.sintropix.com/api/auth/oauth2/token` |
+
+| Ajuste | Valor |
+| --- | --- |
+| Tipos de concesión | `authorization_code`, `refresh_token` |
+| PKCE | Obligatorio, `code_challenge_method=S256` |
+| Scopes | `read`, `write` y `offline_access` para un token de actualización |
+| Token de acceso | Opaco, válido por 1 hora |
+| Token de actualización | Válido por 30 días. Cada actualización devuelve un token de actualización nuevo, y un token de actualización usado dos veces falla. |
+
+## Conecta tu app
+
+<Steps>
+  <Step title="Registra la app">
+    Regístrala una vez, sin credenciales. Sintropix emite un cliente público: no hay secreto de cliente, así que PKCE protege el flujo.
+
+    ```bash
+    curl -X POST https://api.sintropix.com/api/auth/oauth2/register \
+      -H "Content-Type: application/json" \
+      -d '{
+        "client_name": "Acme Assistant",
+        "redirect_uris": ["https://assistant.acme.example/callback"],
+        "token_endpoint_auth_method": "none",
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"]
+      }'
+    ```
+
+    Guarda el `client_id` de la respuesta. `client_name` es lo que los Usuarios ven en la pantalla de aprobación y en su lista de apps conectadas.
+  </Step>
+  <Step title="Envía al Usuario a aprobar">
+    Crea un code verifier de PKCE y su challenge S256, y abre la URL de autorización en el navegador del Usuario:
+
+    ```text
+    https://api.sintropix.com/api/auth/oauth2/authorize
+      ?response_type=code
+      &client_id=<client_id>
+      &redirect_uri=https://assistant.acme.example/callback
+      &scope=read%20write%20offline_access
+      &state=<estado aleatorio>
+      &code_challenge=<challenge>
+      &code_challenge_method=S256
+    ```
+
+    El `redirect_uri` debe coincidir exactamente con uno registrado. Luego el Usuario pasa por estas pantallas en la app de Sintropix:
+
+    1. Inicia sesión con su contraseña y su segundo factor. A un Usuario sin verificación en dos pasos se le pide activarla primero.
+    2. Elige la Organización en la que trabajará la app (**Elige la organización**). Un Usuario con una sola Membresía se salta esta pantalla. Un Usuario sin Membresías no puede aprobar ninguna app.
+    3. Revisa la solicitud: el nombre de la app, el dominio al que vuelve (**Te devolverá a**), la Organización y el acceso (**Solo lectura** o **Lectura y escritura**). El Usuario hace clic en **Permitir** o **Denegar**.
+
+    <Note>
+      El nombre de la app lo declara la propia app, así que la pantalla también muestra adónde vuelve el Usuario. Una redirección `https` muestra su hostname. Cualquier otro esquema muestra la URI completa.
+    </Note>
+  </Step>
+  <Step title="Canjea el código">
+    Sintropix redirige a tu `redirect_uri` con `code` y `state`. Verifica `state` y canjea el código con el code verifier:
+
+    ```bash
+    curl -X POST https://api.sintropix.com/api/auth/oauth2/token \
+      -d grant_type=authorization_code \
+      -d client_id=$CLIENT_ID \
+      -d redirect_uri=https://assistant.acme.example/callback \
+      -d code=$CODE \
+      -d code_verifier=$CODE_VERIFIER
+    ```
+
+    La respuesta trae `access_token`, `refresh_token` (si pediste `offline_access`), `expires_in` y el `scope` concedido. Lee el `scope` concedido: no incluye `write` cuando el acceso del Usuario es de solo lectura.
+  </Step>
+  <Step title="Llama a la API">
+    Envía el token de acceso como token Bearer. Las escrituras también necesitan `x-audit-reason`:
+
+    ```bash
+    curl https://api.sintropix.com/api/entities \
+      -H "Authorization: Bearer $ACCESS_TOKEN"
+
+    curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/partners \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "x-audit-reason: Crear el proveedor que el usuario pidió en el chat" \
+      -H "Content-Type: application/json" \
+      -d '{"id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88", "name": "Servicios Cloud SpA"}'
+    ```
+
+    Cuando una solicitud devuelve `401`, actualiza el token:
+
+    ```bash
+    curl -X POST https://api.sintropix.com/api/auth/oauth2/token \
+      -d grant_type=refresh_token \
+      -d client_id=$CLIENT_ID \
+      -d refresh_token=$REFRESH_TOKEN
+    ```
+
+    Si la actualización falla, el Usuario revocó la app o perdió la Membresía. Vuelve a enviarlo a aprobar.
+  </Step>
+</Steps>
+
+## Administra las apps conectadas
+
+Los Usuarios ven sus apps conectadas en la app de Sintropix en **Ajustes** > **Apps conectadas**, en `https://app.sintropix.com/{entityId}/settings/connected-apps`. Cada fila muestra la app, su dominio de retorno, la Organización, el acceso y la fecha de conexión. Haz clic en el botón de revocar de una fila y confirma con **Revocar**: los tokens de acceso y de actualización de la app dejan de funcionar de inmediato. Revocar la aprobación de una Organización mantiene las aprobaciones de la misma app en otras Organizaciones.
+
+Las mismas acciones están disponibles en la API, solo desde una sesión iniciada en el navegador. Una clave de API o un token OAuth recibe `403` con `PERMISSION_DENIED_ERROR`.
+
+### GET `/api/connected-apps`
+
+Lista las apps que aprobó el Usuario con sesión iniciada, una fila por aprobación.
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | UUID | Id de la aprobación. Úsalo para revocar. |
+| `clientId` | string | El `client_id` OAuth de la app. |
+| `appName` | string o `null` | El nombre que registró la app. |
+| `redirectDomains` | arreglo de strings | Adónde la app devuelve a los Usuarios: el hostname de cada URI de redirección `https`, o la URI completa para otros esquemas. |
+| `organization` | objeto | `{ id, name }` de la Organización en la que trabaja la app. |
+| `access` | enum | `read` o `read_write`. |
+| `createdAt` | fecha y hora ISO | Cuándo el Usuario aprobó la app. |
+
+### DELETE `/api/connected-apps/:connectedAppId`
+
+Revoca una aprobación y todos los tokens que emitió. Devuelve `200` con la app conectada revocada, en la forma anterior. Un id que no es una de tus aprobaciones devuelve `404` con `CONNECTED_APP_NOT_FOUND_ERROR`.
+
+## Códigos de error
+
+| Código | Estado | Significado |
+| --- | --- | --- |
+| `CONNECTED_APP_READ_ONLY_ERROR` | `403` | El token tiene acceso de lectura y la solicitud intentó escribir. |
+| `PERMISSION_DENIED_ERROR` | `403` | El Rol del Usuario no permite la acción, o un token intentó administrar apps conectadas o claves de API. |
+| `AUDIT_REASON_REQUIRED_ERROR` | `400` | Una escritura con token no envió `x-audit-reason`. |
+| `CONNECTED_APP_NOT_FOUND_ERROR` | `404` | Ninguna de tus aprobaciones tiene este id. |
+| `CONNECTED_APP_CLIENT_NOT_FOUND_ERROR` | `404` | El `client_id` no corresponde a ninguna app registrada. |
+| `CONNECTED_APP_REDIRECT_URI_NOT_REGISTERED_ERROR` | `400` | La app pidió volver a una URI que no registró. |
+| `CONNECTED_APP_MEMBERSHIP_REQUIRED_ERROR` | `403` | El Usuario no tiene Membresías, así que no puede aprobar una app. |
+| `CONNECTED_APP_ORGANIZATION_NOT_PICKED_ERROR` | `409` | El Usuario aún no eligió la Organización para esta solicitud. |
+
+Un token de acceso vencido, revocado o desconocido devuelve `401`.

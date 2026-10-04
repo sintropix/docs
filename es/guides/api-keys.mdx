@@ -14,6 +14,8 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
 
     El inicio de sesión siempre pide la **Verificación en dos pasos**. Por defecto, Sintropix te envía un código de 6 dígitos por correo después de la contraseña. El código vence a los 5 minutos. Haz clic en **Enviar otro código** para recibir uno nuevo; solo sirve el último. Después de 5 códigos incorrectos, debes ingresar tu contraseña de nuevo. En tu primer inicio de sesión, Sintropix te pide confirmar tu contraseña y te envía un código por correo para activar la verificación en dos pasos.
 
+    Si olvidaste tu contraseña, haz clic en **¿Olvidaste tu contraseña?** en la página de inicio de sesión e ingresa tu correo. Si la dirección tiene una cuenta en Sintropix, recibes un enlace para elegir una contraseña nueva. El enlace vence en 1 hora y sirve una sola vez. Al definir la contraseña nueva se cierran todas tus sesiones, y el siguiente inicio de sesión sigue pidiendo el segundo factor.
+
     Si prefieres una aplicación de autenticación, elige **Usar una aplicación de autenticación** durante la configuración, o más tarde haz clic en **Configurar aplicación de autenticación** en **Ajustes** > **Seguridad**. Escaneas un código QR, confirmas un código y guardas 10 códigos de respaldo. Desde entonces, el inicio de sesión pide el código de la aplicación o un código de respaldo, y Sintropix deja de enviarte códigos por correo. Solo una sesión con verificación en dos pasos puede crear claves de API.
 
     Haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Ajustes**.
@@ -93,7 +95,8 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
 
 ## Alcance y permisos
 
-- Una clave se autentica como su Usuario propietario, con el Rol global de ese Usuario y sus Membresías de Organización. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
+- Una clave se autentica como su Usuario propietario, con las Membresías de Organización de ese Usuario. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
+- Una clave nunca hace trabajo de Superadmin, aunque sea de un Superadmin. Administrar Usuarios, Organizaciones y Membresías requiere una sesión iniciada; una clave recibe `403` con `SUPERADMIN_SESSION_REQUIRED`.
 - Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las Organizaciones en las que el Usuario propietario tiene una Membresía, y solo puede hacer lo que el Rol del Usuario allí permite. Una clave de un `viewer` solo puede leer.
 - Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, `GET /api/entities` lista solo la Entidad acotada y `GET /api/organizations` devuelve un arreglo vacío. Una clave acotada no puede crear Entidades. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
 
