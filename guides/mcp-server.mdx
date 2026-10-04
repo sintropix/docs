@@ -1,0 +1,96 @@
+---
+title: "Read Your Books from Claude or ChatGPT with the Sintropix MCP Server"
+sidebarTitle: "Connect Claude or ChatGPT"
+description: "Connect Claude, ChatGPT, or any MCP client to the Sintropix MCP server to read companies, receivables, payables, the income statement, and the balance sheet. Server URL, sign-in, access, and the tools it exposes."
+---
+
+The Sintropix MCP server lets an AI assistant that speaks the Model Context Protocol (MCP), such as Claude or ChatGPT, read your books. You ask in plain language, for example "What do my customers owe me?", and the assistant answers from your Sintropix data.
+
+The server only reads. It can't create, change, or delete anything in Sintropix.
+
+```text
+https://mcp.sintropix.com/mcp
+```
+
+## Connect
+
+<Steps>
+  <Step title="Add the server to your assistant">
+    In your assistant's settings, add a custom connector (or custom MCP server) and paste the server URL `https://mcp.sintropix.com/mcp`. The server uses OAuth, so you don't need an API key or any other secret.
+  </Step>
+  <Step title="Sign in to Sintropix">
+    The assistant opens Sintropix in your browser. Sign in with your password and second factor. If you haven't set up two-step verification yet, Sintropix asks you to do it first.
+  </Step>
+  <Step title="Pick the Organization">
+    Choose the Organization the assistant will read (**Elige la organización**). If you hold a Membership in only one Organization, Sintropix skips this screen.
+  </Step>
+  <Step title="Approve">
+    Check the request: the app name, the domain it returns you to (**Te devolverá a**), the Organization, and the access, which is **Solo lectura**. Click **Permitir**. The assistant is now connected.
+  </Step>
+</Steps>
+
+Each connection reads one Organization, and every company (Entity) in it. To read another Organization, approve the assistant again and pick that Organization. Each approval appears as its own row in **Ajustes** > **Apps conectadas**.
+
+## Access
+
+- The assistant reads as you, in the Organization you approved, with your Role there. Any Role can read, so `staff`, `client`, and `viewer` Users can all connect.
+- If you lose your Membership in the Organization, the connection ends.
+- Revoke the connection at any time from **Ajustes** > **Apps conectadas** in the Sintropix app. The assistant loses access at once, and asks you to sign in again the next time it needs Sintropix.
+- The access token lasts 1 hour, and the assistant renews it on its own. If the assistant goes 30 days without renewing it, it asks you to sign in again.
+
+See [Connect an app with OAuth](/guides/connected-apps) for the full rules of connected apps.
+
+## Tools
+
+The server exposes five read-only tools. Each one answers a question, rather than mirroring an API endpoint. Amounts come back as decimal text in the company's functional currency, and accounts and Partners come back with their names.
+
+| Tool | Question it answers | Inputs |
+| --- | --- | --- |
+| `list_entities` | Which companies can I read? | None |
+| `get_receivables` | What do my customers owe me? | `entityId` |
+| `get_payables` | Which bills haven't I paid? | `entityId` |
+| `get_income_statement` | What did I earn in a period? | `entityId`, optional `from` and `to` |
+| `get_balance_sheet` | What do I have and owe on a date? | `entityId`, optional `cutoffDate` |
+
+### `list_entities`
+
+Lists the companies the connection reads. Each item has `entityId`, `name`, `taxId`, `country`, `currency`, and `organization` (the Organization's name). The assistant calls it first to find the `entityId` the other tools take.
+
+### `get_receivables` and `get_payables`
+
+List the open lines of each receivable or payable Ledger Account of the company, oldest first. Each line has its date, due date, Partner, invoice, memo, and open amount. A positive open amount is owed to the company in `get_receivables`, and owed by the company in `get_payables`.
+
+- A line with no invoice is an Unapplied Item, such as a payment received on account. The assistant reports it beside what is owed, never netted against it.
+- Each account returns up to 100 open lines. `openLinesNotShown` counts the rest.
+- These tools read the accounts whose Sub-type is `receivable` or `payable` in the [chart of accounts](/api-reference/chart-of-accounts). If the company marks no account with that Sub-type, the answer has no accounts and a `note` that says so. It doesn't mean nothing is owed: the assistant reads the balances with `get_balance_sheet` instead.
+
+### `get_income_statement`
+
+Returns the income statement (Estado de Resultados) for a period: income, cost of goods sold, operating expenses, other income, and other expenses, each with its accounts and total. It also returns the gross profit, the operating result, the operating margin (a ratio, `null` with no income), and the net result.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `entityId` | UUID | Required |
+| `from` | `YYYY-MM-DD` | January 1 of the year of `to` |
+| `to` | `YYYY-MM-DD` | Today in Chile |
+
+### `get_balance_sheet`
+
+Returns the balance sheet (Balance General) on a date: assets, liabilities, and equity, each with its accounts and total. The equity section also carries the result of prior years and the result of the year up to the date. The year starts on January 1.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `entityId` | UUID | Required |
+| `cutoffDate` | `YYYY-MM-DD` | Today in Chile |
+
+## Example questions
+
+- "Which of my companies can you see?"
+- "What does Acme SpA's customer list owe us, oldest first?"
+- "Which bills of Acme SpA are past due?"
+- "What was Acme SpA's net result from January to June?"
+- "Show me Acme SpA's balance sheet at the end of last month."
+
+<Card title="Connect an App with OAuth" icon="plug" href="/guides/connected-apps" horizontal>
+  Scopes, tokens, approvals, and how to list and revoke connected apps.
+</Card>

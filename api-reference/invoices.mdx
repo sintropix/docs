@@ -57,7 +57,7 @@ List every Invoice for the Entity, filtered by direction and document kind. Pass
 | `sourceId` | uuid or null | The [Source](/api-reference/sources) the document came from. Null when it was entered directly. |
 | `controlLineId` | uuid or null | The Ledger Entry Line that carries the receivable or payable. Null means the Invoice is not booked. |
 | `controlAccountId` | uuid or null | The Ledger Account the control line sits on. Null exactly when `controlLineId` is null. |
-| `recommendation` | object or null | The [Recommendation](/api-reference/recommendations) on this Invoice, which marks its pending work. Null when there is none. |
+| `followUp` | object or null | The [Follow-up](/api-reference/follow-ups) on this Invoice, which marks its pending work. Null when there is none. |
 | `createdAt` | timestamp | Creation time. |
 | `updatedAt` | timestamp | Last update time. |
 
@@ -97,7 +97,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `partnerId` | uuid | No | Keep only documents of this Partner. |
 | `currency` | string | No | ISO 4217 code. |
 | `paymentStatus` | string | No | `paid`, `partial`, or `unpaid`. |
-| `recommendationStatus` | string | No | `confident`, `needs_clarification`, `waiting`, or `none`. Filters by the status of the document's [Recommendation](/api-reference/recommendations). `none` keeps documents with no Recommendation. |
+| `followUpKind` | string | No | `proposal`, `question`, `waiting`, or `none`. Filters by the kind of the document's [Follow-up](/api-reference/follow-ups). `none` keeps documents with no Follow-up. |
 | `issueDateFrom` | string | No | `YYYY-MM-DD`, inclusive. |
 | `issueDateTo` | string | No | `YYYY-MM-DD`, inclusive. |
 | `dueDateFrom` | string | No | `YYYY-MM-DD`, inclusive. Documents without a due date are excluded. |

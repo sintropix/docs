@@ -27,6 +27,8 @@
                 "pages": [
                   "api-reference/overview",
                   "guides/api-keys",
+                  "guides/connected-apps",
+                  "guides/mcp-server",
                   "guides/app-links",
                   "quickstart",
                   "core-concepts"
@@ -55,7 +57,7 @@
                 "group": "Documents",
                 "pages": [
                   "api-reference/invoices",
-                  "api-reference/recommendations",
+                  "api-reference/follow-ups",
                   "api-reference/partners",
                   "api-reference/attachments",
                   "api-reference/todos"
@@ -110,6 +112,8 @@
                   "es/index",
                   "es/api-reference/overview",
                   "es/guides/api-keys",
+                  "es/guides/connected-apps",
+                  "es/guides/mcp-server",
                   "es/guides/app-links",
                   "es/quickstart",
                   "es/core-concepts"
@@ -138,7 +142,7 @@
                 "group": "Documentos",
                 "pages": [
                   "api-reference/invoices",
-                  "api-reference/recommendations",
+                  "api-reference/follow-ups",
                   "api-reference/partners",
                   "api-reference/attachments",
                   "api-reference/todos"
@@ -199,5 +203,11 @@
   "styling": {
     "codeblocks": "system",
     "eyebrows": "section"
-  }
+  },
+  "redirects": [
+    {
+      "source": "/api-reference/recommendations",
+      "destination": "/api-reference/follow-ups"
+    }
+  ]
 }

@@ -12,7 +12,11 @@ An Entity can hold more than one Integration at a time (for example, a Bsale doc
 
 The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Entity can connect several mailboxes, but each mailbox can belong to only one Entity. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
 
-The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile.
+The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sintropix does not read any data through this Integration yet: you can connect, renew, and disconnect the account only.
+
+The `resend` kind is an email inbox that Sintropix gives the Entity, with an address on `inbox.sintropix.com`. It holds no credential and lands no documents. Staff reads the email the inbox receives through [Email inboxes](#email-inboxes-staff-only).
+
+The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider, and the only SII document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile. The mirror reads the SII registers every 4 hours, so a document reaches it a few hours after the SII records it.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/integrations"
@@ -26,9 +30,9 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` \| `mercadopago` \| `mercadolibre` \| `gmail` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address). `null` when a document provider could not determine it at connect time. |
-| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago`, `mercadolibre`, and `gmail`, which are OAuth authorizations, not document integrations. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `resend` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `resend`, the inbox address). `null` when a document provider could not determine it at connect time. |
+| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago`, `mercadolibre`, `gmail`, and `polar`, which are OAuth authorizations, and for `resend`, which is an inbox. None of these are document integrations. |
 | `feed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when no Feed is configured. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
@@ -36,14 +40,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted.
 
-This route is for document integrations only. Mercado Pago, Mercado Libre, and Gmail use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint.
+This route is for document integrations only. Mercado Pago, Mercado Libre, Gmail, and Polar use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint. To create a `resend` inbox, use [`POST /integrations/resend`](#post-integrations-resend).
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `fintoc_fiscal` \| `sii_mirror` | Yes | The external system to link. `mercadopago`, `mercadolibre`, and `gmail` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `polar`, and `resend` are not accepted here. |
 | `accessToken` | string | Conditional | The provider's API access token. Required for `bsale` and `wasabil`; whitespace is trimmed and must be non-empty. Omit for `sii_mirror`, which reads Sintropix's SII mirror using the Entity's RUT and takes no credential. |
 
 For `sii_mirror`, Sintropix verifies at connect time that the Entity's country is Chile and that the mirror already follows the Entity's RUT. The connect is refused otherwise (see [Status codes](#status-codes)).
@@ -90,15 +94,103 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
 
 ## GET `/integrations`
 
-List every Integration for the Entity, including any Mercado Pago, Mercado Libre, or Gmail authorization connected from the app.
+List every Integration for the Entity, including any Mercado Pago, Mercado Libre, Gmail, or Polar authorization connected from the app and any `resend` inbox.
 
 - **Response:** array of Integration objects.
 
 ## DELETE `/integrations/:integrationId`
 
-Remove an Integration. Any attached Source Feed is removed as part of the same operation. For a Mercado Pago, Mercado Libre, or Gmail Integration, this removes the stored authorization on Sintropix; the grant on the provider's side is not revoked.
+Remove an Integration. Any attached Source Feed is removed as part of the same operation. For a Mercado Pago, Mercado Libre, Gmail, or Polar Integration, this removes the stored authorization on Sintropix; the grant on the provider's side is not revoked. For a `resend` inbox, the address stops showing its email in [Email inboxes](#email-inboxes-staff-only).
 
 - **Response:** the Integration object as it stood before deletion, including its `feed` if it had one.
+
+## Email inboxes (staff only)
+
+An email inbox is a `resend` Integration: an address on `inbox.sintropix.com` that receives email for the Entity. Staff reads that email through the routes below. Sintropix does not store the email or turn it into documents; every read fetches it live.
+
+<Warning>
+  Staff-only. `POST /integrations/resend` and both `/received-emails` routes require the `staff` Role in the Entity's Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. See [Access and roles](/api-reference/overview#access-and-roles). `GET /integrations` and `DELETE /integrations/:integrationId` serve `resend` inboxes like any other Integration.
+</Warning>
+
+### POST `/integrations/resend`
+
+Create an inbox for the Entity. The address is `<inboxName>@inbox.sintropix.com`.
+
+**Body.** Unknown keys are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id. Retrying with the same id is answered `409`. |
+| `inboxName` | string | Yes | The part of the address before `@`. Up to 64 characters: lowercase letters and digits, in groups joined by a single `.` or `-` (for example, `acme` or `acme-compras`). |
+
+An address belongs to one Entity only. An address another Entity already holds is refused with `409` (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`). An Entity can hold several inboxes.
+
+- **Response** (`201`): the Integration object, with `kind: "resend"` and the inbox address in `providerRef`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/resend" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "id": "a2b3c4d5-e6f7-4a8b-9c0d-1e2f3a4b5c6d", "inboxName": "acme" }'
+```
+
+### GET `/received-emails`
+
+List the email the Entity's inboxes received, newest first. An email belongs to the Entity when one of its inbox addresses appears in the email's To or Cc recipients, ignoring case. An email the inbox received only as Bcc is not listed. The list has no paging.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `inboxAddresses` | string[] | The Entity's inbox addresses. Empty when the Entity has no inbox, and `emails` is then empty too. |
+| `emails` | array | The received emails, newest first. See below. |
+
+Each element of `emails`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Email id. Use it with `GET /received-emails/:emailId`. |
+| `from` | string | Sender. |
+| `to` | string[] | To recipients. |
+| `subject` | string | Subject line. |
+| `receivedAt` | ISO 8601 timestamp | When the inbox received the email. |
+| `attachments` | array | `{ id, filename, contentType, size }` for each attachment. `filename` can be `null`; `size` is in bytes. |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/received-emails" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "inboxAddresses": ["acme@inbox.sintropix.com"],
+  "emails": [
+    {
+      "id": "4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b",
+      "from": "facturacion@proveedor.cl",
+      "to": ["acme@inbox.sintropix.com"],
+      "subject": "Factura 45210",
+      "receivedAt": "2026-10-02T13:05:41.000Z",
+      "attachments": [
+        { "id": "9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "filename": "factura-45210.pdf", "contentType": "application/pdf", "size": 84213 }
+      ]
+    }
+  ]
+}
+```
+
+### GET `/received-emails/:emailId`
+
+Read one received email with its body and attachment download links. `emailId` must be a UUID. An email that is not addressed to one of the Entity's inboxes answers `404` (`RECEIVED_EMAIL_NOT_FOUND_ERROR`), the same as an id that does not exist.
+
+**Response:** every field of a listed email, plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `text` | string \| null | Plain-text body. |
+| `html` | string \| null | HTML body. Render it in a sandbox: it can load remote images. |
+| `attachments` | array | `{ id, filename, contentType, size, downloadUrl }` for each attachment, up to 100. `downloadUrl` expires shortly after the read, so read the email again to get a fresh link. |
 
 ## Status codes
 
@@ -107,4 +199,7 @@ Remove an Integration. Any attached Source Feed is removed as part of the same o
 | `200` | Success on `GET`, `DELETE`. |
 | `201` | Integration created. |
 | `400` | Validation error, missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
-| `404` | Entity or Integration not found. |
+| `403` | A non-staff caller on `POST /integrations/resend` or `/received-emails` (`PERMISSION_DENIED_ERROR`). |
+| `404` | Entity, Integration, or received email (`RECEIVED_EMAIL_NOT_FOUND_ERROR`) not found. |
+| `409` | Integration id already exists, or the external account (for `resend`, the inbox address) is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`). |
+| `503` | The inbox email could not be read right now (`RECEIVED_EMAIL_UNAVAILABLE_ERROR`). Retry later. |

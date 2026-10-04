@@ -120,6 +120,44 @@ curl "https://api.sintropix.com/api/agent-channels?platform=slack&channelId=C012
 
 If no Entity has bound the place, the request answers `404` with the domain code `AGENT_CHANNEL_PLACE_UNBOUND_ERROR`. The agent reads this as "no one speaks here" and stays silent.
 
+## Work with Erwin in a Slack channel
+
+The Sintropix agent, Erwin, answers in the bound channel's threads. Mention him to start. Once he's in a thread, he answers the later messages meant for him, including a short "sí" or "ok" to a question he asked. He doesn't answer people talking to each other, a "gracias", or an "ok" after he finishes. He still reads those messages as context for his next answer. He sometimes reacts with an emoji instead of replying, or before he starts to work.
+
+Erwin reads the files you send in the thread, including in a Slack Connect channel shared with another company.
+
+### Stop or interrupt Erwin
+
+While Erwin works, his answer shows a progress line with a **Detener** button below it. Anyone in the thread can click **Detener**. Erwin stops and doesn't start again. The message then says who stopped him, and that what he already wrote in the ERP stays.
+
+To change course without stopping, send a new message in the thread. It interrupts the running answer, which ends with *(interrumpido)*. Erwin's next answer takes every message sent in the meantime. Before he continues, he checks what he already wrote in the ERP, so he never repeats a write.
+
+### Answer Erwin's questions
+
+When Erwin needs a fact from a person, he posts a question card below his answer and waits. The card tags one or more people who may know. It shows the question, what Erwin saw, and a link to the record. Anyone can answer: click **Responder** and fill in the form, or reply in the thread. A form answer turns the card into **Respondido por** and the answer.
+
+### Sign in to a bank by hand
+
+Some bank sites refuse automated sign-ins. Santander is one of them. When Erwin needs such a site, he opens its login page, tags a person, and posts a link to his live browser. Sign in there within five minutes. Erwin then continues in your session. He never types the RUT or password of these sites himself.
+
+For Santander, Erwin reads the label of the Entity's Santander login Credential to know which site to open. Include `Persona` or `Empresa` in the label, for example `Santander Persona` or `Santander Empresa`. Without either word, Erwin asks which one before he starts.
+
+### Read the Entity's Slack channels
+
+Erwin can read the Slack channels bound to his Entity, even where nobody mentioned him. He uses them as context for a task, in Slack and in the in-app chat. He reads only the channels he's a member of, and never a channel bound to another Entity.
+
+### Scheduled tasks
+
+Ask Erwin in a bound channel to run a task on a schedule, such as a weekly overdue receivables review. Each schedule has its own:
+
+- **Hours and time zone.** The schedule fires on the clock of its time zone, including daylight saving time. Without a time zone, it uses `America/Santiago`.
+- **Model.** A new schedule takes the channel's current model. A later `/model` in the channel doesn't change it.
+- **Channel.** A schedule can move to another channel bound to the same Entity. Invite Erwin to that channel first.
+
+Each run posts its first message straight into the channel as a new message, usually the full answer. Its questions and your replies go in that message's thread. A reply there interrupts the run, as in any thread. A run with nothing to report posts nothing.
+
+To change a schedule, ask Erwin. He can change its instructions, hours, time zone, model, or channel. Changes apply from the next run. A run already underway, and the threads of past runs, stay where they started.
+
 ## Choose the agent's model in a Slack channel
 
 In a bound Slack channel, anyone in the channel can pick the model the Sintropix agent uses with the `/model` slash command.
@@ -131,14 +169,14 @@ In a bound Slack channel, anyone in the channel can pick the model the Sintropix
 
 | Name | Model |
 | --- | --- |
-| `gpt-sol` (default) | OpenAI GPT-6 Sol |
+| `gpt-sol` (default) | OpenAI GPT-6.1 Sol |
 | `opus` | Anthropic Claude Opus 5.5 |
 
 ```text
 /model opus
 ```
 
-A change applies only to threads that start after it. A thread keeps the model it started with, so an open conversation never switches models midway. Each scheduled run starts a new thread, so it uses the channel's current model.
+A change applies only to threads that start after it. A thread keeps the model it started with, so an open conversation never switches models midway. A scheduled task keeps its own model, so `/model` never changes an existing schedule. Ask Erwin to change a schedule's model instead.
 
 The choice belongs to one channel. Other channels bound to the same Entity keep their own model. An unknown name changes nothing, and the agent replies with the list of options. In an unbound channel or a direct message, the agent replies that no one speaks there and changes nothing.
 

@@ -36,7 +36,7 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (staff only), and `/api/health`.
+A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (Superadmin only), and `/api/health`.
 
 `{entityId}` is always a UUID. A request for an Entity the caller cannot access returns `404`, never `403`, so probing does not reveal whether an unknown Entity exists.
 
@@ -51,11 +51,11 @@ Access to an Entity comes from an **Organization Membership**. An [Organization]
 | `viewer` | Yes | No | No |
 
 - **Read** covers `GET` requests on Entity routes, including the [Audit Trail](/api-reference/audit-trail). **Write** covers `POST`, `PUT`, `PATCH`, and `DELETE`.
-- **Sintropix work** covers routes reserved for the accounting team: credentials, automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), honorarium sync, accounting policies, the parent Entity, Entity creation, the staff workload and booking-actor reports, and [FX rate sync](/api-reference/fx-rates).
+- **Sintropix work** covers routes reserved for the accounting team: credentials, automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), [email inboxes](/api-reference/integrations#email-inboxes-staff-only), honorarium sync, accounting policies, the parent Entity, Entity creation, and [FX rate sync](/api-reference/fx-rates).
 - An Entity outside your Organizations returns `404`. An action your Role doesn't allow returns `403` with `PERMISSION_DENIED_ERROR`.
-- Users with the global `role = staff` keep access to every Entity and are the only callers who can manage Organizations and Memberships.
+- No Role is global. A User with no Membership in an Organization can't reach its Entities, whatever Role they hold elsewhere.
 
-Sintropix staff grant Memberships through the [Onboarding API](/api-reference/onboarding).
+A **Superadmin** is a User Sintropix designates to manage access: Users, Organizations, Memberships, and moving Entities between Organizations, through the [Onboarding API](/api-reference/onboarding) and the [Organizations API](/api-reference/organizations). These routes accept only a signed-in browser session. A request with an API key or an OAuth access token gets `403` with `SUPERADMIN_SESSION_REQUIRED`, even a Superadmin's, and any other User gets `403` with `SUPERADMIN_REQUIRED`. Being a Superadmin opens no books: a Superadmin reaches an Entity only through a Membership, like everyone else.
 
 ## Linking to the App
 
@@ -63,7 +63,10 @@ Every record has a page in the Sintropix web app at `https://app.sintropix.com/{
 
 ## Authentication
 
-Programmatic callers authenticate with an API key in the `x-api-key` header. Keys are created in the Sintropix app; see [Get an API Key](/guides/api-keys).
+Programmatic callers authenticate in one of two ways:
+
+- **API key** in the `x-api-key` header. Keys are created in the Sintropix app; see [Get an API Key](/guides/api-keys).
+- **OAuth access token** in the `Authorization: Bearer <token>` header. An app gets one when a User approves it for one Organization; see [Connect an app with OAuth](/guides/connected-apps). A token acts as that User in that Organization only, with read or read and write access, and never beyond the User's Role. Claude and ChatGPT use this to reach the [Sintropix MCP server](/guides/mcp-server).
 
 Every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) made with an API key must also send a Declared Actor and a Declared Reason:
 
@@ -76,6 +79,8 @@ x-audit-reason: <why you are making this change>
 `x-audit-actor` is a self-reported software label (for example `claude-opus-4.8`) that lands verbatim in the [Audit Trail](/api-reference/audit-trail). Omitting it on a mutation returns `400`.
 
 `x-audit-reason` is a one-line, plain-text explanation of why the change is being made (max 500 characters). The server trims surrounding whitespace and stores the value on the Audit Envelope. Missing or blank returns `400` with code `AUDIT_REASON_REQUIRED_ERROR`; longer than 500 characters returns `400` with code `AUDIT_REASON_TOO_LONG_ERROR`.
+
+A mutating request made with an OAuth access token must send `x-audit-reason` too. It doesn't need `x-audit-actor`: the Audit Trail names the approved app instead.
 
 ## Request Format
 
@@ -133,7 +138,7 @@ Non-2xx responses are JSON. Every response, success or failure, carries an `x-re
 | `201` | Resource created. |
 | `204` | Request succeeded with no response body. |
 | `400` | Body, query, or path failed validation; a required header is missing. |
-| `401` | No valid API key. |
+| `401` | No valid API key, session, or OAuth access token. An expired or revoked token also returns `401`. |
 | `403` | The caller is not allowed to perform this action (for example a read-only key attempting a mutation, or a `viewer` attempting a write). Role refusals carry `PERMISSION_DENIED_ERROR`. |
 | `404` | Resource does not exist, or the caller has no access to the requested Entity. |
 | `409` | Domain conflict (for example an already-booked Ledger Entry, a duplicate row). |
@@ -165,7 +170,7 @@ The API is designed for server-to-server use with an API key. Calling it directl
 </Warning>
 
 <Warning>
-  There is **no `Authorization: Bearer` scheme**. API keys go in the `x-api-key` header.
+  API keys go in the `x-api-key` header, never in `Authorization: Bearer`. The `Authorization: Bearer` header carries only OAuth access tokens of [connected apps](/guides/connected-apps).
 </Warning>
 
 <Warning>

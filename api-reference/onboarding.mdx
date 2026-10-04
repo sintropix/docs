@@ -1,35 +1,38 @@
 ---
 title: "Sintropix Onboarding API: Provision Users and Grant Memberships"
 sidebarTitle: "Onboarding"
-description: "Staff-only endpoints to create Users, look them up by email, grant Organization Memberships with a Role, mint set-password links, and revoke sessions."
+description: "Superadmin-only endpoints to create Users, look them up by email, list every Organization, grant Organization Memberships with a Role, mint set-password links, and revoke sessions."
 ---
 
-The Onboarding API is how Sintropix staff provision new Users and control which Organizations they can access. Every route below is restricted to Users with `role = staff`. Public sign-up is disabled, so User creation happens only through this surface, and set-password links are minted here and delivered to the client through the staff member's existing channel because Sintropix does not send email.
+The Onboarding API is how a Sintropix Superadmin provisions new Users and controls which Organizations they can access. Public sign-up is disabled, so User creation happens only through this surface.
 
 <Warning>
-  Staff-only. A client-role caller (session or API key) receives `403` on every route below.
+  Superadmin only, from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User, including one with the `staff` Role in an Organization, receives `403` with `SUPERADMIN_REQUIRED`.
 </Warning>
+
+No API route makes a User a Superadmin. Being a Superadmin does not open any Entity's books: a Superadmin reaches an Entity only through a Membership of its Organization.
 
 ## POST `/onboarding/users`
 
-Create a User. This is the only place a User's global role is assigned. Access to client Entities comes from the Organization Memberships granted below.
+Create a User. A User has no Role of their own: a new User reaches no Entity until you grant a Membership below, and the Role lives on that Membership.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `email` | string | Yes | A valid email address. Must be unique across all Users. |
-| `name` | string | Yes | Display name. Minimum 1 character. |
-| `role` | enum | Yes | One of `staff` or `client`. |
+| `email` | string | Yes | A valid email address. Must be unique across all Users, ignoring case. |
+| `name` | string | Yes | Display name. Surrounding whitespace is trimmed, and the result must not be empty. |
 
-**Response** `200`
+**Response** `201`
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | UUID | The new User's id. Use it in the `:userId` path segment of the routes below. |
-| `email` | string | The email supplied on creation. |
-| `name` | string | The display name supplied on creation. |
-| `role` | enum | `staff` or `client`. |
+| `email` | string | The email, stored in lowercase. |
+| `name` | string | The display name, trimmed. |
+| `createdAt` | ISO datetime | Creation timestamp. |
+
+An email another User already holds returns `409` with `USER_ALREADY_EXISTS_ERROR`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/onboarding/users" \
@@ -37,8 +40,7 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "ana.perez@example.com",
-    "name": "Ana Perez",
-    "role": "client"
+    "name": "Ana Perez"
   }'
 ```
 
@@ -47,24 +49,33 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users" \
   "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
   "email": "ana.perez@example.com",
   "name": "Ana Perez",
-  "role": "client"
+  "createdAt": "2026-09-26T12:00:00.000Z"
 }
 ```
 
 ## GET `/onboarding/users`
 
-Look up a User by email. Use this to recover a User's id when all you hold is their address.
+List Users, or look one up by email. Use the email filter to recover a User's id when all you hold is their address.
 
 **Query params**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `email` | string | Yes | The email address to look up. Must be a valid email. |
+| `email` | string | No | A valid email address. Matching ignores case. Without it, the response lists every User. |
 
-**Response** `200`: the same User object returned by `POST /onboarding/users` (`id`, `email`, `name`, `role`).
+**Response** `200`: an array of User objects in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `createdAt`). An unknown email returns an empty array.
 
 ```bash
 curl "https://api.sintropix.com/api/onboarding/users?email=ana.perez%40example.com" \
+  --cookie cookies.txt
+```
+
+## GET `/onboarding/organizations`
+
+List every Organization, each with the Entities it holds, whether or not you hold a Membership in it. Use it to pick the `organizationId` when you grant a Membership or move an Entity. The response has the same shape as [`GET /organizations`](/api-reference/organizations), which lists only the Organizations where the caller holds the `staff` Role.
+
+```bash
+curl "https://api.sintropix.com/api/onboarding/organizations" \
   --cookie cookies.txt
 ```
 
@@ -134,7 +145,7 @@ curl -X PATCH "https://api.sintropix.com/api/onboarding/users/$USER_ID/membershi
 
 ## DELETE `/onboarding/users/:userId/memberships/:organizationId`
 
-Revoke a User's Membership in an Organization. The User loses access to every Entity of the Organization. No request body.
+Revoke a User's Membership in an Organization. The User loses access to every Entity of the Organization on their next request. Every [connected app](/guides/connected-apps) the User approved for that Organization is revoked with it. No request body.
 
 - **Status:** `204`.
 
@@ -145,9 +156,13 @@ curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID/membersh
 
 ## POST `/onboarding/users/:userId/set-password-link`
 
-Mint a one-time link the User can follow to set (or reset) their password. Delivery is manual: the staff member sends the link to the client over their existing channel (Sintropix does not send transactional email). No request body.
+Mint a link the User can follow to set (or reset) their password. Sintropix does not email this link: you relay it to the User over your own channel. No request body.
 
-**Response** `200`
+- The link expires after 1 hour and works once.
+- Setting the password through the link signs the User out of every session.
+- Users can also ask for a link themselves: **¿Olvidaste tu contraseña?** on the sign-in page emails them a link with the same rules.
+
+**Response** `201`
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -160,7 +175,7 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/set-passwo
 
 ```json
 {
-  "link": "https://app.sintropix.com/set-password?token=eyJhbGciOiJIUzI1NiJ9..."
+  "link": "https://api.sintropix.com/api/auth/reset-password/Qm9yamFNYXJxdWV6?callbackURL=https%3A%2F%2Fapp.sintropix.com%2Fset-password"
 }
 ```
 
@@ -179,9 +194,10 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/revoke-ses
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `POST /users`, `GET /users`, `GET /memberships`, `POST /set-password-link`. |
+| `200` | Success on `GET /users`, `GET /organizations`, and `GET /memberships`. |
+| `201` | Success on `POST /users` and `POST /set-password-link`. |
 | `204` | Success on Membership grant, role change, revoke, and session revocation. |
-| `400` | Validation error, including a `:userId` that is not a UUID. |
-| `403` | Caller is not `staff`. |
-| `404` | User or Organization not found (`ORGANIZATION_NOT_FOUND_ERROR`), or no Membership to change or revoke (`ORGANIZATION_MEMBERSHIP_NOT_FOUND_ERROR`). |
-| `409` | The User already holds a Membership in this Organization (`ORGANIZATION_MEMBERSHIP_ALREADY_EXISTS_ERROR`). |
+| `400` | Validation error, including a blank name or a `:userId` that is not a UUID. |
+| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), or the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`). |
+| `404` | User not found (`USER_NOT_FOUND_ERROR`), Organization not found (`ORGANIZATION_NOT_FOUND_ERROR`), or no Membership to change or revoke (`ORGANIZATION_MEMBERSHIP_NOT_FOUND_ERROR`). |
+| `409` | The email is taken (`USER_ALREADY_EXISTS_ERROR`), or the User already holds a Membership in this Organization (`ORGANIZATION_MEMBERSHIP_ALREADY_EXISTS_ERROR`). |

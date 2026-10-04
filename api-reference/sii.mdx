@@ -70,6 +70,8 @@ Fetch a single DTE with its detail, including its amounts and any references to 
 
 `referenceCode` is the SII code that says what the referencing document does to the referenced one: `1` voids it, `2` corrects its text, `3` corrects its amounts. Null means the DTE states a reference and no code.
 
+A [Source Feed](/api-reference/source-feeds) sync links the references each landed DTE states, with their code, when the target DTE is already in the books. See [DTE references](/api-reference/source-feeds#dte-references). Use the endpoints below to add or remove a reference by hand.
+
 Example response for a credit note that voids an invoice:
 
 ```json

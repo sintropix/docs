@@ -33,7 +33,7 @@ List Ledger Entries with pagination, filtering, and sorting. Defaults to live en
 | `limit` | integer | No | 50 | Page size, max 100 |
 | `from` | ISO date | No | — | Earliest entry date |
 | `to` | ISO date | No | — | Latest entry date (must be >= from) |
-| `search` | string | No | — | Memo search |
+| `search` | string | No | — | Memo search, up to 100 characters |
 | `sort` | enum | No | `date` | `date`, `memo`, or `amount` |
 | `direction` | enum | No | `desc` | `asc` or `desc` |
 | `statuses` | string | No | `active,reversed` | Comma-separated list of `active`, `deleted`, `reversed`, `scheduled`, `cancelled` |
@@ -222,7 +222,7 @@ Each line in `newLedgerEntryLines`:
   The transaction trio (currency, amount, rate) must be provided together or omitted together. The rate is a plain decimal string, never a float.
 </Note>
 
-You choose the `id` of every line, the same way you choose the entry `id`. Because you know each line id before the write, a later request can name a line before it exists. For example, a [Recommendation](/api-reference/recommendations) Plan can book an Invoice and then match a Movement to its Control Line. A line id that already exists answers `409 LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` with `params: { lineIds }`, and Sintropix writes nothing.
+You choose the `id` of every line, the same way you choose the entry `id`. Because you know each line id before the write, a later request can name a line before it exists. For example, a [Follow-up](/api-reference/follow-ups) Plan can book an Invoice and then match a Movement to its Control Line. A line id that already exists answers `409 LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` with `params: { lineIds }`, and Sintropix writes nothing.
 
 - **Success response:** the Ledger Entry fields plus `ledgerEntryLines`, an array of Ledger Entry Line objects (see the entry detail endpoint) each extended with `dimensionValueIds` (UUID[])
 - **Status:** 201

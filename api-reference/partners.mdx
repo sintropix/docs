@@ -36,6 +36,7 @@ List every Partner for the Entity, each row enriched with Open Item totals (unse
 | `legalName` | string or null | Registered legal name. |
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
+| `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-partners-partnerid-logo) from it. |
 | `aliases` | string[] | Other names that find this Partner, in name order. See [Aliases](#aliases). |
 | `mergedIntoPartnerId` | uuid or null | The Partner this one was [merged](#merge-partners) into. Null for an active Partner. |
 | `openReceivable` | integer | Unsettled amount this Partner owes the Entity. |
@@ -120,6 +121,7 @@ Create a Partner.
 | `legalName` | string or null | No | Non-empty if sent. |
 | `country` | string or null | No | ISO 3166-1 alpha-2 code known to Sintropix. |
 | `taxId` | string or null | No | Tax registration number. When `country` is `CL` the value must be a valid RUT; separators and dots are accepted and it is stored in canonical form (`76.123.456-0` becomes `76123456-0`). |
+| `website` | string or null | No | A domain or a URL. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `PARTNER_WEBSITE_INVALID_ERROR`. |
 | `defaultPurchaseAccountId` | uuid or null | No | Only for `type: "vendor"`. The account must be an expense-type Ledger Account or a fixed-asset account. |
 
 A `country` and `taxId` pair must be unique within the Entity (`409`).
@@ -178,6 +180,7 @@ Update Partner attributes.
 | `legalName` | string or null | No | Non-empty if sent. |
 | `country` | string or null | No | ISO 3166-1 alpha-2 code. |
 | `taxId` | string or null | No | Same RUT rule as on create when the resulting country is `CL`. |
+| `website` | string or null | No | Same rule as on create. |
 | `defaultPurchaseAccountId` | uuid or null | No | Only for vendors; expense-type or fixed-asset account. |
 | `booksAutomatically` | boolean | No | Turn automatic booking from the [Booking Template](#booking-templates) on or off. Only for vendors. `true` requires a saved template (`409`). Not accepted on create: a new Partner starts with `false`. |
 | `aliases` | string[] | No | The full list of [Aliases](#aliases). An existing Alias you leave out is removed. Send `[]` to remove all. Not accepted on create. |
@@ -199,6 +202,20 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTN
 Delete a Partner. Partners with outstanding Open Items or referenced Ledger Lines are refused. A Merged Partner is never deleted (`409`, `PARTNER_MERGED_ERROR`).
 
 **Response:** the deleted Partner row, as `GET /partners/pages` listed it.
+
+## GET `/partners/:partnerId/logo`
+
+Read the Partner's logo: a 64 × 64 PNG that Sintropix takes from the icon of the Partner's `website`. The app shows it in place of the Partner's initial.
+
+**Response**
+
+- `302` redirect to a short-lived link to the PNG. The response may be cached for up to one hour.
+- `404` with `PARTNER_LOGO_NOT_FOUND_ERROR` when the Partner has no `website`, or its site shows no usable icon. A site that could not be reached is tried again on the next request; a site that answered with no usable icon is not.
+
+```bash
+curl -i "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/logo" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
 
 ## Aliases
 
@@ -260,9 +277,9 @@ Sintropix moves these records from the merged Partner to the kept Partner:
 
 Lines on or before the Lock Date stay on the merged Partner, because the Lock Date freezes them. The Partner Ledger shows that history under the merged Partner's name.
 
-The kept Partner takes these fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, `type`, and `defaultPurchaseAccountId`. It takes the merged Partner's Booking Template and `booksAutomatically` only when it is a vendor with no template. Otherwise, Sintropix removes the merged Partner's template.
+The kept Partner takes these fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, `website`, `type`, and `defaultPurchaseAccountId`. It takes the merged Partner's Booking Template and `booksAutomatically` only when it is a vendor with no template. Otherwise, Sintropix removes the merged Partner's template.
 
-The merge also clears every Recommendation that names the merged Partner. A Partner merged earlier into the merged Partner now points at the kept Partner.
+The merge also clears every [Follow-up](/api-reference/follow-ups) that names the merged Partner. A Partner merged earlier into the merged Partner now points at the kept Partner.
 
 ### After a merge
 
@@ -390,6 +407,7 @@ A Control Line on the wrong side or on an account Book invoice refuses as a paya
 | --- | --- |
 | `200` | Success on `GET`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the deleted row. |
 | `201` | Partner created. |
-| `400` | Validation error (including an invalid RUT or an unknown country), or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity or Partner not found. |
+| `302` | Redirect to the Partner's logo on `GET /partners/:partnerId/logo`. |
+| `400` | Validation error (including an invalid RUT, an invalid website, or an unknown country), or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity or Partner not found, or the Partner has no logo (`PARTNER_LOGO_NOT_FOUND_ERROR`). |
 | `409` | Partner id or tax identity already exists, the Partner has open items or references and cannot be deleted, an Alias is taken, the Partner is merged, a merge is refused, or a Booking Template rule is violated. |
