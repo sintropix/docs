@@ -6,7 +6,7 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the [Integration](/api-reference/integrations) it fetches through. Syncing a Feed lands new documents into its Source.
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the [Integration](/api-reference/integrations) it fetches through. Syncing a Feed lands new documents into its Source. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync).
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/sources"
@@ -41,9 +41,10 @@ Every route on this page returns Feeds in this shape.
 | `skippedCount` | integer | Documents already present and unchanged. |
 | `ignoredCount` | integer | Documents of types the books do not track. |
 | `rejectedCount` | integer | Documents refused with a reason. |
+| `awaitingCount` | integer | Documents the provider counts but does not list yet, so a later sync lands them. Today only `sii_mirror` boletas; see [SII Mirror boletas](#sii-mirror-boletas). |
 | `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
 | `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
-| `report` | object | `{ tieOutLines, rejected, divergences, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected }`). `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `document_inactive`, `sii_not_accepted`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (today, `sii_mirror`); see [File attachments](#file-attachments). |
+| `report` | object | `{ tieOutLines, rejected, divergences, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `document_inactive`, `sii_not_accepted`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (today, `sii_mirror`); see [File attachments](#file-attachments). |
 | `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
@@ -162,6 +163,20 @@ Delete a Source Feed. The parent Source and any already-imported documents are u
 
 - **Response:** the deleted Source Feed object.
 
+## SII Mirror Feeds
+
+A Feed that reads through a `sii_mirror` [Integration](/api-reference/integrations) reads the SII registers month by month, from the link date to the day it runs.
+
+### SII Mirror boletas
+
+The SII states boletas (types `39` and `41`) as one consolidated row per type and month, and lists each boleta later, as it itemizes them. A sync lands each boleta the SII has itemized as its own Invoice. The boletas of the row that are not itemized yet count in `awaiting` on the row's tie-out line and in the run's `awaitingCount`. A later sync lands them once the SII lists them, so the count moves from `awaiting` to `landed`.
+
+A boleta that states the RUT `66666666-6`, or that the Entity issued with no buyer RUT, lands on the final-consumer Partner, named `Consumidor Final` with `taxId` `66666666-6`. A consolidated row that the SII never itemizes counts as `ignored`.
+
+### The current month
+
+The mirror may not have read the current month yet, for example in the first hours of a month. A sync then reads the current month, on the Chilean calendar, as empty: it states no tie-out line for it and does not fail. A past month the mirror holds no answer for still fails the sync with `502`, because that is a real gap.
+
 ## File attachments
 
 Some providers carry the source files of each document (the PDF and the XML). When a sync runs against such an Integration, after the documents land it also attaches those files to the [Invoice](/api-reference/invoices) of each landed or skipped document, as [Attachments](/api-reference/attachments).
@@ -170,15 +185,15 @@ The providers that carry files today:
 
 | Provider `kind` | Documents with files attached |
 | --- | --- |
-| `sii_mirror` | All issued and received DTEs. |
+| `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. |
 | `bsale` | Sales documents. Purchases keep their PDF and XML as evidence lines on the Source Feed, because the Bsale purchase `urlPdf` answers HTML rather than a PDF. |
 | `wasabil` | Issued and received documents. |
 
-Other providers (for example `fintoc_fiscal`, `mercadopago`, `mercadolibre`) report no files and this section does not apply.
+Other Integration kinds (for example `mercadopago`, `mercadolibre`) report no files and this section does not apply.
 
 **Gap rule.** The sync attaches only the kinds the Invoice does not already have. Any PDF already on the Invoice satisfies the PDF slot, whether an earlier sync or a user attached it. Same for XML. If a user later deletes a file that a sync attached, the next sync attaches it again.
 
-**Cap.** One sync attaches at most 200 files, newest documents first. The rest are counted in `deferred` and picked up on the next sync.
+**Cap.** A sync you trigger with `POST /source-feeds/:sourceFeedId/sync` attaches at most 200 files, and a scheduled sync at most 1000, newest documents first. The rest are counted in `deferred` and picked up on the next sync.
 
 **Filename.** Attached files are named `DTE-<dteTypeCode>-<folio>-<issuerRut>.<pdf|xml>`, for example `DTE-46-10-78404916-7.xml`.
 
@@ -234,6 +249,17 @@ Each entry in `failed[]`:
   }
 }
 ```
+
+## DTE references
+
+A sync also links each DTE to the DTEs it references, for example a nota de crédito to the factura it credits. The links appear in `statedDteReferences` and `receivedDteReferences` on [`GET /sii/dte/:dteId`](/api-reference/sii), with the SII `referenceCode` (`1` voids, `2` corrects text, `3` corrects amounts) when the document states one.
+
+Sintropix reads the references from two places:
+
+- **The provider's data.** `sii_mirror` and `wasabil` state the references of each document. `bsale` states none.
+- **The attached XML.** When a sync attaches a DTE's XML (see [File attachments](#file-attachments)), Sintropix reads the `<Referencia>` blocks of that XML, whatever the provider. An XML whose type and folio do not match the DTE is not read.
+
+A reference is linked only when its target is already in the Entity's books: a DTE of the same issuer, with the stated type and folio. A target that is not there yet is not linked. For a reference the provider states, a sync that runs after the target lands links it, because every sync reads its whole window again. A reference stated only in the XML is read once, when the sync attaches the XML; to link it later, add it with [`POST /sii/dte/:dteId/references`](/api-reference/sii). A stated code fills a reference that has no code, but never replaces a code the reference already has. A sync never removes a reference.
 
 ## Status codes
 
