@@ -163,12 +163,15 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet
 
 Returns the income statement for the requested date range.
 
+Pass `dimensionId` to split each account by the values of one [Dimension](/api-reference/dimensions), for example to see an income account per country or per business line. Each line then names the value it carries in `dimensionValueId`, and the response lists every value of the Dimension so you can group the lines yourself. The account totals and the lines don't change.
+
 **Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
+| `dimensionId` | UUID | No | Dimension of the Entity to split the accounts by. A Dimension of another Entity returns `404` with `DIMENSION_NOT_FOUND_ERROR` |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -184,6 +187,8 @@ Returns the income statement for the requested date range.
 | `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
 | `accountGroups` | array | Account Groups, each `{ id, parentGroupId, codePrefix, name }` |
 | `accounts` | array | Result accounts in code order, each with the fields below |
+| `dimension` | object or null | The Dimension asked for in `dimensionId`: `{ id, entityId, name, createdAt, updatedAt }`; `null` when none was asked |
+| `dimensionValues` | array | Every value of that Dimension, ordered by code, each `{ id, code, name, parentId }`; `parentId` is `null` at the top level. Empty when no Dimension was asked |
 
 Each item in `accounts`:
 
@@ -209,11 +214,23 @@ Each item in `lines`:
 | `partnerId` | UUID or null | Counterparty partner |
 | `partnerName` | string or null | Name of the partner |
 | `partnerTaxId` | string or null | Tax id of the partner |
+| `dimensionValueId` | UUID or null | Value of the asked Dimension the line carries; `null` when the line carries none or no Dimension was asked |
+
+To total an account by value, add up its lines per `dimensionValueId`. To total a parent value, also add the lines of every value under it, following `parentId`. Lines with a `null` `dimensionValueId` make up the untagged remainder, so the values plus the remainder always add up to the account.
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2024-01-01&to=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2024-01-01&to=2024-12-31&dimensionId=<uuid>" \
+  -H "Cookie: <session-cookie>"
+```
+
+<Tip>
+  To see only the net result per value across all accounts, use [Income statement by dimension](#income-statement-by-dimension) instead.
+</Tip>
 
 ### Income statement by dimension
 
