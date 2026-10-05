@@ -51,7 +51,7 @@ Access to an Entity comes from an **Organization Membership**. An [Organization]
 | `viewer` | Yes | No | No |
 
 - **Read** covers `GET` requests on Entity routes, including the [Audit Trail](/api-reference/audit-trail). **Write** covers `POST`, `PUT`, `PATCH`, and `DELETE`.
-- **Sintropix work** covers routes reserved for the accounting team: credentials, automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), [email inboxes](/api-reference/integrations#email-inboxes-staff-only), honorarium sync, accounting policies, the parent Entity, Entity creation, and [FX rate sync](/api-reference/fx-rates).
+- **Sintropix work** covers routes reserved for the accounting team: credentials (except [Bank Logins](/api-reference/integrations#bank-logins), which a `client` can store too), automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), [email inboxes](/api-reference/integrations#email-inboxes-staff-only), honorarium sync, accounting policies, the parent Entity, Entity creation, and [FX rate sync](/api-reference/fx-rates).
 - An Entity outside your Organizations returns `404`. An action your Role doesn't allow returns `403` with `PERMISSION_DENIED_ERROR`.
 - No Role is global. A User with no Membership in an Organization can't reach its Entities, whatever Role they hold elsewhere.
 
