@@ -31,7 +31,7 @@ Create a new Entity in an Organization. The client supplies the idempotency id, 
 | `currency` | string | Yes | Functional currency code, non-empty |
 | `organizationId` | UUID | Yes | Organization the Entity belongs to |
 
-- **Success response:** the created Entity with `organizationName` (see [Response shape](#response-shape))
+- **Success response:** the created Entity with `organizationName` and `organizationWebsite` (see [Response shape](#response-shape))
 - **Status:** 201
 
 ```bash
@@ -53,7 +53,7 @@ curl -X POST https://api.sintropix.com/api/entities \
 
 List every Entity the caller can access. You see every Entity of each Organization you hold a Membership in, whatever your Role. Being a Superadmin adds no Entities to this list. An OAuth access token sees only the Entities of the Organization it was approved for.
 
-- **Success response:** array of Entity objects, each with `organizationName` (see [Response shape](#response-shape)). Group the rows by `organizationId` to show Entities per Organization.
+- **Success response:** array of Entity objects, each with `organizationName` and `organizationWebsite` (see [Response shape](#response-shape)). Group the rows by `organizationId` to show Entities per Organization.
 - **Status:** 200
 
 ```bash
@@ -210,6 +210,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `parentEntityId` | UUID or null | Controlling Entity |
 | `organizationId` | UUID | Organization the Entity belongs to |
 | `organizationName` | string | Name of that Organization. Returned by `GET /api/entities` and `POST /api/entities` only. |
+| `organizationWebsite` | string or null | Website of that Organization, as a bare domain. Read the Organization's logo from [`GET /api/organizations/:organizationId/logo`](/api-reference/organizations#get-organizations-organizationid-logo). Returned by `GET /api/entities` and `POST /api/entities` only. |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
