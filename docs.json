@@ -50,7 +50,7 @@
                 "pages": [
                   "api-reference/bank-accounts",
                   "api-reference/bank-movements",
-                  "api-reference/bank-connections"
+                  "api-reference/bank-feeds"
                 ]
               },
               {
@@ -135,7 +135,7 @@
                 "pages": [
                   "api-reference/bank-accounts",
                   "api-reference/bank-movements",
-                  "api-reference/bank-connections"
+                  "api-reference/bank-feeds"
                 ]
               },
               {
@@ -208,6 +208,10 @@
     {
       "source": "/api-reference/recommendations",
       "destination": "/api-reference/follow-ups"
+    },
+    {
+      "source": "/api-reference/bank-connections",
+      "destination": "/api-reference/bank-feeds"
     }
   ]
 }

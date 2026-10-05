@@ -1,0 +1,256 @@
+---
+title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
+sidebarTitle: "Bank Feeds"
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Global66, dLocal Go, Cardda, and Mercado Pago Integrations."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+A bank feed reads the movements of one account at a Provider and lands them on a Bank Account. The feed reads through an [Integration](/api-reference/integrations): the grant you connected for that Provider. An Integration can discover one or more accounts at its Provider, and you map each one to an existing Bank Account or use it to create a new one.
+
+These Integration kinds can feed a Bank Account:
+
+| Kind | Provider | What it discovers |
+| --- | --- | --- |
+| `fintoc` | A bank, through the Fintoc widget | Every account the bank login reaches |
+| `global66` | Global66 | The accounts you named when you connected |
+| `cardda` | Cardda | The company's one CLP wallet |
+| `dlocal` | dLocal Go | The merchant's one balance |
+| `mercadopago` | Mercado Pago | The account's available money |
+
+To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
+
+All routes live under `/api/entities/:entityId/integrations/:integrationId`. Path parameters are UUIDs, except `providerAccountId`.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/settings/integrations"
+/>
+
+## Authentication
+
+Use a session cookie or an API key via the `x-api-key` header. Mutations with an API key also require `x-audit-actor`. See [Get an API Key](/guides/api-keys).
+
+## Get discovered accounts
+
+`GET /api/entities/:entityId/integrations/:integrationId/discovered-accounts`
+
+Read the live account panel for one Integration. This fetches the Provider's current status, the discovered accounts, and the local Bank Accounts and Ledger Accounts you can map to.
+
+### Response
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | `active`, `inactive`, or `login_required` | Provider's judgment of the grant. `login_required` means the institution rejected the stored grant and you must [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect) |
+| `accounts` | `array` | Accounts the Provider discovered (see below) |
+| `mappableBankAccounts` | `array` | Local Bank Accounts that can still take a feed (see below) |
+| `ledgerAccounts` | `array` | Asset Ledger Accounts eligible for mapped creation (see below) |
+| `refreshing` | `boolean \| null` | `true` while the Provider is still refreshing the grant, `false` when every refresh has finished, `null` when the refresh state could not be read |
+
+Each element of `accounts` carries:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `providerAccountId` | `string` | Provider's opaque handle for the account |
+| `name` | `string` | Account name as the institution reports it |
+| `number` | `string` | Account number as the institution reports it |
+| `type` | `string` | Provider-defined account type, display only |
+| `currency` | `string` | ISO 4217 code |
+| `balance.current` | `integer` | Current balance in minor units of `currency` |
+| `balance.available` | `integer \| null` | Available balance in minor units; null when the institution does not report it |
+| `balance.limit` | `integer \| null` | Credit limit in minor units; null when the institution does not report it |
+| `refreshedAt` | `ISO datetime \| null` | When the Provider last refreshed this account |
+| `fedBankAccount` | `object \| null` | The Bank Account this account already feeds, as `{ id, name }`, or null |
+
+Each element of `mappableBankAccounts` carries `id` (`uuid`), `name` (`string`), and `currency` (`string`). Each element of `ledgerAccounts` carries `id` (`uuid`), `code` (`string`), and `name` (`string`).
+
+```json
+{
+  "status": "active",
+  "accounts": [
+    {
+      "providerAccountId": "acc_123",
+      "name": "Cuenta Corriente",
+      "number": "000123456789",
+      "type": "checking_account",
+      "currency": "CLP",
+      "balance": { "available": 1250000, "current": 1250000, "limit": null },
+      "refreshedAt": "2026-02-01T12:00:00.000Z",
+      "fedBankAccount": null
+    }
+  ],
+  "mappableBankAccounts": [
+    { "id": "0192a8b4-0000-7000-8000-000000000002", "name": "Primary Checking", "currency": "CLP" }
+  ],
+  "ledgerAccounts": [
+    { "id": "0192a8b4-0000-7000-8000-000000000004", "code": "1102", "name": "Banco" }
+  ],
+  "refreshing": false
+}
+```
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/discovered-accounts \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Add accounts to a Global66 Integration
+
+`POST /api/entities/:entityId/integrations/:integrationId/discovered-accounts`
+
+Global66 does not list its accounts, so you name each account the Integration reads. Use this route to add accounts after you connect. Sintropix checks access with the stored grant before it adds the accounts. The Integration keeps its id and its feeds. An account id that is already on the grant with the same currency stays unchanged, and a currency change is refused.
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accounts` | `array` | Yes | At least one account object |
+| `accounts[].accountId` | `string` | Yes | Account id at Global66 |
+| `accounts[].currency` | `string` | Yes | ISO 4217 code, three uppercase letters. A code Sintropix does not know is refused with `INTEGRATION_CURRENCY_UNKNOWN_ERROR` |
+
+### Response
+
+The updated Integration, in the shape of one item of [`GET /integrations`](/api-reference/integrations#the-integration-object).
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/discovered-accounts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"accounts":[{"accountId":"acc_789","currency":"CLP"}]}'
+```
+
+## Remove one account from a Global66 Integration
+
+`DELETE /api/entities/:entityId/integrations/:integrationId/discovered-accounts/:providerAccountId`
+
+Narrow a Global66 Integration by taking one account off its grant, without disconnecting the whole Integration. Use it when a wrong account was added to a Global66 grant and you want to keep reading the rest. Sintropix rebuilds the grant from the remaining accounts, keeps the same Global66 tokens, and does not call Global66. This route only applies to Global66 Integrations.
+
+### Path parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `entityId` | `uuid` | Entity that owns the Integration |
+| `integrationId` | `uuid` | Global66 Integration to narrow |
+| `providerAccountId` | `string` | Global66 account id to remove from the grant |
+
+### Response
+
+The updated Integration, in the shape of one item of [`GET /integrations`](/api-reference/integrations#the-integration-object). `fedBankAccounts` still lists every Bank Account fed by the accounts that remain on the grant.
+
+### Refusals
+
+The endpoint returns `409 Conflict` with a body of `{ "code": "<code>", "params": { ... } }` in these cases:
+
+| Code | When it happens |
+| --- | --- |
+| `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR` | `providerAccountId` is not on the Integration's grant |
+| `DISCOVERED_ACCOUNT_FED_ERROR` | The account still feeds a Bank Account. Stop the feed on that Bank Account first, then retry |
+| `INTEGRATION_LAST_ACCOUNT_ERROR` | The account is the only one on the grant. [Disconnect](/api-reference/integrations#delete-integrations-integrationid) the whole Integration instead |
+| `INTEGRATION_GRANT_MISMATCH_ERROR` | The Integration is not a Global66 Integration |
+| `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` | The narrowed grant equals another existing Global66 Integration |
+
+```bash
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/discovered-accounts/acc_789 \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## Map a discovered account to an existing Bank Account
+
+`POST /api/entities/:entityId/integrations/:integrationId/bank-account-feeds`
+
+Create a feed that attaches a discovered account to an existing local Bank Account. The server derives the currency from the Provider and rejects a mismatch. The first sync runs before the server answers, so the request can take a while. For Mercado Pago it usually takes about a minute.
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bankAccountId` | `uuid` | Yes | Local Bank Account to feed |
+| `providerAccountId` | `string` | Yes | Provider's opaque handle for the account |
+| `feedStartDate` | `ISO date` | Yes | Day the feed begins, for every Provider. Must not be older than 90 days or in the future. The Bank Account must already hold every row before this day, and the sync loads Provider movements from this day on |
+
+### Response
+
+The Bank Account that now carries the feed, with `feed` populated. The shape is the one documented on the [Bank Accounts](/api-reference/bank-accounts) page, without the `balance` and `unreconciledCount` summary fields.
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/bank-account-feeds \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "bankAccountId": "0192a8b4-0000-7000-8000-000000000002",
+    "providerAccountId": "acc_123",
+    "feedStartDate": "2026-09-01"
+  }'
+```
+
+### Refusals
+
+The endpoint returns `400 Bad Request` with a body of `{ "code": "<code>", "params": { ... } }` in this case:
+
+| Code | When it happens |
+| --- | --- |
+| `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR` | `feedStartDate` is after the oldest pending hold at the Provider, such as an open Cardda hold. A feed that starts later would never land the hold once the Provider approves it. `params` carries `feedStartDate` and `earliestPendingDate`. Retry with a `feedStartDate` on or before `earliestPendingDate` |
+
+## Create a Bank Account from a discovered account
+
+`POST /api/entities/:entityId/integrations/:integrationId/bank-accounts`
+
+Create a new Bank Account and feed it from a discovered account in one operation. The creation is always kind `bank`, so only an asset Ledger Account is accepted. Like the map, the first sync runs before the server answers.
+
+### Request body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `uuid` | Yes | Client-supplied id for idempotency |
+| `name` | `string` | Yes | Display name |
+| `ledgerAccountId` | `uuid` | Yes | Asset Ledger Account to map |
+| `providerAccountId` | `string` | Yes | Provider's opaque handle |
+| `feedStartDate` | `ISO date` | Yes | Day the feed begins. Must not be older than 90 days or in the future |
+
+### Response
+
+The created Bank Account with its `balance` and `unreconciledCount` summary, in the same shape as the list response on the [Bank Accounts](/api-reference/bank-accounts) page.
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/bank-accounts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "0192a8b4-0000-7000-8000-000000000003",
+    "name": "Banco Principal",
+    "ledgerAccountId": "0192a8b4-0000-7000-8000-000000000004",
+    "providerAccountId": "acc_123",
+    "feedStartDate": "2026-09-01"
+  }'
+```
+
+To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid).
+
+## What each Provider lands
+
+### Cardda
+
+Cardda is a prepaid wallet and card provider. The company holds one CLP wallet, and every card movement lands on that wallet.
+
+- Only approved rows that affect the balance land as Movements. Pending rows, declined rows, and rows that do not affect the balance stay out of the books.
+- The reported balance is the wallet amount minus the pending holds that affect the balance.
+- The Movement date is the transaction's `authorized_at`, or `created_at` when `authorized_at` is absent. Sintropix reads that timestamp as the calendar day in Santiago (Chile).
+
+### dLocal Go
+
+dLocal Go is a payment processor that reports payments and settlements. The feed lands those as inflows and outflows on the mapped Bank Account.
+
+### Mercado Pago
+
+A Mercado Pago feed mirrors the account's available money. Each sync reads Mercado Pago's release report, which lists every movement of that money: payments net of fees, purchases paid from the balance, payouts, refunds, credit repayments, and holds.
+
+- Each sync covers the days from the feed start date to the end of yesterday, so the feed runs about a day behind.
+- Each sync can leave a release report in the account's list of reports in Mercado Pago, marked as manual.
+- Every row of the report lands as a Movement.
+- Sintropix refuses a report whose running balance does not chain from one row to the next, and checks the landed Movements against the report's closing balance.
+- Before you map the account, the discovered account shows the closing balance of the newest release report. It shows `0` when the account has no release report yet.
+
+The Mercado Pago Integration renews its authorization on its own before a sync reads.

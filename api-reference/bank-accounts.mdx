@@ -29,6 +29,8 @@ Feed sub-routes live under:
 
 Path parameters `:entityId` and `:bankAccountId` are UUIDs.
 
+To start a feed, connect a bank Provider as an [Integration](/api-reference/integrations), then map one of its discovered accounts to a Bank Account. See [Bank Feeds](/api-reference/bank-feeds).
+
 ## Authentication
 
 Use a session cookie or pass `x-api-key: $SINTROPIX_API_KEY`. Mutations with an API key also require `x-audit-actor: my-agent`. See [Get an API Key](/guides/api-keys).
@@ -74,9 +76,10 @@ The `feed` object, when present, contains:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `bankConnectionId` | UUID | Source Bank Connection |
+| `integrationId` | UUID | The [Integration](/api-reference/integrations) that feeds the account |
+| `integrationKind` | `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` | The kind of that Integration |
 | `providerAccountId` | string | Provider-side account handle |
-| `institutionName` | string | Institution display name |
+| `institutionName` | string \| null | The bank's display name for a `fintoc` feed; `null` for every other kind |
 | `lastSyncedAt` | ISO datetime \| null | Last successful sync, null until first success |
 
 ```json
@@ -89,7 +92,8 @@ The `feed` object, when present, contains:
     "ledgerAccountId": "0190d000-0000-7000-8000-000000000001",
     "currency": "CLP",
     "feed": {
-      "bankConnectionId": "0192a8b4-0000-7000-8000-000000000001",
+      "integrationId": "0192a8b4-0000-7000-8000-000000000001",
+      "integrationKind": "fintoc",
       "providerAccountId": "acc_123",
       "institutionName": "Banco de Chile",
       "lastSyncedAt": "2026-02-01T12:00:00.000Z"

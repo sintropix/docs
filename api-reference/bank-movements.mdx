@@ -108,7 +108,7 @@ Write answers also return the Bank Account with its computed summary:
 | `kind` | `bank` \| `card` | Account kind. |
 | `ledgerAccountId` | uuid | Ledger Account where booked activity accumulates. |
 | `currency` | string | ISO 4217 code, for example `CLP`. |
-| `feed` | object \| null | `{ bankConnectionId, providerAccountId, institutionName, lastSyncedAt }` when the account is fed by a bank connection; `null` otherwise. |
+| `feed` | object \| null | `{ integrationId, integrationKind, providerAccountId, institutionName, lastSyncedAt }` when an [Integration](/api-reference/bank-feeds) feeds the account; `null` otherwise. See [Bank Accounts](/api-reference/bank-accounts) for each field. |
 | `balance` | integer | Signed balance on the Ledger Account's normal side. |
 | `unreconciledCount` | integer | Movements not yet reconciled. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
