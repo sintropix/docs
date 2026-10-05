@@ -48,7 +48,6 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. |
 | Bank Movement | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Use the `bankAccountId` field on the Movement. Replace `open` with `reconcile` to start reconciling it. |
 | Bank Movements of every account | `/{entityId}/banks/movements` | Every Movement of the Entity, grouped by Bank Account. Add `status=unreconciled` for the ones still to reconcile, and `open={movementId}` to open one in its panel without leaving the list. |
-| Bank Connection | `/{entityId}/settings/bank-accounts` | Connections and their mapped accounts are managed here. |
 | Partner | `/{entityId}/partner-ledger?partners={partnerId}` | Partner statement filtered to that Partner. `/{entityId}/partners` and `/{entityId}/vendors` are the customer and supplier lists. |
 | Ledger Account | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movements of one account. The chart itself is `/{entityId}/settings/chart-of-accounts`. |
 | Open Item | `/{entityId}/receivables?open={entryId}` or `/{entityId}/payables?open={entryId}` | Pass the id of the Ledger Entry that carries the item. `/{entityId}/open-items` shows all. |
@@ -56,7 +55,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Dimension | `/{entityId}/settings/dimensions?dimension={dimensionId}` | |
 | Source | `/{entityId}/sources/{sourceId}` | Documents imported by that Source. Sources are configured at `/{entityId}/settings/sources`. |
 | Source Feed | `/{entityId}/settings/sources` | Feeds are managed inside their Source's settings. |
-| Integration | `/{entityId}/settings/integrations` | |
+| Integration | `/{entityId}/settings/integrations?open={integrationId}` | Opens the Integration's side panel, with its details, the Bank Accounts or Source it feeds, and its actions. Drop `open` for the list of every Integration. Bank feeds are managed here too. |
 | FX Rate | `/{entityId}/settings/fx-rates` | |
 | Audit Trail | `/{entityId}/settings/log` | |
 | API keys | `/{entityId}/settings/api-keys` | |
@@ -70,7 +69,7 @@ Reports are pages with the period in the query string. Omit a parameter to get t
 | --- | --- | --- |
 | Balance Sheet | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Eight-column Balance | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
-| Income Statement | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`), `dimension` (a Dimension id, to open accounts by its values). Add `drillDown={accountId}:{columnKey}` to open one cell, or `drillDown={accountId}:{columnKey}:{dimensionValueId}` to open one value's cell (`unassigned` for the lines with no value). |
+| Income Statement | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`, or `none` for one column; the statement opens by `month` when you omit it), `dimension` (a Dimension id, to open accounts by its values). Add `drillDown={accountId}:{columnKey}` to open one cell, or `drillDown={accountId}:{columnKey}:{dimensionValueId}` to open one value's cell (`unassigned` for the lines with no value). |
 | Income Statement by Dimension | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | General Ledger | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Journal | `/{entityId}/journal` | `from`, `to`, `search` |

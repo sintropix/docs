@@ -1,14 +1,26 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Entity"
 sidebarTitle: "Integrations"
-description: "Create, list, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds."
+description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Entity's behalf. Integrations are the credential side. [Source Feeds](/api-reference/source-feeds) are the recurring pull jobs that actually import data using them.
+An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Entity's behalf. Every grant to an external account is an Integration, including the banks and payment providers that feed Bank Accounts. Integrations are the credential side. The feeds are the recurring pull jobs that import data through them.
 
-An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Mercado Pago authorization and a Mercado Libre authorization). Each external account still belongs to a single Entity.
+What an Integration can feed depends on its kind:
+
+| Kind | Feeds |
+| --- | --- |
+| `bsale`, `wasabil`, `sii_mirror` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) |
+| `fintoc`, `global66`, `cardda`, `dlocal`, `mercadopago` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
+| `mercadolibre`, `gmail`, `polar`, `resend` | Nothing yet |
+
+An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account still belongs to a single Entity.
+
+The `fintoc` kind connects a bank login through the [Fintoc](https://fintoc.com) widget. The `global66` kind connects Global66 with a client id, a client secret, and the accounts you name. The `cardda` kind connects a Cardda company with its API key, and the `dlocal` kind connects a dLocal Go merchant with its API key and secret key. Sintropix reads the Provider before it stores the credentials, so credentials that cannot read are refused at connect.
+
+The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
 The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Entity can connect several mailboxes, but each mailbox can belong to only one Entity. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
 
@@ -30,29 +42,45 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `resend` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `resend`, the inbox address). `null` when a document provider could not determine it at connect time. |
-| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for `mercadopago`, `mercadolibre`, `gmail`, and `polar`, which are OAuth authorizations, and for `resend`, which is an inbox. None of these are document integrations. |
-| `feed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when no Feed is configured. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `resend` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for `fintoc`, the Fintoc Link; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `resend`, the inbox address). `null` when a document provider could not determine it at connect time. |
+| `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds, the OAuth authorizations, and `resend`. |
+| `institutionName` | string \| null | The bank's display name. Only `fintoc` states it; `null` for every other kind. |
+| `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
+| `mode` | `test` \| `live` \| null | Whether a Fintoc Link runs against Fintoc's test or live environment. `null` for every other kind. |
+| `sourceFeed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when the Integration feeds no Source. |
+| `fedBankAccounts` | array | `{ id, name }` of each Bank Account this Integration feeds, in name order. Empty when it feeds none. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## POST `/integrations`
 
 Create an Integration by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted.
 
-This route is for document integrations only. Mercado Pago, Mercado Libre, Gmail, and Polar use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint. To create a `resend` inbox, use [`POST /integrations/resend`](#post-integrations-resend).
+This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, and Polar use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint. To create a `resend` inbox, use [`POST /integrations/resend`](#post-integrations-resend).
 
-**Body**
+**Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `polar`, and `resend` are not accepted here. |
-| `accessToken` | string | Conditional | The provider's API access token. Required for `bsale` and `wasabil`; whitespace is trimmed and must be non-empty. Omit for `sii_mirror`, which reads Sintropix's SII mirror using the Entity's RUT and takes no credential. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `polar`, and `resend` are not accepted here. |
+
+Each kind adds its own fields:
+
+| Kind | Fields | Description |
+| --- | --- | --- |
+| `bsale`, `wasabil` | `accessToken` (string) | The provider's API access token. Whitespace is trimmed and must be non-empty. |
+| `sii_mirror` | None | Reads Sintropix's SII mirror using the Entity's RUT and takes no credential. |
+| `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-integrations-fintoc-link-intents) and the user completes the widget. |
+| `global66` | `clientId` (string), `clientSecret` (string), `accounts` (array) | Your Global66 client credentials and at least one account to read. Each account is `{ accountId, currency }`, where `currency` is an ISO 4217 code of three uppercase letters. A currency Sintropix does not know is refused with `INTEGRATION_CURRENCY_UNKNOWN_ERROR` before Global66 is called. |
+| `cardda` | `apiKey` (string) | The Cardda API key. It selects the company, and the Integration discovers that company's one CLP wallet. |
+| `dlocal` | `apiKey` (string), `secretKey` (string) | The dLocal Go API key and its paired secret key. They name the merchant, and the Integration discovers its one balance. |
 
 For `sii_mirror`, Sintropix verifies at connect time that the Entity's country is Chile and that the mirror already follows the Entity's RUT. The connect is refused otherwise (see [Status codes](#status-codes)).
 
-- **Response:** the Integration object (its `feed` is `null` on creation).
+Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
+
+- **Response** (`201`): the Integration object (its `sourceFeed` is `null` and its `fedBankAccounts` is empty on creation).
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
@@ -73,7 +101,11 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   "kind": "bsale",
   "providerRef": "12345",
   "documentCount": 355,
-  "feed": null,
+  "institutionName": null,
+  "holderId": null,
+  "mode": null,
+  "sourceFeed": null,
+  "fedBankAccounts": [],
   "createdAt": "2025-01-02T12:00:00.000Z",
   "updatedAt": "2025-01-02T12:00:00.000Z"
 }
@@ -92,17 +124,107 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   }'
 ```
 
+Connect a dLocal Go merchant:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "0192a8b4-0000-7000-8000-000000000001",
+    "kind": "dlocal",
+    "apiKey": "dlocal_api_key",
+    "secretKey": "dlocal_secret_key"
+  }'
+```
+
+After you connect a bank Provider, list its accounts and feed them into Bank Accounts. See [Bank Feeds](/api-reference/bank-feeds).
+
+## POST `/integrations/fintoc/link-intents`
+
+Start the Fintoc connect flow. Sintropix creates a Link Intent at Fintoc and answers what the frontend needs to open the Fintoc widget. When the user completes the widget, it mints an exchange token. Send that token to [`POST /integrations`](#post-integrations) with `kind: "fintoc"`.
+
+The widget needs a browser, so you can't complete a Fintoc connect from the API alone.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `holderType` | `business` \| `individual` | Yes | Who holds the account at the bank. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `widgetToken` | string | Token the Fintoc widget needs. |
+| `publicKey` | string | Public key for the widget session. |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/fintoc/link-intents" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{"holderType":"business"}'
+```
+
+## POST `/integrations/:integrationId/reconnect`
+
+Restore a Fintoc Integration whose bank stopped trusting the stored grant. You know it needs this when [its discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) answer `status: "login_required"`. Run the Fintoc widget again and send the fresh exchange token. The Integration keeps its id and every feed it holds.
+
+Only `fintoc` Integrations reconnect. To repair a Global66, Cardda, or dLocal Go Integration whose credentials stopped working, disconnect it and connect again with new credentials.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `exchangeToken` | string | Yes | Fresh token from the Fintoc widget. |
+
+A grant from another bank or another holder, or an Integration that is not `fintoc`, is refused with `409` and `INTEGRATION_GRANT_MISMATCH_ERROR`.
+
+- **Response:** the restored Integration object.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/reconnect" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{"exchangeToken":"ex_tok_456"}'
+```
+
 ## GET `/integrations`
 
-List every Integration for the Entity, including any Mercado Pago, Mercado Libre, Gmail, or Polar authorization connected from the app and any `resend` inbox.
+List every Integration for the Entity, including any Mercado Pago, Mercado Libre, Gmail, or Polar authorization connected from the app and any `resend` inbox. Each item carries the Source Feed and the Bank Accounts it feeds.
 
 - **Response:** array of Integration objects.
 
 ## DELETE `/integrations/:integrationId`
 
-Remove an Integration. Any attached Source Feed is removed as part of the same operation. For a Mercado Pago, Mercado Libre, Gmail, or Polar Integration, this removes the stored authorization on Sintropix; the grant on the provider's side is not revoked. For a `resend` inbox, the address stops showing its email in [Email inboxes](#email-inboxes-staff-only).
+Remove an Integration. Every feed of the Integration is removed as part of the same operation: its Source Feed and the feed of each Bank Account it fed. The Source, the Bank Accounts, and the documents and Movements already landed stay.
 
-- **Response:** the Integration object as it stood before deletion, including its `feed` if it had one.
+- For a `fintoc` Integration, Sintropix also deletes the Link at Fintoc, so the bank stops being read.
+- For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked.
+- For a `resend` inbox, the address stops showing its email in [Email inboxes](#email-inboxes-staff-only).
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `deletedIntegrationId` | uuid | The removed Integration. |
+| `unfedBankAccounts` | array | Every Bank Account that lost its feed, in the shape documented on [Bank Accounts](/api-reference/bank-accounts) without the summary fields, and with `feed` set to `null`. Empty when the Integration fed no Bank Account. |
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+```json
+{
+  "deletedIntegrationId": "0192a8b4-0000-7000-8000-000000000001",
+  "unfedBankAccounts": []
+}
+```
 
 ## Email inboxes (staff only)
 
@@ -201,5 +323,7 @@ Read one received email with its body and attachment download links. `emailId` m
 | `400` | Validation error, missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
 | `403` | A non-staff caller on `POST /integrations/resend` or `/received-emails` (`PERMISSION_DENIED_ERROR`). |
 | `404` | Entity, Integration, or received email (`RECEIVED_EMAIL_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, or the external account (for `resend`, the inbox address) is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`). |
+| `409` | Integration id already exists, the external account (for `resend`, the inbox address) is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), or a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`). |
+| `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), or a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`). |
 | `503` | The inbox email could not be read right now (`RECEIVED_EMAIL_UNAVAILABLE_ERROR`). Retry later. |

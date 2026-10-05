@@ -121,7 +121,7 @@ Create a Partner.
 | `legalName` | string or null | No | Non-empty if sent. |
 | `country` | string or null | No | ISO 3166-1 alpha-2 code known to Sintropix. |
 | `taxId` | string or null | No | Tax registration number. When `country` is `CL` the value must be a valid RUT; separators and dots are accepted and it is stored in canonical form (`76.123.456-0` becomes `76123456-0`). |
-| `website` | string or null | No | A domain or a URL. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `PARTNER_WEBSITE_INVALID_ERROR`. |
+| `website` | string or null | No | A domain or a URL. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `WEBSITE_INVALID_ERROR`. |
 | `defaultPurchaseAccountId` | uuid or null | No | Only for `type: "vendor"`. The account must be an expense-type Ledger Account or a fixed-asset account. |
 
 A `country` and `taxId` pair must be unique within the Entity (`409`).

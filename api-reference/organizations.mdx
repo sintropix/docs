@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Organizations API: Group Entities for Access"
 sidebarTitle: "Organizations"
-description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to, and list each Organization's members."
+description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website, read its logo, and list its members."
 ---
 
 An Organization groups the Entities that a client runs as one business. Every Entity belongs to exactly one Organization. Users reach Entities through an Organization Membership, which carries one Role and covers every Entity of the Organization, including Entities added later. See [Access and roles](/api-reference/overview#access-and-roles) for what each Role allows.
@@ -9,7 +9,7 @@ An Organization groups the Entities that a client runs as one business. Every En
 Use this page to manage Organizations themselves. To grant, change, or revoke a User's Membership, use the [Onboarding API](/api-reference/onboarding). To move an Entity to another Organization, use [`PATCH /api/entities/:entityId/organization`](/api-reference/entities).
 
 <Warning>
-  Every route below except `GET /organizations` is restricted to a Superadmin, and only from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User receives `403` with `SUPERADMIN_REQUIRED`.
+  Every route below except `GET /organizations`, [`PATCH /organizations/:organizationId/website`](#patch-organizations-organizationid-website), and [`GET /organizations/:organizationId/logo`](#get-organizations-organizationid-logo) is restricted to a Superadmin, and only from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User receives `403` with `SUPERADMIN_REQUIRED`.
 </Warning>
 
 A Superadmin is a User Sintropix designates to manage access. No API route grants Superadmin. Being a Superadmin does not open any Entity's books: a Superadmin reads and writes an Entity only through a Membership of its Organization, like any other User.
@@ -64,6 +64,7 @@ Create an empty Organization. Add Entities to it by creating them with its `orga
 | --- | --- | --- |
 | `id` | UUID | Organization id |
 | `name` | string | Organization name, trimmed |
+| `website` | string or null | The Organization's website, stored as a bare lowercase domain (`acme.cl`). `null` until staff [set it](#patch-organizations-organizationid-website). |
 | `createdAt` | ISO datetime | Creation timestamp |
 
 ```bash
@@ -77,6 +78,7 @@ curl -X POST https://api.sintropix.com/api/organizations \
 {
   "id": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
   "name": "Grupo Acme",
+  "website": null,
   "createdAt": "2026-09-26T12:00:00.000Z"
 }
 ```
@@ -96,13 +98,59 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
 
 Rename an Organization. The body and validation rules match `POST /organizations`.
 
-**Response** `200`: the renamed Organization (`id`, `name`, `createdAt`).
+**Response** `200`: the renamed Organization (`id`, `name`, `website`, `createdAt`).
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
   --cookie cookies.txt \
   -H "Content-Type: application/json" \
   -d '{"name": "Grupo Acme Holding"}'
+```
+
+## PATCH `/organizations/:organizationId/website`
+
+Set or clear the website Sintropix reads the Organization's logo from. The app shows that logo in the organization switcher, in place of the Organization's initial.
+
+- Only a member with the `staff` Role in the Organization can call it, from a session or an API key. A `client` or `viewer` member receives `403` with `PERMISSION_DENIED_ERROR`, and a User outside the Organization receives `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+- An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR`.
+
+**Body.** Unknown keys are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `website` | string or null | Yes | A domain or a URL. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `WEBSITE_INVALID_ERROR`. Send `null` to clear the website. |
+
+**Response** `200`: the Organization (`id`, `name`, `website`, `createdAt`).
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/website \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"website": "https://www.acme.cl"}'
+```
+
+```json
+{
+  "id": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
+  "name": "Grupo Acme",
+  "website": "acme.cl",
+  "createdAt": "2026-09-26T12:00:00.000Z"
+}
+```
+
+## GET `/organizations/:organizationId/logo`
+
+Read the Organization's logo: a 64 × 64 PNG that Sintropix takes from the icon of the Organization's `website`. Any member of the Organization can read it. A Partner and an Organization on the same website share one logo.
+
+**Response**
+
+- `302` redirect to a short-lived link to the PNG. The response may be cached for up to one hour.
+- `404` with `ORGANIZATION_LOGO_NOT_FOUND_ERROR` when the Organization has no `website`, or its site shows no usable icon.
+- `404` with `ORGANIZATION_NOT_FOUND_ERROR` when you are not a member of the Organization.
+
+```bash
+curl -i https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/logo \
+  --cookie cookies.txt
 ```
 
 ## DELETE `/organizations/:organizationId`
@@ -151,7 +199,9 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 
 | Code | Status | Meaning |
 | --- | --- | --- |
-| `ORGANIZATION_NOT_FOUND_ERROR` | `404` | No Organization has this id. |
+| `ORGANIZATION_NOT_FOUND_ERROR` | `404` | No Organization has this id, or you are not a member of it on the website and logo routes. |
+| `ORGANIZATION_LOGO_NOT_FOUND_ERROR` | `404` | The Organization has no `website`, or its site shows no usable icon. |
+| `PERMISSION_DENIED_ERROR` | `403` | On the website route: the caller is not `staff` in the Organization, or uses an API key confined to one Entity. |
 | `ORGANIZATION_NAME_ALREADY_EXISTS_ERROR` | `409` | Another Organization already uses this name, ignoring case. |
 | `ORGANIZATION_NOT_EMPTY_ERROR` | `409` | The Organization still holds at least one Entity. |
 | `SUPERADMIN_SESSION_REQUIRED` | `403` | The request carries an API key or an OAuth access token. Superadmin routes accept only a signed-in session. |
@@ -162,9 +212,10 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET` and `PATCH`. |
+| `302` | Redirect to the Organization's logo on `GET /organizations/:organizationId/logo`. |
 | `201` | Organization created. |
 | `204` | Success on `DELETE`. |
-| `400` | Validation error, including a blank or too-long name, or an `:organizationId` that is not a UUID. |
-| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), or the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`). |
-| `404` | Organization not found. |
+| `400` | Validation error, including a blank or too-long name, an invalid website (`WEBSITE_INVALID_ERROR`), or an `:organizationId` that is not a UUID. |
+| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`), or the caller can't set the website (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization not found, or the Organization has no logo (`ORGANIZATION_LOGO_NOT_FOUND_ERROR`). |
 | `409` | Duplicate name, or the Organization still holds an Entity. |
