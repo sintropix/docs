@@ -48,7 +48,6 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Cuenta bancaria | `/{entityId}/banks/{bankAccountId}` | La vista de conciliación de esa cuenta. `/{entityId}/banks` lista todas las cuentas. |
 | Movimiento bancario | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Usa el campo `bankAccountId` del movimiento. Cambia `open` por `reconcile` para iniciar su conciliación. |
 | Movimientos bancarios de todas las cuentas | `/{entityId}/banks/movements` | Todos los movimientos de la entidad, agrupados por cuenta bancaria. Agrega `status=unreconciled` para ver los que faltan por conciliar, y `open={movementId}` para abrir uno en su panel sin salir del listado. |
-| Conexión bancaria | `/{entityId}/settings/bank-accounts` | Las conexiones y sus cuentas asociadas se gestionan aquí. |
 | Contraparte | `/{entityId}/partner-ledger?partners={partnerId}` | Estado de cuenta filtrado por esa contraparte. `/{entityId}/partners` y `/{entityId}/vendors` son los listados de clientes y proveedores. |
 | Cuenta contable | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movimientos de una cuenta. El plan de cuentas está en `/{entityId}/settings/chart-of-accounts`. |
 | Partida abierta | `/{entityId}/receivables?open={entryId}` o `/{entityId}/payables?open={entryId}` | Pasa el id del asiento que contiene la partida. `/{entityId}/open-items` las muestra todas. |
@@ -56,7 +55,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Dimensión | `/{entityId}/settings/dimensions?dimension={dimensionId}` | |
 | Fuente | `/{entityId}/sources/{sourceId}` | Documentos importados por esa fuente. Las fuentes se configuran en `/{entityId}/settings/sources`. |
 | Feed de fuente | `/{entityId}/settings/sources` | Los feeds se gestionan dentro de los ajustes de su fuente. |
-| Integración | `/{entityId}/settings/integrations` | |
+| Integración | `/{entityId}/settings/integrations?open={integrationId}` | Abre el panel lateral de la integración, con sus detalles, las cuentas bancarias o la fuente que alimenta y sus acciones. Quita `open` para ver la lista de todas las integraciones. Los feeds bancarios también se gestionan aquí. |
 | Tipo de cambio | `/{entityId}/settings/fx-rates` | |
 | Registro de auditoría | `/{entityId}/settings/log` | |
 | Claves de API | `/{entityId}/settings/api-keys` | |
@@ -70,7 +69,7 @@ Los informes son páginas con el período en la cadena de consulta. Omite un par
 | --- | --- | --- |
 | Balance general | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Balance de ocho columnas | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
-| Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`), `dimension` (el id de una dimensión, para abrir las cuentas por sus valores). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda, o `drillDown={accountId}:{columnKey}:{dimensionValueId}` para abrir la celda de un valor (`unassigned` para las líneas sin valor). |
+| Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`, o `none` para una sola columna; el estado se abre por `month` si lo omites), `dimension` (el id de una dimensión, para abrir las cuentas por sus valores). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda, o `drillDown={accountId}:{columnKey}:{dimensionValueId}` para abrir la celda de un valor (`unassigned` para las líneas sin valor). |
 | Estado de resultados por dimensión | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | Libro mayor | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Libro diario | `/{entityId}/journal` | `from`, `to`, `search` |
