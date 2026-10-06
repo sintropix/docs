@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Entity"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds."
+description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Store Bank Logins for banks no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -27,6 +27,8 @@ The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintro
 The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sintropix does not read any data through this Integration yet: you can connect, renew, and disconnect the account only.
 
 The `resend` kind is an email inbox that Sintropix gives the Entity, with an address on `inbox.sintropix.com`. It holds no credential and lands no documents. Staff reads the email the inbox receives through [Email inboxes](#email-inboxes-staff-only).
+
+To connect a bank that no Provider reads, such as a credit card Fintoc can't fetch, store its login as a [Bank Login](#bank-logins). It isn't an Integration kind, but the app lists it with the Integrations.
 
 The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider, and the only SII document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile. The mirror reads the SII registers every 4 hours, so a document reaches it a few hours after the SII records it.
 
@@ -226,6 +228,85 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$
 }
 ```
 
+## Bank Logins
+
+A Bank Login is the login of a bank that no Provider reads: the bank's name, plus the RUT and the password you sign in with. Sintropix stores the RUT and password encrypted and uses them only to read the bank's movements. No read ever returns them, so not even you can see them again in Sintropix.
+
+Sintropix doesn't sign in to the bank when you store a Bank Login, so a wrong RUT or password isn't refused. A Bank Login has no health status: it's stored, never "working" or "failed". To change the password, delete the Bank Login and store it again.
+
+In the app, connect one from **Settings → Integrations** with **Banco**. It shows in the list with the status **Guardada**.
+
+<Note>
+  A `client` or `staff` caller can store and delete Bank Logins. A `viewer` can only list them. See [Access and roles](/api-reference/overview#access-and-roles).
+</Note>
+
+### The Bank Login object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Bank Login id. |
+| `entityId` | uuid | Owning Entity. |
+| `label` | string | The bank's name, as you entered it. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | When the Bank Login was stored and last changed. |
+
+### POST `/bank-logins`
+
+Store a Bank Login for the Entity.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id. Retrying with the same id is answered `409` (`CREDENTIAL_ALREADY_EXISTS_ERROR`). |
+| `label` | string | Yes | The bank's name, for example `Banco de Chile`. Whitespace is trimmed and must be non-empty. Each name can be used once per Entity. A name already in use is refused with `409` (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
+| `rut` | string | Yes | The RUT you sign in to the bank with. Dots, spaces, and the hyphen are optional, and a lowercase `k` is accepted. A RUT whose check digit doesn't match is refused with `400` (`RUT_INVALID_ERROR`). |
+| `password` | string | Yes | The bank password. Must be non-empty. |
+
+- **Response** (`201`): the Bank Login object.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-logins" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
+    "label": "Banco de Chile",
+    "rut": "12.345.678-5",
+    "password": "my-bank-password"
+  }'
+```
+
+```json
+{
+  "id": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
+  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "label": "Banco de Chile",
+  "createdAt": "2026-10-05T14:00:00.000Z",
+  "updatedAt": "2026-10-05T14:00:00.000Z"
+}
+```
+
+### GET `/bank-logins`
+
+List the Entity's Bank Logins.
+
+- **Response:** array of Bank Login objects.
+
+### DELETE `/bank-logins/:bankLoginId`
+
+Delete a Bank Login and its stored RUT and password. Sintropix stops reading the bank with it. Your login at the bank is unchanged.
+
+An id that isn't one of the Entity's Bank Logins answers `404` (`CREDENTIAL_NOT_FOUND_ERROR`).
+
+- **Response:** the deleted Bank Login object.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-logins/$BANK_LOGIN_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
 ## Email inboxes (staff only)
 
 An email inbox is a `resend` Integration: an address on `inbox.sintropix.com` that receives email for the Entity. Staff reads that email through the routes below. Sintropix does not store the email or turn it into documents; every read fetches it live.
@@ -320,10 +401,10 @@ Read one received email with its body and attachment download links. `emailId` m
 | --- | --- |
 | `200` | Success on `GET`, `DELETE`. |
 | `201` | Integration created. |
-| `400` | Validation error, missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
+| `400` | Validation error (including a Bank Login RUT that fails its check digit, `RUT_INVALID_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
 | `403` | A non-staff caller on `POST /integrations/resend` or `/received-emails` (`PERMISSION_DENIED_ERROR`). |
-| `404` | Entity, Integration, or received email (`RECEIVED_EMAIL_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the external account (for `resend`, the inbox address) is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), or a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`). |
+| `404` | Entity, Integration, Bank Login (`CREDENTIAL_NOT_FOUND_ERROR`), or received email (`RECEIVED_EMAIL_NOT_FOUND_ERROR`) not found. |
+| `409` | Integration id already exists, the external account (for `resend`, the inbox address) is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Bank Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Bank Login names a bank the Entity already uses (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
 | `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), or a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`). |
-| `503` | The inbox email could not be read right now (`RECEIVED_EMAIL_UNAVAILABLE_ERROR`). Retry later. |
+| `503` | The inbox email could not be read right now (`RECEIVED_EMAIL_UNAVAILABLE_ERROR`), or Sintropix can't store a Bank Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`). Retry later. |
