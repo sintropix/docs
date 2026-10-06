@@ -72,7 +72,7 @@ curl "https://api.sintropix.com/api/onboarding/users?email=ana.perez%40example.c
 
 ## GET `/onboarding/organizations`
 
-List every Organization, each with the Entities it holds, whether or not you hold a Membership in it. Use it to pick the `organizationId` when you grant a Membership or move an Entity. The response has the same shape as [`GET /organizations`](/api-reference/organizations), which lists only the Organizations where the caller holds the `staff` Role.
+List every Organization, each with the Entities it holds, whether or not you hold a Membership in it. Use it to pick the `organizationId` when you grant a Membership, create an Entity, or move an Entity. The response has the same shape as [`GET /organizations`](/api-reference/organizations), which lists only the Organizations where the caller holds the `staff` Role.
 
 ```bash
 curl "https://api.sintropix.com/api/onboarding/organizations" \

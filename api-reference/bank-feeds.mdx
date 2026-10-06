@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
 sidebarTitle: "Bank Feeds"
-description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Global66, dLocal Go, Cardda, and Mercado Pago Integrations."
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, and Mercado Pago Integrations."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -13,6 +13,7 @@ These Integration kinds can feed a Bank Account:
 | Kind | Provider | What it discovers |
 | --- | --- | --- |
 | `fintoc` | A bank, through the Fintoc widget | Every account the bank login reaches |
+| `plaid` | A US bank, through Plaid Link | The bank login's depository and credit accounts. See [Plaid](#plaid) |
 | `global66` | Global66 | The accounts you named when you connected |
 | `cardda` | Cardda | The company's one CLP wallet |
 | `dlocal` | dLocal Go | The merchant's one balance |
@@ -254,3 +255,50 @@ A Mercado Pago feed mirrors the account's available money. Each sync reads Merca
 - Before you map the account, the discovered account shows the closing balance of the newest release report. It shows `0` when the account has no release report yet.
 
 The Mercado Pago Integration renews its authorization on its own before a sync reads.
+
+### Plaid
+
+A Plaid Integration reads a US bank login through [Plaid](https://plaid.com). Connect it with [Plaid Link](/api-reference/integrations#post-integrations-plaid-link-tokens), then map the accounts you want in your books. You don't have to map every account: leave out the ones you don't need, such as a cash sweep account.
+
+**Discovered accounts**
+
+- Only depository accounts (such as checking, savings, and money market) and credit accounts are listed. Loan, investment, and other accounts are left out, because Plaid gives them no movements.
+- An account is also left out when Plaid states no ISO currency for it, when Sintropix doesn't know its currency, or when its current balance has more decimals than its currency allows. The other accounts of the bank login are still listed.
+- `number` is the last four digits of the account number, and `type` is `depository` or `credit`.
+- A credit account is a card account. Mapping it to a Bank Account is refused with `DISCOVERED_ACCOUNT_IS_CARD_ERROR`.
+
+**Wait for the full history.** After you connect, Plaid reads up to 730 days of the bank's history, which can take a moment. Until it finishes, the discovered accounts answer `refreshing: true` and a map or Bank Account creation is refused with `409` and `BANK_FEED_PROVIDER_REFRESHING_ERROR`. Retry when `refreshing` is `false`.
+
+**What lands**
+
+- Only posted transactions land. A pending transaction never lands. When it posts, it lands as a new Movement on the next sync.
+- The Movement date is the day the transaction posted, and the description is the transaction name the bank reports. Plaid's categories are not used.
+- Money that leaves the account lands as a negative amount, and money that comes in lands as a positive amount.
+- Each sync checks the landed Movements against the account's current balance at Plaid.
+
+US banks write a wire's reference numbers into the transaction name. Sintropix shortens the description of a wire to its direction and its counterparty: the sender of a wire in, or the beneficiary of a wire out. The references and the wire's note (OBI) move to the Movement's Additional Information. A name that isn't a wire, or a wire Sintropix can't read field by field, lands whole, so no text is lost.
+
+| Transaction name at the bank | Description | Additional Information |
+| --- | --- | --- |
+| `WIRE IN 260922NWND0047;ORG ACME CAPITAL LP;OBI INV 1001` | `WIRE IN ACME CAPITAL LP` | **Referencia de transferencia:** `260922NWND0047`<br />**Detalle de la transferencia (OBI):** `INV 1001` |
+| `WIRE OUT 20262740100;BNF CONTOSO SPA` | `WIRE OUT CONTOSO SPA` | **Referencia de transferencia:** `20262740100` |
+| `ACH DEBIT GUSTO PAYROLL` | `ACH DEBIT GUSTO PAYROLL` | None |
+
+The Additional Information holds these lines, in this order, each only when Plaid states it:
+
+| Label | Value |
+| --- | --- |
+| `Referencia de transferencia` | A wire's reference numbers |
+| `Detalle de la transferencia (OBI)` | A wire's note |
+| `Fecha de autorización` | The day the transaction was authorized |
+| `Comercio` | The merchant name |
+| `Número de cheque` | The check number |
+| `ID transacción pendiente Plaid` | Plaid's id for the pending transaction this one replaced |
+
+A sync updates the description and these lines on an unbooked Movement. A booked Movement keeps its description.
+
+<Warning>
+  Feed dates follow the calendar of Santiago (Chile), not US time. A transaction can post late on a US day that is already the next day in Santiago, or post after you map with a date before the feed start date. Such a transaction never lands, but the account's balance at Plaid counts it, so every later sync fails its balance check with `BANK_FEED_SYNC_TIE_OUT_MISMATCH_ERROR`. To fix it, [remove the feed](/api-reference/bank-accounts#delete-a-bank-account-feed) and map the account again with a feed start date on or before that transaction.
+</Warning>
+
+**Errors.** When the bank login expires at the bank, a sync answers `502` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect).

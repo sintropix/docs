@@ -16,7 +16,7 @@ A Superadmin is a User Sintropix designates to manage access. No API route grant
 
 ## GET `/organizations`
 
-List the Organizations you can create Entities in, each with the Entities it holds. Use it to pick the `organizationId` for [`POST /api/entities`](/api-reference/entities).
+List the Organizations where you do Sintropix work, each with the Entities it holds.
 
 - Every signed-in User can call it. You see only the Organizations where you hold the `staff` Role. A Superadmin sees only their own `staff` Organizations here too.
 - An API key confined to one Entity receives an empty array.

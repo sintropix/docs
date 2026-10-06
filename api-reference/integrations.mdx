@@ -13,14 +13,14 @@ What an Integration can feed depends on its kind:
 | Kind | Feeds |
 | --- | --- |
 | `bsale`, `wasabil`, `sii_mirror` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) |
-| `fintoc`, `global66`, `cardda`, `dlocal`, `mercadopago` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
-| `mercadolibre`, `gmail`, `polar`, `plaid`, `resend` | Nothing yet |
+| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
+| `mercadolibre`, `gmail`, `polar`, `resend` | Nothing yet |
 
 An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account still belongs to a single Entity.
 
 The `fintoc` kind connects a bank login through the [Fintoc](https://fintoc.com) widget. The `global66` kind connects Global66 with a client id, a client secret, and the accounts you name. The `cardda` kind connects a Cardda company with its API key, and the `dlocal` kind connects a dLocal Go merchant with its API key and secret key. Sintropix reads the Provider before it stores the credentials, so credentials that cannot read are refused at connect.
 
-The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Plaid Link shows US banks only, in English, and asks for access to the bank's transactions, with up to 730 days of history. Your bank password goes to Plaid and never reaches Sintropix. Sintropix does not read any data through this Integration yet: you can connect and disconnect the bank only. See [`POST /integrations/plaid/link-tokens`](#post-integrations-plaid-link-tokens).
+The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Plaid Link shows US banks only, in English, and asks for access to the bank's transactions, with up to 730 days of history. Your bank password goes to Plaid and never reaches Sintropix. It can feed Bank Accounts with the bank's posted transactions. See [`POST /integrations/plaid/link-tokens`](#post-integrations-plaid-link-tokens) and [Bank Feeds](/api-reference/bank-feeds#plaid).
 
 The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
@@ -205,13 +205,13 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   }'
 ```
 
-The response is the Integration object, with the bank's name in `institutionName`.
+The response is the Integration object, with the bank's name in `institutionName`. Next, [list the bank's accounts](/api-reference/bank-feeds#get-discovered-accounts) and feed them into Bank Accounts.
 
 ## POST `/integrations/:integrationId/reconnect`
 
 Restore a Fintoc Integration whose bank stopped trusting the stored grant. You know it needs this when [its discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) answer `status: "login_required"`. Run the Fintoc widget again and send the fresh exchange token. The Integration keeps its id and every feed it holds.
 
-Only `fintoc` Integrations reconnect. To repair a Global66, Cardda, dLocal Go, or Plaid Integration whose credentials stopped working, disconnect it and connect again.
+Only `fintoc` Integrations reconnect. To repair a Global66, Cardda, dLocal Go, or Plaid Integration whose credentials stopped working, disconnect it and connect again. For Plaid, this includes a bank login that expired.
 
 **Body**
 
