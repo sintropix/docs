@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Entity"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Store Bank Logins for banks no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Store Portal Logins for a bank or Getnet, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -14,11 +14,13 @@ What an Integration can feed depends on its kind:
 | --- | --- |
 | `bsale`, `wasabil`, `sii_mirror` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) |
 | `fintoc`, `global66`, `cardda`, `dlocal`, `mercadopago` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
-| `mercadolibre`, `gmail`, `polar`, `resend` | Nothing yet |
+| `mercadolibre`, `gmail`, `polar`, `plaid`, `resend` | Nothing yet |
 
 An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account still belongs to a single Entity.
 
 The `fintoc` kind connects a bank login through the [Fintoc](https://fintoc.com) widget. The `global66` kind connects Global66 with a client id, a client secret, and the accounts you name. The `cardda` kind connects a Cardda company with its API key, and the `dlocal` kind connects a dLocal Go merchant with its API key and secret key. Sintropix reads the Provider before it stores the credentials, so credentials that cannot read are refused at connect.
+
+The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Plaid Link shows US banks only, in English, and asks for access to the bank's transactions, with up to 730 days of history. Your bank password goes to Plaid and never reaches Sintropix. Sintropix does not read any data through this Integration yet: you can connect and disconnect the bank only. See [`POST /integrations/plaid/link-tokens`](#post-integrations-plaid-link-tokens).
 
 The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
@@ -28,7 +30,7 @@ The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You
 
 The `resend` kind is an email inbox that Sintropix gives the Entity, with an address on `inbox.sintropix.com`. It holds no credential and lands no documents. Staff reads the email the inbox receives through [Email inboxes](#email-inboxes-staff-only).
 
-To connect a bank that no Provider reads, such as a credit card Fintoc can't fetch, store its login as a [Bank Login](#bank-logins). It isn't an Integration kind, but the app lists it with the Integrations.
+To connect a bank that no Provider reads, such as a credit card Fintoc can't fetch, store its login as a [Bank Login](#portal-logins). To connect the Getnet merchant portal, store its login as a [Getnet Login](#portal-logins). Neither is an Integration kind, but the app lists them with the Integrations.
 
 The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider, and the only SII document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile. The mirror reads the SII registers every 4 hours, so a document reaches it a few hours after the SII records it.
 
@@ -44,12 +46,12 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `resend` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for `fintoc`, the Fintoc Link; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `resend`, the inbox address). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `resend` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `resend`, the inbox address). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds, the OAuth authorizations, and `resend`. |
-| `institutionName` | string \| null | The bank's display name. Only `fintoc` states it; `null` for every other kind. |
+| `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
-| `mode` | `test` \| `live` \| null | Whether a Fintoc Link runs against Fintoc's test or live environment. `null` for every other kind. |
+| `mode` | `test` \| `live` \| null | Whether a `fintoc` or `plaid` Integration runs against the Provider's test or live environment. `null` for every other kind. |
 | `sourceFeed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when the Integration feeds no Source. |
 | `fedBankAccounts` | array | `{ id, name }` of each Bank Account this Integration feeds, in name order. Empty when it feeds none. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
@@ -65,7 +67,7 @@ This route connects the document Providers and the bank Providers. Mercado Pago,
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `polar`, and `resend` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `polar`, and `resend` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -74,6 +76,7 @@ Each kind adds its own fields:
 | `bsale`, `wasabil` | `accessToken` (string) | The provider's API access token. Whitespace is trimmed and must be non-empty. |
 | `sii_mirror` | None | Reads Sintropix's SII mirror using the Entity's RUT and takes no credential. |
 | `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-integrations-fintoc-link-intents) and the user completes the widget. |
+| `plaid` | `publicToken` (string) | The public token Plaid Link mints after you [create a Link token](#post-integrations-plaid-link-tokens) and the user signs in to the bank. Connecting the same Plaid Item twice is refused with `409`. |
 | `global66` | `clientId` (string), `clientSecret` (string), `accounts` (array) | Your Global66 client credentials and at least one account to read. Each account is `{ accountId, currency }`, where `currency` is an ISO 4217 code of three uppercase letters. A currency Sintropix does not know is refused with `INTEGRATION_CURRENCY_UNKNOWN_ERROR` before Global66 is called. |
 | `cardda` | `apiKey` (string) | The Cardda API key. It selects the company, and the Integration discovers that company's one CLP wallet. |
 | `dlocal` | `apiKey` (string), `secretKey` (string) | The dLocal Go API key and its paired secret key. They name the merchant, and the Integration discovers its one balance. |
@@ -170,11 +173,45 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/fin
   -d '{"holderType":"business"}'
 ```
 
+## POST `/integrations/plaid/link-tokens`
+
+Start the Plaid connect flow. Sintropix creates a Link token at Plaid and answers it. Open Plaid Link with it. When the user signs in to the bank, Plaid Link mints a public token. Send that token to [`POST /integrations`](#post-integrations) with `kind: "plaid"`.
+
+Plaid Link needs a browser, so you can't complete a Plaid connect from the API alone. No request body.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `linkToken` | string | Token that opens Plaid Link. |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/plaid/link-tokens" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+Then connect with the public token Plaid Link minted:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "4a5b6c7d-8e9f-4a0b-9c1d-2e3f4a5b6c7d",
+    "kind": "plaid",
+    "publicToken": "public-production-1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+  }'
+```
+
+The response is the Integration object, with the bank's name in `institutionName`.
+
 ## POST `/integrations/:integrationId/reconnect`
 
 Restore a Fintoc Integration whose bank stopped trusting the stored grant. You know it needs this when [its discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) answer `status: "login_required"`. Run the Fintoc widget again and send the fresh exchange token. The Integration keeps its id and every feed it holds.
 
-Only `fintoc` Integrations reconnect. To repair a Global66, Cardda, or dLocal Go Integration whose credentials stopped working, disconnect it and connect again with new credentials.
+Only `fintoc` Integrations reconnect. To repair a Global66, Cardda, dLocal Go, or Plaid Integration whose credentials stopped working, disconnect it and connect again.
 
 **Body**
 
@@ -205,6 +242,7 @@ List every Integration for the Entity, including any Mercado Pago, Mercado Libre
 Remove an Integration. Every feed of the Integration is removed as part of the same operation: its Source Feed and the feed of each Bank Account it fed. The Source, the Bank Accounts, and the documents and Movements already landed stay.
 
 - For a `fintoc` Integration, Sintropix also deletes the Link at Fintoc, so the bank stops being read.
+- For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `502` or `503` and the Integration stays. Retry later.
 - For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked.
 - For a `resend` inbox, the address stops showing its email in [Email inboxes](#email-inboxes-staff-only).
 
@@ -228,49 +266,66 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$
 }
 ```
 
-## Bank Logins
+## Portal Logins
 
-A Bank Login is the login of a bank that no Provider reads: the bank's name, plus the RUT and the password you sign in with. Sintropix stores the RUT and password encrypted and uses them only to read the bank's movements. No read ever returns them, so not even you can see them again in Sintropix.
+A Portal Login is the login of a portal that no Provider reads. Sintropix stores the login and the password encrypted and uses them only to read the portal. No read ever returns them, so not even you can see them again in Sintropix. A Portal Login has one of two kinds:
 
-Sintropix doesn't sign in to the bank when you store a Bank Login, so a wrong RUT or password isn't refused. A Bank Login has no health status: it's stored, never "working" or "failed". To change the password, delete the Bank Login and store it again.
+| Kind | Portal | What you store |
+| --- | --- | --- |
+| `bank_login` | A bank, such as a credit card Fintoc can't fetch | The bank's name, plus the RUT and the password you sign in with |
+| `getnet_login` | The Getnet merchant portal | The username or email, and the password you sign in with |
 
-In the app, connect one from **Settings → Integrations** with **Banco**. It shows in the list with the status **Guardada**.
+Sintropix doesn't sign in to the portal when you store a Portal Login, so a wrong login or password isn't refused. A Portal Login has no health status: it's stored, never "working" or "failed". To change the password, delete the Portal Login and store it again.
+
+In the app, connect one from **Settings → Integrations** with **Banco** or **Getnet**. It shows in the list with the status **Guardada**.
 
 <Note>
-  A `client` or `staff` caller can store and delete Bank Logins. A `viewer` can only list them. See [Access and roles](/api-reference/overview#access-and-roles).
+  A `client` or `staff` caller can store and delete Portal Logins. A `viewer` can only list them. See [Access and roles](/api-reference/overview#access-and-roles).
 </Note>
 
-### The Bank Login object
+### The Portal Login object
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | uuid | Bank Login id. |
+| `id` | uuid | Portal Login id. |
 | `entityId` | uuid | Owning Entity. |
-| `label` | string | The bank's name, as you entered it. |
-| `createdAt`, `updatedAt` | ISO 8601 timestamp | When the Bank Login was stored and last changed. |
+| `kind` | `bank_login` \| `getnet_login` | The kind of portal. |
+| `label` | string | The portal's name. For a `bank_login`, the bank's name as you entered it. For a `getnet_login`, always `Getnet`. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | When the Portal Login was stored and last changed. |
 
-### POST `/bank-logins`
+### POST `/portal-logins`
 
-Store a Bank Login for the Entity.
+Store a Portal Login for the Entity.
 
-**Body**
+**Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying with the same id is answered `409` (`CREDENTIAL_ALREADY_EXISTS_ERROR`). |
-| `label` | string | Yes | The bank's name, for example `Banco de Chile`. Whitespace is trimmed and must be non-empty. Each name can be used once per Entity. A name already in use is refused with `409` (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
-| `rut` | string | Yes | The RUT you sign in to the bank with. Dots, spaces, and the hyphen are optional, and a lowercase `k` is accepted. A RUT whose check digit doesn't match is refused with `400` (`RUT_INVALID_ERROR`). |
-| `password` | string | Yes | The bank password. Must be non-empty. |
+| `kind` | `bank_login` \| `getnet_login` | Yes | The kind of portal. |
 
-- **Response** (`201`): the Bank Login object.
+Each kind adds its own fields:
+
+| Kind | Field | Type | Description |
+| --- | --- | --- | --- |
+| `bank_login` | `label` | string | The bank's name, for example `Banco de Chile`. Whitespace is trimmed and must be non-empty. |
+| `bank_login` | `rut` | string | The RUT you sign in to the bank with. Dots, spaces, and the hyphen are optional, and a lowercase `k` is accepted. A RUT whose check digit doesn't match is refused with `400` (`RUT_INVALID_ERROR`). |
+| `bank_login` | `password` | string | The bank password. Must be non-empty. |
+| `getnet_login` | `username` | string | The username or email you sign in to the Getnet portal with. Must be non-empty. |
+| `getnet_login` | `password` | string | The Getnet password. Must be non-empty. |
+
+Each name can be used once per Entity. A Bank Login whose bank name is already in use is refused with `409` (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). Sintropix names every Getnet Login `Getnet`, so an Entity holds at most one. A second Getnet Login is refused with the same error. To store another Getnet login, delete the first one.
+
+- **Response** (`201`): the Portal Login object.
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-logins" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
   -d '{
     "id": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
+    "kind": "bank_login",
     "label": "Banco de Chile",
     "rut": "12.345.678-5",
     "password": "my-bank-password"
@@ -281,28 +336,44 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-logins" \
 {
   "id": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
   "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "kind": "bank_login",
   "label": "Banco de Chile",
   "createdAt": "2026-10-05T14:00:00.000Z",
   "updatedAt": "2026-10-05T14:00:00.000Z"
 }
 ```
 
-### GET `/bank-logins`
-
-List the Entity's Bank Logins.
-
-- **Response:** array of Bank Login objects.
-
-### DELETE `/bank-logins/:bankLoginId`
-
-Delete a Bank Login and its stored RUT and password. Sintropix stops reading the bank with it. Your login at the bank is unchanged.
-
-An id that isn't one of the Entity's Bank Logins answers `404` (`CREDENTIAL_NOT_FOUND_ERROR`).
-
-- **Response:** the deleted Bank Login object.
+Store a Getnet Login:
 
 ```bash
-curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-logins/$BANK_LOGIN_ID" \
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "6d7e8f9a-0b1c-4d2e-9f3a-4b5c6d7e8f9a",
+    "kind": "getnet_login",
+    "username": "pagos@acme.cl",
+    "password": "my-getnet-password"
+  }'
+```
+
+### GET `/portal-logins`
+
+List the Entity's Portal Logins of both kinds.
+
+- **Response:** array of Portal Login objects.
+
+### DELETE `/portal-logins/:portalLoginId`
+
+Delete a Portal Login and its stored login and password. Sintropix stops reading the portal with it. Your login at the portal is unchanged.
+
+An id that isn't one of the Entity's Portal Logins answers `404` (`CREDENTIAL_NOT_FOUND_ERROR`).
+
+- **Response:** the deleted Portal Login object.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/$PORTAL_LOGIN_ID" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -400,11 +471,12 @@ Read one received email with its body and attachment download links. `emailId` m
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET`, `DELETE`. |
-| `201` | Integration created. |
-| `400` | Validation error (including a Bank Login RUT that fails its check digit, `RUT_INVALID_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
+| `201` | Integration or Portal Login created. |
+| `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
 | `403` | A non-staff caller on `POST /integrations/resend` or `/received-emails` (`PERMISSION_DENIED_ERROR`). |
-| `404` | Entity, Integration, Bank Login (`CREDENTIAL_NOT_FOUND_ERROR`), or received email (`RECEIVED_EMAIL_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the external account (for `resend`, the inbox address) is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Bank Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Bank Login names a bank the Entity already uses (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
+| `404` | Entity, Integration, Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), or received email (`RECEIVED_EMAIL_NOT_FOUND_ERROR`) not found. |
+| `409` | Integration id already exists, the external account (for `resend`, the inbox address) is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Getnet Login (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
 | `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), or a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`). |
-| `503` | The inbox email could not be read right now (`RECEIVED_EMAIL_UNAVAILABLE_ERROR`), or Sintropix can't store a Bank Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`). Retry later. |
+| `502` | The Provider failed (`BANK_FEED_PROVIDER_FAILURE_ERROR`). Retry later. |
+| `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), the inbox email could not be read right now (`RECEIVED_EMAIL_UNAVAILABLE_ERROR`), or Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`). Retry later. |
