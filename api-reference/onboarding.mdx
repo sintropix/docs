@@ -158,9 +158,9 @@ curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID/membersh
 
 Mint a link the User can follow to set (or reset) their password. Sintropix does not email this link: you relay it to the User over your own channel. No request body.
 
-- The link expires after 1 hour and works once.
+- The link expires after 4 days and works once.
 - Setting the password through the link signs the User out of every session.
-- Users can also ask for a link themselves: **¿Olvidaste tu contraseña?** on the sign-in page emails them a link with the same rules.
+- Users can also ask for a link themselves: **¿Olvidaste tu contraseña?** on the sign-in page emails them a link. That link expires after 1 hour and also works once.
 
 **Response** `201`
 
