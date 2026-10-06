@@ -77,9 +77,9 @@ The `feed` object, when present, contains:
 | Field | Type | Description |
 | --- | --- | --- |
 | `integrationId` | UUID | The [Integration](/api-reference/integrations) that feeds the account |
-| `integrationKind` | `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` | The kind of that Integration |
+| `integrationKind` | `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` | The kind of that Integration |
 | `providerAccountId` | string | Provider-side account handle |
-| `institutionName` | string \| null | The bank's display name for a `fintoc` feed; `null` for every other kind |
+| `institutionName` | string \| null | The bank's display name for a `fintoc` or `plaid` feed; `null` for every other kind |
 | `lastSyncedAt` | ISO datetime \| null | Last successful sync, null until first success |
 
 ```json
