@@ -17,9 +17,11 @@ An Entity is a legal company with its own books, functional currency, and integr
 
 Create a new Entity in an Organization. The client supplies the idempotency id, so a retried POST with the same id is rejected as a conflict instead of creating a duplicate.
 
-- **Requires the `staff` Role** in the target Organization. List the Organizations you can create in with [`GET /api/organizations`](/api-reference/organizations).
-- An Organization you hold no Membership in returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`. A `client` or `viewer` Membership returns `403` with `PERMISSION_DENIED_ERROR`.
-- An API key confined to one Entity can't create Entities and receives `403`.
+Sintropix sets up your Entities for you: you can't create one from the client app. A Superadmin creates it from the Organization in the staff panel.
+
+- **Superadmin only, from a signed-in session.** A request with an API key or an OAuth access token returns `403` with `SUPERADMIN_SESSION_REQUIRED`, and any other User, `staff` included, gets `403` with `SUPERADMIN_REQUIRED`. A Superadmin can create an Entity in any Organization without holding a Membership in it. List every Organization with [`GET /api/onboarding/organizations`](/api-reference/onboarding#get-onboarding-organizations).
+- Creating an Entity opens none of its books to the Superadmin. Users reach it through a Membership of its Organization.
+- An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 - **Body:**
 
 | Field | Type | Required | Description |
@@ -36,9 +38,8 @@ Create a new Entity in an Organization. The client supplies the idempotency id, 
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities \
+  --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
   -d '{
     "id": "11111111-1111-4111-8111-111111111111",
     "name": "Acme SpA",
@@ -240,8 +241,8 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ENTITY_PARENT_CYCLE_ERROR` | Parent would create a control cycle |
 | `ORGANIZATION_NOT_FOUND_ERROR` | Named Organization does not exist or is outside your reach |
 | `PERMISSION_DENIED_ERROR` | Your Role in the Organization doesn't allow this action |
-| `SUPERADMIN_SESSION_REQUIRED` | The Organization move was sent with an API key or token instead of a signed-in session |
-| `SUPERADMIN_REQUIRED` | The Organization move was sent by a User who is not a Superadmin |
+| `SUPERADMIN_SESSION_REQUIRED` | The Entity creation or Organization move was sent with an API key or token instead of a signed-in session |
+| `SUPERADMIN_REQUIRED` | The Entity creation or Organization move was sent by a User who is not a Superadmin |
 
 ## Status codes
 
@@ -252,6 +253,6 @@ Every endpoint on this page that returns an Entity uses this shape:
 | 201 | Created (POST) |
 | 400 | Validation error |
 | 401 | Unauthenticated |
-| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`), or the Organization move without a Superadmin session |
+| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`), or the Entity creation or Organization move without a Superadmin session |
 | 404 | Entity or Organization not found, or outside your reach |
 | 409 | Domain rule violation (see `code`) |

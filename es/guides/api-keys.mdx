@@ -98,7 +98,7 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
 - Una clave se autentica como su Usuario propietario, con las Membresías de Organización de ese Usuario. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
 - Una clave nunca hace trabajo de Superadmin, aunque sea de un Superadmin. Administrar Usuarios, Organizaciones y Membresías requiere una sesión iniciada; una clave recibe `403` con `SUPERADMIN_SESSION_REQUIRED`.
 - Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las Organizaciones en las que el Usuario propietario tiene una Membresía, y solo puede hacer lo que el Rol del Usuario allí permite. Una clave de un `viewer` solo puede leer.
-- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, `GET /api/entities` lista solo la Entidad acotada y `GET /api/organizations` devuelve un arreglo vacío. Una clave acotada no puede crear Entidades. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
+- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, `GET /api/entities` lista solo la Entidad acotada y `GET /api/organizations` devuelve un arreglo vacío. Ninguna clave de API puede crear Entidades. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
 
 ## Límites de solicitudes
 

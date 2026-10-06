@@ -98,7 +98,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 - A key authenticates as its owning User, with that User's Organization Memberships. See [Access and roles](/api-reference/overview#access-and-roles).
 - A key never does Superadmin work, even when a Superadmin owns it. Managing Users, Organizations, and Memberships needs a signed-in session; a key gets `403` with `SUPERADMIN_SESSION_REQUIRED`.
 - Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities of the Organizations the owning User holds a Membership in, and only do what the User's Role there allows. A key owned by a `viewer` can only read.
-- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, `GET /api/entities` lists only the confined Entity, and `GET /api/organizations` returns an empty array. A confined key can't create Entities. Use one-Entity keys when the integration should only ever touch one company.
+- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, `GET /api/entities` lists only the confined Entity, and `GET /api/organizations` returns an empty array. No API key can create Entities. Use one-Entity keys when the integration should only ever touch one company.
 
 ## Rate Limits
 
