@@ -77,6 +77,7 @@ Reports are pages with the period in the query string. Omit a parameter to get t
 | Receivables aging | `/{entityId}/receivables` | `open` |
 | Payables aging | `/{entityId}/payables` | `open` |
 | Revenue Realization | `/{entityId}/revenue-realization` | `from`, `to` |
+| Customer management | `/{entityId}/customers` | `from`, `to`, `search`, `onlyPending` (`true` by default). `/{entityId}/customers/{partnerId}` for one customer, with `from`, `to`, and `tab` (`invoices`, `unbilledReceivableLines`, `movements`). |
 | Cash Flow | `/{entityId}/cash-flow` | `exerciseStart`, `cutoffDate`, `groupBy` (`month`, `quarter`, `year`). Add `drillDown={category}@{columnKey}`, or `drillDown={category}:{accountId}@{columnKey}` for one account, to open the entries of one cell. `columnKey` is the first day of the period column, or `total`. |
 | Fixed Assets | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` for one asset |
 
