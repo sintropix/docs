@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
 sidebarTitle: "Bank Feeds"
-description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, and Mercado Pago Integrations."
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, and Polar Integrations."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -18,6 +18,7 @@ These Integration kinds can feed a Bank Account:
 | `cardda` | Cardda | The company's one CLP wallet |
 | `dlocal` | dLocal Go | The merchant's one balance |
 | `mercadopago` | Mercado Pago | The account's available money |
+| `polar` | Polar | The USD balance of each organization the Polar user can read. See [Polar](#polar) |
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
@@ -302,3 +303,56 @@ A sync updates the description and these lines on an unbooked Movement. A booked
 </Warning>
 
 **Errors.** When the bank login expires at the bank, a sync answers `502` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect).
+
+### Polar
+
+[Polar](https://polar.sh) is a Merchant of Record: it charges your buyers, holds the money in a USD balance, and pays it out to your bank. A Polar feed mirrors that USD balance, row by row.
+
+**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `502` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Settings → Integrations** with an owner, admin, or finance user.
+
+```json
+{
+  "code": "BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR",
+  "params": { "integrationKind": "polar" }
+}
+```
+
+**Discovered accounts**
+
+- The Integration discovers one account per Polar organization the user can read.
+- `name` is `Polar` followed by the organization name, and `number` is the organization's slug.
+- `currency` is `USD`, and `balance.current` and `balance.available` are both the organization's Polar balance.
+
+**What lands**
+
+Every row of Polar's ledger lands as its own Movement: each sale, each refund, each fee, and each payout. A fee doesn't net against the sale it came from, so you can book it to an expense account.
+
+- The Movement date is the day Polar created the row, read in the calendar of Santiago (Chile).
+- Money that comes into the Polar balance lands as a positive amount, and money that leaves it lands as a negative amount.
+- A payout lands in USD. The amount your bank received, in its own currency, lands on that bank's Bank Account through its own feed. Reconcile the two Movements as a transfer.
+
+| Row | Description |
+| --- | --- |
+| Sale | The product name, or `Orden` and the order id when Polar no longer names the product |
+| Refund | `Reembolso` and the product name |
+| Fee | The fee type, such as `Comisión de pago`, `Comisión de pago internacional`, `Comisión de suscripción`, `Comisión de transferencia internacional`, `Comisión de payout`, or `Comisión de cuenta` |
+| Payout | `Payout` |
+
+The Additional Information holds these lines, in this order, each only when Polar states it:
+
+| Label | Value |
+| --- | --- |
+| `Fuente` | Where Sintropix read the row |
+| `ID transacción Polar` | Polar's id for the row |
+| `Tipo Polar` | The row type at Polar: `balance` or `payout` |
+| `Tipo comisión Polar` | The fee type at Polar, on a fee |
+| `ID orden Polar` | The order of a sale, refund, or fee |
+| `Producto Polar` | The product of that order |
+| `Transacción origen Polar` | The row a fee came from |
+| `Payout Polar` | The payout that paid the row out |
+| `Monto recibido Polar` | On a payout, the amount your bank received, in minor units of its currency |
+| `Moneda recibida Polar` | On a payout, the currency your bank received, such as `CLP` |
+
+**Balance check.** Each sync reads the whole Polar ledger and checks it against the organization's Polar balance. When the ledger doesn't add up to the balance, the map, the Bank Account creation, and every sync answer `502` with `BANK_FEED_PROVIDER_FAILURE_ERROR`, so no made-up opening balance absorbs the gap. A row type, fee type, or currency that Sintropix doesn't know refuses the sync with the same code. When the landed Movements don't reach the balance, the sync answers `BANK_FEED_SYNC_TIE_OUT_MISMATCH_ERROR`.
+
+The Polar Integration renews its authorization on its own before a sync reads.
