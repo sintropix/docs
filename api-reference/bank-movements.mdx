@@ -59,6 +59,32 @@ The key is `no-facturado:<bank ID>`. When the bank shows no ID, the key is `no-f
 
 You can run it as often as you like without creating duplicates. There is no balance check. Your team reconciles the unbilled movements against the statement at month-end close.
 
+## Bank account movements
+
+Erwin can load the movements of a checking account, in pesos or in dollars, from the bank's site. Each movement carries what the site knows beyond the bank's description: who paid or received the money, the operation number, and often the invoice the payment is for. Your team can then reconcile from Sintropix without opening the bank. To run it, ask Erwin in a Slack channel bound to the Entity through an [Agent Channel](/api-reference/agent-channels).
+
+Erwin reads the bank's site, so the Entity needs a login Credential for the bank. If the login reaches more than one company at the bank, Erwin picks the company whose RUT is the Entity's `taxId`, and stops if none matches. At BCI, Erwin reads the counterpart of each transfer of a CLP account. For a USD account, it reads the payment order behind each movement, with the ordenante and the payment reference of its SWIFT message. It also reports payment orders that reached the bank but aren't in the account yet.
+
+Erwin follows these rules:
+
+- Erwin finds the `bank` Bank Account by its account number and currency. It never creates a Bank Account, and stops and asks if it finds none or more than one.
+- Each run reads from 3 days before the newest Movement of the Bank Account to today. If the Bank Account has no Movements, Erwin asks from which date to load.
+- It copies the `movementDate` and `amount` exactly as the bank shows them. A credit to the account (abono) is a `debit`, and a charge (cargo) is a `credit`.
+- The `description` is the bank's text, then the counterpart's name and RUT when the bank shows them, joined with ` · `, the same format a [bank feed](/api-reference/bank-feeds) writes. For example: `ORDEN DE PAGO RECIBIDA · BARRIOS Y FUENTES BAFUR`.
+- The key in `externalRef` is `<bank>:<account number>:op:<operation number>`, for example `bci:19864345:op:3211420`. When the bank shows no operation number, the key is `<bank>:<account number>:<date>:<amount in minor units>:<side>:<n>`, where `n` counts the movements with the same date, amount, and side, from `1`. The key never changes.
+- `metadata` holds only these labels, in this order, and only when the bank shows the fact: `Contraparte`, `RUT de contraparte`, `Cuenta de contraparte`, `Institución de contraparte`, `País de la contraparte`, `Comentario`, `N° de operación`, `Fecha valor` (only when it differs from the movement's date), and `Referencia de pago`. Dates are `YYYY-MM-DD`.
+- Erwin sets `partnerId` only when it is sure of the Partner: the counterpart's RUT is the RUT of exactly one Partner, earlier Movements with the same counterpart all have the same Partner, or the counterpart names exactly one Partner. It never creates a Partner or changes one a Movement already has.
+
+Erwin pairs each site movement with an existing Movement the same way as for [unbilled card movements](#from-unbilled-movements): by key first, then with the one Movement that has the same amount and side, dated at most 3 days away. Then:
+
+- An unpaired site movement is created.
+- A paired `unbooked` Movement gets the site's description and metadata. A booked one gets only new metadata and a Partner, and Erwin reports any other difference. Erwin replaces the whole `metadata` list rather than adding to it.
+- Erwin changes only Movements whose key starts with `<bank>:<account number>:`. It reports pairs with Movements from other loads without changing them.
+
+Erwin never creates adjustment movements to make a balance agree, never deletes a Movement, and never books one. It reports the bank's balance next to the Bank Account's balance, the movements it could not pair, and the counterparts it left without a Partner.
+
+**Accounts with a bank feed.** On a Bank Account with a [feed](/api-reference/bank-feeds), the feed creates the Movements and rewrites their description and its own labels at each sync. Erwin never creates Movements there. When you ask it to add the site's facts, it only sets a missing Partner and adds the `N° de operación`, `Fecha valor`, and `Referencia de pago` lines after the lines the Movement already has.
+
 <Note>
   Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
 </Note>
