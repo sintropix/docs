@@ -28,7 +28,7 @@ List the Organizations where you do Sintropix work, each with the Entities it ho
 | --- | --- | --- |
 | `id` | UUID | Organization id |
 | `name` | string | Organization name |
-| `entities` | array | `{ id, name }` of each Entity in the Organization |
+| `entities` | array | `{ id, name, parentEntityId }` of each Entity in the Organization. `parentEntityId` is the Entity's parent Entity, always in the same Organization, or `null` for a root Entity. Build the group tree from it. |
 
 ```bash
 curl https://api.sintropix.com/api/organizations \
@@ -41,8 +41,12 @@ curl https://api.sintropix.com/api/organizations \
     "id": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
     "name": "Grupo Acme",
     "entities": [
-      { "id": "11111111-1111-4111-8111-111111111111", "name": "Acme SpA" },
-      { "id": "22222222-2222-4222-8222-222222222222", "name": "Acme Inversiones SpA" }
+      { "id": "11111111-1111-4111-8111-111111111111", "name": "Acme SpA", "parentEntityId": null },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "Acme Inversiones SpA",
+        "parentEntityId": "11111111-1111-4111-8111-111111111111"
+      }
     ]
   }
 ]

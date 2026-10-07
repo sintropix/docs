@@ -6,11 +6,13 @@ description: "List, create, and configure the legal companies (Entities) that ow
 
 import AppLink from "/snippets/app-link.mdx"
 
-An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. Every Entity belongs to exactly one [Organization](/api-reference/organizations), and Users reach it through their Membership in that Organization. This page covers the Entity CRUD, ledger-lock date, accounting policy, and Organization move endpoints.
+An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. Every Entity belongs to exactly one [Organization](/api-reference/organizations), and Users reach it through their Membership in that Organization. This page covers the Entity CRUD, ledger-lock date, accounting policy, parent Entity, and Organization move endpoints.
+
+An Entity can have a parent Entity that controls it, and the Entities it controls are its subsidiaries. A parent Entity and its subsidiaries form a group, and a group stays inside one Organization: the parent is always an Entity of the same Organization. A Superadmin sets the structure from the Organization in the staff panel.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/home"
-  note="Its settings are at /{entityId}/settings/entity and its parent and subsidiaries at /{entityId}/settings/structure."
+  note="Its settings are at /{entityId}/settings/entity."
 />
 
 ## POST /api/entities
@@ -22,6 +24,7 @@ Sintropix sets up your Entities for you: you can't create one from the client ap
 - **Superadmin only, from a signed-in session.** A request with an API key or an OAuth access token returns `403` with `SUPERADMIN_SESSION_REQUIRED`, and any other User, `staff` included, gets `403` with `SUPERADMIN_REQUIRED`. A Superadmin can create an Entity in any Organization without holding a Membership in it. List every Organization with [`GET /api/onboarding/organizations`](/api-reference/onboarding#get-onboarding-organizations).
 - Creating an Entity opens none of its books to the Superadmin. Users reach it through a Membership of its Organization.
 - An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+- An unknown `parentEntityId` returns `404` with `ENTITY_CREATION_PARENT_NOT_FOUND_ERROR`. A parent in another Organization returns `409` with `ENTITY_CREATION_PARENT_IN_ANOTHER_ORGANIZATION_ERROR`.
 - **Body:**
 
 | Field | Type | Required | Description |
@@ -29,9 +32,10 @@ Sintropix sets up your Entities for you: you can't create one from the client ap
 | `id` | UUID | Yes | Client-supplied idempotency id |
 | `name` | string | Yes | Legal company name, non-empty |
 | `country` | string | Yes | ISO country code, non-empty |
-| `taxId` | string | Yes | Tax registration, non-empty; canonicalized for Chile |
+| `taxId` | string | Yes | Tax registration, 1 to 50 characters; canonicalized for Chile |
 | `currency` | string | Yes | Functional currency code, non-empty |
 | `organizationId` | UUID | Yes | Organization the Entity belongs to |
+| `parentEntityId` | UUID or null | No | Parent Entity that controls the new Entity. It must be an Entity of the same Organization. Defaults to `null`, a root Entity. |
 
 - **Success response:** the created Entity with `organizationName` and `organizationWebsite` (see [Response shape](#response-shape))
 - **Status:** 201
@@ -46,7 +50,8 @@ curl -X POST https://api.sintropix.com/api/entities \
     "country": "CL",
     "taxId": "76.123.456-0",
     "currency": "CLP",
-    "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d"
+    "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
+    "parentEntityId": null
   }'
 ```
 
@@ -91,7 +96,7 @@ Update the core identity fields of an Entity. At least one field must be provide
 | --- | --- | --- | --- |
 | `name` | string | No | Legal company name |
 | `country` | string | No | ISO country code |
-| `taxId` | string | No | Tax registration |
+| `taxId` | string | No | Tax registration, at most 50 characters |
 | `currency` | string | No | Functional currency |
 
 - **Success response:** the updated Entity (see [Response shape](#response-shape))
@@ -129,9 +134,14 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger-lock-date
 
 ## PATCH /api/entities/:entityId/parent
 
-Set or clear the parent Entity that controls this one. An id names the controlling Entity; `null` makes it a root. The parent must exist, must not be the Entity itself, and must not create a cycle. A parent you can't reach returns `404`, the same as an unknown one.
+Set, change, or clear the parent Entity that controls this one. An id names the controlling Entity; `null` makes it a root. The parent must exist, must be in the same Organization, must not be the Entity itself, and must not create a cycle.
 
-- **Requires the `staff` Role** in the Entity's Organization
+- **Superadmin only, from a signed-in session.** A request with an API key or an OAuth access token returns `403` with `SUPERADMIN_SESSION_REQUIRED`, and any other User, `staff` included, gets `403` with `SUPERADMIN_REQUIRED`. A Superadmin can set the parent of any Entity without holding a Membership in its Organization.
+- The checks run in this order:
+  1. An unknown parent returns `404` with `ENTITY_PARENT_NOT_FOUND_ERROR`.
+  2. A parent in another Organization returns `409` with `ENTITY_PARENT_IN_ANOTHER_ORGANIZATION_ERROR`.
+  3. The Entity as its own parent returns `400` with `ENTITY_SELF_PARENT_ERROR`.
+  4. A parent that is one of the Entity's own subsidiaries, at any depth, returns `400` with `ENTITY_PARENT_CYCLE_ERROR`.
 - **Path param:** `entityId` (UUID)
 - **Body:**
 
@@ -144,9 +154,8 @@ Set or clear the parent Entity that controls this one. An id names the controlli
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/parent \
+  --cookie cookies.txt \
   -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
   -d '{"parentEntityId": "22222222-2222-4222-8222-222222222222"}'
 ```
 
@@ -187,6 +196,7 @@ Move an Entity to another Organization. Members of the old Organization lose acc
 
 - **Status:** 204
 - An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+- An Entity in a group can't move: an Entity with a parent Entity or any subsidiary returns `409` with `ENTITY_MOVE_IN_GROUP_ERROR`. Clear those links with [`PATCH /api/entities/:entityId/parent`](#patch-api-entities-entityid-parent) first, then move it.
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/organization \
@@ -208,7 +218,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `currency` | string | Functional currency |
 | `ledgerLockDate` | ISO date or null | Ledger freeze date |
 | `accountingPolicies` | string or null | Free-text policies |
-| `parentEntityId` | UUID or null | Controlling Entity |
+| `parentEntityId` | UUID or null | Parent Entity that controls this one, always in the same Organization. `null` for a root Entity. |
 | `organizationId` | UUID | Organization the Entity belongs to |
 | `organizationName` | string | Name of that Organization. Returned by `GET /api/entities` and `POST /api/entities` only. |
 | `organizationWebsite` | string or null | Website of that Organization, as a bare domain. Read the Organization's logo from [`GET /api/organizations/:organizationId/logo`](/api-reference/organizations#get-organizations-organizationid-logo). Returned by `GET /api/entities` and `POST /api/entities` only. |
@@ -236,13 +246,17 @@ Every endpoint on this page that returns an Entity uses this shape:
 | Code | Meaning |
 | --- | --- |
 | `ENTITY_LOCK_DATE_OVER_SCHEDULED_ENTRY_ERROR` | Lock date would cover a Scheduled Entry |
+| `ENTITY_CREATION_PARENT_NOT_FOUND_ERROR` | The `parentEntityId` of a new Entity does not exist |
+| `ENTITY_CREATION_PARENT_IN_ANOTHER_ORGANIZATION_ERROR` | The `parentEntityId` of a new Entity is in another Organization |
 | `ENTITY_PARENT_NOT_FOUND_ERROR` | Named parent Entity does not exist |
+| `ENTITY_PARENT_IN_ANOTHER_ORGANIZATION_ERROR` | Named parent Entity is in another Organization |
 | `ENTITY_SELF_PARENT_ERROR` | An Entity cannot control itself |
 | `ENTITY_PARENT_CYCLE_ERROR` | Parent would create a control cycle |
+| `ENTITY_MOVE_IN_GROUP_ERROR` | The Entity has a parent Entity or a subsidiary, so it can't move to another Organization |
 | `ORGANIZATION_NOT_FOUND_ERROR` | Named Organization does not exist or is outside your reach |
 | `PERMISSION_DENIED_ERROR` | Your Role in the Organization doesn't allow this action |
-| `SUPERADMIN_SESSION_REQUIRED` | The Entity creation or Organization move was sent with an API key or token instead of a signed-in session |
-| `SUPERADMIN_REQUIRED` | The Entity creation or Organization move was sent by a User who is not a Superadmin |
+| `SUPERADMIN_SESSION_REQUIRED` | The Entity creation, parent change, or Organization move was sent with an API key or token instead of a signed-in session |
+| `SUPERADMIN_REQUIRED` | The Entity creation, parent change, or Organization move was sent by a User who is not a Superadmin |
 
 ## Status codes
 
@@ -251,8 +265,8 @@ Every endpoint on this page that returns an Entity uses this shape:
 | 200 | Success (GET, PATCH) |
 | 204 | Success (PATCH organization) |
 | 201 | Created (POST) |
-| 400 | Validation error |
+| 400 | Validation error, or a parent change that names the Entity itself or closes a cycle |
 | 401 | Unauthenticated |
-| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`), or the Entity creation or Organization move without a Superadmin session |
+| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`), or the Entity creation, parent change, or Organization move without a Superadmin session |
 | 404 | Entity or Organization not found, or outside your reach |
 | 409 | Domain rule violation (see `code`) |

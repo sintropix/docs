@@ -1,7 +1,7 @@
 ---
 title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement, cash flow statement, journal, open positions (receivables and payables), revenue realization, and ledger reports. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement, cash flow statement, journal, open positions (receivables and payables), revenue realization, customer status, and ledger reports. All endpoints are read-only and return bare JSON."
 ---
 
 The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
@@ -13,7 +13,7 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 </Note>
 
 <Tip>
-  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, and `fixed-assets`. Pass the period as `from` and `to`, or as `exerciseStart` and `cutoffDate` for the balances and the cash flow statement. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
+  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, `customers`, and `fixed-assets`. Pass the period as `from` and `to`, or as `exerciseStart` and `cutoffDate` for the balances and the cash flow statement. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
 </Tip>
 
 ## Entity reports
@@ -456,6 +456,123 @@ Amount fields present on every item of `months`, on `total`, and on every item o
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/revenue-realization?from=2024-01-01&to=2024-12-31" \
+  -H "Cookie: <session-cookie>"
+```
+
+### Customer status
+
+Follow each customer: what you sold them, what you billed, what they paid, and what is still pending. In the app this is **Reports → Gestión de clientes**. Use the list to find the customers who owe you, then read one customer's detail to see the months and the documents behind each amount.
+
+Amounts follow the [revenue realization](#revenue-realization) cohort. Each amount sits in the month the revenue was recognized, and its payment state is as of today (`paymentStateDate`). Revenue recognized after today isn't counted yet. All amounts are in the Entity's functional currency.
+
+Amount fields present on `total`, on every customer row, and on every item of `months`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `recognized` | integer | Sold: revenue recognized |
+| `billed` | integer | Billed: `billedOutstanding + collected` |
+| `collected` | integer | Paid: amount collected |
+| `recognizedAndUnbilled` | integer | Recognized but not yet billed |
+| `billedOutstanding` | integer | Billed but not yet collected |
+| `pending` | integer | Still to collect: `recognizedAndUnbilled + billedOutstanding` |
+
+#### List every customer
+
+`GET /api/entities/:entityId/reports/customer-status`
+
+Returns one row per customer, sorted by `pending`, highest first. Revenue booked with no Partner comes back as one row with `partnerId: null`.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `from` | ISO date | Yes | Start date |
+| `to` | ISO date | Yes | End date (must be on or after `from`) |
+| `search` | string | No | Matches the customer's name or tax id, ignoring case, accents, punctuation, and spacing. At most 100 characters; blank is ignored. |
+| `onlyPending` | boolean | No | `true` to keep only the customers with a `pending` amount other than `0`. Default `false`. |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `from` | ISO date | As requested |
+| `to` | ISO date | As requested |
+| `paymentStateDate` | ISO date | Date at which the payment state was evaluated (today) |
+| `functionalCurrency` | string | The Entity's functional currency |
+| `total` | object | The amount fields, summed over the customers returned |
+| `customers` | array | One item per customer: `{ partnerId, partnerName, partnerTaxId, total }`, where `total` holds the amount fields |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/customer-status?from=2026-01-01&to=2026-09-30&onlyPending=true" \
+  -H "Cookie: <session-cookie>"
+```
+
+#### Read one customer
+
+`GET /api/entities/:entityId/reports/customer-status/:partnerId`
+
+Returns one customer's amounts by month, the revenue entries behind them, and the documents of the period: receivable Invoices, accruals on unbilled receivable accounts, and Bank Movements. An unknown `partnerId` returns `404` with `PARTNER_NOT_FOUND_ERROR`.
+
+**Query params:** `from`, `to`, and `bookId`, as in the list.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `from` | ISO date | As requested |
+| `to` | ISO date | As requested |
+| `paymentStateDate` | ISO date | Date at which the payment state was evaluated (today) |
+| `functionalCurrency` | string | The Entity's functional currency |
+| `partner` | object | `{ id, name, taxId }` of the customer |
+| `total` | object | The amount fields, summed over the period |
+| `months` | array | One item per month of the period, oldest first: `{ monthKey }` (`YYYY-MM`) plus the amount fields |
+| `entries` | array | The customer's revenue entries, in the same shape as `entries` in [Revenue realization](#revenue-realization) |
+| `invoices` | array | Receivable Invoices and credit notes issued to the customer in the period, newest first |
+| `unbilledReceivableLines` | array | Lines with the customer on unbilled receivable accounts, dated in the period, newest first |
+| `movements` | array | Bank Movements of the period for the customer, newest first |
+
+Each item in `invoices`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Invoice id |
+| `issueDate` | ISO date | Issue date |
+| `dueDate` | ISO date or null | Due date |
+| `documentKind` | string | `invoice` or `credit_note` |
+| `documentNumber` | string | The number printed on the document |
+| `dteTypeCode` | string or null | SII document type code, when the Invoice has a DTE |
+| `currency` | string | Currency of the document |
+| `amount` | integer | Document total in its own `currency`, negative for a credit note |
+| `openAmount` | integer or null | Amount still open, in the functional currency. `null` while the document is not booked. |
+| `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. `null` while the document is not booked. |
+
+Each item in `unbilledReceivableLines`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `lineId` | UUID | Line id |
+| `entryId` | UUID | Parent entry |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `amount` | integer | In the functional currency. Positive when the line accrues revenue to bill (debit), negative when it clears it (credit). |
+
+Each item in `movements`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Bank Movement id |
+| `movementDate` | ISO date | Movement date |
+| `description` | string | Description from the bank |
+| `ledgerEntryId` | UUID or null | Entry that books the Movement; `null` while it is unbooked |
+| `bankAccountName` | string | Name of the Bank Account |
+| `currency` | string | Currency of the Bank Account |
+| `amount` | integer | In the Bank Account's `currency`. Positive for money in, negative for money out. |
+
+A Movement belongs to the customer when the customer is its own Partner, or when the entry that books it has a receivable or unbilled receivable line with the customer. A customer's payment booked against their receivable shows here even when the Movement itself has no Partner.
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/customer-status/$PARTNER_ID?from=2026-01-01&to=2026-09-30" \
   -H "Cookie: <session-cookie>"
 ```
 
