@@ -30,9 +30,11 @@ Erwin can load the movements of a credit card into the card's Bank Accounts. To 
 Both ways follow the same rules:
 
 - Each section of a card is a separate `card` Bank Account. The national (CLP) and international (USD) sections are two Bank Accounts. Erwin finds each one by the card's last 4 digits and the currency. Erwin never creates a Bank Account. It stops and asks if it finds none or more than one.
-- Erwin loads only posted movements, never pending authorizations. It copies the `movementDate`, `amount`, `side`, and `description` exactly as the bank shows them. A charge is a `credit`, and a payment or refund is a `debit`.
+- Erwin loads every movement the bank shows, except one the bank marks as a pending authorization. It copies the `movementDate`, `amount`, and `side` exactly as the bank shows them. A charge is a `credit`, and a payment or refund is a `debit`.
+- The `description` is the merchant when the bank shows it apart from the movement's text. Otherwise it is the bank's text for the movement. Erwin copies either one exactly as the bank shows it.
 - Every movement gets a key in `externalRef` that never changes.
-- `metadata` holds only these labels, in this order, and only when the bank shows the fact: `Tarjeta`, `Comercio`, `Rubro`, `Ciudad`, `País`, `Monto origen`, `Cuota`, `Monto total compra`, `Fecha de compra`, `Referencia banco`, and `Leído de`. Erwin attaches no files.
+- `metadata` holds only these labels, in this order, and only when the bank shows the fact: `Tarjeta`, `Rubro`, `Ciudad`, `País`, `Monto origen`, `Cuota`, `Monto total compra`, `Fecha de compra`, `Referencia banco`, and `Leído de`. Erwin attaches no files.
+- `Tarjeta` names the card that made the movement when the section has more than one card: its last 4 digits and `titular` or `adicional`, or `adicional` alone when the bank hides the card's digits.
 - Erwin sets `partnerId` only when it is sure of the Partner. It never creates a Partner or changes one a movement already has.
 - Erwin never creates adjustment movements to make a balance agree, never deletes a movement, and never books one. It reports each difference instead.
 
@@ -48,7 +50,7 @@ Erwin then asks a person to approve the load, with the period, line count, total
 
 ### From unbilled movements
 
-Erwin reads the bank's site, so the Entity needs a login Credential for the bank. BCI, BICE, and Santander are supported. For Santander, a person signs in by hand and Erwin continues in their session. See [Sign in to a bank by hand](/api-reference/agent-channels#sign-in-to-a-bank-by-hand). Each run rereads the whole open period, from the day after the last billing date to 2 days before today. It skips today and yesterday, because the bank can still reverse those movements.
+Erwin reads the bank's site, so the Entity needs a login Credential for the bank. BCI, BICE, and Santander are supported. For Santander, a person signs in by hand and Erwin continues in their session. See [Sign in to a bank by hand](/api-reference/agent-channels#sign-in-to-a-bank-by-hand). If Santander can't load a card's movements, Erwin retries up to 3 times. If it still fails, it goes on with the next card or section, keeps what it already read, and reports the one that failed with the site's message. Each run rereads the whole open period, from the day after the last billing date to 2 days before today. It skips today and yesterday, because the bank can still reverse those movements.
 
 The key is `no-facturado:<bank ID>`. When the bank shows no ID, the key is `no-facturado:<date>:<amount in minor units>:<side>:<n>`, where `n` counts the movements with the same date, amount, and side. Erwin pairs each site movement with an existing Movement by key first. If there is no key match, it pairs with the one Movement that has the same amount and side, dated at most 3 days away. Then:
 
