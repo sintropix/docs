@@ -1,7 +1,7 @@
 ---
 title: "Core Concepts: How Sintropix Organizes Your Finance Data"
 sidebarTitle: "Core Concepts"
-description: "Understand the key building blocks of Sintropix — entities, currencies, transactions, reconciliation, close checklists, and more — before you dive in."
+description: "Understand the key building blocks of Sintropix — entities, currencies, transactions, reconciliation, close checklists, fixed assets, and more — before you dive in."
 ---
 
 Sintropix introduces a small set of concepts that shape how your financial data is structured, how transactions flow through the system, and how the AI layer interacts with your accounting. Familiarizing yourself with these building blocks will make every other part of the platform easier to understand and use.
@@ -29,6 +29,8 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - **`viewer`**: reads only
 
     Moving an entity to another Organization moves its access with it. See the [Organizations API](/api-reference/organizations) and [Access and roles](/api-reference/overview#access-and-roles).
+
+    **Switch companies in the app.** Click the company menu at the top of the sidebar. It shows the logo and name of the active Organization, and below them the active entity when the Organization has more than one. The menu lists every entity you can reach, grouped under its Organization, with the flag of its country and a check on the active one. Click an entity to switch to it in one step, even when it's in another Organization. An Organization is a heading in the menu, not an option: there is no view of a whole Organization.
   </Accordion>
 
   <Accordion title="Book">
@@ -140,6 +142,20 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     <Warning>
       The wiki holds facts, not instructions. It never stores ERP data such as balances or invoice lists, or what the ERP's history already shows, such as past corrections or matches. It never stores passwords, codes, API keys, or full card numbers. Only ask Erwin to learn from content you trust.
     </Warning>
+  </Accordion>
+
+  <Accordion title="Fixed Asset">
+    A **Fixed Asset** is something an entity buys to use for more than a year, such as a vehicle or a computer, whose cost Sintropix spreads over its useful life. You create it from the purchase already in the books, and Sintropix posts its depreciation every month.
+
+    The **depreciation start date** picks the first month that gets a charge:
+
+    - It can be any date on or after the acquisition date. In the app, it defaults to the acquisition date, so an asset bought on February 20 starts depreciating in February.
+    - The start month gets a full monthly charge. The day of the month never prorates it.
+    - Each charge is dated at the end of its month. The last charge absorbs any rounding remainder.
+
+    For example, an asset bought and starting on 2026-07-15, with a cost of 1001 and a life of 3 months, gets charges of 333 on 2026-07-31, 333 on 2026-08-31, and 335 on 2026-09-30.
+
+    In the API, `depreciationStartDate` is an ISO date. A date before the acquisition date returns `400` with `FIXED_ASSET_DEPRECIATION_START_DATE_INVALID`, and `params` carries `acquisitionDate` and `depreciationStartDate`. Open the assets in the app at `/{entityId}/fixed-assets` (see [Link to the App](/guides/app-links)).
   </Accordion>
 
   <Accordion title="Journal Entry">
