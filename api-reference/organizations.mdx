@@ -113,7 +113,7 @@ curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
 
 ## PATCH `/organizations/:organizationId/website`
 
-Set or clear the website Sintropix reads the Organization's logo from. The app shows that logo in the organization switcher, in place of the Organization's initial.
+Set or clear the website Sintropix reads the Organization's logo from. The app shows that logo in the company menu of the sidebar, in place of the Organization's initial.
 
 - Only a member with the `staff` Role in the Organization can call it, from a session or an API key. A `client` or `viewer` member receives `403` with `PERMISSION_DENIED_ERROR`, and a User outside the Organization receives `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 - An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR`.
