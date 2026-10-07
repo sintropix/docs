@@ -13,8 +13,8 @@ What an Integration can feed depends on its kind:
 | Kind | Feeds |
 | --- | --- |
 | `bsale`, `wasabil`, `sii_mirror` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) |
-| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
-| `mercadolibre`, `gmail`, `polar`, `resend` | Nothing yet |
+| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
+| `mercadolibre`, `gmail`, `resend` | Nothing yet |
 
 An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account still belongs to a single Entity.
 
@@ -26,7 +26,7 @@ The `mercadopago` kind connects a Mercado Pago account through OAuth. It can fee
 
 The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Entity can connect several mailboxes, but each mailbox can belong to only one Entity. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
 
-The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sintropix does not read any data through this Integration yet: you can connect, renew, and disconnect the account only.
+The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sign in to Polar as a user with the owner, admin, or finance role in the organization: Polar shows an organization's money to those roles only. It can feed a USD Bank Account with each organization's Polar balance. Sintropix only reads: it never charges, refunds, or withdraws money. See [Bank Feeds](/api-reference/bank-feeds#polar).
 
 The `resend` kind is an email inbox that Sintropix gives the Entity, with an address on `inbox.sintropix.com`. It holds no credential and lands no documents. Staff reads the email the inbox receives through [Email inboxes](#email-inboxes-staff-only).
 
