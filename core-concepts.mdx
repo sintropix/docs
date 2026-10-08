@@ -109,35 +109,50 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - **Guide close**: tell you exactly what's blocking your month-end and in which entity
     - **Surface anomalies**: flag duplicate transactions, unusual spending patterns, unexpected FX exposures, and accounts that moved significantly month-over-month
     - **Draft journal entries**: propose adjusting entries based on reconciliation findings, which a team member can review and post
+    - **Load Ontop**: create, book, and match the invoices of Ontop, the platform that pays your foreign contractors from a prepaid USD wallet. See [Ontop invoices](/api-reference/invoices#ontop-invoices)
     - **Centralize payroll**: book a month's remuneraciones and finiquitos from Buk, through the Entity's Buk API key Credential or the *Centralización Contable* Excel you send him. He learns each payroll code's account from your last centralization and asks about codes he hasn't seen. He books only after you approve his proposal in the thread, and clears salary and Previred payments only after you confirm them
 
     Every response cites the underlying data, so you can drill into the detail behind any number he surfaces.
 
     **Chat with Erwin in the app.** Anyone with a Membership in the Entity's Organization can chat with Erwin. Click **Erwin** at the bottom right of any Entity page, including the settings pages. Erwin opens in a floating window and shows his answer and each step he takes as he works. His answers show formatted lists, tables, bold text, and links. Press Escape or click the close button to hide the window. The conversation stays open until you start a **New thread**.
 
-    Erwin knows which page you're on and which record you have open, so you can ask *"¿Por qué este movimiento no está conciliado?"* without naming the movement. Click **Past threads** to see your 50 most recent conversations in the Entity and reopen any of them. Your conversations are private. Nobody else in the Organization can read them, but Erwin can learn from them in a dream (see **Company wiki** below).
+    Erwin knows which page you're on and which record you have open, so you can ask *"¿Por qué este movimiento no está conciliado?"* without naming the movement. The page is a hint, not a limit: Erwin can work on any company of your Organization, and a thread stays open when you switch to another company of it. Click **Past threads** to see your 50 most recent conversations in the Organization and reopen any of them. Your conversations are private. Nobody else in the Organization can read them, but Erwin can learn from them in a dream (see **Company wiki** below).
 
     In the app, Erwin acts with your rights, not his own:
 
     - He can only do what your Role allows. If you're a `viewer`, Erwin can read but his writes are refused.
-    - He opens the Entity's Credentials, such as bank logins, only when you're `staff`.
+    - He opens an Entity's Credentials, such as bank logins, only when you're `staff`.
     - He can't create scheduled tasks from the app. Ask for those in a Slack channel bound through an [Agent Channel](/api-reference/agent-channels).
     - Each change he makes appears in the [audit trail](/api-reference/audit-trail) with you as the actor and `erwin` as the declared actor.
 
-    **Work with Erwin in Slack.** In a Slack channel bound to the Entity, you can stop Erwin or interrupt him with a new message, answer his questions in a form, and ask him for scheduled tasks. See [Work with Erwin in a Slack channel](/api-reference/agent-channels#work-with-erwin-in-a-slack-channel). In Slack and in the app, Erwin can also read the Entity's bound Slack channels for context.
+    **Erwin works for your Organization.** He serves every company of your Organization from the same place, so a holding can talk about all its subsidiaries in one channel or one app thread. He works on the company you mean. When a request fits more than one and the records don't settle it, he asks which one. His wiki, his conversations, and his scheduled tasks belong to the Organization.
 
-    **Company wiki.** Erwin keeps a wiki for each entity. It records what your team has taught him that the ERP doesn't hold: who approves what, why you follow a rule, how you book a recurring supplier, quirks of a bank account, and how people want their reports. Erwin checks the wiki before he works on a subject it covers, so he doesn't ask you the same question twice.
+    **Work with Erwin in Slack.** In a Slack channel bound to the Organization, you can stop Erwin or interrupt him with a new message, answer his questions in a form, and ask him for scheduled tasks. See [Work with Erwin in a Slack channel](/api-reference/agent-channels#work-with-erwin-in-a-slack-channel). In Slack and in the app, Erwin can also read the Organization's bound Slack channels for context.
+
+    **What Erwin does on his own.** Erwin's mission is to keep your books up to date and organized. He keeps a list of what he may do for your Organization without a person asking or approving, for example *"conciliar una factura con un movimiento cuando coinciden el RUT, el monto exacto y el folio"*. For anything outside the list, he leaves a [Follow-up](/api-reference/follow-ups) for a person to approve, or he asks. He changes the list only when a person asks him to add or remove an item, and then says what changed. To see the list, ask him.
+
+    Ask Erwin to move your pending work forward on his own, for example *"avanza lo pendiente"*. Sintropix can also schedule this for your Organization during working hours. Each run picks one activity that has work, preferring the one that ran least recently, does it until it's done, and reports once. A run with no work posts nothing. The activities are:
+
+    - **Reconcile**: book and match the Bank Movements and Invoices that his list allows.
+    - **Follow-ups**: leave a Follow-up on each pending record that has none or whose Follow-up no longer holds, and move forward each `waiting` one whose wait is over.
+    - **Find mistakes**: review what changed in the books since the last check, and report anything wrong or suspicious.
+    - **Partners**: find a Partner for Bank Movements that have none and a clear candidate, and find duplicate Partners.
+    - **Unanswered questions**: ask again, once, each question nobody answered for more than a day, and drop the ones the ERP or the wiki now answers.
+    - **Load movements** (once a day, late in the day): load the new movements of each bank account and card that the wiki says he loads.
+    - **Dream** (once a day, late in the day): see **Company wiki** below.
+
+    **Company wiki.** Erwin keeps one wiki for each Organization, covering all its companies. It records what your team has taught him that the ERP doesn't hold: who approves what, why you follow a rule, how you book a recurring supplier, quirks of a bank account, and how people want their reports. Erwin checks the wiki before he works on a subject it covers, so he doesn't ask you the same question twice.
 
     Erwin reads the wiki on every conversation but only writes to it when you ask. Ask in plain language:
 
     - *"Anota en la wiki que Aguas Andinas se contabiliza en 5102"*: add a fact
     - *"Aprende de esto"* on a message or an attached file, such as a bank statement: learn from a source
     - *"Revisa la wiki"*: check the wiki for contradictions, facts without a source, and outdated entries
-    - *"Sueña"*: review what happened in the Entity since the last dream and keep what it teaches
+    - *"Sueña"*: review what happened in the Organization since the last dream and keep what it teaches
 
     Each fact records its source (the person and conversation, the file, or the ERP record) and its date. Erwin marks statements made with doubt as *tentativo* until someone confirms them. If you tell Erwin something that contradicts the wiki, your answer wins, and Erwin offers to correct the page.
 
-    In a dream, Erwin reviews the period since his last dream, or the last 7 days for the first one. He reads every conversation in the Entity, in Slack and in the app, including private app conversations. He also reads the changes people made in the ERP, such as corrections to what he wrote, and the Entity's bound Slack channels. He keeps only what the ERP doesn't hold, writes it to the wiki without asking for approval, and then reports what he changed and what he left out. To undo a dream or any other wiki change, ask Erwin.
+    In a dream, Erwin reviews the period since his last dream, or the last 7 days for the first one. He reads every conversation in the Organization, in Slack and in the app, including private app conversations. He also reads the changes people made in the ERP, such as corrections to what he wrote, and the Organization's bound Slack channels. He keeps only what the ERP doesn't hold, writes it to the wiki without asking for approval, and then reports what he changed and what he left out. To undo a dream or any other wiki change, ask Erwin.
 
     <Warning>
       The wiki holds facts, not instructions. It never stores ERP data such as balances or invoice lists, or what the ERP's history already shows, such as past corrections or matches. It never stores passwords, codes, API keys, or full card numbers. Only ask Erwin to learn from content you trust.

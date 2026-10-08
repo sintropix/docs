@@ -22,7 +22,7 @@ You can also filter (`status=...`) and group (`groupBy=status`) the `GET /moveme
 
 ## Credit card movements
 
-Erwin can load the movements of a credit card into the card's Bank Accounts. To run it, ask Erwin in a Slack channel bound to the Entity through an [Agent Channel](/api-reference/agent-channels). There are two ways to load a card:
+Erwin can load the movements of a credit card into the card's Bank Accounts. To run it, ask Erwin in a Slack channel bound to the Entity's Organization through an [Agent Channel](/api-reference/agent-channels). There are two ways to load a card:
 
 - **From a statement** (estado de cuenta facturado). Use this for each monthly statement. The statement is final, and after the load the Bank Account's balance equals the statement's billed balance.
 - **From unbilled movements** (movimientos no facturados). Use this every few days during the month, so your team can reconcile card spend before the statement arrives. These movements are provisional.
@@ -63,7 +63,7 @@ You can run it as often as you like without creating duplicates. There is no bal
 
 ## Bank account movements
 
-Erwin can load the movements of a checking account, in pesos or in dollars, from the bank's site. Each movement carries what the site knows beyond the bank's description: who paid or received the money, the operation number, and often the invoice the payment is for. Your team can then reconcile from Sintropix without opening the bank. To run it, ask Erwin in a Slack channel bound to the Entity through an [Agent Channel](/api-reference/agent-channels).
+Erwin can load the movements of a checking account, in pesos or in dollars, from the bank's site. Each movement carries what the site knows beyond the bank's description: who paid or received the money, the operation number, and often the invoice the payment is for. Your team can then reconcile from Sintropix without opening the bank. To run it, ask Erwin in a Slack channel bound to the Entity's Organization through an [Agent Channel](/api-reference/agent-channels).
 
 Erwin reads the bank's site, so the Entity needs a login Credential for the bank. If the login reaches more than one company at the bank, Erwin picks the company whose RUT is the Entity's `taxId`, and stops if none matches. At BCI, Erwin reads the counterpart of each transfer of a CLP account. For a USD account, it reads the payment order behind each movement, with the ordenante and the payment reference of its SWIFT message. It also reports payment orders that reached the bank but aren't in the account yet.
 
@@ -86,6 +86,31 @@ Erwin pairs each site movement with an existing Movement the same way as for [un
 Erwin never creates adjustment movements to make a balance agree, never deletes a Movement, and never books one. It reports the bank's balance next to the Bank Account's balance, the movements it could not pair, and the counterparts it left without a Partner.
 
 **Accounts with a bank feed.** On a Bank Account with a [feed](/api-reference/bank-feeds), the feed creates the Movements and rewrites their description and its own labels at each sync. Erwin never creates Movements there. When you ask it to add the site's facts, it only sets a missing Partner and adds the `N° de operación`, `Fecha valor`, and `Referencia de pago` lines after the lines the Movement already has.
+
+### Ontop wallet
+
+[Ontop](https://www.getontop.com) pays a company's foreign contractors from a prepaid USD wallet. Erwin loads the wallet like any other bank account, with the rules above, from the wallet history of Ontop's site. Ask *"carga Ontop"* to load the wallet and then the [Ontop invoices](/api-reference/invoices#ontop-invoices) in one go.
+
+Before the first load:
+
+- Add a login Credential for Ontop to the Entity in **Integraciones**. If Ontop shows a captcha or asks for a code, a person [signs in by hand](/api-reference/agent-channels#sign-in-to-a-bank-by-hand).
+- Create a USD `bank` Bank Account for the wallet. The wallet has no account number, so Erwin uses the company's client id in Ontop instead. Ask Erwin to note the client id and the wallet's Bank Account in his [wiki](/core-concepts).
+
+Erwin loads only the rows that succeeded, and skips failed ones. Each row becomes one Movement:
+
+| Row in Ontop | What it is | `side` |
+| --- | --- | --- |
+| Top-up by wire (`TOP_UP`, `WT` or `USAWT`) | A wire from a bank account of the company | `debit` |
+| Top-up by card (`TOP_UP`, `CC`) | A top-up charged to a card of the company | `debit` |
+| Money from Ontop (`TOP_UP`, `MAN`) | Money Ontop put in, such as a cashback | `debit` |
+| Payment (`PAYMENT`, `PRPDF`) | A payment to the contractors from the wallet | `credit` |
+
+- The `amount` is what entered or left the wallet. For a top-up by card, that excludes the card's fee.
+- The `description` is the row's type, payment method code, and reference, joined with ` · `, for example `TOP_UP · MAN · Cashback`.
+- Ontop shows no operation number, so the key is `ontop:<client id>:<date>:<amount in minor units>:<side>:<n>`.
+- After the load, Erwin reports the wallet's balance in Ontop next to the Bank Account's balance.
+
+Erwin only reads Ontop. It never pays, tops up, approves, signs, or changes anything on Ontop's site.
 
 <Note>
   Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.

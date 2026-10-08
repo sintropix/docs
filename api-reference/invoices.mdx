@@ -26,6 +26,64 @@ Amounts are integers in the minor units of their currency (`1190000` is CLP 1,19
   note="That page is for direction receivable. For direction payable use /{entityId}/bills?open={invoiceId}."
 />
 
+## Ontop invoices
+
+[Ontop](https://www.getontop.com) pays a company's foreign contractors from a prepaid USD wallet, and bills the company for each payment. Erwin can load those invoices, book them, and match each payment to its invoices. Ask him in a Slack channel bound to the Entity's Organization through an [Agent Channel](/api-reference/agent-channels), for example *"carga las facturas de Ontop"*. To load the wallet's movements first, ask *"carga Ontop"*. See [Ontop wallet](/api-reference/bank-movements#ontop-wallet).
+
+Ontop issues three kinds of invoice:
+
+| Prefix | What it bills | Paid from |
+| --- | --- | --- |
+| `ONTW` | One contractor in one payment | The wallet or a card |
+| `ONTF` | The fee of a payment charged to a card | A card |
+| `OMF` | The monthly membership | A card |
+
+### Before the first load
+
+Erwin reads the facts below from the Ontop page of his [wiki](/core-concepts). Ask him to note them there before the first load. If the page is missing or lacks a fact, he stops and asks. He never creates a Partner, a Source, a Bank Account, or an account.
+
+- The Partner of Ontop, the [Source](/api-reference/sources) of its invoices, and the Bank Account of the wallet.
+- The control account of the invoices, and the account for the exchange difference.
+- The expense account of each category of contractor, and the category of each contractor.
+- The expense account for Ontop's fees (`ONTF` and `OMF`).
+
+The Entity also needs a login Credential for Ontop.
+
+### What a load does
+
+Each load reads from 3 days before the newest issue date among the Partner of Ontop's Invoices to today. On the first load, Erwin asks from which date to start.
+
+1. **Create.** Erwin creates each invoice whose number no Invoice of the Partner of Ontop has yet, as an AP Invoice in USD:
+
+   | Field | Value |
+   | --- | --- |
+   | `partnerId`, `sourceId` | The Partner and the Source of Ontop |
+   | `direction`, `documentKind`, `currency` | `payable`, `invoice`, `USD` |
+   | `documentNumber` | The Ontop number, for example `ONTW650770` |
+   | `total` | The invoice's total in USD, in cents |
+   | `issueDate` | The date of the payment the invoice belongs to. For an `OMF`, its issue date |
+   | `memo` | `Ontop <number> · <contractor>`, or `Ontop <number> · Membresía` for an `OMF` |
+   | `metadata` | In this order, when Ontop shows them: `Tipo Ontop`, `Worker ID`, `Contratista`, `Fecha pago contratista`, and each part of the pay that isn't zero (`Compensation`, `Bonus`, `Commissions`, `Reimbursements`, `Total compensation`, `Ontop fees`) |
+
+2. **Book.** Erwin books each new `ONTW` to the account of its contractor's category, and each `ONTF` and `OMF` to the fee account. The entry credits the control account and debits the expense account, on the issue date, at the [FX rate](/api-reference/fx-rates) of USD for that date, or of the last earlier date with a rate. When the wiki has no category for a contractor, Erwin leaves the invoice unbooked with a `question` [Follow-up](/api-reference/follow-ups) that offers one option per category. He never guesses a category from the contractor's role.
+3. **Match.** Erwin matches each payment to its invoices once all of them are booked and open:
+   - A `PAYMENT` of the wallet pairs with the Ontop payment made from the wallet, with the same amount and a date at most 3 days away.
+   - A card charge whose description names Ontop pairs with the Ontop payment made by card, or with an `OMF`, with the same amount and a date at most 3 days away.
+
+   He matches the Movement to the first invoice, [assigns](/api-reference/bank-movements#post-movements-movementid-assign) the others from the Suspense Account, and books what's left to the exchange difference account on the last invoice. If an invoice of the payment isn't booked yet, the Movement waits unbooked with a `waiting` Follow-up that names the invoices. If two payments fit, he pairs none and leaves a `question` Follow-up.
+
+The other wallet movements get their own treatment:
+
+- A **top-up by wire** is recorded as an [internal transfer](/api-reference/bank-movements#record-an-internal-transfer) from the company's bank account.
+- A **top-up by card** isn't booked. Erwin leaves a `question` Follow-up.
+- A **cashback** gets a `proposal` Follow-up that books it to the account the wiki gives, or a `question` one when the wiki gives none.
+
+Erwin never changes or books again an Invoice that was already in Sintropix, and never deletes an Invoice or a Movement. He reports the invoices he created and booked, the payments he matched, each Follow-up he left, the contractors the wiki doesn't have yet, and the wallet's balance in Ontop next to its Bank Account's balance.
+
+<Note>
+  Erwin loads the invoices as Ontop issues them. The Chilean tax treatment of these payments, such as Impuesto Adicional or a factura de compra, is out of scope.
+</Note>
+
 ## GET `/invoices`
 
 List every Invoice for the Entity, filtered by direction and document kind. Pass `ids` instead to read the full detail of up to 100 specific Invoices in one request.
