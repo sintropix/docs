@@ -328,7 +328,7 @@ Sintropix books a new Invoice from the template only when all of these hold:
 
 1. The create request sent no `bookingEntryWithLines`. An explicit booking always wins.
 2. The Invoice is `direction: "payable"` and `documentKind: "invoice"`. Credit notes are never booked automatically.
-3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked.
+3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked. A source-feed sync never books a DTE that lands with the [Standing](/api-reference/source-feeds#standing-and-tax-period) `claimed` or `annulled`.
 4. The Invoice and its DTE are in the Entity's functional currency.
 5. The vendor has `booksAutomatically` set to `true`.
 6. Every line's source has a value on the DTE, and none is negative. A DTE that withholds no IVA gives a `dte_withheld_iva_amount` line `0`.

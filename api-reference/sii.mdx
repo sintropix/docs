@@ -55,6 +55,7 @@ Fetch a single DTE with its detail, including its amounts and any references to 
 | `receiverName` | string or null | Receiver name as printed. |
 | `issueDate` | string | `YYYY-MM-DD`. |
 | `taxPeriod` | string or null | The F29 / IVA month, `YYYY-MM`. |
+| `standing` | string or null | Where the SII holds the document: `accepted`, `pending`, `claimed`, or `annulled`. Only a [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync writes it; null on a DTE entered by hand. |
 | `currency` | string | ISO 4217 code. |
 | `total` | integer | Gross total, minor units of `currency`. |
 | `netAmount` | integer or null | Net base, minor units. |
@@ -87,6 +88,7 @@ Example response for a credit note that voids an invoice:
   "receiverName": "Mi Empresa SpA",
   "issueDate": "2026-08-20",
   "taxPeriod": "2026-08",
+  "standing": null,
   "currency": "CLP",
   "total": 1190000,
   "netAmount": 1000000,
