@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Organizations API: Group Entities for Access"
 sidebarTitle: "Organizations"
-description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website, read its logo, and list its members."
+description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website, read its logo, list its members, and read your own Role in it."
 ---
 
 An Organization groups the Entities that a client runs as one business. Every Entity belongs to exactly one Organization. Users reach Entities through an Organization Membership, which carries one Role and covers every Entity of the Organization, including Entities added later. See [Access and roles](/api-reference/overview#access-and-roles) for what each Role allows.
@@ -9,7 +9,7 @@ An Organization groups the Entities that a client runs as one business. Every En
 Use this page to manage Organizations themselves. To grant, change, or revoke a User's Membership, use the [Onboarding API](/api-reference/onboarding). To move an Entity to another Organization, use [`PATCH /api/entities/:entityId/organization`](/api-reference/entities).
 
 <Warning>
-  Every route below except `GET /organizations`, [`PATCH /organizations/:organizationId/website`](#patch-organizations-organizationid-website), and [`GET /organizations/:organizationId/logo`](#get-organizations-organizationid-logo) is restricted to a Superadmin, and only from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User receives `403` with `SUPERADMIN_REQUIRED`.
+  Every route below except `GET /organizations`, [`PATCH /organizations/:organizationId/website`](#patch-organizations-organizationid-website), [`GET /organizations/:organizationId/logo`](#get-organizations-organizationid-logo), and [`GET /organizations/:organizationId/role`](#get-organizations-organizationid-role) is restricted to a Superadmin, and only from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User receives `403` with `SUPERADMIN_REQUIRED`.
 </Warning>
 
 A Superadmin is a User Sintropix designates to manage access. No API route grants Superadmin. Being a Superadmin does not open any Entity's books: a Superadmin reads and writes an Entity only through a Membership of its Organization, like any other User.
@@ -157,11 +157,34 @@ curl -i https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/logo \
   --cookie cookies.txt
 ```
 
+## GET `/organizations/:organizationId/role`
+
+Read who you are in the Organization: your User and the Role your Membership gives you. Any member of the Organization can call it, from a session or an API key. Use it to check what a key may do before you act with it.
+
+- A User outside the Organization receives `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+- An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR`.
+
+**Response** `200`: one member, with the same fields as an item of [`GET /organizations/:organizationId/members`](#get-organizations-organizationid-members).
+
+```bash
+curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/role \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "userId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "name": "Ana Perez",
+  "email": "ana.perez@example.com",
+  "role": "client"
+}
+```
+
 ## DELETE `/organizations/:organizationId`
 
 Delete an empty Organization. Deleting an Organization also removes every Membership in it.
 
-An Organization that still holds an Entity can't be deleted. The request returns `409` with `ORGANIZATION_NOT_EMPTY_ERROR`. Move its Entities to another Organization first.
+An Organization that still holds an Entity can't be deleted. The request returns `409` with `ORGANIZATION_NOT_EMPTY_ERROR`. Move its Entities to another Organization first. Release its [Agent Channels](/api-reference/agent-channels) first, too.
 
 - **Status:** `204`.
 
@@ -203,9 +226,9 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 
 | Code | Status | Meaning |
 | --- | --- | --- |
-| `ORGANIZATION_NOT_FOUND_ERROR` | `404` | No Organization has this id, or you are not a member of it on the website and logo routes. |
+| `ORGANIZATION_NOT_FOUND_ERROR` | `404` | No Organization has this id, or you are not a member of it on the website, logo, and role routes. |
 | `ORGANIZATION_LOGO_NOT_FOUND_ERROR` | `404` | The Organization has no `website`, or its site shows no usable icon. |
-| `PERMISSION_DENIED_ERROR` | `403` | On the website route: the caller is not `staff` in the Organization, or uses an API key confined to one Entity. |
+| `PERMISSION_DENIED_ERROR` | `403` | On the website route: the caller is not `staff` in the Organization, or uses an API key confined to one Entity. On the role route: the caller uses an API key confined to one Entity. |
 | `ORGANIZATION_NAME_ALREADY_EXISTS_ERROR` | `409` | Another Organization already uses this name, ignoring case. |
 | `ORGANIZATION_NOT_EMPTY_ERROR` | `409` | The Organization still holds at least one Entity. |
 | `SUPERADMIN_SESSION_REQUIRED` | `403` | The request carries an API key or an OAuth access token. Superadmin routes accept only a signed-in session. |

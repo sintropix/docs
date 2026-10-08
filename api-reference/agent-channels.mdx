@@ -1,33 +1,37 @@
 ---
-title: "Sintropix Agent Channels API: Bind an Outside Place to an Entity"
+title: "Sintropix Agent Channels API: Bind an Outside Place to an Organization"
 sidebarTitle: "Agent Channels"
-description: "Staff-only endpoints to bind a channel on an outside platform (Slack today) to one Entity, so the Sintropix agent knows which company a thread is about."
+description: "Staff-only endpoints to bind a channel on an outside platform (Slack today) to one Organization, so the Sintropix agent knows which client a thread is about."
 ---
 
-An Agent Channel binds a place on an outside platform (a Slack channel today) to exactly one Entity. Staff creates the binding once; the Sintropix agent reads it one time when a thread starts and then works on that Entity for the whole thread.
+An Agent Channel binds a place on an outside platform (a Slack channel today) to exactly one [Organization](/api-reference/organizations). Staff creates the binding once. The Sintropix agent reads it on each message, and works for that Organization in the place.
 
-A place answers one Entity. An Entity can hold many places (for example, one Slack channel per topic). Rebinding a place to a different Entity is a delete then a create, so an old binding never reads as the new one.
+A place answers one Organization, with every Entity of it. An Organization can hold many places (for example, one Slack channel per topic). Rebinding a place to a different Organization is a delete then a create, so an old binding never reads as the new one. A thread that started before the move stays with the first Organization: the agent asks people to open a new thread.
 
-A scheduled run belongs to the Entity of the conversation that created it. The agent creates a schedule only in a channel bound to that same Entity. If you rebind the channel to a different Entity, the agent skips the schedule's runs, so an old schedule never reports on the new Entity.
+A place has no default Entity: the agent works on the Entity each request is about. See [Which company Erwin works on](#which-company-erwin-works-on).
+
+A scheduled run belongs to the Organization of the conversation that created it. The agent creates a schedule only in a channel bound to that same Organization. If you rebind the channel to a different Organization, the agent skips the schedule's runs, so an old schedule never reports on the new Organization.
 
 <Warning>
-  Staff-only. The Entity routes below require the `staff` Role in the Entity's Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. See [Access and roles](/api-reference/overview#access-and-roles).
+  Staff-only. The routes below require the `staff` Role in the Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key confined to one Entity also receives `403`, because these routes act on the whole Organization. See [Access and roles](/api-reference/overview#access-and-roles).
 </Warning>
+
+In the app, staff manages the same bindings in **Configuración → Canales del agente**. Every Entity of the Organization shows the same channels there.
 
 ## The Agent Channel object
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | uuid | Agent Channel id. |
-| `entityId` | uuid | Owning Entity. |
+| `organizationId` | uuid | Owning Organization. |
 | `platform` | `slack` | The outside platform. One value today; WhatsApp and the in-app chat add a value when they arrive. |
 | `channelId` | string | The id the platform gives the place (for Slack, the channel id such as `C0123ABC`). Unique per `platform`. |
 | `label` | string | The name staff reads the place by, for example `#bulk-contabilidad`. Free text. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
-## POST `/entities/:entityId/agent-channels`
+## POST `/organizations/:organizationId/agent-channels`
 
-Bind a place to the Entity.
+Bind a place to the Organization.
 
 **Body**
 
@@ -40,7 +44,7 @@ Bind a place to the Entity.
 **Response** (`201`): the created Agent Channel object.
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/agent-channels" \
   -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -51,20 +55,20 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels" 
   }'
 ```
 
-If another Entity already holds the same `(platform, channelId)` pair, the request is refused with `409` and the domain code `AGENT_CHANNEL_PLACE_TAKEN_ERROR`. Delete the other Entity's binding first, then retry.
+If another Organization already holds the same `(platform, channelId)` pair, the request is refused with `409` and the domain code `AGENT_CHANNEL_PLACE_TAKEN_ERROR`. Delete the other Organization's binding first, then retry.
 
-## GET `/entities/:entityId/agent-channels`
+## GET `/organizations/:organizationId/agent-channels`
 
-List every Agent Channel bound to the Entity.
+List every Agent Channel bound to the Organization.
 
 **Response:** an array of Agent Channel objects.
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels" \
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/agent-channels" \
   -H "x-api-key: $SINTROPIX_STAFF_API_KEY"
 ```
 
-## PATCH `/entities/:entityId/agent-channels/:agentChannelId`
+## PATCH `/organizations/:organizationId/agent-channels/:agentChannelId`
 
 Rename an Agent Channel. `label` is the only editable field. `platform` and `channelId` are set at create time and never move; to point the binding at a different place, delete this row and create a new one.
 
@@ -77,28 +81,30 @@ Rename an Agent Channel. `label` is the only editable field. `platform` and `cha
 **Response:** the updated Agent Channel object.
 
 ```bash
-curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels/$AGENT_CHANNEL_ID" \
+curl -X PATCH "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/agent-channels/$AGENT_CHANNEL_ID" \
   -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
   -d '{ "label": "#contabilidad-clientes" }'
 ```
 
-## DELETE `/entities/:entityId/agent-channels/:agentChannelId`
+## DELETE `/organizations/:organizationId/agent-channels/:agentChannelId`
 
-Release the binding. After the delete the place is free, and another Entity can bind it.
+Release the binding. After the delete the place is free, and another Organization can bind it.
 
 **Response** (`200`): the removed Agent Channel object.
 
 ```bash
-curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/agent-channels/$AGENT_CHANNEL_ID" \
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/agent-channels/$AGENT_CHANNEL_ID" \
   -H "x-api-key: $SINTROPIX_STAFF_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
 
 ## GET `/agent-channels?platform=…&channelId=…`
 
-Reverse lookup: given a place, return the Entity that speaks in it. This route is not scoped to an Entity because the caller only knows the place. The Sintropix agent calls this once at the start of a thread to learn which company the conversation is about.
+Reverse lookup: given a place, return the Agent Channel that binds it, with its `organizationId`. This route is not scoped to an Organization because the caller only knows the place. The Sintropix agent calls it to learn which client a conversation is about.
+
+The lookup finds only bindings in Organizations where you hold the `staff` Role.
 
 **Query parameters**
 
@@ -107,18 +113,14 @@ Reverse lookup: given a place, return the Entity that speaks in it. This route i
 | `platform` | `slack` | Yes | The outside platform. |
 | `channelId` | string | Yes | The id the platform gives the place. |
 
-**Response:** the Agent Channel object, plus:
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `entityName` | string | Display name of the Entity the place is bound to, so the caller can name the company without a second call. |
+**Response:** the Agent Channel object. To name the client and its Entities, call [`GET /organizations/:organizationId`](/api-reference/organizations#get-organizations-organizationid) or [`GET /entities`](/api-reference/entities).
 
 ```bash
 curl "https://api.sintropix.com/api/agent-channels?platform=slack&channelId=C0123ABC" \
   -H "x-api-key: $SINTROPIX_STAFF_API_KEY"
 ```
 
-If no Entity has bound the place, the request answers `404` with the domain code `AGENT_CHANNEL_PLACE_UNBOUND_ERROR`. The agent reads this as "no one speaks here" and stays silent.
+If no Organization has bound the place, the request answers `404` with the domain code `AGENT_CHANNEL_PLACE_UNBOUND_ERROR`. The agent reads this as "no one speaks here" and stays silent.
 
 ## Work with Erwin in a Slack channel
 
@@ -134,6 +136,12 @@ He doesn't react to a message meant for another person, to people talking to eac
 
 Erwin reads the files you send in the thread, including in a Slack Connect channel shared with another company.
 
+### Which company Erwin works on
+
+Erwin knows every Entity of the bound Organization, by name and tax id. He works on the one you mean, as your messages and the records show it. When a request fits more than one Entity and the records don't settle it, he asks. To skip the question, name the company in your message, for example *"Carga la cartola de Acme Inversiones"*.
+
+Erwin reaches only the Entities of the bound Organization. An Entity added to the Organization, or moved out of it, applies from his next answer.
+
 ### Stop or interrupt Erwin
 
 While Erwin works, his answer shows a progress line with a **Detener** button below it. Anyone in the thread can click **Detener**. Erwin stops and doesn't start again. The message then says who stopped him, and that what he already wrote in the ERP stays.
@@ -148,11 +156,11 @@ When Erwin needs a fact from a person, he posts a question card below his answer
 
 Some bank sites refuse automated sign-ins. Santander is one of them. When Erwin needs such a site, he opens its login page, tags a person, and posts a link to his live browser. Sign in there within five minutes. Erwin then continues in your session. He never types the RUT or password of these sites himself.
 
-For Santander, Erwin reads the label of the Entity's Santander login Credential to know which site to open. Include `Persona` or `Empresa` in the label, for example `Santander Persona` or `Santander Empresa`. Without either word, Erwin looks for the answer in the Entity's [company wiki](/core-concepts). If the wiki doesn't say, he asks which one before he starts, and writes your answer in the wiki so he doesn't ask again.
+For Santander, Erwin reads the label of the Entity's Santander login Credential to know which site to open. Include `Persona` or `Empresa` in the label, for example `Santander Persona` or `Santander Empresa`. Without either word, Erwin looks for the answer in the client's [wiki](/core-concepts). If the wiki doesn't say, he asks which one before he starts, and writes your answer in the wiki so he doesn't ask again.
 
-### Read the Entity's Slack channels
+### Read the Organization's Slack channels
 
-Erwin can read the Slack channels bound to his Entity, even where nobody mentioned him. He uses them as context for a task, in Slack and in the in-app chat. He reads only the channels he's a member of, and never a channel bound to another Entity.
+Erwin can read the Slack channels bound to his Organization, even where nobody mentioned him. He uses them as context for a task, in Slack and in the in-app chat. He reads only the channels he's a member of, and never a channel bound to another Organization.
 
 ### Scheduled tasks
 
@@ -160,7 +168,7 @@ Ask Erwin in a bound channel to run a task on a schedule, such as a weekly overd
 
 - **Hours and time zone.** The schedule fires on the clock of its time zone, including daylight saving time. Without a time zone, it uses `America/Santiago`.
 - **Model.** A new schedule takes the channel's current model. A later `/model` in the channel doesn't change it.
-- **Channel.** A schedule can move to another channel bound to the same Entity. Invite Erwin to that channel first.
+- **Channel.** A schedule can move to another channel bound to the same Organization. Invite Erwin to that channel first.
 
 Each run posts its first message straight into the channel as a new message, usually the full answer. Its questions and your replies go in that message's thread. A reply there interrupts the run, as in any thread. A run with nothing to report posts nothing.
 
@@ -186,7 +194,7 @@ In a bound Slack channel, anyone in the channel can pick the model the Sintropix
 
 A change applies only to threads that start after it. A thread keeps the model it started with, so an open conversation never switches models midway. A scheduled task keeps its own model, so `/model` never changes an existing schedule. Ask Erwin to change a schedule's model instead.
 
-The choice belongs to one channel. Other channels bound to the same Entity keep their own model. An unknown name changes nothing, and the agent replies with the list of options. In an unbound channel or a direct message, the agent replies that no one speaks there and changes nothing.
+The choice belongs to one channel. Other channels bound to the same Organization keep their own model. An unknown name changes nothing, and the agent replies with the list of options. In an unbound channel or a direct message, the agent replies that no one speaks there and changes nothing.
 
 ## Status codes
 
@@ -195,16 +203,17 @@ The choice belongs to one channel. Other channels bound to the same Entity keep 
 | `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
 | `201` | Agent Channel created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
-| `403` | Caller does not hold the `staff` Role in the Entity's Organization (`PERMISSION_DENIED_ERROR`). |
-| `404` | Entity or Agent Channel not found, or reverse lookup found no binding (`AGENT_CHANNEL_PLACE_UNBOUND_ERROR`). |
-| `409` | Another Entity already holds the place (`AGENT_CHANNEL_PLACE_TAKEN_ERROR`). |
+| `403` | Caller does not hold the `staff` Role in the Organization, or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization or Agent Channel not found, or reverse lookup found no binding (`AGENT_CHANNEL_PLACE_UNBOUND_ERROR`). An Organization where you hold no Membership answers `ORGANIZATION_NOT_FOUND_ERROR`. |
+| `409` | Another Organization already holds the place (`AGENT_CHANNEL_PLACE_TAKEN_ERROR`). |
 
 ## Domain error codes
 
 | Code | When |
 | --- | --- |
-| `AGENT_CHANNEL_NOT_FOUND_ERROR` | The `:agentChannelId` in the path does not belong to the Entity. |
-| `AGENT_CHANNEL_PLACE_TAKEN_ERROR` | Create refused: another Entity already binds the same `(platform, channelId)`. |
-| `AGENT_CHANNEL_PLACE_UNBOUND_ERROR` | Reverse lookup refused: no Entity binds the place. |
+| `AGENT_CHANNEL_NOT_FOUND_ERROR` | The `:agentChannelId` in the path does not belong to the Organization. |
+| `AGENT_CHANNEL_PLACE_TAKEN_ERROR` | Create refused: another Organization already binds the same `(platform, channelId)`. |
+| `AGENT_CHANNEL_PLACE_UNBOUND_ERROR` | Reverse lookup refused: no Organization binds the place. |
+| `ORGANIZATION_NOT_FOUND_ERROR` | The `:organizationId` in the path is not an Organization you hold a Membership in. |
 
-Deleting an Entity that still has Agent Channels bound to it is refused; release the bindings first.
+An Organization that still has Agent Channels bound to it can't be deleted. Release the bindings first.

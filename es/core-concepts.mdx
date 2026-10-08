@@ -98,35 +98,50 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
     - **Guiar el cierre**: decirte exactamente qué está bloqueando tu cierre de mes y en qué entidad
     - **Detectar anomalías**: marcar transacciones duplicadas, patrones de gasto inusuales, exposiciones cambiarias inesperadas y cuentas con variaciones significativas mes a mes
     - **Proponer asientos**: redactar asientos de ajuste a partir de los hallazgos de la conciliación, para que un miembro del equipo los revise y contabilice
+    - **Cargar Ontop**: crear, contabilizar y conciliar las facturas de Ontop, la plataforma que paga a tus contratistas extranjeros desde una billetera prepagada en USD. Consulta [Ontop invoices](/api-reference/invoices#ontop-invoices)
     - **Centralizar remuneraciones**: contabilizar las remuneraciones y los finiquitos de un mes desde Buk, mediante la Credential de API key de Buk de la entidad o el Excel de *Centralización Contable* que le envíes. Aprende la cuenta de cada código de nómina a partir de tu última centralización y pregunta por los códigos que no ha visto. Contabiliza solo después de que apruebes su propuesta en el hilo, y concilia los pagos de líquidos y de Previred solo después de que los confirmes
 
     Cada respuesta cita los datos subyacentes, así que puedes profundizar en el detalle detrás de cualquier cifra que muestre.
 
     **Conversa con Erwin en la aplicación.** Cualquier persona con una Membership en la Organization de la entidad puede conversar con Erwin. Haz clic en **Erwin**, abajo a la derecha de cualquier página de la entidad, incluidas las páginas de configuración. Erwin se abre en una ventana flotante y muestra su respuesta y cada paso que da mientras trabaja. Sus respuestas muestran listas, tablas, negritas y enlaces con formato. Presiona Escape o haz clic en el botón de cerrar para ocultar la ventana. La conversación sigue abierta hasta que inicies una **Nueva conversación**.
 
-    Erwin sabe en qué página estás y qué registro tienes abierto, así que puedes preguntar *"¿Por qué este movimiento no está conciliado?"* sin nombrar el movimiento. Haz clic en **Conversaciones anteriores** para ver tus 50 conversaciones más recientes en la entidad y reabrir cualquiera. Tus conversaciones son privadas. Nadie más en la Organization puede leerlas, pero Erwin puede aprender de ellas cuando sueña (consulta **Wiki de la empresa** más abajo).
+    Erwin sabe en qué página estás y qué registro tienes abierto, así que puedes preguntar *"¿Por qué este movimiento no está conciliado?"* sin nombrar el movimiento. La página es una pista, no un límite: Erwin puede trabajar en cualquier empresa de tu Organization, y una conversación sigue abierta cuando cambias a otra empresa de ella. Haz clic en **Conversaciones anteriores** para ver tus 50 conversaciones más recientes en la Organization y reabrir cualquiera. Tus conversaciones son privadas. Nadie más en la Organization puede leerlas, pero Erwin puede aprender de ellas cuando sueña (consulta **Wiki de la empresa** más abajo).
 
     En la aplicación, Erwin actúa con tus permisos, no con los suyos:
 
     - Solo puede hacer lo que tu Role permite. Si eres `viewer`, Erwin puede leer, pero sus escrituras se rechazan.
-    - Abre las Credentials de la entidad, como los accesos bancarios, solo si eres `staff`.
+    - Abre las Credentials de una entidad, como los accesos bancarios, solo si eres `staff`.
     - No puede crear tareas programadas desde la aplicación. Pídelas en un canal de Slack vinculado mediante un [Agent Channel](/api-reference/agent-channels).
     - Cada cambio que hace aparece en el [registro de auditoría](/api-reference/audit-trail) contigo como actor y `erwin` como actor declarado.
 
-    **Trabaja con Erwin en Slack.** En un canal de Slack vinculado a la entidad, puedes detener a Erwin o interrumpirlo con un mensaje nuevo, responder sus preguntas en un formulario y pedirle tareas programadas. Consulta [Work with Erwin in a Slack channel](/api-reference/agent-channels#work-with-erwin-in-a-slack-channel). En Slack y en la aplicación, Erwin también puede leer los canales de Slack vinculados a la entidad para tener contexto.
+    **Erwin trabaja para tu Organization.** Atiende a todas las empresas de tu Organization desde el mismo lugar, así que un holding puede hablar de todas sus filiales en un solo canal o en una sola conversación de la aplicación. Trabaja en la empresa a la que te refieres. Cuando una solicitud calza con más de una y los registros no lo resuelven, pregunta cuál. Su wiki, sus conversaciones y sus tareas programadas pertenecen a la Organization.
 
-    **Wiki de la empresa.** Erwin mantiene una wiki para cada entidad. En ella registra lo que tu equipo le enseña y que el ERP no guarda: quién aprueba qué, por qué siguen una regla, cómo contabilizar un proveedor recurrente, las particularidades de una cuenta bancaria y cómo prefiere cada persona sus reportes. Erwin consulta la wiki antes de trabajar en un tema que ella cubre, así no te pregunta dos veces lo mismo.
+    **Trabaja con Erwin en Slack.** En un canal de Slack vinculado a la Organization, puedes detener a Erwin o interrumpirlo con un mensaje nuevo, responder sus preguntas en un formulario y pedirle tareas programadas. Consulta [Work with Erwin in a Slack channel](/api-reference/agent-channels#work-with-erwin-in-a-slack-channel). En Slack y en la aplicación, Erwin también puede leer los canales de Slack vinculados a la Organization para tener contexto.
+
+    **Lo que Erwin hace por su cuenta.** La misión de Erwin es mantener tu contabilidad al día y ordenada. Lleva una lista de lo que puede hacer por tu Organization sin que una persona se lo pida ni lo apruebe, por ejemplo *"conciliar una factura con un movimiento cuando coinciden el RUT, el monto exacto y el folio"*. Para todo lo que está fuera de la lista, deja un [Follow-up](/api-reference/follow-ups) para que una persona lo apruebe, o pregunta. Solo cambia la lista cuando una persona le pide agregar o quitar un punto, y luego dice qué cambió. Para ver la lista, pídesela.
+
+    Pídele a Erwin que avance tu trabajo pendiente por su cuenta, por ejemplo *"avanza lo pendiente"*. Sintropix también puede programarlo para tu Organization en horario laboral. Cada ejecución elige una actividad que tenga trabajo, de preferencia la que se ejecutó hace más tiempo, la hace hasta terminarla e informa una sola vez. Una ejecución sin trabajo no publica nada. Las actividades son:
+
+    - **Conciliar**: contabilizar y conciliar los Bank Movements y las Invoices que su lista permite.
+    - **Follow-ups**: dejar un Follow-up en cada registro pendiente que no tenga uno o cuyo Follow-up ya no aplique, y avanzar cada uno en `waiting` cuya espera terminó.
+    - **Buscar errores**: revisar lo que cambió en los libros desde la última revisión e informar lo que esté mal o parezca sospechoso.
+    - **Partners**: encontrar un Partner para los Bank Movements que no tienen uno y tienen un candidato claro, y encontrar Partners duplicados.
+    - **Preguntas sin respuesta**: volver a hacer, una sola vez, cada pregunta que nadie respondió en más de un día, y descartar las que el ERP o la wiki ya responden.
+    - **Cargar movimientos** (una vez al día, al final del día): cargar los movimientos nuevos de cada cuenta bancaria y tarjeta que la wiki dice que carga.
+    - **Soñar** (una vez al día, al final del día): consulta **Wiki de la empresa** más abajo.
+
+    **Wiki de la empresa.** Erwin mantiene una wiki para cada Organization, que cubre todas sus empresas. En ella registra lo que tu equipo le enseña y que el ERP no guarda: quién aprueba qué, por qué siguen una regla, cómo contabilizar un proveedor recurrente, las particularidades de una cuenta bancaria y cómo prefiere cada persona sus reportes. Erwin consulta la wiki antes de trabajar en un tema que ella cubre, así no te pregunta dos veces lo mismo.
 
     Erwin lee la wiki en cada conversación, pero solo escribe en ella cuando se lo pides. Pídeselo en lenguaje natural:
 
     - *"Anota en la wiki que Aguas Andinas se contabiliza en 5102"*: agregar un dato
     - *"Aprende de esto"* sobre un mensaje o un archivo adjunto, como una cartola bancaria: aprender de una fuente
     - *"Revisa la wiki"*: revisar la wiki en busca de contradicciones, datos sin fuente y entradas desactualizadas
-    - *"Sueña"*: revisar lo que pasó en la entidad desde el último sueño y guardar lo que enseña
+    - *"Sueña"*: revisar lo que pasó en la Organization desde el último sueño y guardar lo que enseña
 
     Cada dato registra su fuente (la persona y la conversación, el archivo o el registro del ERP) y su fecha. Erwin marca como *tentativo* lo que se dijo con duda hasta que alguien lo confirme. Si le dices a Erwin algo que contradice la wiki, prevalece lo que dices, y Erwin ofrece corregir la página.
 
-    En un sueño, Erwin revisa el período desde su último sueño, o los últimos 7 días en el primero. Lee cada conversación de la entidad, en Slack y en la aplicación, incluidas las conversaciones privadas de la aplicación. También lee los cambios que las personas hicieron en el ERP, como las correcciones a lo que él escribió, y los canales de Slack vinculados a la entidad. Guarda solo lo que el ERP no tiene, lo escribe en la wiki sin pedir aprobación y luego informa qué cambió y qué dejó fuera. Para deshacer un sueño o cualquier otro cambio en la wiki, pídeselo a Erwin.
+    En un sueño, Erwin revisa el período desde su último sueño, o los últimos 7 días en el primero. Lee cada conversación de la Organization, en Slack y en la aplicación, incluidas las conversaciones privadas de la aplicación. También lee los cambios que las personas hicieron en el ERP, como las correcciones a lo que él escribió, y los canales de Slack vinculados a la Organization. Guarda solo lo que el ERP no tiene, lo escribe en la wiki sin pedir aprobación y luego informa qué cambió y qué dejó fuera. Para deshacer un sueño o cualquier otro cambio en la wiki, pídeselo a Erwin.
 
     <Warning>
       La wiki guarda hechos, no instrucciones. Nunca guarda datos del ERP, como saldos o listas de facturas, ni lo que el historial del ERP ya muestra, como correcciones o conciliaciones pasadas, ni contraseñas, códigos, claves de API o números de tarjeta completos. Pídele a Erwin que aprenda solo de contenido en el que confíes.
