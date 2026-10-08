@@ -480,7 +480,9 @@ Amount fields present on `total`, on every customer row, and on every item of `m
 
 `GET /api/entities/:entityId/reports/customer-status`
 
-Returns one row per customer, sorted by `pending`, highest first. Revenue booked with no Partner comes back as one row with `partnerId: null`.
+Returns one page of customers, one row each, sorted by `pending`, highest first. Customers with the same `pending` are sorted by name, and the row with no Partner comes last. Revenue booked with no Partner comes back as one row with `partnerId: null`.
+
+The list is paginated. To read every customer, pass the `nextCursor` of each response as `cursor` until `nextCursor` is `null`. Keep `from`, `to`, `search`, `onlyPending`, and `bookId` the same on every page.
 
 **Query params**
 
@@ -490,7 +492,11 @@ Returns one row per customer, sorted by `pending`, highest first. Revenue booked
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `search` | string | No | Matches the customer's name or tax id, ignoring case, accents, punctuation, and spacing. At most 100 characters; blank is ignored. |
 | `onlyPending` | boolean | No | `true` to keep only the customers with a `pending` amount other than `0`. Default `false`. |
+| `cursor` | string | No | Page cursor (`<pending>~<partnerId>`). Pass the `nextCursor` of the previous page; omit it for the first page. |
+| `limit` | integer | No | Page size (default 50, max 50) |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
+
+A `cursor` that isn't a `nextCursor` value, or a `limit` above 50, returns `400`.
 
 **Response**
 
@@ -500,11 +506,16 @@ Returns one row per customer, sorted by `pending`, highest first. Revenue booked
 | `to` | ISO date | As requested |
 | `paymentStateDate` | ISO date | Date at which the payment state was evaluated (today) |
 | `functionalCurrency` | string | The Entity's functional currency |
-| `total` | object | The amount fields, summed over the customers returned |
-| `customers` | array | One item per customer: `{ partnerId, partnerName, partnerTaxId, total }`, where `total` holds the amount fields |
+| `total` | object | The amount fields, summed over every customer that matches the filters, not only the ones on this page. It is the same on every page. |
+| `customers` | array | The customers on this page: `{ partnerId, partnerName, partnerTaxId, total }`, where `total` holds the amount fields |
+| `nextCursor` | string or null | Pass as `cursor` to fetch the next page; `null` on the last page |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/customer-status?from=2026-01-01&to=2026-09-30&onlyPending=true" \
+  -H "Cookie: <session-cookie>"
+
+# Next page: pass the nextCursor of the previous response
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/customer-status?from=2026-01-01&to=2026-09-30&onlyPending=true&cursor=1250000~8f14e45f-ceea-4e6b-9a5c-2d1f3b7c6a90" \
   -H "Cookie: <session-cookie>"
 ```
 
