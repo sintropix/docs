@@ -110,6 +110,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - **Surface anomalies**: flag duplicate transactions, unusual spending patterns, unexpected FX exposures, and accounts that moved significantly month-over-month
     - **Draft journal entries**: propose adjusting entries based on reconciliation findings, which a team member can review and post
     - **Load Ontop**: create, book, and match the invoices of Ontop, the platform that pays your foreign contractors from a prepaid USD wallet. See [Ontop invoices](/api-reference/invoices#ontop-invoices)
+    - **Load a Budget**: create or update a [Budget](/api-reference/budgets) month by month from a spreadsheet, a table in your message, or a rule such as *"lo mismo que 2026 más 10%"*. He maps each row to a Result Account by code, then by exact name, and asks about rows that match no account, the unit, and the currency. He checks each section's monthly totals against your source before he reports
     - **Centralize payroll**: book a month's remuneraciones and finiquitos from Buk, through the Entity's Buk API key Credential or the *Centralización Contable* Excel you send him. He learns each payroll code's account from your last centralization and asks about codes he hasn't seen. He books only after you approve his proposal in the thread, and clears salary and Previred payments only after you confirm them
 
     Every response cites the underlying data, so you can drill into the detail behind any number he surfaces.

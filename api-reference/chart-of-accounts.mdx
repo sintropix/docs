@@ -336,7 +336,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_TYPE_LOCKED_ERROR` | Type change not allowed for an account with entries |
 | `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
 | `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed |
-| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template |
+| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template. A [Budget](/api-reference/budgets) that plans the account pins its type |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
 | `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR` | The Entity already has a Suspense Account |
