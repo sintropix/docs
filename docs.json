@@ -67,6 +67,7 @@
                 "group": "Reports & Audit",
                 "pages": [
                   "api-reference/reports",
+                  "api-reference/budgets",
                   "api-reference/audit-trail"
                 ]
               },
@@ -152,6 +153,7 @@
                 "group": "Informes y auditoría",
                 "pages": [
                   "api-reference/reports",
+                  "api-reference/budgets",
                   "api-reference/audit-trail"
                 ]
               },

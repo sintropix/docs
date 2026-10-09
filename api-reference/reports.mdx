@@ -1,7 +1,7 @@
 ---
 title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement, cash flow statement, journal, open positions (receivables and payables), revenue realization, customer status, and ledger reports. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, journal, open positions (receivables and payables), revenue realization, customer status, and ledger reports. All endpoints are read-only and return bare JSON."
 ---
 
 The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
@@ -165,6 +165,8 @@ Returns the income statement for the requested date range.
 
 Pass `dimensionId` to split each account by the values of one [Dimension](/api-reference/dimensions), for example to see an income account per country or per business line. Each line then names the value it carries in `dimensionValueId`, and the response lists every value of the Dimension so you can group the lines yourself. The account totals and the lines don't change.
 
+Pass `budgetId` to compare the actual results against a [Budget](/api-reference/budgets). Each account then carries the months the Budget plans for it in `budgetAmounts`, and the response names the Budget in `budget`.
+
 **Query params**
 
 | Param | Type | Required | Description |
@@ -172,6 +174,7 @@ Pass `dimensionId` to split each account by the values of one [Dimension](/api-r
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `dimensionId` | UUID | No | Dimension of the Entity to split the accounts by. A Dimension of another Entity returns `404` with `DIMENSION_NOT_FOUND_ERROR` |
+| `budgetId` | UUID | No | Budget of the Entity to compare against. A Budget of another Entity returns `404` with `BUDGET_NOT_FOUND_ERROR` |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -186,9 +189,10 @@ Pass `dimensionId` to split each account by the values of one [Dimension](/api-r
 | `presentationCurrency` | string | Currency the amounts are in |
 | `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
 | `accountGroups` | array | Account Groups, each `{ id, parentGroupId, codePrefix, name }` |
-| `accounts` | array | Result accounts in code order, each with the fields below |
+| `accounts` | array | Result accounts in code order, each with the fields below. With `budgetId`, an account the Budget plans in the range is listed even when it has no lines |
 | `dimension` | object or null | The Dimension asked for in `dimensionId`: `{ id, entityId, name, createdAt, updatedAt }`; `null` when none was asked |
 | `dimensionValues` | array | Every value of that Dimension, ordered by code, each `{ id, code, name, parentId }`; `parentId` is `null` at the top level. Empty when no Dimension was asked |
+| `budget` | object or null | The Budget asked for in `budgetId`: `{ id, name }`; `null` when none was asked |
 
 Each item in `accounts`:
 
@@ -201,6 +205,7 @@ Each item in `accounts`:
 | `type` | enum | `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
 | `normalSide` | enum | `debit` or `credit` |
 | `lines` | array | Lines posted to the account in the period, newest entry first, each with the fields below |
+| `budgetAmounts` | array | Months the Budget plans for the account, in month order, each `{ month, amount }`. Empty when no Budget was asked or the Budget doesn't plan the account |
 
 Each item in `lines`:
 
@@ -218,6 +223,10 @@ Each item in `lines`:
 
 To total an account by value, add up its lines per `dimensionValueId`. To total a parent value, also add the lines of every value under it, following `parentId`. Lines with a `null` `dimensionValueId` make up the untagged remainder, so the values plus the remainder always add up to the account.
 
+Each item in `budgetAmounts` covers a whole calendar month, given by its first day in `month`. Every month the range overlaps counts whole: with `from=2027-03-15`, March is still included in full. Like `lines`, `amount` is in the presentation currency, and it reads on the account's normal side, so a planned cost is positive.
+
+To compare an account for a period, total its `lines` on the account's normal side to get the actual, and total its `budgetAmounts` for the months of the period to get the plan. The variance is actual minus plan. For an income account a positive variance is a better result; for a cost or expense account a negative variance is.
+
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2024-01-01&to=2024-12-31" \
   -H "Cookie: <session-cookie>"
@@ -225,6 +234,11 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statem
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2024-01-01&to=2024-12-31&dimensionId=<uuid>" \
+  -H "Cookie: <session-cookie>"
+```
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2027-01-01&to=2027-12-31&budgetId=<uuid>" \
   -H "Cookie: <session-cookie>"
 ```
 

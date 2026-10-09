@@ -1,0 +1,207 @@
+---
+title: "Sintropix Budgets API: Plan Results Month by Month"
+sidebarTitle: "Budgets"
+description: "Create named Budgets that plan each Result Account month by month, set or clear their amounts, and compare the income statement against them."
+---
+
+A Budget is a named plan of an Entity's results, month by month, such as "Presupuesto 2027" or "Escenario optimista". An Entity can hold as many Budgets as it wants, and none is the default. Budget names are unique within the Entity.
+
+A Budget plans only Result Accounts: `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, and `other_expense`. Each planned amount is one Result Account in one calendar month. A month with no amount plans nothing.
+
+A Budget is planning data, not part of the books. It posts no entries and belongs to no [Book](/api-reference/books). To compare the actual results against a Budget, pass its id as `budgetId` to the [income statement](/api-reference/reports#income-statement).
+
+## Planned amounts
+
+Every planned amount follows these rules:
+
+- `month` is the first day of a calendar month, for example `2027-03-01`.
+- `amount` is an integer in the minor unit of the Entity's functional currency. CLP has no decimals, so `5000000` is $5.000.000.
+- `amount` reads on the account's normal side, as the income statement shows it. A planned income is positive, and a planned cost or expense is positive too. A negative amount plans the opposite, such as an expected refund on an income account.
+
+While a Budget plans an account, the account's type cannot change (`LEDGER_ACCOUNT_FACT_PINNED_ERROR`). Deleting a Budget deletes all its amounts. Deleting an account, which is possible only while it has no entries, removes its amounts from every Budget.
+
+## GET /api/entities/:entityId/budgets
+
+List the Budgets of an Entity, ordered by name.
+
+- **Path param:** `entityId` (UUID)
+- **Success response:** array of Budget objects
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Budget id |
+| `entityId` | UUID | Owning Entity |
+| `name` | string | Budget name |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last time the Budget was renamed or its amounts changed |
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/budgets \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/budgets
+
+Create a Budget. It starts with no amounts.
+
+- **Path param:** `entityId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id. A retry with the same id returns `409` with `BUDGET_ALREADY_EXISTS_ERROR` |
+| `name` | string | Yes | Budget name. Leading and trailing spaces are trimmed, and it can't be blank |
+
+- **Success response:** the created Budget (same shape as the list response)
+- **Status:** 201
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/budgets \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "44444444-4444-4444-8444-444444444444",
+    "name": "Presupuesto 2027"
+  }'
+```
+
+## GET /api/entities/:entityId/budgets/:budgetId
+
+Read the whole plan of one Budget. The response lists every Result Account of the Entity, in code order, including accounts the Budget doesn't plan yet. Use it to find the account ids to plan.
+
+- **Path params:** `entityId` (UUID), `budgetId` (UUID)
+- **Success response:** the Budget fields from the list response, plus `accounts`
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `accounts` | array | Every Result Account of the Entity in code order, each with the fields below |
+
+Each item in `accounts`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Ledger Account id |
+| `groupId` | UUID or null | Account Group the account belongs to |
+| `code` | string | Account code |
+| `name` | string | Account name |
+| `type` | enum | `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
+| `normalSide` | enum | `debit` or `credit` |
+| `amounts` | array | Planned months in month order, each `{ month, amount }`. Empty when the Budget doesn't plan the account |
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/budgets/$BUDGET_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## PATCH /api/entities/:entityId/budgets/:budgetId
+
+Rename a Budget.
+
+- **Path params:** `entityId` (UUID), `budgetId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | New Budget name, trimmed and non-blank |
+
+- **Success response:** the updated Budget (same shape as the list response)
+- **Status:** 200
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/budgets/$BUDGET_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"name": "Presupuesto 2027 revisado"}'
+```
+
+## DELETE /api/entities/:entityId/budgets/:budgetId
+
+Delete a Budget and all its amounts.
+
+- **Path params:** `entityId` (UUID), `budgetId` (UUID)
+- **Success response:** the deleted Budget (same shape as the list response)
+- **Status:** 200
+
+```bash
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/budgets/$BUDGET_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## PUT /api/entities/:entityId/budgets/:budgetId/amounts
+
+Set or clear planned amounts. Each cell names one account and one month. The write is all or nothing: if any cell is refused, no cell changes.
+
+A cell you don't send keeps its amount. To plan the same amount every month of a year, send twelve cells for the account.
+
+- **Path params:** `entityId` (UUID), `budgetId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cells` | array | Yes | From 1 to 2000 cells, each with the fields below. Each account and month can appear only once |
+
+Each item in `cells`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ledgerAccountId` | UUID | Yes | A Result Account of the Entity |
+| `month` | ISO date | Yes | First day of the month, for example `2027-03-01` |
+| `amount` | integer or null | Yes | Planned amount in minor units of the functional currency, on the account's normal side. `null` clears the cell, so the month plans nothing |
+
+- **Success response:** the whole plan, in the same shape as `GET /api/entities/:entityId/budgets/:budgetId`. A cleared month no longer appears in `amounts`.
+- **Status:** 200
+
+To load more than 2000 cells, split the load into several calls of whole accounts.
+
+```bash
+curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/budgets/$BUDGET_ID/amounts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Presupuesto 2027.xlsx, hoja Resultados" \
+  -d '{
+    "cells": [
+      { "ledgerAccountId": "55555555-5555-4555-8555-555555555555", "month": "2027-01-01", "amount": 25000000 },
+      { "ledgerAccountId": "66666666-6666-4666-8666-666666666666", "month": "2027-01-01", "amount": 5000000 },
+      { "ledgerAccountId": "66666666-6666-4666-8666-666666666666", "month": "2027-02-01", "amount": null }
+    ]
+  }'
+```
+
+## Compare the income statement against a Budget
+
+Pass `budgetId` to [`GET /reports/income-statement`](/api-reference/reports#income-statement). Each account then carries the months the Budget plans for it in `budgetAmounts`, next to its actual `lines`.
+
+For example, to compare the actual results of 2027 against a Budget:
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statement?from=2027-01-01&to=2027-12-31&budgetId=$BUDGET_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Domain error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `BUDGET_NOT_FOUND_ERROR` | 404 | The Budget doesn't exist in this Entity. `params: { budgetId }` |
+| `BUDGET_ALREADY_EXISTS_ERROR` | 409 | The Budget id is already used. `params: { budgetId }` |
+| `BUDGET_NAME_ALREADY_EXISTS_ERROR` | 409 | The Entity already has a Budget with this name. `params: { name }` |
+| `BUDGET_LEDGER_ACCOUNT_NOT_RESULT_ERROR` | 400 | A cell names a balance sheet account: an asset, a liability, or equity. `params: { ledgerAccountIds }` |
+| `LEDGER_ACCOUNT_NOT_FOUND_ERROR` | 404 | A cell names an account that doesn't exist in this Entity. `params: { accountIds }` |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, PATCH, PUT, DELETE) |
+| 201 | Created (POST) |
+| 400 | Validation error, such as a `month` that isn't the first day, more than 2000 cells, or the same account and month twice |
+| 401 | Unauthenticated |
+| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`) |
+| 404 | Entity, Budget, or account not found |
+| 409 | Domain rule violation |
