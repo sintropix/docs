@@ -6,7 +6,7 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the [Integration](/api-reference/integrations) it fetches through. Syncing a Feed lands new documents into its Source. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync).
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the [Integration](/api-reference/integrations) it fetches through. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync).
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/sources"
@@ -44,7 +44,7 @@ Every route on this page returns Feeds in this shape.
 | `awaitingCount` | integer | Documents the provider counts but does not list yet, so a later sync lands them. Today only `sii_mirror` boletas; see [SII Mirror boletas](#sii-mirror-boletas). |
 | `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
 | `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
-| `report` | object | `{ tieOutLines, rejected, divergences, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `document_inactive`, `sii_not_accepted`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (today, `sii_mirror`); see [File attachments](#file-attachments). |
+| `report` | object | `{ tieOutLines, rejected, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (today, `sii_mirror`); see [File attachments](#file-attachments). |
 | `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
@@ -131,7 +131,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FE
     "rejectedCount": 0,
     "outcome": "success",
     "failureCode": null,
-    "report": { "tieOutLines": [], "rejected": [], "divergences": [] },
+    "report": { "tieOutLines": [], "rejected": [], "divergences": [], "updates": [] },
     "occurredAt": "2025-12-31T14:02:11.000Z"
   }
 }
@@ -162,6 +162,60 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$F
 Delete a Source Feed. The parent Source and any already-imported documents are unaffected.
 
 - **Response:** the deleted Source Feed object.
+
+## Standing and Tax Period
+
+The SII decides two facts of a DTE: its **Standing** (where the SII holds the document) and its **Tax Period** (the F29 / IVA month it belongs to). Both can change after the document lands. A sync lands every document with its Standing and, on every pass, writes the Standing and the Tax Period the provider now states over each DTE it already landed, whether the Invoice is booked or not.
+
+| Standing | Meaning |
+| --- | --- |
+| `accepted` | The SII holds the document. |
+| `pending` | The SII has the document but it isn't final yet. For a received document, you can still claim it. |
+| `claimed` | The receiver claimed the document at the SII. |
+| `annulled` | The document was annulled. |
+
+The Standing appears as `standing` on the [DTE](/api-reference/sii). A DTE you enter by hand has `standing: null`. You can't set or change the Standing yourself: only a sync writes it.
+
+A sync never changes anything else on a landed document. Your booking, Allocations, and every other fact of the Invoice stay yours. A sync writes the Standing and Tax Period without touching the Invoice or the ledger, so it also updates a booked Invoice and a document dated before the Lock Date. Changes to any other field are reported as `divergences` and not written.
+
+How a sync reads each provider:
+
+| Provider `kind` | Standing | Tax Period |
+| --- | --- | --- |
+| `sii_mirror` | `REGISTRO` and `NO_INCLUIR` are `accepted`, `PENDIENTE` is `pending`, and `RECLAMADO` is `claimed`. | The month of the register that lists the document. When the SII moves a document to another month, the later month wins. |
+| `bsale` | A sale annulled in Bsale is `annulled`. A sale Bsale sent and the SII hasn't answered yet is `pending`. A sale the SII rejected is refused with `sii_rejected` and never lands. A purchase canceled in Bsale is `annulled`. Every other document is `accepted`. | Stated for purchases. Bsale states none for sales, so a Tax Period you set on a sale stays. |
+| `wasabil` | An emitted document is `accepted`, any other is `pending`. | Not stated, so a Tax Period you set stays. |
+
+A Tax Period the provider doesn't state never clears the one the DTE holds. A document missing from a provider's answer keeps its Standing.
+
+### Booking and the Standing
+
+A `pending` document lands like an `accepted` one, and is [booked from its vendor's Booking Template](/api-reference/partners#when-an-invoice-is-booked-automatically) when the template applies. You can then match it against the bank as soon as it's paid.
+
+A document that lands `claimed` or `annulled` is never booked automatically. A booked Invoice whose DTE later becomes `claimed` or `annulled` stays booked: Sintropix doesn't unbook it or block the change. Review it and [unbook](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid) the Invoice's entry if it no longer belongs in your books.
+
+### Audit and preview
+
+Each write a sync makes to a Standing or a Tax Period appears in the [Audit Trail](/api-reference/audit-trail), credited to the system with the declared actor `source-feed`. The sync run lists each one in `report.updates`, with the value before and after:
+
+```json
+{
+  "updates": [
+    {
+      "dteId": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f",
+      "externalRef": "sii:received:33:5521",
+      "dteTypeCode": "33",
+      "folio": 5521,
+      "fields": [
+        { "field": "standing", "landed": "pending", "provider": "accepted" },
+        { "field": "taxPeriod", "landed": "2026-08", "provider": "2026-09" }
+      ]
+    }
+  ]
+}
+```
+
+A sync with `preview: true` lists the updates it would make in `report.updates` and writes none.
 
 ## SII Mirror Feeds
 
@@ -230,6 +284,7 @@ Each entry in `failed[]`:
     "tieOutLines": [],
     "rejected": [],
     "divergences": [],
+    "updates": [],
     "files": {
       "attached": 24,
       "held": 316,

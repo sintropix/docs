@@ -152,7 +152,7 @@ The audit trail is row-level and automatic: every write is recorded by the datab
 
 - **Actor:** `actorUserId` plus name and role of the authenticated user
 - **Credential type:** `session` for browser sessions, `api_key` for API key requests, `system` for changes made by Sintropix itself
-- **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor.
+- **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor. A [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync that writes the Standing or Tax Period of a landed DTE carries `source-feed`, credited to the system.
 - **Declared reason:** the value of the `x-audit-reason` header (trimmed, up to 500 characters) explaining why the change was made; required on API-key mutations, optional on browser sessions
 - **Request id:** a server-generated unique id grouping all changes in one request
 - **Route and HTTP method:** the endpoint that produced the mutation
