@@ -55,7 +55,7 @@ El acceso a una Entidad proviene de una **Membresía de Organización**. Una [Or
 | `viewer` | Sí | No | No |
 
 - **Leer** cubre las solicitudes `GET` sobre rutas de Entidad, incluido el [Audit Trail](/api-reference/audit-trail). **Escribir** cubre `POST`, `PUT`, `PATCH` y `DELETE`.
-- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), [bandejas de correo](/api-reference/integrations#email-inboxes-staff-only), sincronización de honorarios, políticas contables y la [sincronización de tipos de cambio](/api-reference/fx-rates).
+- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), [bandejas de correo](/api-reference/integrations#email-inboxes-staff-only), políticas contables y la [sincronización de tipos de cambio](/api-reference/fx-rates).
 - Una Entidad fuera de tus Organizaciones devuelve `404`. Una acción que tu Rol no permite devuelve `403` con `PERMISSION_DENIED_ERROR`.
 - Ningún Rol es global. Un Usuario sin Membresía en una Organización no puede acceder a sus Entidades, sin importar el Rol que tenga en otras.
 

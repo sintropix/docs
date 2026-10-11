@@ -6,12 +6,23 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports) and the [Integration](/api-reference/integrations) it fetches through. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync).
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync).
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/sources"
   note="Feeds are managed inside their Source's settings."
 />
+
+## Document families
+
+Every Feed lands one **Document Family**:
+
+| `family` | Documents | Providers that feed it |
+| --- | --- | --- |
+| `dte` | DTEs: facturas, notas de crédito, boletas, and the other documents of the RCV. | `sii_mirror`, `bsale`, `wasabil` |
+| `honorarium` | Boletas de honorarios: the BHE the Entity receives and the BTE it issues. See [Honorarium Feeds](#honorarium-feeds). | `sii_mirror` |
+
+An Entity holds at most one Feed of each family, and a Source holds at most one Feed. Two providers of one family describe the same documents, so a second Feed of a family would land them twice. An [Integration](/api-reference/integrations) lists the families its provider can feed in `feedableFamilies`.
 
 ## The Source Feed object
 
@@ -23,6 +34,7 @@ Every route on this page returns Feeds in this shape.
 | `entityId` | uuid | Owning Entity. |
 | `sourceId` | uuid | The Source the Feed fills. |
 | `integrationId` | uuid | The Integration the Feed reads through. |
+| `family` | `dte` \| `honorarium` | The [Document Family](#document-families) the Feed lands. |
 | `feedStartDate` | string (`YYYY-MM-DD`) | The link date: the earliest emission date the Feed imports, on the provider's calendar. |
 | `lastSyncedAt` | ISO 8601 timestamp \| null | When the Feed last completed a successful sync. `null` until the first success. |
 | `sourceName` | string | Name of the parent Source. |
@@ -63,10 +75,19 @@ Create a Source Feed. The body names the Source to fill, either an existing one 
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
 | `integrationId` | uuid | Yes | The Integration to read through. |
+| `family` | `dte` \| `honorarium` | Yes | The [Document Family](#document-families) to land. It must be one of the Integration's `feedableFamilies`. |
 | `feedStartDate` | string (`YYYY-MM-DD`) | Yes | The link date: the earliest emission date to import. |
 | `source` | object | Yes | Exactly one of `{ "sourceId": "<uuid>" }` (an existing Source) or `{ "sourceName": "<name>" }` (create a Source with that name). A body carrying both keys is rejected. |
 
 **Response:** `{ feed, source }`, where `feed` is the Source Feed object and `source` is the Source it fills: `{ id, entityId, name, invoiceCount, createdAt, updatedAt }`.
+
+**Domain errors**
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `SOURCE_FEED_FAMILY_NOT_FED_ERROR` | `422` | The Integration's provider doesn't feed this `family`, for example `honorarium` through a `bsale` Integration. `params: { integrationId, family }`. |
+| `SOURCE_FEED_FAMILY_ALREADY_FED_ERROR` | `409` | The Entity already has a Feed of this `family`. Delete it first. `params: { entityId, family }`. |
+| `SOURCE_FEED_SOURCE_ALREADY_FED_ERROR` | `409` | The Source already has a Feed. |
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
@@ -76,6 +97,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
   -d '{
     "id": "e4f5a6b7-c8d9-4e0f-a1b2-c3d4e5f6a7b8",
     "integrationId": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
+    "family": "dte",
     "feedStartDate": "2025-01-01",
     "source": { "sourceName": "Bsale" }
   }'
@@ -110,6 +132,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FE
     "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
     "sourceId": "f5a6b7c8-d9e0-4f1a-b2c3-d4e5f6a7b8c9",
     "integrationId": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
+    "family": "dte",
     "feedStartDate": "2025-01-01",
     "lastSyncedAt": "2025-12-31T14:02:11.000Z",
     "sourceName": "Bsale",
@@ -172,7 +195,9 @@ The SII decides two facts of a DTE: its **Standing** (where the SII holds the do
 | `accepted` | The SII holds the document. |
 | `pending` | The SII has the document but it isn't final yet. For a received document, you can still claim it. |
 | `claimed` | The receiver claimed the document at the SII. |
+| `annulment_requested` | Someone asked the SII to annul the document, and the SII hasn't annulled it yet. |
 | `annulled` | The document was annulled. |
+| `observed` | The SII observed the document. |
 
 The Standing appears as `standing` on the [DTE](/api-reference/sii). A DTE you enter by hand has `standing: null`. You can't set or change the Standing yourself: only a sync writes it.
 
@@ -182,9 +207,10 @@ How a sync reads each provider:
 
 | Provider `kind` | Standing | Tax Period |
 | --- | --- | --- |
-| `sii_mirror` | `REGISTRO` and `NO_INCLUIR` are `accepted`, `PENDIENTE` is `pending`, and `RECLAMADO` is `claimed`. | The month of the register that lists the document. When the SII moves a document to another month, the later month wins. |
+| `sii_mirror`, `dte` Feed | `REGISTRO` and `NO_INCLUIR` are `accepted`, `PENDIENTE` is `pending`, and `RECLAMADO` is `claimed`. | The month of the register that lists the document. When the SII moves a document to another month, the later month wins. |
 | `bsale` | A sale annulled in Bsale is `annulled`. A sale Bsale sent and the SII hasn't answered yet is `pending`. A sale the SII rejected is refused with `sii_rejected` and never lands. A purchase canceled in Bsale is `annulled`. Every other document is `accepted`. | Stated for purchases. Bsale states none for sales, so a Tax Period you set on a sale stays. |
 | `wasabil` | An emitted document is `accepted`, any other is `pending`. | Not stated, so a Tax Period you set stays. |
+| `sii_mirror`, `honorarium` Feed | `N` and `VIG` are `accepted`, `S` and `ANUL` are `annulled`, `V` is `annulment_requested`, and `R` and `U` are `observed`. | The month of the book that lists the document. |
 
 A Tax Period the provider doesn't state never clears the one the DTE holds. A document missing from a provider's answer keeps its Standing.
 
@@ -192,7 +218,21 @@ A Tax Period the provider doesn't state never clears the one the DTE holds. A do
 
 A `pending` document lands like an `accepted` one, and is [booked from its vendor's Booking Template](/api-reference/partners#when-an-invoice-is-booked-automatically) when the template applies. You can then match it against the bank as soon as it's paid.
 
-A document that lands `claimed` or `annulled` is never booked automatically. A booked Invoice whose DTE later becomes `claimed` or `annulled` stays booked: Sintropix doesn't unbook it or block the change. Review it and [unbook](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid) the Invoice's entry if it no longer belongs in your books.
+A document that lands `claimed`, `annulment_requested`, or `annulled` is never booked automatically. A booked Invoice whose DTE later reaches one of those Standings stays booked: Sintropix doesn't unbook it or block the change. Instead, it flags an Incompatible Standing.
+
+A document that lands unbooked with one of those Standings, and that you'll never book, stays pending work until you [exclude it from the books](/api-reference/invoices#exclude-an-invoice-from-the-books).
+
+### Incompatible Standing
+
+An Invoice has an **Incompatible Standing** when it's booked and its DTE is `claimed`, `annulment_requested`, or `annulled`: your books count a document the SII doesn't. Sintropix derives it on read and never stores it. It clears as soon as you unbook the Invoice or the Standing changes back.
+
+Find these Invoices in three places:
+
+- `GET /invoices/pages?standing=incompatible` lists them. See [Invoices](/api-reference/invoices#get-invoices-pages).
+- The home dashboard counts them in `incompatibleStandingCount`. See [Home dashboard](/api-reference/reports#home-dashboard).
+- In the app, the Invoice panel shows a warning, **Estados incompatibles** lists every one, and **Home** counts them under **Necesita acción**.
+
+Review each one and [unbook](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid) the Invoice's entry if it no longer belongs in your books.
 
 ### Audit and preview
 
@@ -227,6 +267,17 @@ The SII states boletas (types `39` and `41`) as one consolidated row per type an
 
 A boleta that states the RUT `66666666-6`, or that the Entity issued with no buyer RUT, lands on the final-consumer Partner, named `Consumidor Final` with `taxId` `66666666-6`. A consolidated row that the SII never itemizes counts as `ignored`.
 
+### Honorarium Feeds
+
+A Feed with `family: "honorarium"` reads through a `sii_mirror` Integration and lands the Entity's boletas de honorarios from two SII books:
+
+- **BHE recibidas**: the boletas de honorarios electrónicas the Entity receives from the people it pays.
+- **BTE emitidas**: the boletas de prestación de servicios de terceros the Entity issues for the people it pays.
+
+Both are payables. Each lands as a `payable` Invoice whose `total` is the net amount the Entity pays, with the Tax Period of the month whose book lists it. Every document lands with its [Standing](#standing-and-tax-period), including annulled ones, and a later sync updates the Standing and the Tax Period.
+
+A sync reads every month of both books from the link date to the day it runs, and states one tie-out line per book and month. It attaches the PDF of each document; honorarium documents have no XML.
+
 ### The current month
 
 The mirror may not have read the current month yet, for example in the first hours of a month. A sync then reads the current month, on the Chilean calendar, as empty: it states no tie-out line for it and does not fail. A past month the mirror holds no answer for still fails the sync with `502`, because that is a real gap.
@@ -239,7 +290,7 @@ The providers that carry files today:
 
 | Provider `kind` | Documents with files attached |
 | --- | --- |
-| `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. |
+| `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. A [Honorarium Feed](#honorarium-feeds) attaches the PDF of each BHE and BTE. |
 | `bsale` | Sales documents. Purchases keep their PDF and XML as evidence lines on the Source Feed, because the Bsale purchase `urlPdf` answers HTML rather than a PDF. |
 | `wasabil` | Issued and received documents. |
 
@@ -324,4 +375,6 @@ A reference is linked only when its target is already in the Entity's books: a D
 | `201` | Source Feed created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Source Feed not found. |
+| `409` | The Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), or the Source already has a Feed. |
+| `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`). |
 | `502` | External sync failed at the provider. |

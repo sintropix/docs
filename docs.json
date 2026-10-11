@@ -50,7 +50,8 @@
                 "pages": [
                   "api-reference/bank-accounts",
                   "api-reference/bank-movements",
-                  "api-reference/bank-feeds"
+                  "api-reference/bank-feeds",
+                  "api-reference/payment-batches"
                 ]
               },
               {
@@ -136,7 +137,8 @@
                 "pages": [
                   "api-reference/bank-accounts",
                   "api-reference/bank-movements",
-                  "api-reference/bank-feeds"
+                  "api-reference/bank-feeds",
+                  "api-reference/payment-batches"
                 ]
               },
               {

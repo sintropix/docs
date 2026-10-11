@@ -6,7 +6,7 @@ description: "List Bank Movements, get match candidates, book or match a movemen
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, or `reconciled`. This page covers listing, editing, booking, and matching Bank Movements, individually or in bulk. It also covers assigning the rest of an overpaid Match, and recording an internal transfer between two Bank Accounts.
+A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, `reconciled`, or `excluded`. This page covers listing, editing, booking, and matching Bank Movements, individually or in bulk. It also covers assigning the rest of an overpaid Match, and recording an internal transfer between two Bank Accounts.
 
 ## Status
 
@@ -17,8 +17,9 @@ Read endpoints enrich each Movement with a `status` field (`bankMovementWithStat
 | `unbooked` | Movement has no Ledger Entry yet. |
 | `booked_pending_allocation` | Movement is booked to a Ledger Entry, but the counterpart Open-Item line still has open amount, or part of the Movement still sits on the [Suspense Account](#overpayments-and-the-suspense-account). |
 | `reconciled` | Movement is booked and every counterpart line is fully allocated. |
+| `excluded` | Movement is [excluded from the books](#exclude-a-movement-from-the-books): someone recorded that it will never be booked. |
 
-You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value.
+You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value. Only `unbooked` and `booked_pending_allocation` are pending work. A listing with no `status` filter leaves `excluded` Movements out; only `status=excluded` lists them.
 
 ## Credit card movements
 
@@ -145,7 +146,9 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `ledgerAccountId` | uuid \| null | The Ledger Account that bank line sits on. `null` while unbooked. |
 | `metadata` | array of `{ label, value }` | Additional Information lines (up to 50). |
 | `followUp` | object \| null | The [Follow-up](/api-reference/follow-ups) on this Movement, which marks its pending work. `null` when there is none. |
-| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` | Derived booking status. |
+| `excludedAt` | ISO 8601 timestamp \| null | When the Movement was [excluded from the books](#exclude-a-movement-from-the-books). `null` when it isn't excluded. |
+| `exclusionReason` | string \| null | Why it was excluded. `null` exactly when `excludedAt` is null. |
+| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `excluded` | Derived booking status. |
 | `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it regardless of filters. |
 | `partnerName` | string \| null | Name of `partnerId`, for display. |
 | `reconciliationLabel` | string \| null | Counterpart of the booking entry as `"<code> <name>"`, with `" +N"` when there are more counterpart lines. `null` while unbooked. |
@@ -163,7 +166,7 @@ Write answers also return the Bank Account with its computed summary:
 | `currency` | string | ISO 4217 code, for example `CLP`. |
 | `feed` | object \| null | `{ integrationId, integrationKind, providerAccountId, institutionName, lastSyncedAt }` when an [Integration](/api-reference/bank-feeds) feeds the account; `null` otherwise. See [Bank Accounts](/api-reference/bank-accounts) for each field. |
 | `balance` | integer | Signed balance on the Ledger Account's normal side. |
-| `unreconciledCount` | integer | Movements not yet reconciled. |
+| `unreconciledCount` | integer | Movements not yet reconciled. Excluded Movements don't count. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## GET `/movements`
@@ -177,7 +180,7 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `cursor` | string | No | The `nextCursor` value from the previous page. Cannot be combined with `aroundMovementId`. |
 | `aroundMovementId` | uuid | No | Return the page that contains this Movement instead of continuing a walk. |
 | `limit` | integer | No | Page size, `1` to `100`. Default `50`. |
-| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `unreconciled` | No | Filter by booking status. `unreconciled` keeps every Movement still to reconcile, both `unbooked` and `booked_pending_allocation`. |
+| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `excluded` \| `unreconciled` | No | Filter by booking status. `unreconciled` keeps every Movement still to reconcile, both `unbooked` and `booked_pending_allocation`. Omit it to list every status but `excluded`. |
 | `followUpKind` | `proposal` \| `question` \| `waiting` \| `none` | No | Filter by the kind of the Movement's [Follow-up](/api-reference/follow-ups). `none` keeps Movements with no Follow-up. |
 | `partnerId` | uuid | No | Filter by counterparty Partner. |
 | `side` | `debit` \| `credit` | No | Filter by direction. |
@@ -706,6 +709,54 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-movements/$
   -H "Content-Type: application/json" \
   -d '{ "body": "Cargo bancario correspondiente al proveedor Acme." }'
 ```
+
+## Exclude a movement from the books
+
+Some Movements should never be booked, and deleting a fed Movement doesn't help because the next sync lands it again. Exclude it instead. An **Exclusion** records, with a reason, that the Movement will never be booked. It takes the Movement out of the pending work, and you can lift it at any time.
+
+An excluded Movement:
+
+- Has `status: "excluded"`. It's left out of every listing with no `status` filter, of `status=unreconciled`, and of `unreconciledCount`. Only `status=excluded` lists it. The app crosses those rows out.
+- Can't be booked, matched, or assigned, single or bulk, and can't hold a [Follow-up](/api-reference/follow-ups). Excluding the Movement clears its Follow-up. These writes are refused with `409` and `BANK_MOVEMENT_EXCLUDED_ERROR`.
+- Stays landed. A bank feed sync skips it.
+
+A booked or matched Movement can't be excluded: unbook it first. Anyone who can book a Movement can exclude or include it. A `viewer` is refused with `403`. Each Exclusion and Inclusion appears in the Movement's [audit trail](/api-reference/audit-trail).
+
+### PUT `/movements/:movementId/exclusion`
+
+Exclude an unbooked Movement from the books.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `reason` | string | Yes | Why the Movement will never be booked. Trimmed, non-empty, up to 1,000 characters. |
+
+**Response:** `{ movement, bankAccount }`, with `excludedAt` and `exclusionReason` set on the Movement.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/exclusion" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "Cargo duplicado por el banco, revertido el mismo día." }'
+```
+
+### DELETE `/movements/:movementId/exclusion`
+
+Include an excluded Movement in the books again. It goes back to `unbooked`.
+
+**Response:** `{ movement, bankAccount }`, with `excludedAt` and `exclusionReason` null on the Movement.
+
+### Exclusion errors
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `BANK_MOVEMENT_ALREADY_RECONCILED_ERROR` | `409` | The Movement is booked or matched. Unbook it before you exclude it. |
+| `BANK_MOVEMENT_EXCLUDED_ERROR` | `409` | The Movement is already excluded. |
+| `BANK_MOVEMENT_NOT_EXCLUDED_ERROR` | `409` | The Movement isn't excluded, so there's nothing to include. |
+
+A blank `reason`, or one longer than 1,000 characters, is refused with `400`. Each error carries the `movementId` in `params`; `BANK_MOVEMENT_ALREADY_RECONCILED_ERROR` also carries the `ledgerEntryId` that books it.
 
 ## Status codes
 

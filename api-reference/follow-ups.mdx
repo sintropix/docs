@@ -24,6 +24,8 @@ Use Follow-ups when an agent or integration prepares reconciliation work but a p
 | Bank Movement | The Movement is `unbooked`, or booked by an entry that still has a line on the [Suspense Account](/api-reference/bank-movements#overpayments-and-the-suspense-account). |
 | Invoice | The Invoice is unbooked, or booked with open amount left on its Control Line. |
 
+An Invoice or Bank Movement [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books) is no pending work, so it holds no Follow-up. Excluding a record clears its Follow-up. A `PUT` or an approval on an excluded record answers `409` with `INVOICE_EXCLUDED_ERROR` or `BANK_MOVEMENT_EXCLUDED_ERROR`.
+
 A record holds at most one Follow-up. Writing a new one replaces the current one.
 
 Every Bank Movement and Invoice row carries a `followUp` field. It holds the Follow-up as written, or `null` when the record has none. To find records by Follow-up, filter [`GET /movements`](/api-reference/bank-movements#get-movements) or [`GET /invoices/pages`](/api-reference/invoices) with `followUpKind`. It takes `proposal`, `question`, `waiting`, or `none` (records with no Follow-up).
@@ -262,6 +264,7 @@ A Follow-up advises on the record as it stood when it was written. Sintropix cle
 - [Assigning or unassigning](/api-reference/bank-movements#overpayments-and-the-suspense-account) the Bank Movement's Suspense line.
 - Booking the Invoice.
 - Creating or deleting an Allocation on a line of the Bank Movement or the Invoice.
+- Excluding the Bank Movement or the Invoice from the books.
 
 An approval that names a cleared or replaced Follow-up answers `409 FOLLOW_UP_STALE_ERROR`. Read the record again and review its current Follow-up.
 

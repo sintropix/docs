@@ -44,8 +44,9 @@ Returns the home dashboard snapshot: cash position, daily balances for the last 
 | `priorMonthToDateIncomeTotal` | integer | Income in the prior month up to the same day of the month |
 | `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines |
 | `payable` | object | `{ total, count }`: open payable amount and the number of open lines |
-| `salesToBook` | integer | Unbooked sales invoices |
-| `purchasesToBook` | integer | Unbooked purchase invoices |
+| `salesToBook` | integer | Unbooked sales invoices. Invoices [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books) don't count. |
+| `purchasesToBook` | integer | Unbooked purchase invoices. Excluded invoices don't count. |
+| `incompatibleStandingCount` | integer | Booked invoices whose DTE the SII holds as `claimed`, `annulment_requested`, or `annulled`. See [Incompatible Standing](/api-reference/source-feeds#incompatible-standing). |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/home" \
@@ -109,6 +110,45 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/open-position
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/open-positions?subtype=payable&expandedAccountId=<uuid>&limit=50" \
   -H "Cookie: <session-cookie>"
+```
+
+### Payables to plan
+
+`GET /api/entities/:entityId/reports/payables-to-plan`
+
+Returns the purchase invoices the Entity still has to plan a payment for: every `payable` Invoice of kind `invoice` whose [Amount to Plan](/api-reference/payment-batches#amount-to-plan) is above zero. Use it to pick the invoices of a [Payment Batch](/api-reference/payment-batches). Invoices excluded from the books never appear.
+
+**Query params**
+
+Every bound is inclusive and optional.
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `currency` | string | No | ISO 4217 code. Pass the batch's currency to list only the invoices it can pay. |
+| `issueDateFrom` | ISO date | No | Earliest issue date |
+| `issueDateTo` | ISO date | No | Latest issue date. Must not be before `issueDateFrom`. |
+| `dueDateFrom` | ISO date | No | Earliest due date. Invoices with no due date are kept, since most documents from the SII don't state one. |
+| `dueDateTo` | ISO date | No | Latest due date. Must not be before `dueDateFrom`. Invoices with no due date are kept. |
+
+**Response**
+
+An array, earliest due date first, then earliest issue date. Invoices with no due date come last. Each item:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Invoice id |
+| `partnerId` | UUID | The supplier |
+| `partnerName` | string | Name of the supplier |
+| `documentNumber` | string | The number printed on the document |
+| `currency` | string | ISO 4217 code of the Invoice |
+| `total` | integer | Gross total, in minor units of `currency` |
+| `issueDate` | ISO date | Issue date |
+| `dueDate` | ISO date or null | Due date |
+| `amountToPlan` | integer | What is left to plan, in minor units of `currency`; always above zero |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/payables-to-plan?currency=CLP&dueDateTo=2026-10-31" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
 ### Balance sheet

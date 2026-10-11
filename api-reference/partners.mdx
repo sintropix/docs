@@ -6,7 +6,7 @@ description: "List, create, edit, merge, and delete Partners (customers, supplie
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, [Aliases](#aliases), [merging duplicate Partners](#merge-partners), and vendor Booking Templates.
+A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, [Aliases](#aliases), [merging duplicate Partners](#merge-partners), [Bank Details](#bank-details), and vendor Booking Templates.
 
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
@@ -91,6 +91,7 @@ Each element of `partners` is a **Partner row**: every field of the Partner obje
 | `defaultPurchaseAccountCode` | string or null | Code of the default purchase account. |
 | `defaultPurchaseAccountName` | string or null | Name of the default purchase account. |
 | `defaultPurchaseAccountClassification` | string | `expense`, `fixed_asset`, or `missing`. |
+| `bankDetails` | object or null | Where the Partner receives a transfer. See [Bank Details](#bank-details). Null when none are set. |
 | `group` | object or null | Null unless `groupBy` was requested. Contains `by`, `value`, `key` (string), `partnerCount` (integer), `openReceivable` (integer), `openPayable` (integer), and `startsGroup` (boolean, true on the first row of each group). |
 
 The type of `group.value` depends on `group.by`:
@@ -279,6 +280,8 @@ Lines on or before the Lock Date stay on the merged Partner, because the Lock Da
 
 The kept Partner takes these fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, `website`, `type`, and `defaultPurchaseAccountId`. It takes the merged Partner's Booking Template and `booksAutomatically` only when it is a vendor with no template. Otherwise, Sintropix removes the merged Partner's template.
 
+The kept Partner also takes every [Payment Order](/api-reference/payment-batches) of the merged Partner, and its [Bank Details](#bank-details) when the kept Partner has none.
+
 The merge also clears every [Follow-up](/api-reference/follow-ups) that names the merged Partner. A Partner merged earlier into the merged Partner now points at the kept Partner.
 
 ### After a merge
@@ -301,6 +304,54 @@ A Merged Partner:
 | `PARTNER_ALIAS_TAKEN_ERROR` | `409` | A name of the merged Partner is already an Alias of a third Partner. |
 
 A merge is also refused when an Invoice without a DTE would collide with an Invoice of the kept Partner that has the same direction, kind, and number.
+
+## Bank Details
+
+Bank Details state where a Partner receives a bank transfer. A [Payment Batch](/api-reference/payment-batches) pays each Partner to these details, and can't be marked Ready while a payee has none. A Partner holds at most one set. The name and RUT the transfer carries are the Partner's own `name` and `taxId`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `bankCode` | string | CMF code of the bank, from [`GET /banks`](/api-reference/reference-data#get-banks). |
+| `bankName` | string | Name of that bank. |
+| `accountKind` | string | `checking` (cuenta corriente), `sight` (cuenta vista), or `savings` (cuenta de ahorro). |
+| `accountNumber` | string | The account number at that bank. |
+| `notificationEmail` | string or null | Email address the bank notifies of the transfer. |
+
+Bank Details appear as `bankDetails` on every Partner row. Deleting the Partner deletes them too.
+
+### PUT `/partners/:partnerId/bank-details`
+
+Set the Partner's Bank Details. The body states the whole set and replaces any details the Partner already has.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bankCode` | string | Yes | CMF code of a bank from `GET /banks`. An unknown code is refused with `400` and `PARTNER_BANK_DETAILS_BANK_UNKNOWN_ERROR`. |
+| `accountKind` | string | Yes | `checking`, `sight`, or `savings`. |
+| `accountNumber` | string | Yes | Trimmed, non-empty. |
+| `notificationEmail` | string or null | No | A valid email address. Omit or send `null` for none. |
+
+**Response:** the Partner row, as `GET /partners/pages` lists it, with its `bankDetails`.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/bank-details" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bankCode": "016",
+    "accountKind": "checking",
+    "accountNumber": "12345678",
+    "notificationEmail": "pagos@proveedor.cl"
+  }'
+```
+
+### DELETE `/partners/:partnerId/bank-details`
+
+Remove the Partner's Bank Details. A Partner without them is refused with `404` and `PARTNER_BANK_DETAILS_NOT_FOUND_ERROR`.
+
+**Response:** the Partner row, as `GET /partners/pages` lists it, with `bankDetails: null`.
 
 ## Booking Templates
 
@@ -328,7 +379,7 @@ Sintropix books a new Invoice from the template only when all of these hold:
 
 1. The create request sent no `bookingEntryWithLines`. An explicit booking always wins.
 2. The Invoice is `direction: "payable"` and `documentKind: "invoice"`. Credit notes are never booked automatically.
-3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked. A source-feed sync never books a DTE that lands with the [Standing](/api-reference/source-feeds#standing-and-tax-period) `claimed` or `annulled`.
+3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked. A source-feed sync never books a DTE that lands with the [Standing](/api-reference/source-feeds#standing-and-tax-period) `claimed`, `annulment_requested`, or `annulled`.
 4. The Invoice and its DTE are in the Entity's functional currency.
 5. The vendor has `booksAutomatically` set to `true`.
 6. Every line's source has a value on the DTE, and none is negative. A DTE that withholds no IVA gives a `dte_withheld_iva_amount` line `0`.
@@ -408,6 +459,6 @@ A Control Line on the wrong side or on an account Book invoice refuses as a paya
 | `200` | Success on `GET`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the deleted row. |
 | `201` | Partner created. |
 | `302` | Redirect to the Partner's logo on `GET /partners/:partnerId/logo`. |
-| `400` | Validation error (including an invalid RUT, an invalid website, or an unknown country), or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity or Partner not found, or the Partner has no logo (`PARTNER_LOGO_NOT_FOUND_ERROR`). |
+| `400` | Validation error (including an invalid RUT, an invalid website, an unknown country, or an unknown bank), or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity or Partner not found, the Partner has no logo (`PARTNER_LOGO_NOT_FOUND_ERROR`), or it has no Bank Details to delete (`PARTNER_BANK_DETAILS_NOT_FOUND_ERROR`). |
 | `409` | Partner id or tax identity already exists, the Partner has open items or references and cannot be deleted, an Alias is taken, the Partner is merged, a merge is refused, or a Booking Template rule is violated. |

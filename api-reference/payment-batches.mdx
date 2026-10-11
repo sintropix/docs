@@ -1,0 +1,268 @@
+---
+title: "Sintropix Payment Batches API: Plan Supplier Payments"
+sidebarTitle: "Payment Batches"
+description: "Draft a Payment Batch (nómina) from the purchase invoices an Entity still owes, add manual payments, mark it Ready, and download the bank transfer file."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+A Payment Batch (**Nómina** in the app) is a set of payments an Entity sends to its bank together, paid from one [Bank Account](/api-reference/bank-accounts) on one payment date. Each line of a batch is a **Payment Order** (**Pago**): it pays a purchase [Invoice](/api-reference/invoices), or it's a manual payment with no document.
+
+A Payment Order records what you intend to pay. It posts nothing to the ledger. The ledger stays the record of what was actually paid: once the bank executes the transfers, book or match the resulting [Bank Movements](/api-reference/bank-movements) as usual.
+
+Use Payment Batches to prepare a supplier payment run:
+
+1. List the [Payables to Plan](/api-reference/reports#payables-to-plan): the purchase invoices the Entity still owes.
+2. [Create a Draft](#post-payment-batches) with the paying Bank Account and the payment date.
+3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos.
+4. [Mark it Ready](#post-payment-batches-paymentbatchid-mark-ready). This freezes the batch.
+5. [Download the bank file](#download-the-bank-file) in the app and upload it to your bank's portal.
+
+Every route on this page lives under `/api/entities/:entityId/payment-batches`. Amounts are integers in the minor units of the batch's currency.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/payment-batches/{paymentBatchId}"
+  note="/{entityId}/payment-batches lists every batch."
+/>
+
+## Draft and Ready
+
+A batch has two states:
+
+| State | `readyAt` | What you can do |
+| --- | --- | --- |
+| Draft | `null` | Add, edit, and remove orders. Change the paying Bank Account or the payment date. Delete the batch. |
+| Ready | timestamp | Download the bank file. Remove an order the bank rejected. Every other write is refused with `409` and `PAYMENT_BATCH_READY_ERROR`. |
+
+A batch starts as a Draft and becomes Ready only through [`POST /mark-ready`](#post-payment-batches-paymentbatchid-mark-ready). A Ready batch never goes back to Draft and can't be deleted.
+
+## Amount to Plan
+
+The **Amount to Plan** of a purchase invoice is what it still owes minus what Payment Orders already plan for it, in the Invoice's currency:
+
+- An unbooked invoice owes its `total`. A booked invoice owes the Open Amount of its Control Line.
+- Every order that names the invoice counts, in every batch, Draft or Ready.
+- An invoice [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books) owes nothing, so it has nothing to plan.
+
+Editing an order can plan more than the invoice owes. Sintropix accepts it, and the invoice's Amount to Plan goes below zero. The app flags it as a warning.
+
+<Note>
+  If you match a partial payment of an invoice that a batch already plans, its Amount to Plan can show less than it still owes. Correct the order's amount in the Draft. The books aren't affected.
+</Note>
+
+## The Payment Batch object
+
+Every route on this page except the list returns the batch with its orders.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Batch id. |
+| `entityId` | uuid | Owning Entity. |
+| `bankAccountId` | uuid | The paying Bank Account. |
+| `bankAccountName` | string | Name of that Bank Account. |
+| `bankAccountNumber` | string \| null | The paying Bank Account's [`accountNumber`](/api-reference/bank-accounts). `null` when the account has none. |
+| `currency` | string | ISO 4217 code. Always the paying Bank Account's currency, shared by every order. |
+| `paymentDate` | string (`YYYY-MM-DD`) | The date the payments are to be made. |
+| `readyAt` | ISO 8601 timestamp \| null | When the batch was marked Ready. `null` for a Draft. |
+| `readyBy` | uuid \| null | The user who marked it Ready. `null` for a Draft. |
+| `createdBy` | uuid | The user who created the batch. |
+| `createdByName` | string | Name of that user. |
+| `paymentOrderCount` | integer | Number of orders in the batch. |
+| `totalAmount` | string | Sum of the orders' amounts, in minor units, as a decimal string such as `"4820500"`. |
+| `paymentOrders` | array | The orders, in payee name order (see below). Not present on the list. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
+Each element of `paymentOrders`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Order id. |
+| `entityId` | uuid | Owning Entity. |
+| `paymentBatchId` | uuid | The batch the order belongs to. |
+| `partnerId` | uuid | The payee [Partner](/api-reference/partners). |
+| `invoiceId` | uuid \| null | The Invoice the order pays. `null` for a manual order, or when the Invoice was deleted. |
+| `currency` | string | ISO 4217 code, the batch's currency. |
+| `amount` | integer | Amount to pay, greater than zero. |
+| `memo` | string \| null | Glosa: the message that travels with the transfer. |
+| `payee` | object | `{ name, country, taxId, bankDetails }` of the payee. `bankDetails` is the Partner's [Bank Details](/api-reference/partners#bank-details), or `null` when it has none. |
+| `invoice` | object \| null | `{ documentNumber, dueDate, total, amountToPlan, dteTypeCode, dteTypeLabel }` of the Invoice. `amountToPlan` is its current [Amount to Plan](#amount-to-plan). `dteTypeCode` and `dteTypeLabel` name the SII type of the DTE behind it, or `null` when no DTE backs it. `null` when `invoiceId` is null. |
+| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
+## GET `/payment-batches`
+
+List every Payment Batch of the Entity, the latest payment date first.
+
+**Response:** an array of Payment Batch objects without `paymentOrders`.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/payment-batches/:paymentBatchId`
+
+Read one batch with its orders.
+
+**Response:** the Payment Batch object.
+
+## POST `/payment-batches`
+
+Create an empty Draft.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id. Retrying with the same id is answered `409` with `PAYMENT_BATCH_ALREADY_EXISTS_ERROR`, so a retry never creates a second batch. |
+| `bankAccountId` | uuid | Yes | The paying Bank Account. The batch takes its currency. |
+| `paymentDate` | string (`YYYY-MM-DD`) | Yes | The date the payments are to be made. |
+
+**Response** (`201`): the Payment Batch object, with no orders.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d",
+    "bankAccountId": "0190e000-0000-7000-8000-000000000001",
+    "paymentDate": "2026-10-15"
+  }'
+```
+
+## PATCH `/payment-batches/:paymentBatchId`
+
+Change the paying Bank Account or the payment date of a Draft.
+
+**Body:** at least one of the fields below.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bankAccountId` | uuid | No | The new paying Bank Account. An account in another currency fits only a batch with no orders; otherwise the request is refused with `409` and `PAYMENT_BATCH_CURRENCY_MISMATCH_ERROR`. |
+| `paymentDate` | string (`YYYY-MM-DD`) | No | The new payment date. |
+
+**Response:** the Payment Batch object.
+
+## DELETE `/payment-batches/:paymentBatchId`
+
+Delete a Draft and its orders. A Ready batch can't be deleted.
+
+**Response:** the Payment Batch object as it was before deletion, with its orders.
+
+## POST `/payment-batches/:paymentBatchId/invoice-payment-orders`
+
+Add purchase invoices to a Draft. Each invoice becomes an order for its current [Amount to Plan](#amount-to-plan), paid to the Invoice's Partner.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `paymentOrders` | array | Yes | At least one `{ "id": "<uuid>", "invoiceId": "<uuid>" }`. `id` is the client-generated id of the new order. An `id` or an `invoiceId` listed twice is refused with `400`. |
+
+Each invoice must be a Payable to Plan of the batch:
+
+- A `payable` Invoice of kind `invoice`. A credit note or a receivable is refused with `PAYMENT_ORDER_INVOICES_NOT_PAYABLE_ERROR`.
+- In the batch's currency. Otherwise `PAYMENT_ORDER_INVOICES_CURRENCY_MISMATCH_ERROR`, with the batch's `currency`.
+- With an Amount to Plan above zero. Otherwise `PAYMENT_ORDER_INVOICES_NOTHING_TO_PLAN_ERROR`.
+
+Each of these errors answers `409` and lists every offending invoice in `params.invoiceIds`, so you can fix them all in one pass. Nothing is added when any invoice is refused.
+
+**Response** (`201`): the Payment Batch object.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches/$PAYMENT_BATCH_ID/invoice-payment-orders" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentOrders": [
+      { "id": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e", "invoiceId": "6f1c2b1e-0d1a-4c7b-9a3e-2b8f5d0e1a11" }
+    ]
+  }'
+```
+
+## POST `/payment-batches/:paymentBatchId/payment-orders`
+
+Add a manual order, with no Invoice, to a Draft. Use it for a payment that no document backs, such as an advance.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id of the order. Retrying with the same id is answered `409` with `PAYMENT_ORDER_ALREADY_EXISTS_ERROR`. |
+| `partnerId` | uuid | Yes | The payee. A Merged Partner is refused with `409` and `PARTNER_MERGED_ERROR`. |
+| `amount` | integer | Yes | Greater than zero, in the batch's currency. |
+| `memo` | string \| null | No | Glosa for the transfer. Trimmed; a blank memo is refused. |
+
+**Response** (`201`): the Payment Batch object.
+
+## PATCH `/payment-batches/:paymentBatchId/payment-orders/:paymentOrderId`
+
+Edit an order of a Draft.
+
+**Body:** at least one of the fields below.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `amount` | integer | No | Greater than zero. It may plan more than the invoice owes; see [Amount to Plan](#amount-to-plan). |
+| `memo` | string \| null | No | Trimmed, non-empty. `null` clears it. |
+
+**Response:** the Payment Batch object.
+
+## DELETE `/payment-batches/:paymentBatchId/payment-orders/:paymentOrderId`
+
+Remove an order. This works on a Draft and on a Ready batch, so you can take out a payment the bank rejected. Removing an order returns its amount to the invoice's Amount to Plan.
+
+**Response:** the Payment Batch object.
+
+## POST `/payment-batches/:paymentBatchId/mark-ready`
+
+Mark a Draft Ready. No body. The batch must be complete:
+
+| Code | Meaning |
+| --- | --- |
+| `PAYMENT_BATCH_EMPTY_ERROR` | The batch has no orders. |
+| `PAYMENT_BATCH_PAYEES_WITHOUT_RUT_ERROR` | Some payees have no Chilean RUT: their `country` isn't `CL` or their `taxId` is empty. `params.partnerIds` lists them. |
+| `PAYMENT_BATCH_PAYEES_WITHOUT_BANK_DETAILS_ERROR` | Some payees have no [Bank Details](/api-reference/partners#bank-details). `params.partnerIds` lists them. |
+
+Each answers `409`. Fix the Partners and try again.
+
+Once Ready, the batch keeps its Bank Account, currency, and payment date, takes no new order, and its orders keep their amount.
+
+**Response** (`200`): the Payment Batch object, with `readyAt` and `readyBy` set.
+
+## Download the bank file
+
+In the app, a Ready batch has a **Descargar** menu with two options. The browser builds each file from the batch, so the API has no download route.
+
+- **Nómina BCI · transferencias nacionales**: BCI's bulk transfer file (Pago a Proveedores), in `.xlsx`, ready to upload to BCI's portal. It needs a batch in `CLP` and a paying Bank Account with an `accountNumber`. When either is missing, the option is disabled and says why.
+- **Excel de movimientos**: a spreadsheet of every order.
+
+Each order fills one row of the BCI file:
+
+| BCI column | Value |
+| --- | --- |
+| Nº Cuenta de Cargo | The paying Bank Account's `accountNumber`. |
+| Nº Cuenta de Destino, Banco Destino | The payee's Bank Details: account number and three-digit CMF bank code. |
+| Rut Beneficiario, Dig. Verif. | The payee's RUT, split into body and check digit. |
+| Nombre Beneficiario | The Partner's name, cut to 30 characters. |
+| Monto Transferencia | The amount, in whole pesos. |
+| Nro.Factura Boleta | The Invoice's document number. Empty for a manual order. |
+| Nº Orden de Compra | Empty. |
+| Tipo de Pago | `PRV` for a boleta de honorarios (BHE or BTE), `OTR` otherwise. |
+| Mensaje Destinatario | The order's memo. Without one, the SII type and number of the document, for example `Factura Electrónica 10819`, or `Factura` and the number when no DTE backs the Invoice. Empty for a manual order with no memo. |
+| Email Destinatario | The notification email of the payee's Bank Details. |
+| Cuenta Destino inscrita como | `Cuenta` followed by the Partner's name, cut to 25 characters. |
+
+The file reads each payee's Bank Details when you download it. If you change a Partner's Bank Details after marking the batch Ready, download the file again.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `PATCH`, `DELETE`, and `POST /mark-ready`. |
+| `201` | Payment Batch created, or orders added. |
+| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity, Payment Batch (`PAYMENT_BATCH_NOT_FOUND_ERROR`), Payment Order (`PAYMENT_ORDER_NOT_FOUND_ERROR`), Bank Account, Partner, or Invoice not found. |
+| `409` | The batch is Ready (`PAYMENT_BATCH_READY_ERROR`), an id already exists, a currency doesn't match, an invoice isn't a Payable to Plan, the batch isn't complete for Ready, the Partner is merged, or the orders of one invoice would add up past 2^53 − 1 minor units (`PAYMENT_ORDER_INVOICE_PLAN_TOO_LARGE_ERROR`). |
