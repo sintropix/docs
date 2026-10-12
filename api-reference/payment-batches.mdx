@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Payment Batches API: Plan Supplier Payments"
 sidebarTitle: "Payment Batches"
-description: "Draft a Payment Batch (nómina) from the purchase invoices an Entity still owes, add manual payments, mark it Ready, and download the bank transfer file."
+description: "Draft a Payment Batch (nómina) from the purchase invoices an Entity still owes, add manual payments, mark it Ready, and download the BCI or Global66 transfer file."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -10,7 +10,7 @@ A Payment Batch (**Nómina** in the app) is a set of payments an Entity sends to
 
 Each Payment Order states its own currency. An order that pays an Invoice is in the Invoice's currency. A manual order is in the currency you choose. One batch can mix currencies, so it totals each currency apart and converts nothing.
 
-A Payment Order records what you intend to pay. It posts nothing to the ledger. The ledger stays the record of what was actually paid: once the bank executes the transfers, book or match the resulting [Bank Movements](/api-reference/bank-movements) as usual.
+A Payment Order records what you intend to pay. It posts nothing to the ledger. The ledger stays the record of what was actually paid: once the bank executes the transfers, book or match the resulting [Bank Movements](/api-reference/bank-movements) as usual. When Erwin reconciles, he reads the Ready batches whose payment date is near a Movement's date to tell who the payment is for and which Invoice it pays. He never matches a Movement that disagrees with the batch, and he ignores Drafts.
 
 Use Payment Batches to prepare a supplier payment run:
 
@@ -18,7 +18,7 @@ Use Payment Batches to prepare a supplier payment run:
 2. [Create a Draft](#post-payment-batches) with the paying Bank Account and the payment date.
 3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos. In the app, **Agregar facturas** lists the payables in every currency and lets you search them by payee or document number.
 4. [Mark it Ready](#post-payment-batches-paymentbatchid-mark-ready). This freezes the batch.
-5. [Download the bank file](#download-the-bank-file) in the app and upload it to your bank's portal.
+5. [Download the bank file](#download-the-bank-file) in the app and upload it to your bank's or Global66's portal.
 
 Every route on this page lives under `/api/entities/:entityId/payment-batches`. Amounts are integers in the minor units of their currency.
 
@@ -236,12 +236,15 @@ Once Ready, the batch keeps its Bank Account and payment date, takes no new orde
 
 ## Download the bank file
 
-In the app, a Ready batch has a **Descargar** menu with two options. The browser builds each file from the batch, so the API has no download route.
+In the app, a Ready batch has a **Descargar** menu with three options. The browser builds each file from the batch, so the API has no download route.
 
 - **Nómina BCI · transferencias nacionales**: BCI's bulk transfer file (Pago a Proveedores), in `.xlsx`, ready to upload to BCI's portal. It carries only the orders in `CLP`. When the batch also has orders in other currencies, the option says how many are left out, for example *1 pago en otra moneda queda fuera*. It needs a paying Bank Account in `CLP` with an `accountNumber`, and at least one order in `CLP`. When any of these is missing, the option is disabled and says why.
+- **Nómina Global66 · transferencias nacionales**: Global66's beneficiary template (PlantillaBeneficiarios), filled in, as `nomina-global66-<paymentDate>.xlsm`, ready to upload to Global66's portal to pay from a Global66 account. It carries only the orders in `CLP` to a bank that Global66 lists (see [Global66 file](#global66-file)). When the batch has other orders, the option says how many are left out, for example *1 pago en otra moneda o a un banco que Global66 no recibe queda fuera*. It doesn't need an `accountNumber` on the paying Bank Account. When no order qualifies, the option is disabled.
 - **Excel de movimientos**: a spreadsheet of every order, in every currency.
 
-Pay the orders the BCI file leaves out through another channel, such as your bank's portal.
+Pay the orders a file leaves out through another channel, such as your bank's portal.
+
+### BCI file
 
 Each order in `CLP` fills one row of the BCI file:
 
@@ -259,7 +262,27 @@ Each order in `CLP` fills one row of the BCI file:
 | Email Destinatario | The notification email of the payee's Bank Details. |
 | Cuenta Destino inscrita como | `Cuenta` followed by the Partner's name, cut to 25 characters. |
 
-The file reads each payee's Bank Details when you download it. If you change a Partner's Bank Details after marking the batch Ready, download the file again.
+### Global66 file
+
+Each qualifying order fills one row of the **Cuenta Bancaria** sheet of Global66's template, from row 5. The template keeps its macros, validations, and other sheets. Its **¿Válido?** column checks each row when you run the template's macro, before you upload it.
+
+| Global66 column | Value |
+| --- | --- |
+| País | `CL - Chile`. |
+| Tipo Destinatario | `Persona` when the payee's RUT body is under 50.000.000, `Empresa` otherwise. |
+| Nombre | For a `Persona`, the first word of the Partner's name. For an `Empresa`, the whole name. |
+| Apellido | For a `Persona`, the rest of the Partner's name. Empty for an `Empresa`. |
+| Tipo de Documento | `RUT`. |
+| Número de Documento | The payee's RUT, body and check digit with no dots or dash, for example `76142436K`. |
+| Tipo de Cuenta | `CC - Cuenta Corriente`, `CA - Cuenta de Ahorros`, or `CV - Cuenta a la Vista`, from the payee's Bank Details. |
+| Número de Cuenta Bancaria | The account number of the payee's Bank Details. |
+| Banco | The payee's bank, by Global66's own name and id, for example `16 - Banco de Chile`. |
+| Modalidad Origen o Destino | `Destino`: the payee receives the exact amount, and Global66 charges its cost on top. |
+| Monto | The amount, in whole pesos. |
+
+Global66 takes transfers to these banks, named by their CMF code: Banco de Chile (`001`), Banco Internacional (`009`), BancoEstado (`012`), Scotiabank (`014`), BCI / MACHBANK (`016`), Banco Bice (`028`), HSBC (`031`), Santander (`037`), Itaú (`039`), JP Morgan (`041`), Banco Security (`049`), Banco Falabella (`051`), Banco Ripley (`053`), Banco Consorcio (`055`), Tanner (`062`), Coopeuch / Dale (`672`), Prepago Los Héroes (`729`), Prepago Tenpo (`730`), TAPP Caja Los Andes (`732`), Copec Pay (`741`), Prex (`743`), Fintual (`746`), and Mercado Pago (`875`). An order to any other bank is left out of the file.
+
+Each file reads each payee's Bank Details when you download it. If you change a Partner's Bank Details after marking the batch Ready, download the file again.
 
 ## Status codes
 
