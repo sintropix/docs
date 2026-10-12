@@ -124,7 +124,7 @@ Every bound is inclusive and optional.
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
-| `currency` | string | No | ISO 4217 code. Pass the batch's currency to list only the invoices it can pay. |
+| `currency` | string | No | ISO 4217 code. Lists only the invoices in that currency. Omit it to list every currency; a batch can pay invoices in any currency. |
 | `issueDateFrom` | ISO date | No | Earliest issue date |
 | `issueDateTo` | ISO date | No | Latest issue date. Must not be before `issueDateFrom`. |
 | `dueDateFrom` | ISO date | No | Earliest due date. Invoices with no due date are kept, since most documents from the SII don't state one. |

@@ -8,17 +8,19 @@ import AppLink from "/snippets/app-link.mdx"
 
 A Payment Batch (**Nómina** in the app) is a set of payments an Entity sends to its bank together, paid from one [Bank Account](/api-reference/bank-accounts) on one payment date. Each line of a batch is a **Payment Order** (**Pago**): it pays a purchase [Invoice](/api-reference/invoices), or it's a manual payment with no document.
 
+Each Payment Order states its own currency. An order that pays an Invoice is in the Invoice's currency. A manual order is in the currency you choose. One batch can mix currencies, so it totals each currency apart and converts nothing.
+
 A Payment Order records what you intend to pay. It posts nothing to the ledger. The ledger stays the record of what was actually paid: once the bank executes the transfers, book or match the resulting [Bank Movements](/api-reference/bank-movements) as usual.
 
 Use Payment Batches to prepare a supplier payment run:
 
 1. List the [Payables to Plan](/api-reference/reports#payables-to-plan): the purchase invoices the Entity still owes.
 2. [Create a Draft](#post-payment-batches) with the paying Bank Account and the payment date.
-3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos.
+3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos. In the app, **Agregar facturas** lists the payables in every currency and lets you search them by payee or document number.
 4. [Mark it Ready](#post-payment-batches-paymentbatchid-mark-ready). This freezes the batch.
 5. [Download the bank file](#download-the-bank-file) in the app and upload it to your bank's portal.
 
-Every route on this page lives under `/api/entities/:entityId/payment-batches`. Amounts are integers in the minor units of the batch's currency.
+Every route on this page lives under `/api/entities/:entityId/payment-batches`. Amounts are integers in the minor units of their currency.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/payment-batches/{paymentBatchId}"
@@ -61,14 +63,14 @@ Every route on this page except the list returns the batch with its orders.
 | `bankAccountId` | uuid | The paying Bank Account. |
 | `bankAccountName` | string | Name of that Bank Account. |
 | `bankAccountNumber` | string \| null | The paying Bank Account's [`accountNumber`](/api-reference/bank-accounts). `null` when the account has none. |
-| `currency` | string | ISO 4217 code. Always the paying Bank Account's currency, shared by every order. |
+| `bankAccountCurrency` | string | ISO 4217 code of the paying Bank Account. The orders can be in other currencies. |
 | `paymentDate` | string (`YYYY-MM-DD`) | The date the payments are to be made. |
 | `readyAt` | ISO 8601 timestamp \| null | When the batch was marked Ready. `null` for a Draft. |
 | `readyBy` | uuid \| null | The user who marked it Ready. `null` for a Draft. |
 | `createdBy` | uuid | The user who created the batch. |
 | `createdByName` | string | Name of that user. |
 | `paymentOrderCount` | integer | Number of orders in the batch. |
-| `totalAmount` | string | Sum of the orders' amounts, in minor units, as a decimal string such as `"4820500"`. |
+| `totals` | array | The orders' amounts summed per currency, as `{ currency, amount }`, in currency-code order. `amount` is in minor units, as a decimal string such as `"4820500"`. Amounts in different currencies are never converted or added together. Empty for a batch with no orders. |
 | `paymentOrders` | array | The orders, in payee name order (see below). Not present on the list. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
@@ -81,7 +83,7 @@ Each element of `paymentOrders`:
 | `paymentBatchId` | uuid | The batch the order belongs to. |
 | `partnerId` | uuid | The payee [Partner](/api-reference/partners). |
 | `invoiceId` | uuid \| null | The Invoice the order pays. `null` for a manual order, or when the Invoice was deleted. |
-| `currency` | string | ISO 4217 code, the batch's currency. |
+| `currency` | string | ISO 4217 code of the order. An order that pays an Invoice is in the Invoice's currency. |
 | `amount` | integer | Amount to pay, greater than zero. |
 | `memo` | string \| null | Glosa: the message that travels with the transfer. |
 | `payee` | object | `{ name, country, taxId, bankDetails }` of the payee. `bankDetails` is the Partner's [Bank Details](/api-reference/partners#bank-details), or `null` when it has none. |
@@ -114,7 +116,7 @@ Create an empty Draft.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying with the same id is answered `409` with `PAYMENT_BATCH_ALREADY_EXISTS_ERROR`, so a retry never creates a second batch. |
-| `bankAccountId` | uuid | Yes | The paying Bank Account. The batch takes its currency. |
+| `bankAccountId` | uuid | Yes | The paying Bank Account. |
 | `paymentDate` | string (`YYYY-MM-DD`) | Yes | The date the payments are to be made. |
 
 **Response** (`201`): the Payment Batch object, with no orders.
@@ -139,7 +141,7 @@ Change the paying Bank Account or the payment date of a Draft.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `bankAccountId` | uuid | No | The new paying Bank Account. An account in another currency fits only a batch with no orders; otherwise the request is refused with `409` and `PAYMENT_BATCH_CURRENCY_MISMATCH_ERROR`. |
+| `bankAccountId` | uuid | No | The new paying Bank Account. It can be in any currency; the orders keep theirs. |
 | `paymentDate` | string (`YYYY-MM-DD`) | No | The new payment date. |
 
 **Response:** the Payment Batch object.
@@ -152,7 +154,7 @@ Delete a Draft and its orders. A Ready batch can't be deleted.
 
 ## POST `/payment-batches/:paymentBatchId/invoice-payment-orders`
 
-Add purchase invoices to a Draft. Each invoice becomes an order for its current [Amount to Plan](#amount-to-plan), paid to the Invoice's Partner.
+Add purchase invoices to a Draft. Each invoice becomes an order for its current [Amount to Plan](#amount-to-plan), in the Invoice's currency, paid to the Invoice's Partner. Invoices in any currency can join the same batch.
 
 **Body**
 
@@ -163,7 +165,6 @@ Add purchase invoices to a Draft. Each invoice becomes an order for its current 
 Each invoice must be a Payable to Plan of the batch:
 
 - A `payable` Invoice of kind `invoice`. A credit note or a receivable is refused with `PAYMENT_ORDER_INVOICES_NOT_PAYABLE_ERROR`.
-- In the batch's currency. Otherwise `PAYMENT_ORDER_INVOICES_CURRENCY_MISMATCH_ERROR`, with the batch's `currency`.
 - With an Amount to Plan above zero. Otherwise `PAYMENT_ORDER_INVOICES_NOTHING_TO_PLAN_ERROR`.
 
 Each of these errors answers `409` and lists every offending invoice in `params.invoiceIds`, so you can fix them all in one pass. Nothing is added when any invoice is refused.
@@ -192,7 +193,8 @@ Add a manual order, with no Invoice, to a Draft. Use it for a payment that no do
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id of the order. Retrying with the same id is answered `409` with `PAYMENT_ORDER_ALREADY_EXISTS_ERROR`. |
 | `partnerId` | uuid | Yes | The payee. A Merged Partner is refused with `409` and `PARTNER_MERGED_ERROR`. |
-| `amount` | integer | Yes | Greater than zero, in the batch's currency. |
+| `currency` | string | Yes | ISO 4217 code of the payment. An unknown code is refused with `400` and `UNKNOWN_CURRENCY_ERROR`. |
+| `amount` | integer | Yes | Greater than zero, in minor units of `currency`. |
 | `memo` | string \| null | No | Glosa for the transfer. Trimmed; a blank memo is refused. |
 
 **Response** (`201`): the Payment Batch object.
@@ -228,7 +230,7 @@ Mark a Draft Ready. No body. The batch must be complete:
 
 Each answers `409`. Fix the Partners and try again.
 
-Once Ready, the batch keeps its Bank Account, currency, and payment date, takes no new order, and its orders keep their amount.
+Once Ready, the batch keeps its Bank Account and payment date, takes no new order, and its orders keep their amount.
 
 **Response** (`200`): the Payment Batch object, with `readyAt` and `readyBy` set.
 
@@ -236,10 +238,12 @@ Once Ready, the batch keeps its Bank Account, currency, and payment date, takes 
 
 In the app, a Ready batch has a **Descargar** menu with two options. The browser builds each file from the batch, so the API has no download route.
 
-- **Nómina BCI · transferencias nacionales**: BCI's bulk transfer file (Pago a Proveedores), in `.xlsx`, ready to upload to BCI's portal. It needs a batch in `CLP` and a paying Bank Account with an `accountNumber`. When either is missing, the option is disabled and says why.
-- **Excel de movimientos**: a spreadsheet of every order.
+- **Nómina BCI · transferencias nacionales**: BCI's bulk transfer file (Pago a Proveedores), in `.xlsx`, ready to upload to BCI's portal. It carries only the orders in `CLP`. When the batch also has orders in other currencies, the option says how many are left out, for example *1 pago en otra moneda queda fuera*. It needs a paying Bank Account in `CLP` with an `accountNumber`, and at least one order in `CLP`. When any of these is missing, the option is disabled and says why.
+- **Excel de movimientos**: a spreadsheet of every order, in every currency.
 
-Each order fills one row of the BCI file:
+Pay the orders the BCI file leaves out through another channel, such as your bank's portal.
+
+Each order in `CLP` fills one row of the BCI file:
 
 | BCI column | Value |
 | --- | --- |
@@ -263,6 +267,6 @@ The file reads each payee's Bank Details when you download it. If you change a P
 | --- | --- |
 | `200` | Success on `GET`, `PATCH`, `DELETE`, and `POST /mark-ready`. |
 | `201` | Payment Batch created, or orders added. |
-| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `400` | Validation error, an unknown currency on a manual order (`UNKNOWN_CURRENCY_ERROR`), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity, Payment Batch (`PAYMENT_BATCH_NOT_FOUND_ERROR`), Payment Order (`PAYMENT_ORDER_NOT_FOUND_ERROR`), Bank Account, Partner, or Invoice not found. |
-| `409` | The batch is Ready (`PAYMENT_BATCH_READY_ERROR`), an id already exists, a currency doesn't match, an invoice isn't a Payable to Plan, the batch isn't complete for Ready, the Partner is merged, or the orders of one invoice would add up past 2^53 − 1 minor units (`PAYMENT_ORDER_INVOICE_PLAN_TOO_LARGE_ERROR`). |
+| `409` | The batch is Ready (`PAYMENT_BATCH_READY_ERROR`), an id already exists, an invoice isn't a Payable to Plan, the batch isn't complete for Ready, the Partner is merged, or the orders of one invoice would add up past 2^53 − 1 minor units (`PAYMENT_ORDER_INVOICE_PLAN_TOO_LARGE_ERROR`). |
