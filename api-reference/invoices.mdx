@@ -14,10 +14,10 @@ Invoices carry two derived, read-only status values on the listing rows:
 
 | Field | Values | Meaning |
 | --- | --- | --- |
-| Booking status | `unbooked`, `booked` | Derived from `controlLineId`: an Invoice is `booked` when a Ledger Entry backs it, `unbooked` otherwise. |
+| Booking status | `unbooked`, `booked`, `excluded` | An Invoice is `booked` when a Ledger Entry backs it (`controlLineId` is set), `excluded` when someone [excluded it from the books](#exclude-an-invoice-from-the-books), and `unbooked` otherwise. Only an `unbooked` Invoice is pending work. |
 | `paymentStatus` | `paid`, `partial`, `unpaid`, `null` | Derived from the open amount of the Control Line (ADR 0018) in the Entity's functional currency. `null` means the Invoice is not booked and settles nothing yet. |
 
-The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, and `booked`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `notPaid` is the filter a payment run works from.
+The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, `booked`, and `excluded`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `all` lists every document still headed for the books and leaves excluded ones out; only `excluded` lists them. `notPaid` is the filter a payment run works from.
 
 Amounts are integers in the minor units of their currency (`1190000` is CLP 1,190,000; `125050` is USD 1,250.50). Dates are `YYYY-MM-DD` strings, tax periods are `YYYY-MM`, and timestamps are ISO 8601.
 
@@ -116,6 +116,8 @@ List every Invoice for the Entity, filtered by direction and document kind. Pass
 | `controlLineId` | uuid or null | The Ledger Entry Line that carries the receivable or payable. Null means the Invoice is not booked. |
 | `controlAccountId` | uuid or null | The Ledger Account the control line sits on. Null exactly when `controlLineId` is null. |
 | `followUp` | object or null | The [Follow-up](/api-reference/follow-ups) on this Invoice, which marks its pending work. Null when there is none. |
+| `excludedAt` | timestamp or null | When the Invoice was [excluded from the books](#exclude-an-invoice-from-the-books). Null when it isn't excluded. |
+| `exclusionReason` | string or null | Why it was excluded. Null exactly when `excludedAt` is null. |
 | `createdAt` | timestamp | Creation time. |
 | `updatedAt` | timestamp | Last update time. |
 
@@ -149,12 +151,13 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `direction` | string | No | `receivable` or `payable`. Omit to page over both. |
 | `cursor` | uuid | No | The `nextCursor` returned by the previous page. Omit for the first page. |
 | `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
-| `statusFilter` | string | No | `all`, `notPaid`, `paid`, `unbooked`, or `booked`. Default `all`. |
+| `statusFilter` | string | No | `all`, `notPaid`, `paid`, `unbooked`, `booked`, or `excluded`. Default `all`, which leaves excluded documents out. |
 | `dteType` | string | No | Keep only documents whose DTE has this type code (`33`, `61`, ...). Repeat the parameter to allow several codes. Use `none` for documents with no DTE. |
 | `sourceId` | string | No | A Source id, or `none` for documents that came from no Source. Also scopes the totals in the response. |
 | `partnerId` | uuid | No | Keep only documents of this Partner. |
 | `currency` | string | No | ISO 4217 code. |
 | `paymentStatus` | string | No | `paid`, `partial`, or `unpaid`. |
+| `standing` | string | No | `accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, or `observed` keeps documents whose DTE the SII holds in that [Standing](/api-reference/source-feeds#standing-and-tax-period). `incompatible` keeps the booked documents with an [Incompatible Standing](/api-reference/source-feeds#incompatible-standing). |
 | `followUpKind` | string | No | `proposal`, `question`, `waiting`, or `none`. Filters by the kind of the document's [Follow-up](/api-reference/follow-ups). `none` keeps documents with no Follow-up. |
 | `issueDateFrom` | string | No | `YYYY-MM-DD`, inclusive. |
 | `issueDateTo` | string | No | `YYYY-MM-DD`, inclusive. |
@@ -177,8 +180,8 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `invoices` | array | The Invoice rows on this page (see below). |
 | `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page. |
 | `totalCount` | integer | Documents in scope: the direction and Source requested, ignoring every other filter. |
-| `unbookedCount` | integer | How many of those are not yet booked. |
-| `outstandingTotal` | integer | Sum of the unbooked documents' totals, in the Entity's functional currency. |
+| `unbookedCount` | integer | How many of those are not yet booked. Excluded documents don't count. |
+| `outstandingTotal` | integer | Sum of the unbooked documents' totals, in the Entity's functional currency. Excluded documents don't count. |
 
 Each element of `invoices` is an **Invoice row**: every field of the Invoice object above, plus:
 
@@ -202,7 +205,7 @@ The type of `group.value` depends on `group.by`:
 | `partner` | string (Partner name) |
 | `currency` | string |
 | `dteType` | string or null |
-| `bookingStatus` | `unbooked` or `booked` |
+| `bookingStatus` | `unbooked`, `booked`, or `excluded` |
 | `paymentStatus` | `paid`, `partial`, `unpaid`, or null |
 | `issueMonth` | `YYYY-MM` |
 | `dueMonth` | `YYYY-MM` or null |
@@ -419,6 +422,8 @@ Partial update.
 | `metadata` | array | No | Replaces the whole list. Same limits as on create. |
 | `sourceId` | uuid or null | No | Editable whether or not the Invoice is booked. |
 
+While a [Payment Order](/api-reference/payment-batches) names the Invoice, a change to `partnerId` or `currency` is refused with `409` and `INVOICE_PAYMENT_ORDERS_PIN_ERROR`. Remove the orders first.
+
 **Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 
 ## DELETE `/invoices/:invoiceId`
@@ -568,6 +573,7 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | Code | Status | Meaning |
 | --- | --- | --- |
 | `INVOICE_BOOKING_CHANGED_ERROR` | `409` | The Invoice or its DTE was edited, replaced, or removed since the `expectedBookingVersion` you sent was read. No Ledger Entry was written. The response carries `params: { invoiceId }`. Re-read the Invoice detail to check whether the change still makes the booking correct, then retry with the new `bookingVersion`. |
+| `INVOICE_EXCLUDED_ERROR` | `409` | The Invoice is [excluded from the books](#exclude-an-invoice-from-the-books). Include it first. The bulk `POST /invoices/book` refuses an excluded element the same way. The response carries `params: { invoiceId }`. |
 
 ### Detecting concurrent changes with `expectedBookingVersion`
 
@@ -579,6 +585,55 @@ Send `expectedBookingVersion` when the booking decision is derived from state yo
 4. On `409 INVOICE_BOOKING_CHANGED_ERROR`, re-read the Invoice and decide whether to rebuild the entry.
 
 The check runs after the server acquires the Invoice lock, so a booking that races a concurrent DTE edit either sees the edit and refuses, or wins the lock and books the pre-edit state without either write being lost. Omit the field when no earlier read exists and any current state is acceptable.
+
+## Exclude an invoice from the books
+
+Some documents land but should never be booked: for example, an annulled boleta or a factura you claimed at the SII. Deleting one doesn't help, because the next [Source Feed](/api-reference/source-feeds) sync lands it again. Exclude it instead. An **Exclusion** records, with a reason, that the Invoice will never be booked. It takes the Invoice out of the pending work, and you can lift it at any time.
+
+An excluded Invoice:
+
+- Is left out of every listing with no status filter, of `unbookedCount` and `outstandingTotal`, of the home dashboard's `salesToBook` and `purchasesToBook`, and of match candidates. Only `statusFilter=excluded` lists it. The app crosses those rows out.
+- Can't be booked, single or bulk, and can't hold a [Follow-up](/api-reference/follow-ups). Excluding the Invoice clears its Follow-up.
+- Owes nothing to plan in a [Payment Batch](/api-reference/payment-batches).
+- Stays landed. A sync skips it, but still writes the Standing and Tax Period of its DTE.
+
+A booked Invoice can't be excluded: unbook it first. Anyone who can book an Invoice can exclude or include it. A `viewer` is refused with `403`. Each Exclusion and Inclusion appears in the Invoice's [audit trail](/api-reference/audit-trail).
+
+### PUT `/invoices/:invoiceId/exclusion`
+
+Exclude an unbooked Invoice from the books.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `reason` | string | Yes | Why the Invoice will never be booked. Trimmed, non-empty, up to 1,000 characters. |
+
+**Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`, with `excludedAt` and `exclusionReason` set.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/exclusion" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "Boleta anulada en el SII." }'
+```
+
+### DELETE `/invoices/:invoiceId/exclusion`
+
+Include an excluded Invoice in the books again. It goes back to `unbooked`.
+
+**Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`, with `excludedAt` and `exclusionReason` null.
+
+### Exclusion errors
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `INVOICE_ALREADY_BOOKED_ERROR` | `409` | The Invoice is booked. Unbook it before you exclude it. |
+| `INVOICE_EXCLUDED_ERROR` | `409` | The Invoice is already excluded. |
+| `INVOICE_NOT_EXCLUDED_ERROR` | `409` | The Invoice isn't excluded, so there's nothing to include. |
+
+A blank `reason`, or one longer than 1,000 characters, is refused with `400`.
 
 ## POST `/invoices/:invoiceId/comments`
 
@@ -626,5 +681,6 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOIC
 | `200` | Success on `GET`, `PATCH`, `PUT`, `DELETE`, `POST /book`. `DELETE` answers with the deleted row. |
 | `201` | Invoice or Comment created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `403` | The caller's Role can't write, for example a `viewer` excluding an Invoice. |
 | `404` | Entity or Invoice not found. |
-| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), booking refused because the Invoice or DTE changed since the read (`INVOICE_BOOKING_CHANGED_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
+| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), booking refused because the Invoice or DTE changed since the read (`INVOICE_BOOKING_CHANGED_ERROR`), the Invoice is excluded (`INVOICE_EXCLUDED_ERROR`) or not excluded (`INVOICE_NOT_EXCLUDED_ERROR`), a Payment Order pins its Partner and currency (`INVOICE_PAYMENT_ORDERS_PIN_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |

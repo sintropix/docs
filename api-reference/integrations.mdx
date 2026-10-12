@@ -12,7 +12,8 @@ What an Integration can feed depends on its kind:
 
 | Kind | Feeds |
 | --- | --- |
-| `bsale`, `wasabil`, `sii_mirror` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) |
+| `sii_mirror` | Up to two [Sources](/api-reference/sources), through [Source Feeds](/api-reference/source-feeds): one for DTEs (`dte`) and one for boletas de honorarios (`honorarium`) |
+| `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
 | `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `mercadolibre`, `gmail`, `resend` | Nothing yet |
 
@@ -52,7 +53,8 @@ The access token is stored encrypted and is never returned on any read.
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
 | `mode` | `test` \| `live` \| null | Whether a `fintoc` or `plaid` Integration runs against the Provider's test or live environment. `null` for every other kind. |
-| `sourceFeed` | Source Feed object \| null | The Source Feed that reads through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). `null` when the Integration feeds no Source. |
+| `feedableFamilies` | array | The [Document Families](/api-reference/source-feeds#document-families) this Integration's provider can feed: `["dte", "honorarium"]` for `sii_mirror`, `["dte"]` for `bsale` and `wasabil`. Empty for every kind that feeds no documents. |
+| `sourceFeeds` | array | The Source Feeds that read through this Integration, at most one per family, in the shape documented on [Source Feeds](/api-reference/source-feeds). Empty when the Integration feeds no Source. |
 | `fedBankAccounts` | array | `{ id, name }` of each Bank Account this Integration feeds, in name order. Empty when it feeds none. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
@@ -85,7 +87,7 @@ For `sii_mirror`, Sintropix verifies at connect time that the Entity's country i
 
 Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
 
-- **Response** (`201`): the Integration object (its `sourceFeed` is `null` and its `fedBankAccounts` is empty on creation).
+- **Response** (`201`): the Integration object (its `sourceFeeds` and `fedBankAccounts` are empty on creation).
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
@@ -109,7 +111,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   "institutionName": null,
   "holderId": null,
   "mode": null,
-  "sourceFeed": null,
+  "feedableFamilies": ["dte"],
+  "sourceFeeds": [],
   "fedBankAccounts": [],
   "createdAt": "2025-01-02T12:00:00.000Z",
   "updatedAt": "2025-01-02T12:00:00.000Z"

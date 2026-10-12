@@ -1,10 +1,10 @@
 ---
-title: "Sintropix Reference Data API: Countries and Currencies Catalog"
+title: "Sintropix Reference Data API: Countries, Currencies, and Banks Catalog"
 sidebarTitle: "Reference Data"
-description: "Read the Country and Currency catalogs used across Sintropix for Entity setup, Partner tax ids, Bank Account currencies, and FX rate lookups."
+description: "Read the Country, Currency, and Bank catalogs used across Sintropix for Entity setup, Partner tax ids and Bank Details, Bank Account currencies, and FX rate lookups."
 ---
 
-The Reference Data API exposes the static catalogs Sintropix uses across every Entity: the list of supported Countries and the list of supported Currencies. These are shared, Entity-independent lookups; use them to render pickers and to validate codes before writes.
+The Reference Data API exposes the static catalogs Sintropix uses across every Entity: the list of supported Countries, the list of supported Currencies, and the list of Chilean Banks. These are shared, Entity-independent lookups; use them to render pickers and to validate codes before writes.
 
 ## GET `/countries`
 
@@ -50,6 +50,30 @@ curl "https://api.sintropix.com/api/currencies" \
 [
   { "code": "CLP", "decimalPlaces": 0, "name": "Chilean Peso" },
   { "code": "USD", "decimalPlaces": 2, "name": "US Dollar" }
+]
+```
+
+## GET `/banks`
+
+Return every Chilean Bank a Partner's [Bank Details](/api-reference/partners#bank-details) can name. No query parameters.
+
+**Response** `200`: an array of Bank objects.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `code` | string | The bank's three-digit code from the CMF (Comisión para el Mercado Financiero), for example `016`. This is the value Bank Details accept as `bankCode`. |
+| `name` | string | Display name of the bank. |
+
+```bash
+curl "https://api.sintropix.com/api/banks" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+[
+  { "code": "001", "name": "Banco de Chile" },
+  { "code": "016", "name": "Banco de Crédito e Inversiones" },
+  { "code": "672", "name": "Coopeuch" }
 ]
 ```
 

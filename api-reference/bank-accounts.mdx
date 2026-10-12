@@ -64,6 +64,7 @@ Each Bank Account in the list carries:
 | `kind` | `bank` \| `card` | Account kind |
 | `ledgerAccountId` | UUID | Mapped Ledger Account |
 | `currency` | string | ISO 4217 currency code |
+| `accountNumber` | string \| null | The number the bank knows the account by. `null` when not set. A [Payment Batch](/api-reference/payment-batches) needs it to download the BCI bank file. |
 | `feed` | object \| null | Active feed, if any (see below) |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
@@ -130,6 +131,7 @@ Creates a new Bank Account.
 | `kind` | `bank` \| `card` | Yes | Account kind |
 | `ledgerAccountId` | UUID | Yes | Ledger Account to map; type must match kind |
 | `currency` | string | Yes | ISO 4217 currency code |
+| `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. Omit or send `null` to leave it unset. |
 
 ### Response
 
@@ -167,13 +169,14 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
 PATCH /api/entities/:entityId/bank-accounts/:bankAccountId
 ```
 
-Updates the name of an existing Bank Account. Only `name` is editable through this endpoint.
+Updates the name and the account number of an existing Bank Account. Only `name` and `accountNumber` are editable through this endpoint.
 
 ### Body parameters
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | Yes | New display name (non-empty) |
+| `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. `null` clears it. Omit to keep the current number. |
 
 ### Response
 
