@@ -84,6 +84,60 @@ Erwin never changes or books again an Invoice that was already in Sintropix, and
   Erwin loads the invoices as Ontop issues them. The Chilean tax treatment of these payments, such as Impuesto Adicional or a factura de compra, is out of scope.
 </Note>
 
+## Expense renditions
+
+A **rendition** (rendición) is an expense that a person paid with their own money for the company, which the company pays back. Sintropix records each rendition as a `payable` Invoice whose Partner is the person who paid, never the merchant. Erwin loads renditions from [Rindegastos](https://www.rindegastos.com) and books them, together with the renditions that people report to him in Slack.
+
+### Load Rindegastos
+
+Ask Erwin in a Slack channel bound to the Entity's Organization through an [Agent Channel](/api-reference/agent-channels), for example *"carga Rindegastos"*. Before the first load:
+
+- Add a login Credential for Rindegastos to the Entity in **Integraciones**. Erwin only reads Rindegastos. He never approves, rejects, closes, or edits anything there.
+- If a person's name in Rindegastos differs from the name of their Partner, note the pair on the Rindegastos page of Erwin's [wiki](/core-concepts).
+
+The Rindegastos company must keep its accounts in the Entity's functional currency. If it doesn't, Erwin stops.
+
+Each load reads every report, because a report can close months after it was sent. Erwin loads each **approved** expense of a **closed** report that isn't in Sintropix yet. He skips rejected expenses and the expenses of reports still in process.
+
+For each new expense, Erwin creates one Invoice and attaches its receipt:
+
+| Field | Value |
+| --- | --- |
+| `partnerId` | The person who reported the expense, found by RUT, then by the wiki, then by name. Erwin creates the Partner when none fits, and asks when two fit. |
+| `sourceId` | The [Source](/api-reference/sources) named `Rindegastos`. Erwin creates it on the first load if the Entity has none. |
+| `direction`, `documentKind` | `payable`, `invoice` |
+| `documentNumber` | `RG-<expense id>`, the key that keeps a load from adding an expense twice |
+| `currency`, `total` | The currency the person paid in, and the amount in that currency |
+| `issueDate` | The date of the expense |
+| `memo` | `Informe <folio> · <report title> · <merchant>` |
+| `metadata` | In this order, when Rindegastos shows them: `Informe`, `Título informe`, `ID informe`, `ID gasto`, `Comercio`, `Categoría`, `Cuenta contable Rindegastos`, `Nota`, `Nota informe`, `Total <currency>` and `Tasa de cambio` for an expense in another currency, `Reembolsable: No`, `Fondo`, `Tipo de documento (OCR)`, `RUT comercio (OCR)`, `Folio (OCR)`, then each custom field of the expense, and each custom field of the report as `<name> (informe)`. A value longer than 500 characters is split into numbered labels, such as `Nota (1)` and `Nota (2)`. |
+
+A load books nothing. An expense without a receipt, or whose receipt fails to download, is still loaded, and Erwin reports it. `Cuenta contable Rindegastos` is information only: it doesn't follow your chart of accounts, so Erwin never books to it. Erwin also ignores the **Pagado** status of Rindegastos, because Sintropix learns what's paid from the bank.
+
+Erwin never changes or deletes an Invoice that's already in Sintropix. If Rindegastos changes an expense after it was loaded, so that it's no longer approved, its report reopens, or its currency or amount changes, Erwin leaves a `question` [Follow-up](/api-reference/follow-ups) on the Invoice that states what changed.
+
+He reports the Invoices he created by report with their totals, the receipts that are missing or failed, the Partners he created, and each Follow-up he left.
+
+### Book renditions
+
+Ask Erwin, for example *"contabiliza las rendiciones"*. He books each unbooked Invoice of the `Rindegastos` Source, and each rendition reported to him in Slack. He skips an Invoice that has a `question` Follow-up until a person answers it.
+
+The Entity needs a control account for renditions, such as *Rendiciones por pagar*. If it has none, Erwin stops and asks. Each entry is dated on the Invoice's issue date, and its Control Line credits that account with the person as Partner. The debit depends on the expense's document:
+
+| Document | Debit | Why |
+| --- | --- | --- |
+| A boleta, or no document | The expense account | The expense is only in the rendition. |
+| A factura issued to the company | The supplier's payable account, with the supplier as Partner | The expense is already in the supplier's factura, which comes from the SII. The person paid that factura for the company, so debiting an expense account would book it twice. |
+
+- **Expense account.** Erwin uses the account the wiki gives for the expense's category. Otherwise, he uses the one expense account that clearly fits. When none clearly fits, he leaves the Invoice unbooked with a `question` Follow-up that offers one option per account that fits.
+- **Factura.** Erwin reads the receipt to tell a factura from a boleta. A factura of a supplier with the same RUT and total, within 10 days of the expense, also confirms it. He finds the supplier by the RUT on the receipt, and creates its Partner when there is none. When the receipt shows no RUT, he leaves a `question` Follow-up that asks for the supplier. He never creates the supplier's factura from a receipt.
+- **Other currency.** For an Invoice in another currency, Erwin uses the `Tasa de cambio` and `Total <currency>` from its metadata. Without them, he uses the [FX rate](/api-reference/fx-rates) for the issue date, or for the last earlier date with a rate.
+- **Not reimbursable, or a fund.** When the expense is marked `Reembolsable: No` or spends a `Fondo`, Erwin leaves it unbooked with a `question` Follow-up that asks how to book it.
+
+The debit to a supplier's payable is an advance until the supplier's factura is booked. On each run, Erwin [matches](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match) each open advance to the Control Line of a booked factura of the same supplier, with the same total, within 10 days of the expense. When two facturas fit, he matches neither and reports both. When the amounts differ, the smaller one settles and the rest stays open. He reports each advance still without a factura 30 days after the expense.
+
+Erwin never changes or books again an Invoice that was already booked. He reports how many renditions he booked to an expense account and how many against a factura, the advances he matched and any rest that stayed open, the advances without a factura after 30 days, and each Follow-up he left.
+
 ## GET `/invoices`
 
 List every Invoice for the Entity, filtered by direction and document kind. Pass `ids` instead to read the full detail of up to 100 specific Invoices in one request.
