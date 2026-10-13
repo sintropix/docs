@@ -1,0 +1,157 @@
+---
+title: "Inbox API: Read the Email an Organization Receives"
+sidebarTitle: "Inbox"
+description: "Staff-only endpoints to create an Organization's Inbox, list its Conversations, and read each Conversation's Emails and attachments."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+The Inbox is the email address Sintropix gives an Organization: `<name>@customers.sintropix.com`. The Organization's clients forward their invoices and other documents to it, and staff read them in Sintropix. An Organization has at most one Inbox. You reach it through any of the Organization's Entities: every Entity of the Organization shows the same Inbox.
+
+- A **Conversation** is a chain of Emails on one subject, like a thread in an email client.
+- An **Email** is one message in a Conversation, received by the Inbox or sent from it.
+
+Sintropix does not store the email or turn it into documents. Every read fetches it live. You can't send or reply to email through the API.
+
+<Warning>
+  Staff-only. Every route below requires the `staff` Role in the Entity's Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key confined to one Entity can read the Inbox but can't create it. See [Access and roles](/api-reference/overview#access-and-roles).
+</Warning>
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/inbox"
+  note="Shown as Email in the sidebar. Add ?open={conversationId} to open a Conversation in its side panel."
+/>
+
+## POST `/inbox`
+
+Create the Organization's Inbox. The address is `<name>@customers.sintropix.com`. Choose the name carefully: you can't change it later.
+
+**Body.** Unknown keys are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | The part of the address before `@`. Up to 64 characters: lowercase letters and digits, in groups joined by a single `.` or `-` (for example, `acme` or `acme-compras`). |
+
+- An Organization that already has an Inbox is refused with `409` (`INBOX_ALREADY_EXISTS_ERROR`).
+- An address that is already in use is refused with `409` (`INBOX_ADDRESS_TAKEN_ERROR`). The error's `params.address` names it. Choose another name.
+- An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR`.
+
+**Response** `201`: `{ "address": "acme@customers.sintropix.com" }`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Inbox for Acme to forward its supplier invoices" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "acme" }'
+```
+
+## GET `/inbox/conversations`
+
+List the Conversations the Inbox received, newest first, 50 per page.
+
+**Query**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `after` | uuid | No | The `nextCursor` of the previous page. Omit it for the first page. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `inbox` | object \| null | `{ address }` of the Organization's Inbox. `null` when the Organization has no Inbox yet, and `conversations` is then empty. |
+| `conversations` | array | The Conversations on this page, newest first. See below. |
+| `nextCursor` | string \| null | Pass it back as `after` to read the next, older page. `null` on the last page. |
+
+Each element of `conversations`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Conversation id. Use it with `GET /inbox/conversations/:conversationId`. |
+| `subject` | string \| null | Subject line. |
+| `from` | string \| null | Sender. |
+| `to` | string[] | Recipients. |
+| `emailCount` | integer | Number of Emails in the Conversation, at least 1. |
+| `hasAttachment` | boolean | Whether any Email in the Conversation has an attachment. |
+| `read` | boolean | Whether the Conversation has been read. |
+| `lastActivityAt` | ISO 8601 timestamp | When the Conversation last received an Email. |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox/conversations" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "inbox": { "address": "acme@customers.sintropix.com" },
+  "conversations": [
+    {
+      "id": "4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b",
+      "subject": "Factura 45210",
+      "from": "facturacion@proveedor.cl",
+      "to": ["acme@customers.sintropix.com"],
+      "emailCount": 1,
+      "hasAttachment": true,
+      "read": false,
+      "lastActivityAt": "2026-10-12T13:05:41.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+## GET `/inbox/conversations/:conversationId`
+
+Read one Conversation with every Email in it, oldest first. `conversationId` must be a UUID. A Conversation that is not in the Organization's Inbox answers `404` (`CONVERSATION_NOT_FOUND_ERROR`), the same as an id that does not exist or an Organization with no Inbox.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Conversation id. |
+| `subject` | string \| null | Subject line. |
+| `emails` | array | The Conversation's Emails, oldest first. See below. |
+
+Each element of `emails`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Email id. |
+| `direction` | `inbound` \| `outbound` | `inbound` for an Email the Inbox received, `outbound` for one it sent. |
+| `from` | string | Sender. |
+| `to` | string[] | To recipients. |
+| `cc` | string[] | Cc recipients. |
+| `subject` | string \| null | Subject line. |
+| `text` | string \| null | Plain-text body. |
+| `html` | string \| null | HTML body. Render it in a sandbox: it can load remote images. |
+| `sentAt` | ISO 8601 timestamp | When the Email was sent or received. |
+| `attachments` | array | `{ id, filename, size, downloadUrl }` for each attachment. `filename` can be `null`; `size` is in bytes. `downloadUrl` is set only on the attachments of an `inbound` Email, and is `null` otherwise. It expires shortly after the read, so read the Conversation again to get a fresh link. |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox/conversations/$CONVERSATION_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Domain error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `PERMISSION_DENIED_ERROR` | `403` | The caller is not `staff` in the Entity's Organization, or creates the Inbox with an API key confined to one Entity. |
+| `CONVERSATION_NOT_FOUND_ERROR` | `404` | No Conversation with this id is in the Organization's Inbox, or the Organization has no Inbox. |
+| `INBOX_ALREADY_EXISTS_ERROR` | `409` | The Organization already has an Inbox. |
+| `INBOX_ADDRESS_TAKEN_ERROR` | `409` | The address in `params.address` is already in use. Choose another name. |
+| `INBOX_UNAVAILABLE_ERROR` | `503` | The email can't be created or read right now. Retry later. |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`. |
+| `201` | Inbox created. |
+| `400` | Validation error: an invalid `name`, an unknown body key, an `after` or `conversationId` that is not a UUID, or a missing `x-audit-actor` or `x-audit-reason` on a key-authenticated create. |
+| `403` | The caller can't use the Inbox, or can't create it (`PERMISSION_DENIED_ERROR`). |
+| `404` | Entity or Conversation (`CONVERSATION_NOT_FOUND_ERROR`) not found. |
+| `409` | The Organization already has an Inbox (`INBOX_ALREADY_EXISTS_ERROR`), or the address is in use (`INBOX_ADDRESS_TAKEN_ERROR`). |
+| `503` | The email can't be created or read right now (`INBOX_UNAVAILABLE_ERROR`). Retry later. |
