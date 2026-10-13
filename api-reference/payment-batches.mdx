@@ -10,6 +10,8 @@ A Payment Batch (**Nómina** in the app) is a set of payments an Entity sends to
 
 Each Payment Order states its own currency. An order that pays an Invoice is in the Invoice's currency. A manual order is in the currency you choose. One batch can mix currencies, so it totals each currency apart and converts nothing.
 
+The bank files carry only the orders in `CLP`. You pay an order in another currency at the bank by hand, such as a USD payment to a foreign vendor. It still counts in the batch's totals and appears in the movements spreadsheet. Its payee needs no Chilean RUT and no Bank Details.
+
 A Payment Order records what you intend to pay. It posts nothing to the ledger. The ledger stays the record of what was actually paid: once the bank executes the transfers, book or match the resulting [Bank Movements](/api-reference/bank-movements) as usual. When Erwin reconciles, he reads the Ready batches whose payment date is near a Movement's date to tell who the payment is for and which Invoice it pays. He never matches a Movement that disagrees with the batch, and he ignores Drafts.
 
 Use Payment Batches to prepare a supplier payment run:
@@ -185,7 +187,9 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches/
 
 ## POST `/payment-batches/:paymentBatchId/payment-orders`
 
-Add a manual order, with no Invoice, to a Draft. Use it for a payment that no document backs, such as an advance.
+Add a manual order, with no Invoice, to a Draft. Use it for a payment that no document backs yet, such as an advance, or a payment to a foreign vendor whose invoice comes after the payment.
+
+In the app, **Agregar pago manual** has a **Nuevo contacto** button next to **Beneficiario**. Use it when the payee doesn't exist yet. It creates the Partner as a **Proveedor** and selects it as the payee.
 
 **Body**
 
@@ -220,15 +224,15 @@ Remove an order. This works on a Draft and on a Ready batch, so you can take out
 
 ## POST `/payment-batches/:paymentBatchId/mark-ready`
 
-Mark a Draft Ready. No body. The batch must be complete:
+Mark a Draft Ready. No body. The batch must have at least one order, and every payee of an order in `CLP` needs a Chilean RUT and [Bank Details](/api-reference/partners#bank-details), because the bank file names each payee by them. The payee of an order in another currency needs neither.
 
 | Code | Meaning |
 | --- | --- |
 | `PAYMENT_BATCH_EMPTY_ERROR` | The batch has no orders. |
-| `PAYMENT_BATCH_PAYEES_WITHOUT_RUT_ERROR` | Some payees have no Chilean RUT: their `country` isn't `CL` or their `taxId` is empty. `params.partnerIds` lists them. |
-| `PAYMENT_BATCH_PAYEES_WITHOUT_BANK_DETAILS_ERROR` | Some payees have no [Bank Details](/api-reference/partners#bank-details). `params.partnerIds` lists them. |
+| `PAYMENT_BATCH_PAYEES_WITHOUT_RUT_ERROR` | Some payees of orders in `CLP` have no Chilean RUT: their `country` isn't `CL` or their `taxId` is empty. `params.partnerIds` lists them. |
+| `PAYMENT_BATCH_PAYEES_WITHOUT_BANK_DETAILS_ERROR` | Some payees of orders in `CLP` have no Bank Details. `params.partnerIds` lists them. |
 
-Each answers `409`. Fix the Partners and try again.
+Each answers `409`. Fix the Partners and try again. A Draft can hold a payee that lacks them. In the app, the row of an order in `CLP` flags a missing RUT or missing Bank Details. The row of an order in another currency shows the payee's foreign tax id as is, without a warning.
 
 Once Ready, the batch keeps its Bank Account and payment date, takes no new order, and its orders keep their amount.
 
