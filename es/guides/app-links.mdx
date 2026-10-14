@@ -54,7 +54,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Partida abierta | `/{entityId}/receivables?open={entryId}` o `/{entityId}/payables?open={entryId}` | Pasa el id del asiento que contiene la partida. `/{entityId}/open-items` las muestra todas. |
 | Asignación | `/{entityId}/entries/{entryId}` | Las asignaciones no tienen página. Enlaza el asiento que se está liquidando. |
 | Dimensión | `/{entityId}/settings/dimensions?dimension={dimensionId}` | |
-| Nómina (Payment Batch) | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lista todas las nóminas. |
+| Nómina (Payment Batch) | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lista todas las nóminas. Acepta `search` (busca en el nombre, la etiqueta y la cuenta de pago) y `label` (deja las nóminas con esa etiqueta exacta). |
 | Fuente | `/{entityId}/sources/{sourceId}` | Documentos importados por esa fuente. Las fuentes se configuran en `/{entityId}/settings/sources`. |
 | Feed de fuente | `/{entityId}/settings/sources` | Los feeds se gestionan dentro de los ajustes de su fuente. |
 | Integración | `/{entityId}/settings/integrations?open={integrationId}` | Abre el panel lateral de la integración, con sus detalles, las cuentas bancarias o la fuente que alimenta y sus acciones. Quita `open` para ver la lista de todas las integraciones. Los feeds bancarios también se gestionan aquí. |

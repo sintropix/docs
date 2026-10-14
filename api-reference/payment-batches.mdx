@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Payment Batches API: Plan Supplier Payments"
 sidebarTitle: "Payment Batches"
-description: "Draft a Payment Batch (nómina) from the purchase invoices an Entity still owes, add manual payments, mark it Ready, and download the BCI or Global66 transfer file."
+description: "Draft a Payment Batch (nómina) from the purchase invoices an Entity still owes, name and label it, add manual payments, mark it Ready, and download the BCI or Global66 transfer file."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -17,7 +17,7 @@ A Payment Order records what you intend to pay. It posts nothing to the ledger. 
 Use Payment Batches to prepare a supplier payment run:
 
 1. List the [Payables to Plan](/api-reference/reports#payables-to-plan): the purchase invoices the Entity still owes.
-2. [Create a Draft](#post-payment-batches) with the paying Bank Account and the payment date.
+2. [Create a Draft](#post-payment-batches) with the paying Bank Account and the payment date. Optionally give it a [name and a label](#name-and-label).
 3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos. In the app, **Agregar facturas** lists the payables in every currency and lets you search them by payee, document number, or Amount to Plan.
 4. [Mark it Ready](#post-payment-batches-paymentbatchid-mark-ready). This freezes the batch.
 5. [Download the bank file](#download-the-bank-file) in the app and upload it to your bank's or Global66's portal.
@@ -35,10 +35,24 @@ A batch has two states:
 
 | State | `readyAt` | What you can do |
 | --- | --- | --- |
-| Draft | `null` | Add, edit, and remove orders. Change the paying Bank Account or the payment date. Delete the batch. |
-| Ready | timestamp | Download the bank file. Remove an order the bank rejected. Every other write is refused with `409` and `PAYMENT_BATCH_READY_ERROR`. |
+| Draft | `null` | Add, edit, and remove orders. Change the paying Bank Account, the payment date, the name, or the label. Delete the batch. |
+| Ready | timestamp | Download the bank file. Remove an order the bank rejected. Change the name or the label. Every other write is refused with `409` and `PAYMENT_BATCH_READY_ERROR`. |
 
 A batch starts as a Draft and becomes Ready only through [`POST /mark-ready`](#post-payment-batches-paymentbatchid-mark-ready). A Ready batch never goes back to Draft and can't be deleted.
+
+## Name and label
+
+A batch can carry a **name** and a **label** to tell it apart from the others. Both are optional free text:
+
+- **Name** (**Nombre**): up to 120 characters, such as *Proveedores segunda quincena*. In the app, it's the batch's title. A batch with no name is titled **Nómina del** followed by its payment date.
+- **Label** (**Etiqueta**): up to 60 characters, such as *Proveedores* or *Remuneraciones*. Use it to group batches of the same kind. You choose the labels; Sintropix has no fixed list.
+
+Sintropix trims both. A blank name or label is refused with `400`; send `null` to clear it. Neither is part of the payment: no bank file carries them, and you can change them on a Ready batch.
+
+In the app:
+
+- **Nueva nómina** asks for the name and the label next to the paying account and the payment date. Click the title of a batch to rename it, and click its label, or **Agregar etiqueta**, to change it. While you type a label, the app suggests the labels the Entity already uses, so one label isn't spelled two ways.
+- The **Pagos** list shows each batch's **Nombre** and **Etiqueta**. **Buscar nóminas** matches the name, the label, and the paying Bank Account's name. It ignores case and accents, and every word you type must match. Under **Filtros**, **Etiqueta** keeps only the batches with that exact label.
 
 ## Amount to Plan
 
@@ -67,6 +81,8 @@ Every route on this page except the list returns the batch with its orders.
 | `bankAccountNumber` | string \| null | The paying Bank Account's [`accountNumber`](/api-reference/bank-accounts). `null` when the account has none. |
 | `bankAccountCurrency` | string | ISO 4217 code of the paying Bank Account. The orders can be in other currencies. |
 | `paymentDate` | string (`YYYY-MM-DD`) | The date the payments are to be made. |
+| `name` | string \| null | The batch's [name](#name-and-label). `null` when it has none. |
+| `label` | string \| null | The batch's [label](#name-and-label). `null` when it has none. |
 | `readyAt` | ISO 8601 timestamp \| null | When the batch was marked Ready. `null` for a Draft. |
 | `readyBy` | uuid \| null | The user who marked it Ready. `null` for a Draft. |
 | `createdBy` | uuid | The user who created the batch. |
@@ -120,6 +136,8 @@ Create an empty Draft.
 | `id` | uuid | Yes | Client-generated id. Retrying with the same id is answered `409` with `PAYMENT_BATCH_ALREADY_EXISTS_ERROR`, so a retry never creates a second batch. |
 | `bankAccountId` | uuid | Yes | The paying Bank Account. |
 | `paymentDate` | string (`YYYY-MM-DD`) | Yes | The date the payments are to be made. |
+| `name` | string \| null | No | The batch's [name](#name-and-label). Trimmed, 1 to 120 characters. |
+| `label` | string \| null | No | The batch's [label](#name-and-label). Trimmed, 1 to 60 characters. |
 
 **Response** (`201`): the Payment Batch object, with no orders.
 
@@ -131,22 +149,36 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches"
   -d '{
     "id": "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d",
     "bankAccountId": "0190e000-0000-7000-8000-000000000001",
-    "paymentDate": "2026-10-15"
+    "paymentDate": "2026-10-15",
+    "name": "Proveedores segunda quincena",
+    "label": "Proveedores"
   }'
 ```
 
 ## PATCH `/payment-batches/:paymentBatchId`
 
-Change the paying Bank Account or the payment date of a Draft.
+Change the paying Bank Account or the payment date of a Draft, or the name or the label of any batch.
 
 **Body:** at least one of the fields below.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `bankAccountId` | uuid | No | The new paying Bank Account. It can be in any currency; the orders keep theirs. |
-| `paymentDate` | string (`YYYY-MM-DD`) | No | The new payment date. |
+| `bankAccountId` | uuid | No | The new paying Bank Account. It can be in any currency; the orders keep theirs. Draft only. |
+| `paymentDate` | string (`YYYY-MM-DD`) | No | The new payment date. Draft only. |
+| `name` | string \| null | No | The new [name](#name-and-label). Trimmed, 1 to 120 characters. `null` clears it. |
+| `label` | string \| null | No | The new [label](#name-and-label). Trimmed, 1 to 60 characters. `null` clears it. |
+
+On a Ready batch, a body with `bankAccountId` or `paymentDate` is refused with `409` and `PAYMENT_BATCH_READY_ERROR`, and nothing changes. A body with only `name` or `label` goes through.
 
 **Response:** the Payment Batch object.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches/$PAYMENT_BATCH_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Proveedores octubre", "label": null }'
+```
 
 ## DELETE `/payment-batches/:paymentBatchId`
 
@@ -234,7 +266,7 @@ Mark a Draft Ready. No body. The batch must have at least one order, and every p
 
 Each answers `409`. Fix the Partners and try again. A Draft can hold a payee that lacks them. In the app, the row of an order in `CLP` flags a missing RUT or missing Bank Details. The row of an order in another currency shows the payee's foreign tax id as is, without a warning.
 
-Once Ready, the batch keeps its Bank Account and payment date, takes no new order, and its orders keep their amount.
+Once Ready, the batch keeps its Bank Account and payment date, takes no new order, and its orders keep their amount. Its name and label can still change.
 
 **Response** (`200`): the Payment Batch object, with `readyAt` and `readyBy` set.
 
