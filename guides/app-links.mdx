@@ -91,9 +91,9 @@ List pages accept the same filters the user can set in the UI, so you can link t
 
 | Page | Useful parameters |
 | --- | --- |
-| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source`, `followUpKind` (`proposal`, `question`, `waiting`, `none`), `standing` (`accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, `observed`, `incompatible`) |
+| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, `notExcluded`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source`, `followUpKind` (`proposal`, `question`, `waiting`, `none`), `standing` (`accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, `observed`, `incompatible`) |
 | `/{entityId}/entries` | `search`, `from`, `to`, `status` |
-| `/{entityId}/banks/{bankAccountId}` | `status` (`unbooked`, `booked_pending_allocation`, `reconciled`, `excluded`, `unreconciled`), `followUpKind`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
+| `/{entityId}/banks/{bankAccountId}` | `status` (`unbooked`, `booked_pending_allocation`, `reconciled`, `excluded`, `unreconciled`, `notExcluded`), `followUpKind`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
 | `/{entityId}/banks/movements` | The same as one Bank Account, without `amountMin` and `amountMax`, plus `groupBy` (`bankAccount`, `none`, `partner`, `movementMonth`, `status`) |
 
 ## Example

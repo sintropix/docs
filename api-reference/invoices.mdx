@@ -17,7 +17,7 @@ Invoices carry two derived, read-only status values on the listing rows:
 | Booking status | `unbooked`, `booked`, `excluded` | An Invoice is `booked` when a Ledger Entry backs it (`controlLineId` is set), `excluded` when someone [excluded it from the books](#exclude-an-invoice-from-the-books), and `unbooked` otherwise. Only an `unbooked` Invoice is pending work. |
 | `paymentStatus` | `paid`, `partial`, `unpaid`, `null` | Derived from the open amount of the Control Line (ADR 0018) in the Entity's functional currency. `null` means the Invoice is not booked and settles nothing yet. |
 
-The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, `booked`, and `excluded`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `all` lists every document still headed for the books and leaves excluded ones out; only `excluded` lists them. `notPaid` is the filter a payment run works from.
+The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, and `notExcluded`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `all` lists every document, excluded ones included. `notExcluded` lists every document still headed for the books, and `excluded` lists only the excluded ones. `notPaid` is the filter a payment run works from.
 
 Amounts are integers in the minor units of their currency (`1190000` is CLP 1,190,000; `125050` is USD 1,250.50). Dates are `YYYY-MM-DD` strings, tax periods are `YYYY-MM`, and timestamps are ISO 8601.
 
@@ -205,7 +205,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `direction` | string | No | `receivable` or `payable`. Omit to page over both. |
 | `cursor` | uuid | No | The `nextCursor` returned by the previous page. Omit for the first page. |
 | `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
-| `statusFilter` | string | No | `all`, `notPaid`, `paid`, `unbooked`, `booked`, or `excluded`. Default `all`, which leaves excluded documents out. |
+| `statusFilter` | string | No | `all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, or `notExcluded`. Default `all`, which lists excluded documents too. `notExcluded` leaves them out. |
 | `dteType` | string | No | Keep only documents whose DTE has this type code (`33`, `61`, ...). Repeat the parameter to allow several codes. Use `none` for documents with no DTE. |
 | `sourceId` | string | No | A Source id, or `none` for documents that came from no Source. Also scopes the totals in the response. |
 | `partnerId` | uuid | No | Keep only documents of this Partner. |
@@ -646,7 +646,7 @@ Some documents land but should never be booked: for example, an annulled boleta 
 
 An excluded Invoice:
 
-- Is left out of every listing with no status filter, of `unbookedCount` and `outstandingTotal`, of the home dashboard's `salesToBook` and `purchasesToBook`, and of match candidates. Only `statusFilter=excluded` lists it. The app crosses those rows out.
+- Is still listed by `statusFilter=all`, the default, and the app crosses those rows out. It's left out of `statusFilter=notExcluded` and `statusFilter=unbooked`, of `unbookedCount` and `outstandingTotal`, of the home dashboard's `salesToBook` and `purchasesToBook`, and of match candidates.
 - Can't be booked, single or bulk, and can't hold a [Follow-up](/api-reference/follow-ups). Excluding the Invoice clears its Follow-up.
 - Owes nothing to plan in a [Payment Batch](/api-reference/payment-batches).
 - Stays landed. A sync skips it, but still writes the Standing and Tax Period of its DTE.
