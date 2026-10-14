@@ -16,7 +16,7 @@ The audit trail is a forensic, append-only log of every mutating request against
 
 `GET /api/entities/:entityId/audit-trail`
 
-Returns a paginated page of audit envelopes for the entity, plus the named resources needed to render them without extra lookups.
+Returns a paginated page of audit envelopes for the entity, plus the named resources needed to render them without extra lookups. The page also lists the envelopes of its Organization's routes that name no Entity, such as a [Partner merge](/api-reference/partners#merge-partners). Those have `entityId` set to `null`. An envelope never shows a change to another Entity's rows. A change to a row the whole Organization shares, such as a Partner, shows in every Entity's trail.
 
 **Query params**
 

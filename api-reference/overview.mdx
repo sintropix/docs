@@ -38,6 +38,12 @@ GET  /api/entities/{entityId}/reports/balance-sheet
 
 A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (Superadmin only), and `/api/health`.
 
+Data an Organization's Entities share lives under the Organization instead, such as its [Partners](/api-reference/partners#organization-partners):
+
+```text
+/api/organizations/{organizationId}/partners
+```
+
 `{entityId}` is always a UUID. A request for an Entity the caller cannot access returns `404`, never `403`, so probing does not reveal whether an unknown Entity exists.
 
 ## Access and roles

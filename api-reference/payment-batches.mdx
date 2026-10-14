@@ -189,7 +189,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches/
 
 Add a manual order, with no Invoice, to a Draft. Use it for a payment that no document backs yet, such as an advance, or a payment to a foreign vendor whose invoice comes after the payment.
 
-In the app, **Agregar pago manual** has a **Nuevo contacto** button next to **Beneficiario**. Use it when the payee doesn't exist yet. It creates the Partner as a **Proveedor** and selects it as the payee.
+In the app, **Agregar pago manual** has a **Nuevo contacto** button next to **Beneficiario**. Use it when the payee doesn't exist yet. It creates the Partner and selects it as the payee. If another Partner of the Organization already has that tax ID, it offers **Usar** with that Partner's name instead.
 
 **Body**
 
