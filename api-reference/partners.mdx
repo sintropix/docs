@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Partners API: Manage Customers, Suppliers, and Counterparties"
 sidebarTitle: "Partners"
-description: "List, create, edit, merge, and delete Partners (customers, suppliers, employees) for an Entity, manage Aliases, and set vendor Booking Templates."
+description: "List, create, use, edit, merge, and stop using the Partners (customers, suppliers, employees) an Organization shares across its Entities, manage Aliases, and set Booking Templates."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Partner is any counterparty on an Entity's books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, [Aliases](#aliases), [merging duplicate Partners](#merge-partners), [Bank Details](#bank-details), and vendor Booking Templates.
+A Partner is any counterparty on your books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, [the Organization's Partners](#organization-partners), [Aliases](#aliases), [merging duplicate Partners](#merge-partners), [Bank Details](#bank-details), and Booking Templates.
 
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
@@ -19,20 +19,52 @@ Amounts are integers in the minor units of the Entity's functional currency. Tim
   note="Partners have no detail page; that link is the statement filtered to the Partner. The customer and supplier lists are /{entityId}/partners and /{entityId}/vendors."
 />
 
+## Partners belong to the Organization
+
+A Partner belongs to the [Organization](/api-reference/organizations), not to one Entity. One real-world party is one Partner, whichever Entities of the Organization deal with it. An Entity starts **using** a Partner when something names it in that Entity: a create, an Invoice, a Ledger Line, a Bank Movement, a Payment Order, or a sync. You can also [use an existing Partner](#put-partners-partnerid) explicitly.
+
+The routes under `/api/entities/:entityId/partners` serve the Partners that Entity uses. A Partner the Entity doesn't use answers `404`. What a change reaches depends on the field:
+
+| Shared by every Entity of the Organization | Kept by this Entity alone |
+| --- | --- |
+| `name`, `legalName`, `country`, `taxId`, `website`, [Aliases](#aliases), and [Bank Details](#bank-details) | `defaultPurchaseAccountId`, `booksAutomatically`, and the [Booking Template](#booking-templates) |
+
+For example, when one Entity corrects a supplier's legal name, every other Entity sees the new name. When it sets a Default Purchase Account for that supplier, the other Entities keep their own.
+
+### Roles
+
+A Partner has no type. Whether an Entity buys from a Partner or sells to it is read from that Entity's books, so the same Partner can be a supplier of one Entity and a customer of another. The `roles` field of a Partner row lists what this Entity's books say:
+
+| Role | When the Partner has it |
+| --- | --- |
+| `vendor` | The Entity holds a payable Invoice from the Partner, or keeps a Default Purchase Account, a Booking Template, or `booksAutomatically` for it. |
+| `customer` | The Entity holds a receivable Invoice to the Partner. |
+
+A Partner can have both roles, or none. In the app, **Contactos** filters by **Relación** (**Proveedor** or **Cliente**).
+
+### Representing Partners
+
+Each Entity is represented by one Partner of its Organization. That Partner carries the Entity's tax identity (`country` and `taxId`), and its `representsEntityId` is the Entity's id. Sintropix creates it with the Entity. The other Entities of the Organization use it to name that Entity as their counterparty, for example for what they owe each other.
+
+- An Entity never uses the Partner that represents it. A write that names it in that Entity is refused with `422` and `PARTNER_REPRESENTS_ENTITY_ERROR`, with `params.partnerId` and `params.entityId`. This applies to creating or using the Partner, and to naming it on a Ledger Line, an Invoice, a Bank Movement, or a Payment Order.
+- A bank feed lands a Movement whose counterparty is the Entity itself with no Partner. A [Source Feed](/api-reference/source-feeds) document addressed to the Entity itself is rejected alone, with `PARTNER_REPRESENTS_ENTITY_ERROR`, and the rest of the sync lands.
+- Its `country` and `taxId` are the Entity's. Correct them on the [Entity](/api-reference/entities#patch-api-entities-entityid). Changing them on the Partner is refused with `422` and `PARTNER_REPRESENTS_ENTITY_TAX_IDENTITY_ERROR`.
+
 ## GET `/partners`
 
-List every Partner for the Entity, each row enriched with Open Item totals (unsettled AR and AP balances). The list includes Merged Partners. To keep only active Partners, drop rows where `mergedIntoPartnerId` is not null.
+List every Partner the Entity uses, each row enriched with this Entity's Open Item totals (unsettled AR and AP balances). The list includes Merged Partners. To keep only active Partners, drop rows where `mergedIntoPartnerId` is not null.
 
 **Response:** an array of Partner objects.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | uuid | Partner id. |
-| `entityId` | uuid | Owning Entity. |
+| `organizationId` | uuid | Organization that owns the Partner. |
+| `representsEntityId` | uuid or null | The Entity this Partner [represents](#representing-partners). Null for an ordinary Partner. |
+| `entityId` | uuid | The Entity of the route. `defaultPurchaseAccountId`, `booksAutomatically`, and the open totals are this Entity's. |
 | `name` | string | Display name. |
-| `type` | string or null | `customer`, `vendor`, or `employee`. |
-| `defaultPurchaseAccountId` | uuid or null | Ledger Account proposed when booking this vendor's purchase invoices. |
-| `booksAutomatically` | boolean | Whether Sintropix books this vendor's new purchase invoices from its [Booking Template](#booking-templates). Always `false` for a Partner without a template. |
+| `defaultPurchaseAccountId` | uuid or null | Ledger Account this Entity proposes when booking the Partner's purchase invoices. |
+| `booksAutomatically` | boolean | Whether Sintropix books the Partner's new purchase invoices in this Entity from its [Booking Template](#booking-templates). Always `false` for a Partner without a template in this Entity. |
 | `legalName` | string or null | Registered legal name. |
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
@@ -51,7 +83,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
 
 ## GET `/partners/pages`
 
-Paginated Partner listing for UI use. Merged Partners are never listed.
+Paginated listing of the Partners the Entity uses, for UI use. Merged Partners are never listed.
 
 **Query parameters.** Unknown parameters are rejected with `400`.
 
@@ -60,17 +92,17 @@ Paginated Partner listing for UI use. Merged Partners are never listed.
 | `cursor` | uuid | No | The `nextCursor` of the previous page. Omit for the first page. |
 | `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
 | `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, `taxId`, and the default purchase account's code and name. Also matches [Aliases](#aliases), ignoring case, accents, punctuation, and spacing. At most 100 characters. |
-| `type` | string | No | `customer`, `vendor`, or `employee`. |
+| `role` | string | No | `vendor` or `customer`. Keeps the Partners that have this [role](#roles) in the Entity. |
 | `country` | string | No | ISO 3166-1 alpha-2 code. |
 | `openReceivableMin` | integer | No | Inclusive lower bound on `openReceivable`. |
 | `openReceivableMax` | integer | No | Inclusive upper bound; must not be below the minimum. |
 | `openPayableMin` | integer | No | Inclusive lower bound on `openPayable`. |
 | `openPayableMax` | integer | No | Inclusive upper bound; must not be below the minimum. |
-| `defaultPurchaseAccountFilter` | string | No | `all`, `assigned`, or `missing`. Default `all`. Requires `type=vendor` unless `all`. |
-| `defaultPurchaseAccountId` | uuid | No | Keep only vendors with this default purchase account. Requires `type=vendor`. |
-| `defaultPurchaseAccountClassification` | string | No | `expense`, `fixed_asset`, or `missing`. Requires `type=vendor`. |
-| `groupBy` | string | No | `none`, `type`, `country`, `defaultPurchaseAccount`, or `defaultPurchaseAccountClassification`. Default `none`. The last two require `type=vendor`. |
-| `sort` | string | No | `name`, `type`, `legalName`, `taxId`, `country`, `openReceivable`, `openPayable`, or `defaultPurchaseAccount`. Default `name`. |
+| `defaultPurchaseAccountFilter` | string | No | `all`, `assigned`, or `missing`. Default `all`. Requires `role=vendor` unless `all`. |
+| `defaultPurchaseAccountId` | uuid | No | Keep only vendors with this default purchase account. Requires `role=vendor`. |
+| `defaultPurchaseAccountClassification` | string | No | `expense`, `fixed_asset`, or `missing`. Requires `role=vendor`. |
+| `groupBy` | string | No | `none`, `country`, `defaultPurchaseAccount`, or `defaultPurchaseAccountClassification`. Default `none`. The last two require `role=vendor`. |
+| `sort` | string | No | `name`, `legalName`, `taxId`, `country`, `openReceivable`, `openPayable`, or `defaultPurchaseAccount`. Default `name`. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `asc`. |
 | `bookId` | uuid | Conditional | Required when the Entity has at least one Book; must be omitted otherwise. |
 
@@ -87,6 +119,7 @@ Each element of `partners` is a **Partner row**: every field of the Partner obje
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `roles` | string[] | The Partner's [roles](#roles) in this Entity: `vendor`, `customer`, both, or none. |
 | `countryName` | string or null | Name of `country`. |
 | `defaultPurchaseAccountCode` | string or null | Code of the default purchase account. |
 | `defaultPurchaseAccountName` | string or null | Name of the default purchase account. |
@@ -98,34 +131,35 @@ The type of `group.value` depends on `group.by`:
 
 | `by` | `value` |
 | --- | --- |
-| `type` | `customer`, `vendor`, `employee`, or null |
 | `country` | string or null |
 | `defaultPurchaseAccount` | string or null |
 | `defaultPurchaseAccountClassification` | `expense`, `fixed_asset`, or `missing` |
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/pages?type=vendor&defaultPurchaseAccountFilter=missing&limit=25" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/pages?role=vendor&defaultPurchaseAccountFilter=missing&limit=25" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
 ## POST `/partners`
 
-Create a Partner.
+Create a Partner in the Organization and start using it in this Entity.
 
 **Body.** Unknown keys are rejected with `400`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Caller-generated id. Retrying with the same id is answered `409`, so a retried request never creates a second Partner. |
-| `name` | string | Yes | Non-empty display name. |
-| `type` | string or null | No | `customer`, `vendor`, or `employee`. |
-| `legalName` | string or null | No | Non-empty if sent. |
+| `name` | string | Yes | Non-empty display name, at most 200 characters. |
+| `legalName` | string or null | No | Non-empty if sent, at most 200 characters. |
 | `country` | string or null | No | ISO 3166-1 alpha-2 code known to Sintropix. |
-| `taxId` | string or null | No | Tax registration number. When `country` is `CL` the value must be a valid RUT; separators and dots are accepted and it is stored in canonical form (`76.123.456-0` becomes `76123456-0`). |
-| `website` | string or null | No | A domain or a URL. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `WEBSITE_INVALID_ERROR`. |
-| `defaultPurchaseAccountId` | uuid or null | No | Only for `type: "vendor"`. The account must be an expense-type Ledger Account or a fixed-asset account. |
+| `taxId` | string or null | No | Tax registration number, at most 50 characters. When `country` is `CL` the value must be a valid RUT; separators and dots are accepted and it is stored in canonical form (`76.123.456-0` becomes `76123456-0`). |
+| `website` | string or null | No | A domain or a URL, at most 2048 characters. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `WEBSITE_INVALID_ERROR`. |
+| `defaultPurchaseAccountId` | uuid or null | No | The account this Entity proposes for the Partner's purchase invoices. It must be an expense-type Ledger Account or a fixed-asset account. Setting it gives the Partner the `vendor` role here. |
 
-A `country` and `taxId` pair must be unique within the Entity (`409`).
+A `country` and `taxId` pair belongs to one Partner of the Organization:
+
+- When another Partner of the Organization already holds it, the create is refused with `409` and `PARTNER_TAX_IDENTITY_ALREADY_EXISTS_ERROR`. `params.partnerId` names that Partner. [Use it](#put-partners-partnerid) in this Entity instead. In the app, the refusal offers **Usar** with the existing Partner's name.
+- The Entity's own tax identity belongs to its [representing Partner](#representing-partners), so it is refused with `422` and `PARTNER_REPRESENTS_ENTITY_ERROR`.
 
 **Response** (`201`): the created Partner row, as `GET /partners/pages` would list it.
 
@@ -137,7 +171,6 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
   -d '{
     "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
     "name": "Servicios Cloud SpA",
-    "type": "vendor",
     "legalName": "Servicios Cloud SpA",
     "country": "CL",
     "taxId": "76123456-0",
@@ -150,9 +183,10 @@ Example response:
 ```json
 {
   "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+  "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
+  "representsEntityId": null,
   "entityId": "b2f0c1d4-7e8a-4b9c-8d1e-2f3a4b5c6d7e",
   "name": "Servicios Cloud SpA",
-  "type": "vendor",
   "defaultPurchaseAccountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
   "legalName": "Servicios Cloud SpA",
   "country": "CL",
@@ -161,6 +195,7 @@ Example response:
   "updatedAt": "2026-08-14T14:58:03.115Z",
   "openReceivable": 0,
   "openPayable": 0,
+  "roles": ["vendor"],
   "countryName": "Chile",
   "defaultPurchaseAccountCode": "5101",
   "defaultPurchaseAccountName": "Servicios de hosting",
@@ -168,25 +203,42 @@ Example response:
 }
 ```
 
+## PUT `/partners/:partnerId`
+
+Use a Partner of the Organization in this Entity. Call it when a create is refused with `PARTNER_TAX_IDENTITY_ALREADY_EXISTS_ERROR`, or to pick a Partner another Entity already uses. Using a Partner the Entity already uses changes nothing, so you can retry safely. No request body.
+
+**Response:** the Partner row, as `GET /partners/pages` lists it.
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `PARTNER_NOT_FOUND_ERROR` | `404` | No Partner with this id belongs to the Entity's Organization. |
+| `PARTNER_MERGED_ERROR` | `409` | The Partner is a [Merged Partner](#after-a-merge). Use the Partner in `params.mergedIntoPartnerId` instead. |
+| `PARTNER_REPRESENTS_ENTITY_ERROR` | `422` | The Partner [represents](#representing-partners) this Entity. |
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
 ## PATCH `/partners/:partnerId`
 
-Update Partner attributes.
+Update Partner attributes. A change to `name`, `legalName`, `country`, `taxId`, `website`, or `aliases` reaches every Entity of the Organization. A change to `defaultPurchaseAccountId` or `booksAutomatically` reaches this Entity only.
 
 **Body:** any subset of the fields below. At least one is required; unknown keys are rejected with `400`. Send `null` to clear a nullable field.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `name` | string | No | Non-empty. |
-| `type` | string or null | No | `customer`, `vendor`, or `employee`. Changing away from `vendor` requires clearing `defaultPurchaseAccountId` and removing any Booking Template. |
-| `legalName` | string or null | No | Non-empty if sent. |
+| `name` | string | No | Non-empty, at most 200 characters. |
+| `legalName` | string or null | No | Non-empty if sent, at most 200 characters. |
 | `country` | string or null | No | ISO 3166-1 alpha-2 code. |
-| `taxId` | string or null | No | Same RUT rule as on create when the resulting country is `CL`. |
+| `taxId` | string or null | No | Same rules as on create, including the RUT rule when the resulting country is `CL`. |
 | `website` | string or null | No | Same rule as on create. |
-| `defaultPurchaseAccountId` | uuid or null | No | Only for vendors; expense-type or fixed-asset account. |
-| `booksAutomatically` | boolean | No | Turn automatic booking from the [Booking Template](#booking-templates) on or off. Only for vendors. `true` requires a saved template (`409`). Not accepted on create: a new Partner starts with `false`. |
-| `aliases` | string[] | No | The full list of [Aliases](#aliases). An existing Alias you leave out is removed. Send `[]` to remove all. Not accepted on create. |
+| `defaultPurchaseAccountId` | uuid or null | No | Expense-type or fixed-asset account. |
+| `booksAutomatically` | boolean | No | Turn automatic booking from the [Booking Template](#booking-templates) on or off in this Entity. `true` requires a saved template (`409`). Not accepted on create: a new Partner starts with `false`. |
+| `aliases` | string[] | No | The full list of [Aliases](#aliases). Each Alias is at most 200 characters. An existing Alias you leave out is removed. Send `[]` to remove all. Not accepted on create. |
 
-A Merged Partner cannot be updated (`409`, `PARTNER_MERGED_ERROR`).
+A Merged Partner cannot be updated (`409`, `PARTNER_MERGED_ERROR`). A tax identity another Partner of the Organization holds is refused as on create. On a [representing Partner](#representing-partners), `country` and `taxId` can't change (`422`, `PARTNER_REPRESENTS_ENTITY_TAX_IDENTITY_ERROR`).
 
 **Response:** `{ "partner": <Partner row>, "previousPartner": <Partner row> }`, the row after and before the update.
 
@@ -200,7 +252,9 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTN
 
 ## DELETE `/partners/:partnerId`
 
-Delete a Partner. Partners with outstanding Open Items or referenced Ledger Lines are refused. A Merged Partner is never deleted (`409`, `PARTNER_MERGED_ERROR`).
+Stop using the Partner in this Entity. Sintropix also deletes the Partner itself when no other Entity uses it and it represents no Entity. Otherwise the Partner stays for the Entities that use it.
+
+A Partner this Entity's records still reference, such as Ledger Lines with Open Items, is refused (`409`, `PARTNER_IN_USE_ERROR`). A Merged Partner is never deleted (`409`, `PARTNER_MERGED_ERROR`).
 
 **Response:** the deleted Partner row, as `GET /partners/pages` listed it.
 
@@ -218,12 +272,43 @@ curl -i "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
+## Organization Partners
+
+### GET `/api/organizations/:organizationId/partners`
+
+List the Organization's Partners in name order, each with the Entities that use it. Use it to find a Partner another Entity already uses before you create one. Merged Partners are never listed.
+
+This route lives under the Organization, not under an Entity. It needs the `books` read permission in the Organization. An API key confined to one Entity can call it for that Entity's Organization; any other Organization answers `404`.
+
+**Query parameters.** Unknown parameters are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cursor` | uuid | No | The `nextCursor` of the previous page. Omit for the first page. |
+| `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
+| `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, and `taxId`. Also matches [Aliases](#aliases), ignoring case, accents, punctuation, and spacing. At most 100 characters. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `partners` | array | The Partners on this page (see below). |
+| `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page. |
+| `totalCount` | integer | Partners matching the search, across all pages. |
+
+Each element of `partners` has the Partner's shared fields: `id`, `organizationId`, `representsEntityId`, `name`, `legalName`, `country`, `taxId`, `website`, `aliases`, `mergedIntoPartnerId`, `createdAt`, and `updatedAt`. It also has `entities`, the `{ id, name }` of each Entity that uses the Partner, in name order. A representing Partner never lists the Entity it represents. A row carries no open totals and no per-Entity settings: read those from the Entity routes.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partners?search=google" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
 ## Aliases
 
 An Alias is another name that finds a Partner. Use Aliases when one counterparty appears under several spellings, such as `AMAZON WEB SERVICES` and `Amazon Web Services, Inc.`.
 
 - Two names count as the same name when they differ only in case, accents, punctuation, or spacing.
-- Each name belongs to at most one Partner per Entity. An Alias that matches another Partner's display name or Alias is refused with `409` (`PARTNER_ALIAS_TAKEN_ERROR`). The error `params` hold the `alias`, plus the `partnerId` and `partnerName` of the Partner that already has it.
+- Each name belongs to at most one Partner per Organization. An Alias that matches another Partner's display name or Alias is refused with `409` (`PARTNER_ALIAS_TAKEN_ERROR`). The error `params` hold the `alias`, plus the `partnerId` and `partnerName` of the Partner that already has it.
 - An Alias needs at least one letter or digit (`400`).
 - Partner search on `GET /partners/pages` and in the app's Partner pickers matches Aliases.
 - An Alias never sets a Partner on a Bank Movement.
@@ -242,26 +327,28 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTN
 
 ## Merge Partners
 
-Merge a duplicate Partner into the Partner you want to keep. The duplicate becomes a **Merged Partner**, and its name and Aliases become Aliases of the kept Partner. In the app, use the **Fusionar** row action on the Partners page.
+Merge a duplicate Partner into the Partner you want to keep. Both belong to the same Organization, and the merge runs in every Entity that uses the duplicate. The duplicate becomes a **Merged Partner**, and its name and Aliases become Aliases of the kept Partner. In the app, use the **Fusionar** row action on the Partners page.
 
 <Warning>
   A merge cannot be undone.
 </Warning>
 
-### POST `/partners/:partnerId/merge`
+### POST `/api/organizations/:organizationId/partners/:partnerId/merge`
 
-Merge the Partner in the path into `targetPartnerId`, the Partner that stays. The merge runs all-or-nothing, and the [Audit Trail](/api-reference/audit-trail) records every row it changes.
+Merge the Partner in the path into `targetPartnerId`, the Partner that stays. The merge runs all-or-nothing across every Entity, and the [Audit Trail](/api-reference/audit-trail) records every row it changes. There is no merge route under `/api/entities/:entityId`.
+
+The route needs the `books` write permission in the Organization. An API key confined to one Entity can merge only a Partner that no other Entity uses, because a merge moves the books of every Entity that uses it. Otherwise it gets `403` with `PERMISSION_DENIED_ERROR`.
 
 **Body.** Unknown keys are rejected with `400`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `targetPartnerId` | uuid | Yes | The Partner that stays. Must belong to the same Entity. |
+| `targetPartnerId` | uuid | Yes | The Partner that stays. Must belong to the same Organization. |
 
-**Response** (`200`): `{ "partner": <Partner row>, "mergedPartner": <Partner row> }`. `partner` is the kept Partner after the merge. `mergedPartner` is the merged one, with `mergedIntoPartnerId` set. The moved lines, Invoices, and Bank Movements are not included; read them back through their own endpoints.
+**Response** (`200`): `{ "partner": <Organization Partner row>, "mergedPartner": <Organization Partner row> }`, in the shape [`GET /api/organizations/:organizationId/partners`](#get-api-organizations-organizationid-partners) lists. `partner` is the kept Partner after the merge. `mergedPartner` is the merged one, with `mergedIntoPartnerId` set. The moved lines, Invoices, and Bank Movements are not included; read them back through their own endpoints.
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$DUPLICATE_PARTNER_ID/merge" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partners/$DUPLICATE_PARTNER_ID/merge" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -270,15 +357,17 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$DUPLIC
 
 ### What a merge moves
 
-Sintropix moves these records from the merged Partner to the kept Partner:
+Every Entity that used the merged Partner now uses the kept Partner. In each of those Entities, Sintropix moves these records from the merged Partner to the kept Partner:
 
-- Every Ledger Line in an Entry dated after the Entity's Lock Date, unless the Entry is deleted or cancelled.
+- Every Ledger Line in an Entry dated after that Entity's Lock Date, unless the Entry is deleted or cancelled.
 - Every Invoice that is unbooked or whose Control Line moves.
 - Every Bank Movement that is unbooked or whose bank line moves.
 
-Lines on or before the Lock Date stay on the merged Partner, because the Lock Date freezes them. The Partner Ledger shows that history under the merged Partner's name.
+Lines on or before an Entity's Lock Date stay on the merged Partner, because the Lock Date freezes them. The Partner Ledger shows that history under the merged Partner's name.
 
-The kept Partner takes these fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, `website`, `type`, and `defaultPurchaseAccountId`. It takes the merged Partner's Booking Template and `booksAutomatically` only when it is a vendor with no template. Otherwise, Sintropix removes the merged Partner's template.
+The kept Partner takes these shared fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, and `website`. When the merged Partner [represents](#representing-partners) an Entity, the kept Partner takes that role with the tax identity.
+
+In each Entity, the kept Partner takes the merged Partner's `defaultPurchaseAccountId` when it has none there. It takes the merged Partner's Booking Template and `booksAutomatically` only when it has no template in that Entity. Otherwise, Sintropix removes the merged Partner's template.
 
 The kept Partner also takes every [Payment Order](/api-reference/payment-batches) of the merged Partner, and its [Bank Details](#bank-details) when the kept Partner has none.
 
@@ -290,7 +379,7 @@ A Merged Partner:
 
 - Does not appear in `GET /partners/pages`, Partner search, or pickers. `GET /partners` still returns it.
 - Is never matched by a Source Feed.
-- Cannot be edited, deleted, merged, or given a Booking Template (`409`, `PARTNER_MERGED_ERROR`).
+- Cannot be edited, deleted, merged, used in another Entity, or given a Booking Template (`409`, `PARTNER_MERGED_ERROR`).
 - Cannot be named on a new or updated Ledger Line, Invoice, or Bank Movement. Those writes return `409` with `LEDGER_ENTRY_LINE_PARTNER_MERGED_ERROR`, `INVOICE_PARTNER_MERGED_ERROR`, or `BANK_MOVEMENT_PARTNER_MERGED_ERROR`. Use the Partner in `mergedIntoPartnerId` instead.
 
 ### When a merge is refused
@@ -300,8 +389,10 @@ A Merged Partner:
 | `PARTNER_MERGE_INTO_ITSELF_ERROR` | `409` | `targetPartnerId` is the Partner in the path. |
 | `PARTNER_MERGED_ERROR` | `409` | Either Partner is already a Merged Partner. `params.mergedIntoPartnerId` names the Partner it was merged into. |
 | `PARTNER_MERGE_TAX_IDENTITY_CONFLICT_ERROR` | `409` | Both Partners have a tax identity and the two differ, so they are two legal persons. |
-| `PARTNER_MERGE_LOCKED_OPEN_LINES_ERROR` | `409` | The merged Partner has lines with an Open Amount on or before the Lock Date. `params.lines` lists each one with its Entry and, for a Control Line, its Invoice. Settle them first. |
+| `PARTNER_MERGE_LOCKED_OPEN_LINES_ERROR` | `409` | The merged Partner has lines with an Open Amount on or before the Lock Date of an Entity that uses it. `params.entityId` and `params.entityName` name that Entity, and `params.ledgerLockDate` is its Lock Date. `params.lines` lists each line with its Entry and, for a Control Line, its Invoice. Settle them in that Entity first. |
 | `PARTNER_ALIAS_TAKEN_ERROR` | `409` | A name of the merged Partner is already an Alias of a third Partner. |
+| `PARTNER_REPRESENTS_ENTITY_ERROR` | `422` | After the merge, the kept Partner would represent an Entity that uses either Partner. |
+| `PERMISSION_DENIED_ERROR` | `403` | The API key is confined to one Entity, and another Entity uses the merged Partner. |
 
 A merge is also refused when an Invoice without a DTE would collide with an Invoice of the kept Partner that has the same direction, kind, and number.
 
@@ -317,7 +408,7 @@ Bank Details state where a Partner receives a bank transfer. A [Payment Batch](/
 | `accountNumber` | string | The account number at that bank. |
 | `notificationEmail` | string or null | Email address the bank notifies of the transfer. |
 
-Bank Details appear as `bankDetails` on every Partner row. Deleting the Partner deletes them too.
+Bank Details are shared by every Entity that uses the Partner. They appear as `bankDetails` on every Partner row. When the Partner itself is deleted, they go too.
 
 ### PUT `/partners/:partnerId/bank-details`
 
@@ -355,11 +446,11 @@ Remove the Partner's Bank Details. A Partner without them is refused with `404` 
 
 ## Booking Templates
 
-A Booking Template tells Sintropix how to book a vendor's purchase invoices. It is an ordered list of lines. Each line takes one amount from the Invoice or its DTE and posts it to a Ledger Account on a side. With the vendor's `booksAutomatically` switch on, Sintropix books each new purchase invoice of that vendor when it is created, but only when the Invoice fits the template exactly.
+A Booking Template tells Sintropix how one Entity books a Partner's purchase invoices. It is an ordered list of lines. Each line takes one amount from the Invoice or its DTE and posts it to a Ledger Account on a side. With the Partner's `booksAutomatically` switch on in that Entity, Sintropix books each new purchase invoice of that Partner in that Entity when it is created, but only when the Invoice fits the template exactly.
 
 Use a template for a vendor whose invoices you always book with the same entry shape, such as a hosting provider billed to one expense account plus IVA. Invoices that do not fit land unbooked, and you book them by hand with [`POST /invoices/:invoiceId/book`](/api-reference/invoices).
 
-Templates and the switch are for Partners of `type: "vendor"` only. The Partner's default purchase account is unaffected.
+Each Entity keeps its own template and switch for a Partner, so a template saved in one Entity never books another Entity's invoices. Saving a template gives the Partner the `vendor` [role](#roles) in that Entity. The Partner's default purchase account is unaffected.
 
 ### Template lines
 
@@ -381,7 +472,7 @@ Sintropix books a new Invoice from the template only when all of these hold:
 2. The Invoice is `direction: "payable"` and `documentKind: "invoice"`. Credit notes are never booked automatically.
 3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked. A source-feed sync never books a DTE that lands with the [Standing](/api-reference/source-feeds#standing-and-tax-period) `claimed`, `annulment_requested`, or `annulled`.
 4. The Invoice and its DTE are in the Entity's functional currency.
-5. The vendor has `booksAutomatically` set to `true`.
+5. The Partner has `booksAutomatically` set to `true` in the Entity.
 6. Every line's source has a value on the DTE, and none is negative. A DTE that withholds no IVA gives a `dte_withheld_iva_amount` line `0`.
 7. The Control Line amount is not `0`. Other lines with an amount of `0` are dropped.
 8. The remaining lines balance exactly. There is no rounding tolerance.
@@ -446,7 +537,6 @@ Remove the template. This also turns `booksAutomatically` off.
 
 | Code | Status | Meaning |
 | --- | --- | --- |
-| `PARTNER_BOOKING_TEMPLATE_REQUIRES_VENDOR_ERROR` | `409` | The Partner is not a vendor, or a `PATCH` would change the type of a Partner that holds a template. |
 | `PARTNER_BOOKS_AUTOMATICALLY_REQUIRES_BOOKING_TEMPLATE_ERROR` | `409` | `booksAutomatically: true` was sent for a Partner without a template. |
 | `CONTROL_ACCOUNT_IN_ENTRY_LINES_MORE_THAN_ONCE_ERROR` | `400` | Another line posts to the Control Line's account. |
 
@@ -456,9 +546,11 @@ A Control Line on the wrong side or on an account Book invoice refuses as a paya
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the deleted row. |
+| `200` | Success on `GET`, `PUT`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the row as it was before. |
 | `201` | Partner created. |
 | `302` | Redirect to the Partner's logo on `GET /partners/:partnerId/logo`. |
 | `400` | Validation error (including an invalid RUT, an invalid website, an unknown country, or an unknown bank), or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity or Partner not found, the Partner has no logo (`PARTNER_LOGO_NOT_FOUND_ERROR`), or it has no Bank Details to delete (`PARTNER_BANK_DETAILS_NOT_FOUND_ERROR`). |
-| `409` | Partner id or tax identity already exists, the Partner has open items or references and cannot be deleted, an Alias is taken, the Partner is merged, a merge is refused, or a Booking Template rule is violated. |
+| `403` | A merge with an API key confined to one Entity would move another Entity's books (`PERMISSION_DENIED_ERROR`). |
+| `404` | Entity, Organization, or Partner not found, the Entity doesn't use the Partner, the Partner has no logo (`PARTNER_LOGO_NOT_FOUND_ERROR`), or it has no Bank Details to delete (`PARTNER_BANK_DETAILS_NOT_FOUND_ERROR`). |
+| `409` | Partner id already exists, another Partner of the Organization holds the tax identity, the Partner has open items or references and cannot be deleted, an Alias is taken, the Partner is merged, a merge is refused, or a Booking Template rule is violated. |
+| `422` | The Partner represents the Entity (`PARTNER_REPRESENTS_ENTITY_ERROR`), or a change would edit a representing Partner's tax identity (`PARTNER_REPRESENTS_ENTITY_TAX_IDENTITY_ERROR`). |

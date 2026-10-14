@@ -245,6 +245,11 @@ Cardda is a prepaid wallet and card provider. The company holds one CLP wallet, 
 
 dLocal Go is a payment processor that reports payments and settlements. The feed lands those as inflows and outflows on the mapped Bank Account.
 
+- A paid payment lands as an inflow. It joins the feed by the day dLocal Go created it: a payment created on or after the feed start date lands, and one created before it belongs in the opening balance, even when dLocal Go paid it later.
+- The payment's Movement date is the day dLocal Go approved it. If dLocal Go later changes that date, the Movement keeps the day it first landed on, and the payment never lands a second time.
+- A completed settlement lands as an outflow, dated and joined by the day dLocal Go paid it.
+- The feed start date must be on or before the creation day of the oldest payment that is still open. A later date is refused with `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`, and `earliestPendingDate` is that creation day.
+
 ### Mercado Pago
 
 A Mercado Pago feed mirrors the account's available money. Each sync reads Mercado Pago's release report, which lists every movement of that money: payments net of fees, purchases paid from the balance, payouts, refunds, credit repayments, and holds.

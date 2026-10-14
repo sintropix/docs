@@ -23,6 +23,7 @@ Sintropix sets up your Entities for you: you can't create one from the client ap
 
 - **Superadmin only, from a signed-in session.** A request with an API key or an OAuth access token returns `403` with `SUPERADMIN_SESSION_REQUIRED`, and any other User, `staff` included, gets `403` with `SUPERADMIN_REQUIRED`. A Superadmin can create an Entity in any Organization without holding a Membership in it. List every Organization with [`GET /api/onboarding/organizations`](/api-reference/onboarding#get-onboarding-organizations).
 - Creating an Entity opens none of its books to the Superadmin. Users reach it through a Membership of its Organization.
+- Creating an Entity also gives it its [representing Partner](/api-reference/partners#representing-partners): the Organization's Partner with the Entity's tax identity, which the other Entities use to name it as their counterparty. When the Organization already has a Partner with that tax identity, that Partner becomes the representing one.
 - An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 - An unknown `parentEntityId` returns `404` with `ENTITY_CREATION_PARENT_NOT_FOUND_ERROR`. A parent in another Organization returns `409` with `ENTITY_CREATION_PARENT_IN_ANOTHER_ORGANIZATION_ERROR`.
 - **Body:**
@@ -88,6 +89,8 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/editability \
 ## PATCH /api/entities/:entityId
 
 Update the core identity fields of an Entity. At least one field must be provided. To change the Organization, use `PATCH /api/entities/:entityId/organization` below. The update canonicalizes Chilean tax registrations and requires both `country` and `taxId` when either is supplied.
+
+A corrected `country` or `taxId` also corrects the Entity's [representing Partner](/api-reference/partners#representing-partners). When another Partner of the Organization already holds the new tax identity, the update returns `409` with `ENTITY_TAX_IDENTITY_TAKEN_ERROR`, and `params.partnerId` names that Partner. Correct or clear that Partner's tax ID first.
 
 - **Path param:** `entityId` (UUID)
 - **Body:**
@@ -197,6 +200,10 @@ Move an Entity to another Organization. Members of the old Organization lose acc
 - **Status:** 204
 - An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 - An Entity in a group can't move: an Entity with a parent Entity or any subsidiary returns `409` with `ENTITY_MOVE_IN_GROUP_ERROR`. Clear those links with [`PATCH /api/entities/:entityId/parent`](#patch-api-entities-entityid-parent) first, then move it.
+- An Entity that shares its Organization's data can't move, because [Partners belong to the Organization](/api-reference/partners#partners-belong-to-the-organization):
+  - An Entity that uses Partners of its Organization returns `409` with `ENTITY_MOVE_USES_ORGANIZATION_DATA_ERROR`.
+  - An Entity whose representing Partner another Entity uses returns `409` with `ENTITY_MOVE_REPRESENTING_PARTNER_IN_USE_ERROR`. `params.partnerId` names that Partner.
+  - When the target Organization already has a Partner with the Entity's tax identity, the move returns `409` with `ENTITY_MOVE_TAX_IDENTITY_TAKEN_ERROR`. `params.partnerId` names that Partner.
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/organization \
@@ -253,6 +260,10 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ENTITY_SELF_PARENT_ERROR` | An Entity cannot control itself |
 | `ENTITY_PARENT_CYCLE_ERROR` | Parent would create a control cycle |
 | `ENTITY_MOVE_IN_GROUP_ERROR` | The Entity has a parent Entity or a subsidiary, so it can't move to another Organization |
+| `ENTITY_MOVE_USES_ORGANIZATION_DATA_ERROR` | The Entity uses Partners of its Organization, so it can't move to another Organization |
+| `ENTITY_MOVE_REPRESENTING_PARTNER_IN_USE_ERROR` | Another Entity uses the Partner that represents this Entity, so it can't move to another Organization |
+| `ENTITY_MOVE_TAX_IDENTITY_TAKEN_ERROR` | The target Organization already has a Partner with the Entity's tax identity |
+| `ENTITY_TAX_IDENTITY_TAKEN_ERROR` | Another Partner of the Organization already holds the Entity's corrected tax identity |
 | `ORGANIZATION_NOT_FOUND_ERROR` | Named Organization does not exist or is outside your reach |
 | `PERMISSION_DENIED_ERROR` | Your Role in the Organization doesn't allow this action |
 | `SUPERADMIN_SESSION_REQUIRED` | The Entity creation, parent change, or Organization move was sent with an API key or token instead of a signed-in session |
