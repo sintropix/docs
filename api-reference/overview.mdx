@@ -99,6 +99,18 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts" \
 
 Path parameters that are ids must be valid UUIDs; a malformed id returns `400`. A malformed `entityId` returns `404`, like any Entity you can't reach.
 
+A string anywhere in the path, query, or body can't hold a NUL character (`\u0000`). A request that holds one returns `400`.
+
+### Search by amount
+
+Many list endpoints take a `search` parameter. When the search reads as an amount, it also matches the amounts the endpoint's reference page names for that search:
+
+- A search reads as an amount when it holds only digits, `.` and `,` separators, and spaces. It may start with one currency mark (`$`, `US$`, `CLP`, or `USD`) and one minus sign. `165`, `165140`, `165.140`, `$165.140`, `-165.140`, and `US$123,45` all read as amounts. A search with any other letter doesn't.
+- Sintropix drops the separators and the sign, and matches the remaining digits anywhere in the amount written in minor units. `165.140` and `165140` both find an amount of `165140`, and `165` finds it too. `US$123,45` finds a USD amount of `12345` minor units.
+- The sign never matters: `-165.140` and `165.140` find the same amounts.
+
+The search still matches the endpoint's text fields as usual, so a numeric search can also find a document number or a tax id that holds those digits.
+
 ## Response Format
 
 Responses are the resource itself as JSON. There is no top-level `data` wrapper, no `meta` envelope, and no `pagination` block on non-paginated endpoints. Each reference page lists the fields every endpoint returns.

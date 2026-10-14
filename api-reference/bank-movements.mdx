@@ -188,7 +188,7 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `movementDateTo` | string (`YYYY-MM-DD`) | No | Latest movement date, inclusive. |
 | `amountMin` | integer | No | Minimum magnitude in minor units. Matched against the magnitude on either side. |
 | `amountMax` | integer | No | Maximum magnitude in minor units. |
-| `search` | string | No | Up to 100 characters. Matched against the description, the bank reference, and the Partner name. Blank is ignored. |
+| `search` | string | No | Up to 100 characters. Matches the description and the Partner name anywhere, ignoring case. Matches the bank reference only from its start: the whole reference or a prefix of it, ignoring case, with `%` and `_` read as plain characters. A search that reads as an amount also matches the Movement's amount; see [Search by amount](/api-reference/overview#search-by-amount). Blank is ignored. |
 | `comments` | `with` \| `without` | No | `with` keeps only Movements that have at least one Comment; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
 | `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. |
 | `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
