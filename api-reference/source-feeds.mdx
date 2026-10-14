@@ -230,7 +230,7 @@ Find these Invoices in three places:
 
 - `GET /invoices/pages?standing=incompatible` lists them. See [Invoices](/api-reference/invoices#get-invoices-pages).
 - The home dashboard counts them in `incompatibleStandingCount`. See [Home dashboard](/api-reference/reports#home-dashboard).
-- In the app, the Invoice panel shows a warning, **Estados incompatibles** lists every one, and **Home** counts them under **Necesita acción**.
+- In the app, the Invoice panel shows a warning. If you're `staff` in the Entity's Organization, **Estados incompatibles** lists every one, and **Home** counts them under **Necesita acción**. Other Roles see neither the view nor the **Home** row, and their **Necesita acción** total leaves these Invoices out. The two endpoints above work the same for every Role.
 
 Review each one and [unbook](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid) the Invoice's entry if it no longer belongs in your books.
 
