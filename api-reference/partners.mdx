@@ -91,7 +91,7 @@ Paginated listing of the Partners the Entity uses, for UI use. Merged Partners a
 | --- | --- | --- | --- |
 | `cursor` | uuid | No | The `nextCursor` of the previous page. Omit for the first page. |
 | `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
-| `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, `taxId`, and the default purchase account's code and name. Also matches [Aliases](#aliases), ignoring case, accents, punctuation, and spacing. At most 100 characters. |
+| `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, `taxId`, and the default purchase account's code and name. Also matches [Aliases](#aliases), ignoring case, accents, punctuation, and spacing. A search that reads as an amount also matches `openReceivable` and `openPayable`; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters. |
 | `role` | string | No | `vendor` or `customer`. Keeps the Partners that have this [role](#roles) in the Entity. |
 | `country` | string | No | ISO 3166-1 alpha-2 code. |
 | `openReceivableMin` | integer | No | Inclusive lower bound on `openReceivable`. |

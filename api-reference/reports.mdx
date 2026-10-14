@@ -429,7 +429,7 @@ Returns a paginated journal of ledger entry lines in chronological order. Each r
 | --- | --- | --- | --- |
 | `from` | ISO date | No | Start date filter |
 | `to` | ISO date | No | End date filter (must be on or after `from`) |
-| `search` | string | No | Free-text search (max 200 chars) |
+| `search` | string | No | Free-text search, at most 200 characters. Case-insensitive contains-match on the entry's memo and id, and the account's code and name. `%` and `_` are read as plain characters. A search that reads as an amount also matches the line's functional amount; see [Search by amount](/api-reference/overview#search-by-amount). |
 | `cursor` | string | No | Page cursor (`YYYY-MM-DD~<entryId>~<lineId>`) |
 | `limit` | integer | No | Page size (default 100, max 100) |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -544,7 +544,7 @@ The list is paginated. To read every customer, pass the `nextCursor` of each res
 | --- | --- | --- | --- |
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
-| `search` | string | No | Matches the customer's name or tax id, ignoring case, accents, punctuation, and spacing. At most 100 characters; blank is ignored. |
+| `search` | string | No | Matches the customer's name or tax id, ignoring case, accents, punctuation, and spacing. A search that reads as an amount also matches any amount field of the customer's row; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
 | `onlyPending` | boolean | No | `true` to keep only the customers with a `pending` amount other than `0`. Default `false`. |
 | `cursor` | string | No | Page cursor (`<pending>~<partnerId>`). Pass the `nextCursor` of the previous page; omit it for the first page. |
 | `limit` | integer | No | Page size (default 50, max 50) |

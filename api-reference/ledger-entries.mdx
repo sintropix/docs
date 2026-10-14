@@ -33,7 +33,7 @@ List Ledger Entries with pagination, filtering, and sorting. Defaults to live en
 | `limit` | integer | No | 50 | Page size, max 100 |
 | `from` | ISO date | No | — | Earliest entry date |
 | `to` | ISO date | No | — | Latest entry date (must be >= from) |
-| `search` | string | No | — | Memo search, up to 100 characters |
+| `search` | string | No | — | Up to 100 characters. Case-insensitive contains-match on the memo, the notes, and the name of any account the entry posts to. A search that reads as an amount also matches the entry's `total`; see [Search by amount](/api-reference/overview#search-by-amount). |
 | `sort` | enum | No | `date` | `date`, `memo`, or `amount` |
 | `direction` | enum | No | `desc` | `asc` or `desc` |
 | `statuses` | string | No | `active,reversed` | Comma-separated list of `active`, `deleted`, `reversed`, `scheduled`, `cancelled` |
