@@ -1,12 +1,12 @@
 ---
 title: "Inbox API: Read the Email an Organization Receives"
 sidebarTitle: "Inbox"
-description: "Staff-only endpoints to create an Organization's Inbox, list its Conversations, and read each Conversation's Emails and attachments."
+description: "Staff-only endpoints to create an Organization's Inbox on a subdomain of its own, list its Conversations, and read each Conversation's Emails and attachments."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-The Inbox is the email address Sintropix gives an Organization: `<name>@customers.sintropix.com`. The Organization's clients forward their invoices and other documents to it, and staff read them in Sintropix. An Organization has at most one Inbox. You reach it through any of the Organization's Entities: every Entity of the Organization shows the same Inbox.
+The Inbox is the email address Sintropix gives an Organization, on a subdomain of `sintropix.com` that belongs to that Organization alone: `<name>@<subdomain>.sintropix.com`, such as `inbox@acme.sintropix.com`. The Organization's clients forward their invoices and other documents to it, and staff read them in Sintropix. An Organization has at most one Inbox. You reach it through any of the Organization's Entities: every Entity of the Organization shows the same Inbox.
 
 - A **Conversation** is a chain of Emails on one subject, like a thread in an email client.
 - An **Email** is one message in a Conversation, received by the Inbox or sent from it.
@@ -22,21 +22,45 @@ Sintropix does not store the email or turn it into documents. Every read fetches
   note="Shown as Email in the sidebar. Add ?open={conversationId} to open a Conversation in its side panel."
 />
 
+## GET `/inbox/open-subdomains`
+
+List the **open subdomains**: the subdomains of `sintropix.com` that are set up to receive email and that no Inbox holds yet. A new Inbox must take one of them. Each Inbox holds its subdomain alone, so two Organizations never share one.
+
+A subdomain must be set up to receive email before it's listed. When the list is empty, no subdomain is ready yet: set one up, then read the list again.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `subdomains` | string[] | The open subdomains, in alphabetical order, without `.sintropix.com`. For example, `acme` stands for `acme.sintropix.com`. Empty when none is open. |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox/open-subdomains" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{ "subdomains": ["acme", "magnar"] }
+```
+
 ## POST `/inbox`
 
-Create the Organization's Inbox. The address is `<name>@customers.sintropix.com`. Choose the name carefully: you can't change it later.
+Create the Organization's Inbox. The address is `<name>@<subdomain>.sintropix.com`. Choose the name and the subdomain carefully: you can't change them later.
+
+In the app, an Organization with no Inbox shows a form. Enter the **Nombre de la casilla**, pick the **Subdominio** among the open subdomains, and click **Crear casilla**. When no subdomain is open, the form says so instead.
 
 **Body.** Unknown keys are rejected with `400`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `name` | string | Yes | The part of the address before `@`. Up to 64 characters: lowercase letters and digits, in groups joined by a single `.` or `-` (for example, `acme` or `acme-compras`). |
+| `name` | string | Yes | The part of the address before `@`. Up to 64 characters: lowercase letters and digits, in groups joined by a single `.` or `-` (for example, `inbox` or `compras`). |
+| `subdomain` | string | Yes | One of the [open subdomains](#get-inbox-open-subdomains), without `.sintropix.com`. A single label of up to 63 characters: lowercase letters, digits, and `-`, starting and ending with a letter or digit (for example, `acme`). A dotted value such as `a.b` is refused with `400`. |
 
 - An Organization that already has an Inbox is refused with `409` (`INBOX_ALREADY_EXISTS_ERROR`).
-- An address that is already in use is refused with `409` (`INBOX_ADDRESS_TAKEN_ERROR`). The error's `params.address` names it. Choose another name.
+- A subdomain that isn't open is refused with `409` (`INBOX_SUBDOMAIN_NOT_OPEN_ERROR`): it isn't set up to receive email, or another Inbox already holds it. The error's `params.subdomain` names it. Read the open subdomains again and choose another.
 - An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR`.
 
-**Response** `201`: `{ "address": "acme@customers.sintropix.com" }`.
+**Response** `201`: `{ "address": "inbox@acme.sintropix.com" }`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox" \
@@ -44,7 +68,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox" \
   -H "x-audit-actor: my-agent" \
   -H "x-audit-reason: Inbox for Acme to forward its supplier invoices" \
   -H "Content-Type: application/json" \
-  -d '{ "name": "acme" }'
+  -d '{ "name": "inbox", "subdomain": "acme" }'
 ```
 
 ## GET `/inbox/conversations`
@@ -85,13 +109,13 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox/conversations" \
 
 ```json
 {
-  "inbox": { "address": "acme@customers.sintropix.com" },
+  "inbox": { "address": "inbox@acme.sintropix.com" },
   "conversations": [
     {
       "id": "4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b",
       "subject": "Factura 45210",
       "from": "facturacion@proveedor.cl",
-      "to": ["acme@customers.sintropix.com"],
+      "to": ["inbox@acme.sintropix.com"],
       "emailCount": 1,
       "hasAttachment": true,
       "read": false,
@@ -141,7 +165,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox/conversations/$CON
 | `PERMISSION_DENIED_ERROR` | `403` | The caller is not `staff` in the Entity's Organization, or creates the Inbox with an API key confined to one Entity. |
 | `CONVERSATION_NOT_FOUND_ERROR` | `404` | No Conversation with this id is in the Organization's Inbox, or the Organization has no Inbox. |
 | `INBOX_ALREADY_EXISTS_ERROR` | `409` | The Organization already has an Inbox. |
-| `INBOX_ADDRESS_TAKEN_ERROR` | `409` | The address in `params.address` is already in use. Choose another name. |
+| `INBOX_SUBDOMAIN_NOT_OPEN_ERROR` | `409` | The subdomain in `params.subdomain` isn't set up to receive email, or another Inbox already holds it. Choose another [open subdomain](#get-inbox-open-subdomains). |
 | `INBOX_UNAVAILABLE_ERROR` | `503` | The email can't be created or read right now. Retry later. |
 
 ## Status codes
@@ -150,8 +174,8 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/inbox/conversations/$CON
 | --- | --- |
 | `200` | Success on `GET`. |
 | `201` | Inbox created. |
-| `400` | Validation error: an invalid `name`, an unknown body key, an `after` or `conversationId` that is not a UUID, or a missing `x-audit-actor` or `x-audit-reason` on a key-authenticated create. |
+| `400` | Validation error: an invalid `name` or `subdomain`, an unknown body key, an `after` or `conversationId` that is not a UUID, or a missing `x-audit-actor` or `x-audit-reason` on a key-authenticated create. |
 | `403` | The caller can't use the Inbox, or can't create it (`PERMISSION_DENIED_ERROR`). |
 | `404` | Entity or Conversation (`CONVERSATION_NOT_FOUND_ERROR`) not found. |
-| `409` | The Organization already has an Inbox (`INBOX_ALREADY_EXISTS_ERROR`), or the address is in use (`INBOX_ADDRESS_TAKEN_ERROR`). |
+| `409` | The Organization already has an Inbox (`INBOX_ALREADY_EXISTS_ERROR`), or the subdomain isn't open (`INBOX_SUBDOMAIN_NOT_OPEN_ERROR`). |
 | `503` | The email can't be created or read right now (`INBOX_UNAVAILABLE_ERROR`). Retry later. |
