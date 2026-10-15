@@ -64,7 +64,7 @@ Each Bank Account in the list carries:
 | `kind` | `bank` \| `card` | Account kind |
 | `ledgerAccountId` | UUID | Mapped Ledger Account |
 | `currency` | string | ISO 4217 currency code |
-| `accountNumber` | string \| null | The number the bank knows the account by. `null` when not set. A [Payment Batch](/api-reference/payment-batches) needs it to download the BCI bank file. |
+| `accountNumber` | string \| null | The number the bank knows the account by. `null` when not set. To be the **Cuenta de cargo** of a [Payment Batch](/api-reference/payment-batches#download-the-bank-file)'s BCI bank file, an account in `CLP` needs it. |
 | `feed` | object \| null | Active feed, if any (see below) |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
