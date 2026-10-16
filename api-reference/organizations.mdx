@@ -150,8 +150,8 @@ Read the Organization's logo: a 64 × 64 PNG that Sintropix takes from the icon 
 
 **Response**
 
-- `302` redirect to a short-lived link to the PNG. The response may be cached for up to one hour.
-- `404` with `ORGANIZATION_LOGO_NOT_FOUND_ERROR` when the Organization has no `website`, or its site shows no usable icon.
+- `200` with the PNG itself (`Content-Type: image/png`). The response carries `Cache-Control: private, max-age=31536000, immutable`, so a browser keeps it for up to a year. The URL stays the same when the `website` changes, so a cached logo can outlive it. Add the website to the URL, for example `?website=acme.cl`, to fetch the new logo after a change.
+- `404` with `ORGANIZATION_LOGO_NOT_FOUND_ERROR` when the Organization has no `website`, or its site shows no usable icon. A `404` carries no cache header, so you can ask again later.
 - `404` with `ORGANIZATION_NOT_FOUND_ERROR` when you are not a member of the Organization.
 
 ```bash
@@ -243,8 +243,7 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET` and `PATCH`. |
-| `302` | Redirect to the Organization's logo on `GET /organizations/:organizationId/logo`. |
+| `200` | Success on `GET` and `PATCH`, including the logo PNG on `GET /organizations/:organizationId/logo`. |
 | `201` | Organization created. |
 | `204` | Success on `DELETE`. |
 | `400` | Validation error, including a blank or too-long name, an invalid website (`WEBSITE_INVALID_ERROR`), or an `:organizationId` that is not a UUID. |
