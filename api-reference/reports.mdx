@@ -120,15 +120,30 @@ Returns the purchase invoices the Entity still has to plan a payment for: every 
 
 **Query params**
 
-Every bound is inclusive and optional.
+The report takes the same filters as the purchases listing, [`GET /invoices/pages`](/api-reference/invoices#get-invoices-pages), except the booking status. Every filter is optional, and every bound is inclusive. Any other param is refused with `400`.
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
+| `dteType` | string | No | Keep only invoices whose DTE has this type code (`33`, `34`, ...). Repeat the param to allow several codes. Use `none` for invoices with no DTE. |
+| `sourceId` | string | No | A [Source](/api-reference/sources) id, or `none` for invoices that came from no Source. |
+| `partnerId` | UUID | No | Keep only the invoices of this supplier. |
 | `currency` | string | No | ISO 4217 code. Lists only the invoices in that currency. Omit it to list every currency; a batch can pay invoices in any currency. |
+| `paymentStatus` | string | No | `paid`, `partial`, or `unpaid`. Unbooked invoices have no payment status, so this filter leaves them out. |
+| `standing` | string | No | `accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, `observed`, or `incompatible`. See `GET /invoices/pages`. |
+| `followUpKind` | string | No | `proposal`, `question`, `waiting`, or `none`. Filters by the kind of the invoice's [Follow-up](/api-reference/follow-ups). |
 | `issueDateFrom` | ISO date | No | Earliest issue date |
 | `issueDateTo` | ISO date | No | Latest issue date. Must not be before `issueDateFrom`. |
 | `dueDateFrom` | ISO date | No | Earliest due date. Invoices with no due date are kept, since most documents from the SII don't state one. |
 | `dueDateTo` | ISO date | No | Latest due date. Must not be before `dueDateFrom`. Invoices with no due date are kept. |
+| `taxPeriodFrom` | string | No | `YYYY-MM`. Read from the DTE; invoices without one are left out. |
+| `taxPeriodTo` | string | No | `YYYY-MM` |
+| `totalMin` | integer | No | Minimum `total`, in minor units |
+| `totalMax` | integer | No | Maximum `total`, in minor units |
+| `comments` | string | No | `with` keeps only invoices that have at least one Comment; `without` keeps only invoices with none. |
+
+<Note>
+  Unlike `GET /invoices/pages`, a due-date bound here keeps the invoices with no due date.
+</Note>
 
 **Response**
 
@@ -144,10 +159,18 @@ An array, earliest due date first, then earliest issue date. Invoices with no du
 | `total` | integer | Gross total, in minor units of `currency` |
 | `issueDate` | ISO date | Issue date |
 | `dueDate` | ISO date or null | Due date |
-| `amountToPlan` | integer | What is left to plan, in minor units of `currency`; always above zero |
+| `owedAmount` | integer | What the invoice still owes, in minor units of `currency`: its `total` while unbooked, or the Open Amount of its Control Line once booked |
+| `amountToPlan` | integer | What is left to plan, in minor units of `currency`; always above zero. It's `owedAmount` minus the orders already planned for the invoice in every batch. |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/payables-to-plan?currency=CLP&dueDateTo=2026-10-31" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+To list one supplier's invoices from a single Source, combine the filters:
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/payables-to-plan?partnerId=$PARTNER_ID&sourceId=$SOURCE_ID" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 

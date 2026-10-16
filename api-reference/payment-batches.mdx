@@ -18,7 +18,7 @@ Use Payment Batches to prepare a supplier payment run:
 
 1. List the [Payables to Plan](/api-reference/reports#payables-to-plan): the purchase invoices the Entity still owes.
 2. [Create a Draft](#post-payment-batches) with the payment date. Optionally give it a [name and a label](#name-and-label).
-3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos. In the app, **Agregar cuentas por pagar** lists the payables in every currency and lets you search them by payee, document number, or Amount to Plan.
+3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos. In the app, **Agregar cuentas por pagar** lists the payables in every currency and lets you search them by payee, document number, or Amount to Plan. Its **Fuente** selector and **Filtros** menu work as in **Compras**; see [Orders in the app](#orders-in-the-app).
 4. [Mark it Ready](#post-payment-batches-paymentbatchid-mark-ready). This freezes the batch.
 5. [Download the bank file](#download-the-bank-file) in the app, choosing the bank and, for BCI, the account to debit. Upload it to your bank's or Global66's portal.
 
@@ -69,6 +69,27 @@ Editing an order can plan more than the invoice owes. Sintropix accepts it, and 
   If you match a partial payment of an invoice that a batch already plans, its Amount to Plan can show less than it still owes. Correct the order's amount in the Draft. The books aren't affected.
 </Note>
 
+## Orders in the app
+
+The batch's table shows, for each order that pays an invoice:
+
+| Column | What it shows |
+| --- | --- |
+| **Monto total** | The invoice's `total`. |
+| **Saldo pendiente** | What the invoice still owes (`owedAmount`): its total while unbooked, the Open Amount of its Control Line once booked, and 0 when it's excluded from the books. |
+| **Pago** | What this batch pays (`amount`). On a Draft, hover over it to copy or edit it. On a Ready batch, a lock shows instead. |
+
+A manual order shows **—** under **Monto total** and **Saldo pendiente**. Lowering **Pago** doesn't change the other two columns.
+
+**Agregar cuentas por pagar** shows the same **Monto total** and **Saldo pendiente** for each invoice. When orders in other batches already plan part of the balance, a line such as *$150.000 ya en nóminas* shows how much. Picking the invoice adds an order for what is left, its [Amount to Plan](#amount-to-plan).
+
+To narrow the list, use the same controls as **Compras**:
+
+- **Fuente** keeps the invoices of one [Source](/api-reference/sources).
+- **Filtros** filters by **Documento tributario**, **Contacto**, **Moneda**, **Estado de pago**, **Estado SII**, **Seguimiento**, issue and due dates, **Período tributario**, **Monto**, and **Comentarios**. Each active filter shows as a chip you can remove.
+
+A due-date filter keeps the invoices with no due date. The API takes the same filters on [Payables to Plan](/api-reference/reports#payables-to-plan).
+
 ## The Payment Batch object
 
 Every route on this page except the list returns the batch with its orders.
@@ -102,7 +123,7 @@ Each element of `paymentOrders`:
 | `amount` | integer | Amount to pay, greater than zero. |
 | `memo` | string \| null | Glosa: the message that travels with the transfer. |
 | `payee` | object | `{ name, country, taxId, bankDetails }` of the payee. `bankDetails` is the Partner's [Bank Details](/api-reference/partners#bank-details), or `null` when it has none. |
-| `invoice` | object \| null | `{ documentNumber, dueDate, total, amountToPlan, dteTypeCode, dteTypeLabel }` of the Invoice. `amountToPlan` is its current [Amount to Plan](#amount-to-plan). `dteTypeCode` and `dteTypeLabel` name the SII type of the DTE behind it, or `null` when no DTE backs it. `null` when `invoiceId` is null. |
+| `invoice` | object \| null | `{ documentNumber, dueDate, total, owedAmount, amountToPlan, dteTypeCode, dteTypeLabel }` of the Invoice. `owedAmount` is what it still owes: its `total` while unbooked, the Open Amount of its Control Line once booked, and `0` when it's [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books). `amountToPlan` is its current [Amount to Plan](#amount-to-plan). `dteTypeCode` and `dteTypeLabel` name the SII type of the DTE behind it, or `null` when no DTE backs it. `null` when `invoiceId` is null. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## GET `/payment-batches`
