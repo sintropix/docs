@@ -282,6 +282,12 @@ A sync reads every month of both books from the link date to the day it runs, an
 
 The mirror may not have read the current month yet, for example in the first hours of a month. A sync then reads the current month, on the Chilean calendar, as empty: it states no tie-out line for it and does not fail. A past month the mirror holds no answer for still fails the sync with `502`, because that is a real gap.
 
+### Recent months
+
+The SII can still change a month for a while after it closes, so the mirror reads its newest months again on every pass. A sync needs the current month, on the Chilean calendar, and the 2 months before it to hold an answer the mirror read in the last 24 hours. If one of them doesn't, the sync fails with `502`.
+
+An older month only needs an answer, of any age. A Feed with an early link date keeps syncing, and an older month lands as the mirror last read it. A past month with no answer at all still fails the sync, whatever its age.
+
 ## File attachments
 
 Some providers carry the source files of each document (the PDF and the XML). When a sync runs against such an Integration, after the documents land it also attaches those files to the [Invoice](/api-reference/invoices) of each landed or skipped document, as [Attachments](/api-reference/attachments).
