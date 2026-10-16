@@ -55,7 +55,7 @@ curl "https://api.sintropix.com/api/currencies" \
 
 ## GET `/banks`
 
-Return every Chilean Bank a Partner's [Bank Details](/api-reference/partners#bank-details) can name. No query parameters.
+Return every Chilean Bank a Partner's [Bank Details](/api-reference/partners#bank-details) or a [Bank Login](/api-reference/integrations#portal-logins) can name. No query parameters.
 
 The catalog covers every institution a transfer can reach by its CMF code: the banks, including digital banks such as Tanner Banco Digital (`062`) and Tenpo Bank Chile (`063`), the savings cooperatives, and the prepaid card issuers payees are paid into, such as Mercado Pago (`875`), Global66 (`738`), Tenpo (`730`), Copec Pay (`741`), and Fintoc (`764`). A prepaid card issuer goes by the brand payees know.
 
@@ -63,7 +63,7 @@ The catalog covers every institution a transfer can reach by its CMF code: the b
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `code` | string | The bank's three-digit code from the CMF (Comisión para el Mercado Financiero), for example `016`. This is the value Bank Details accept as `bankCode`. |
+| `code` | string | The bank's three-digit code from the CMF (Comisión para el Mercado Financiero), for example `016`. This is the value Bank Details and Bank Logins accept as `bankCode`. |
 | `name` | string | Display name of the bank. |
 
 ```bash
