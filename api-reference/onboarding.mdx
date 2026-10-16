@@ -161,7 +161,8 @@ Send the User a link they can follow to set (or reset) their password. Sintropix
 - The link expires after 4 days and works once.
 - Each call sends a new link. Links sent earlier keep working until they're used or expire.
 - If the email can't be sent, the request fails and answers no link. Call it again.
-- Setting the password through the link signs the User out of every session.
+- The link carries the User's email address, so the User types the password only once. Setting the password signs the User out of every session, then signs them in and continues to two-step verification: a User without it gets an emailed code to activate it, and a User with it is asked for their second factor.
+- A link that was already used or has expired shows **Enlace no válido**, with **Pedir un enlace nuevo** to ask for another one.
 - Users can also ask for a link themselves: **¿Olvidaste tu contraseña?** on the sign-in page emails them a link. That link expires after 1 hour and also works once.
 
 **Response** `201`
@@ -177,7 +178,7 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/set-passwo
 
 ```json
 {
-  "link": "https://api.sintropix.com/api/auth/reset-password/Qm9yamFNYXJxdWV6?callbackURL=https%3A%2F%2Fapp.sintropix.com%2Fset-password"
+  "link": "https://api.sintropix.com/api/auth/reset-password/Qm9yamFNYXJxdWV6?callbackURL=https%3A%2F%2Fapp.sintropix.com%2Fset-password%3Femail%3Dana.perez%2540example.com"
 }
 ```
 
