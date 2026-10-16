@@ -100,6 +100,8 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | `relatedInvoices` | array | Invoices this entry books, each with the invoice fields below |
 | `relatedMovements` | array | Bank movements this entry books, each with the movement fields below |
 | `allocations` | array | Allocations that settle one of this entry's lines, each with the allocation fields below |
+| `deferralRelease` | object or null | Set when this entry is a [Release](/api-reference/invoices#deferrals) of a Deferral: `{ deferralId, invoiceId, invoiceDocumentNumber }`. `null` for other entries, and once the Invoice booking that holds the deferred line is unbooked or reversed |
+| `deferrals` | array | The [Deferrals](/api-reference/invoices#reading-a-deferral) whose deferred line this entry books; empty for other entries. Unbooking or reversing this entry also undoes their Releases |
 
 Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which other endpoints return on their own) plus the names the detail view shows:
 
@@ -326,6 +328,8 @@ Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be
 | `id` | UUID | Yes | Client-supplied idempotency id for the reversal entry |
 | `entryDate` | ISO date | Yes | Reversal date |
 
+If the entry books a [deferred](/api-reference/invoices#deferrals) Invoice line, its booked Releases are reversed on the same date and its Scheduled ones are cancelled. A booked Release on or before the ledger lock date refuses the whole reversal with `LEDGER_ENTRY_FROZEN_ERROR`.
+
 An Entry that still holds a line on the Suspense Account is refused with `LEDGER_REVERSAL_ENTRY_HAS_SUSPENSE_LINE_ERROR`. Unbook the Bank Movement instead, or [assign](/api-reference/bank-movements#post-movements-movementid-assign) the rest first.
 
 - **Success response:** every row the reversal changed
@@ -352,7 +356,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 
 ## DELETE /api/entities/:entityId/ledger/entries/:entryId
 
-Unbook (soft-delete) a Ledger Entry. The entry status becomes `deleted`. This severs any linked invoices, bank movements, and allocations. If the entry is a reversal, the chain behind it is settled back to its prior state.
+Unbook (soft-delete) a Ledger Entry. The entry status becomes `deleted`. This severs any linked invoices, bank movements, and allocations. If the entry is a reversal, the chain behind it is settled back to its prior state. If it books a [deferred](/api-reference/invoices#deferrals) Invoice line, its booked Releases are unbooked and its Scheduled ones are cancelled; a booked Release on or before the ledger lock date refuses the whole unbook with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR`.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
 - **Success response:** every row the unbook changed
@@ -663,6 +667,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `LEDGER_ENTRY_SCHEDULED_DATE_NOT_FUTURE_ERROR` | Scheduled date must be in the future |
 | `LEDGER_ENTRY_SCHEDULED_NOT_DUE_ERROR` | Scheduled entry is not yet due |
 | `LEDGER_ENTRY_SCHEDULED_TRANSACTION_CURRENCY_ERROR` | Scheduled entries cannot carry foreign currency |
+| `DEFERRAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#deferrals) of a Deferral; its date cannot change, and it cannot be rescheduled |
 | `DIMENSION_VALUE_SET_VALUES_NOT_FOUND_ERROR` | One or more dimension value ids not found |
 | `DIMENSION_VALUE_SET_DUPLICATE_DIMENSION_ERROR` | Multiple values from the same dimension |
 | `RECONCILIATION_ALLOCATION_NOT_FOUND_ERROR` | Allocation not found |

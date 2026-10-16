@@ -69,7 +69,7 @@ Each account in `accounts` carries:
 | `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
-| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense` |
+| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
 | `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, `booking_template`, or null when deletable |
@@ -223,7 +223,7 @@ Create a new Ledger Account.
 | `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`; null or omitted means none |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`; null or omitted means none |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the created Ledger Account with its derived facts, in the same shape as the `accounts` rows of the Chart of Accounts
@@ -283,7 +283,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, or null to clear |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, or null to clear |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the updated Ledger Account with its derived facts, in the same shape as the create response above
@@ -307,6 +307,17 @@ To mark an account as the Suspense Account, create it or `PATCH` it with `type: 
 - An Entity has at most one Suspense Account. A second one is refused with `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR`.
 - An account takes the sub-type only while it has no lines. Otherwise Sintropix returns `LEDGER_ACCOUNT_SUSPENSE_REQUIRES_NO_LINES_ERROR`.
 - Only Match, Assign, and Unassign post to it. Manual entries, Reclassify, Scheduled Entries, Bank Account mapping, Booking Templates, and Fixed Asset Classes that name it are refused with `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR`.
+
+### Prepaid expenses and deferred revenue
+
+The sub-types `prepaid_expense` and `deferred_revenue` mark the accounts that hold a [Deferral](/api-reference/invoices#deferrals): an Invoice line whose amount is recognized over several months instead of in the invoice month.
+
+| Sub-type | Use it for | Type | Tracking |
+| --- | --- | --- | --- |
+| `prepaid_expense` | A cost paid ahead of the months that consume it, such as an annual software subscription. A deferred line of a payable Invoice debits it. | `asset` | `balance` |
+| `deferred_revenue` | Revenue billed ahead of the months that earn it, such as a multi-month service. A deferred line of a receivable Invoice credits it. | `liability` | `balance` |
+
+Create the account, or `PATCH` an existing one, with the matching `type`, `tracking: "balance"`, and the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `open_item` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`. In the cash flow statement, a prepaid expense account counts by default under `supplier_payments` and a deferred revenue account under `customer_receipts`.
 
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 
