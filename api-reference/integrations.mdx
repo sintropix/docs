@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Entity"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Store Portal Logins for a bank or Getnet, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Store Portal Logins for a bank, Getnet, or the SII, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -29,9 +29,11 @@ The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintro
 
 The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sign in to Polar as a user with the owner, admin, or finance role in the organization: Polar shows an organization's money to those roles only. It can feed a USD Bank Account with each organization's Polar balance. Sintropix only reads: it never charges, refunds, or withdraws money. See [Bank Feeds](/api-reference/bank-feeds#polar).
 
-To connect a bank that no Provider reads, such as a credit card Fintoc can't fetch, store its login as a [Bank Login](#portal-logins). To connect the Getnet merchant portal, store its login as a [Getnet Login](#portal-logins). Neither is an Integration kind, but the app lists them with the Integrations.
+To connect a bank that no Provider reads, such as a credit card Fintoc can't fetch, store its login as a [Bank Login](#portal-logins). To connect the Getnet merchant portal, store its login as a [Getnet Login](#portal-logins). To connect the SII, store the company's or a person's SII login as an [SII Login](#portal-logins). None of these is an Integration kind, but the app lists them with the Integrations.
 
 The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider, and the only SII document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile. The mirror reads the SII registers every 4 hours, so a document reaches it a few hours after the SII records it.
+
+The app no longer offers the SII Mirror on **Settings → Integrations**: the **SII** option there stores an [SII Login](#portal-logins) instead. You can still connect the SII Mirror through [`POST /integrations`](#post-integrations). A Mirror you already connected keeps showing in the app and keeps syncing as before.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/integrations"
@@ -268,16 +270,17 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$
 
 ## Portal Logins
 
-A Portal Login is the login of a portal that no Provider reads. Sintropix stores the login and the password encrypted and uses them only to read the portal. No read ever returns them, so not even you can see them again in Sintropix. A Portal Login has one of two kinds:
+A Portal Login is the login of a portal that no Provider reads. Sintropix stores the login and the password encrypted and uses them only to read the portal. No read ever returns them, so not even you can see them again in Sintropix. A Portal Login has one of three kinds:
 
 | Kind | Portal | What you store |
 | --- | --- | --- |
 | `bank_login` | A bank, such as a credit card Fintoc can't fetch | The bank's name, plus the RUT and the password you sign in with |
 | `getnet_login` | The Getnet merchant portal | The username or email, and the password you sign in with |
+| `sii_login` | The SII, as a company or as a person | The taxpayer type, plus the RUT and the SII password (clave) you sign in with |
 
 Sintropix doesn't sign in to the portal when you store a Portal Login, so a wrong login or password isn't refused. A Portal Login has no health status: it's stored, never "working" or "failed". To change the password, delete the Portal Login and store it again.
 
-In the app, connect one from **Settings → Integrations** with **Banco** or **Getnet**. It shows in the list with the status **Guardada**.
+In the app, connect one from **Settings → Integrations** with **Banco**, **Getnet**, or **SII**. For **SII**, pick the **Tipo de contribuyente**: **Empresa** for the company or **Persona** for a person, such as its legal representative. It shows in the list with the status **Guardada**.
 
 <Note>
   A `client` or `staff` caller can store and delete Portal Logins. A `viewer` can only list them. See [Access and roles](/api-reference/overview#access-and-roles).
@@ -289,8 +292,8 @@ In the app, connect one from **Settings → Integrations** with **Banco** or **G
 | --- | --- | --- |
 | `id` | uuid | Portal Login id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bank_login` \| `getnet_login` | The kind of portal. |
-| `label` | string | The portal's name. For a `bank_login`, the bank's name as you entered it. For a `getnet_login`, always `Getnet`. |
+| `kind` | `bank_login` \| `getnet_login` \| `sii_login` | The kind of portal. |
+| `label` | string | The portal's name. For a `bank_login`, the bank's name as you entered it. For a `getnet_login`, always `Getnet`. For a `sii_login`, `SII Empresa` or `SII Persona`, by its `holderType`. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | When the Portal Login was stored and last changed. |
 
 ### POST `/portal-logins`
@@ -302,7 +305,7 @@ Store a Portal Login for the Entity.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying with the same id is answered `409` (`CREDENTIAL_ALREADY_EXISTS_ERROR`). |
-| `kind` | `bank_login` \| `getnet_login` | Yes | The kind of portal. |
+| `kind` | `bank_login` \| `getnet_login` \| `sii_login` | Yes | The kind of portal. |
 
 Each kind adds its own fields:
 
@@ -313,8 +316,11 @@ Each kind adds its own fields:
 | `bank_login` | `password` | string | The bank password. Must be non-empty. |
 | `getnet_login` | `username` | string | The username or email you sign in to the Getnet portal with. Must be non-empty. |
 | `getnet_login` | `password` | string | The Getnet password. Must be non-empty. |
+| `sii_login` | `holderType` | `business` \| `individual` | Whose SII login it is: `business` for the company, `individual` for a person, such as its legal representative. |
+| `sii_login` | `rut` | string | The RUT you sign in to the SII with. Same format and check-digit rule as the `bank_login` `rut`. |
+| `sii_login` | `password` | string | The SII password (clave). Must be non-empty. |
 
-Each name can be used once per Entity. A Bank Login whose bank name is already in use is refused with `409` (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). Sintropix names every Getnet Login `Getnet`, so an Entity holds at most one. A second Getnet Login is refused with the same error. To store another Getnet login, delete the first one.
+Each name can be used once per Entity. A Bank Login whose bank name is already in use is refused with `409` (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). Sintropix names every Getnet Login `Getnet`, so an Entity holds at most one. A second Getnet Login is refused with the same error. To store another Getnet login, delete the first one. Sintropix names an SII Login by its `holderType`: `SII Empresa` for `business` and `SII Persona` for `individual`. An Entity holds at most one of each, and a second one of the same `holderType` is refused with the same error. A `sii_login` body takes no `label`.
 
 - **Response** (`201`): the Portal Login object.
 
@@ -358,9 +364,36 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins" \
   }'
 ```
 
+Store the company's SII Login:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "7e8f9a0b-1c2d-4e3f-8a4b-5c6d7e8f9a0b",
+    "kind": "sii_login",
+    "holderType": "business",
+    "rut": "76.123.456-0",
+    "password": "my-sii-password"
+  }'
+```
+
+```json
+{
+  "id": "7e8f9a0b-1c2d-4e3f-8a4b-5c6d7e8f9a0b",
+  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "kind": "sii_login",
+  "label": "SII Empresa",
+  "createdAt": "2026-10-16T14:00:00.000Z",
+  "updatedAt": "2026-10-16T14:00:00.000Z"
+}
+```
+
 ### GET `/portal-logins`
 
-List the Entity's Portal Logins of both kinds.
+List the Entity's Portal Logins of every kind.
 
 - **Response:** array of Portal Login objects.
 
@@ -386,7 +419,7 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `201` | Integration or Portal Login created. |
 | `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
 | `404` | Entity, Integration, or Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the external account is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Getnet Login (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
+| `409` | Integration id already exists, the external account is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Getnet Login or a second SII Login of the same `holderType` (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
 | `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), or a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`). |
 | `502` | The Provider failed (`BANK_FEED_PROVIDER_FAILURE_ERROR`). Retry later. |
