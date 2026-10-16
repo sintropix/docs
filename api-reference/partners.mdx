@@ -264,8 +264,8 @@ Read the Partner's logo: a 64 × 64 PNG that Sintropix takes from the icon of th
 
 **Response**
 
-- `302` redirect to a short-lived link to the PNG. The response may be cached for up to one hour.
-- `404` with `PARTNER_LOGO_NOT_FOUND_ERROR` when the Partner has no `website`, or its site shows no usable icon. A site that could not be reached is tried again on the next request; a site that answered with no usable icon is not.
+- `200` with the PNG itself (`Content-Type: image/png`). The response carries `Cache-Control: private, max-age=31536000, immutable`, so a browser keeps it for up to a year. The URL stays the same when the `website` changes, so a cached logo can outlive it. Add the website to the URL, for example `?website=acme.cl`, to fetch the new logo after a change.
+- `404` with `PARTNER_LOGO_NOT_FOUND_ERROR` when the Partner has no `website`, or its site shows no usable icon. A `404` carries no cache header. A site that could not be reached is tried again on the next request; a site that answered with no usable icon is not.
 
 ```bash
 curl -i "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/logo" \
@@ -546,9 +546,8 @@ A Control Line on the wrong side or on an account Book invoice refuses as a paya
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PUT`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the row as it was before. |
+| `200` | Success on `GET`, `PUT`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the row as it was before. `GET /partners/:partnerId/logo` answers with the logo PNG. |
 | `201` | Partner created. |
-| `302` | Redirect to the Partner's logo on `GET /partners/:partnerId/logo`. |
 | `400` | Validation error (including an invalid RUT, an invalid website, an unknown country, or an unknown bank), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | A merge with an API key confined to one Entity would move another Entity's books (`PERMISSION_DENIED_ERROR`). |
 | `404` | Entity, Organization, or Partner not found, the Entity doesn't use the Partner, the Partner has no logo (`PARTNER_LOGO_NOT_FOUND_ERROR`), or it has no Bank Details to delete (`PARTNER_BANK_DETAILS_NOT_FOUND_ERROR`). |
