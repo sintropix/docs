@@ -64,7 +64,7 @@ Each **envelope**:
 | `method` | string | HTTP method, for example `POST`. |
 | `params` | object | Path parameters of the request. |
 | `entityId` | UUID or `null` | The entity scope of the change. |
-| `ipAddress` | string or `null` | Caller IP address. |
+| `ipAddress` | string or `null` | IP address of the client that sent the request, not of a proxy in between. An IPv6 address is written in full, with each group padded to four digits, for example `2800:0150:011e:1a00:1c8f:6d2a:3b4e:9f01`. |
 | `userAgent` | string or `null` | Caller user agent. |
 | `changes` | array | One change per affected row. See below. |
 
