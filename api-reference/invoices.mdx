@@ -243,6 +243,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | --- | --- | --- |
 | `dte` | object or null | The DTE behind the document (fields listed under `PUT /invoices/:invoiceId/dte`). Null when none. |
 | `partnerName` | string | Name of the Partner. |
+| `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
 | `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked; `0` once it is fully paid. |
@@ -256,7 +257,7 @@ The type of `group.value` depends on `group.by`:
 
 | `by` | `value` |
 | --- | --- |
-| `partner` | string (Partner name) |
+| `partner` | string (Partner name). The group also carries `partnerId` (uuid) and `partnerWebsite` (string or null). |
 | `currency` | string |
 | `dteType` | string or null |
 | `bookingStatus` | `unbooked`, `booked`, or `excluded` |
@@ -361,6 +362,7 @@ Example response:
     "updatedAt": "2026-08-14T15:02:11.482Z",
     "dte": null,
     "partnerName": "Servicios Cloud SpA",
+    "partnerWebsite": "servicioscloud.cl",
     "sourceName": null,
     "paymentStatus": null,
     "openAmount": null,
@@ -454,6 +456,7 @@ Each element of `lines`:
 | `side` | string | `debit` or `credit`. |
 | `partnerId` | uuid or null | Counterparty Partner. |
 | `partnerName` | string or null | Name of that Partner. |
+| `partnerWebsite` | string or null | Website of that Partner, as a bare domain (`acme.cl`); null when it has none. |
 | `transactionCurrency` | string or null | Set together with the next two fields when the line was booked in a foreign currency. |
 | `transactionAmount` | integer or null | Amount in `transactionCurrency`, minor units. |
 | `transactionFxRate` | string or null | Decimal string. |

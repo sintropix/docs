@@ -98,7 +98,7 @@ Each item in `lines` extends the ledger entry line with:
 | `openAmount` | integer | Amount still open on the line, in the functional currency |
 | `entryDate` | ISO date | Date of the parent entry |
 | `entryMemo` | string or null | Memo of the parent entry |
-| `partner` | object or null | `{ id, name }` when the line has a counterparty |
+| `partner` | object or null | `{ id, name, website }` when the line has a counterparty. `website` is the partner's website as a bare domain (`acme.cl`), or `null` |
 | `dueDate` | ISO date or null | Due date carried by the source document |
 | `reference` | object or null | Source document; currently `{ kind: "invoice", id, label }` |
 
@@ -282,6 +282,7 @@ Each item in `lines`:
 | `partnerId` | UUID or null | Counterparty partner |
 | `partnerName` | string or null | Name of the partner |
 | `partnerTaxId` | string or null | Tax id of the partner |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none |
 | `dimensionValueId` | UUID or null | Value of the asked Dimension the line carries; `null` when the line carries none or no Dimension was asked |
 
 To total an account by value, add up its lines per `dimensionValueId`. To total a parent value, also add the lines of every value under it, following `parentId`. Lines with a `null` `dimensionValueId` make up the untagged remainder, so the values plus the remainder always add up to the account.
@@ -518,7 +519,7 @@ Returns a revenue realization report for the requested period, showing recognize
 | `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
 | `months` | array | One item per month: `{ monthKey }` (`YYYY-MM`) plus the amount fields below |
 | `total` | object | The amount fields below, summed over the period |
-| `entries` | array | One item per revenue entry: `{ entryId, entryDate, memo, partnerId, partnerName, partnerTaxId }` plus the amount fields below |
+| `entries` | array | One item per revenue entry: `{ entryId, entryDate, memo, partnerId, partnerName, partnerTaxId, partnerWebsite }` plus the amount fields below |
 
 Amount fields present on every item of `months`, on `total`, and on every item of `entries`:
 
@@ -806,6 +807,7 @@ Each item in `groups`:
 | `partnerId` | UUID or null | Partner; `null` for the unassigned group |
 | `partnerName` | string or null | Name of the partner |
 | `partnerTaxId` | string or null | Tax id of the partner |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none |
 | `openingBalance` | integer | Balance before `from` |
 | `totalDebit` | integer | Debits in the period |
 | `totalCredit` | integer | Credits in the period |

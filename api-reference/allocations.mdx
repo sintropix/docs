@@ -180,6 +180,7 @@ Each item in `settledLines`:
 | `side` | enum | `debit` or `credit` |
 | `partnerId` | UUID or null | Counterparty partner |
 | `partnerName` | string or null | Name of the partner |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none |
 | `transactionCurrency` | string or null | Foreign currency code, if any |
 | `transactionAmount` | integer or null | Amount in the foreign currency |
 | `transactionFxRate` | decimal string or null | Rate used for conversion |
