@@ -169,7 +169,7 @@ Create a feed that attaches a discovered account to an existing local Bank Accou
 | --- | --- | --- | --- |
 | `bankAccountId` | `uuid` | Yes | Local Bank Account to feed |
 | `providerAccountId` | `string` | Yes | Provider's opaque handle for the account |
-| `feedStartDate` | `ISO date` | Yes | Day the feed begins, for every Provider. Must not be older than 90 days or in the future. The Bank Account must already hold every row before this day, and the sync loads Provider movements from this day on |
+| `feedStartDate` | `ISO date` | Yes | Day the feed begins, for every Provider. Any past day or today, on the calendar of Santiago (Chile). A future day is refused. The Bank Account must already hold every row before this day, and the sync loads Provider movements from this day on |
 
 ### Response
 
@@ -189,10 +189,11 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INT
 
 ### Refusals
 
-The endpoint returns `400 Bad Request` with a body of `{ "code": "<code>", "params": { ... } }` in this case:
+The endpoint returns `400 Bad Request` with a body of `{ "code": "<code>", "params": { ... } }` in these cases:
 
 | Code | When it happens |
 | --- | --- |
+| `BANK_FEED_START_DATE_IN_FUTURE_ERROR` | `feedStartDate` is after today on the calendar of Santiago (Chile). `params` carries `feedStartDate` and `today`. Retry with a `feedStartDate` on or before `today` |
 | `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR` | `feedStartDate` is after the oldest pending hold at the Provider, such as an open Cardda hold. A feed that starts later would never land the hold once the Provider approves it. `params` carries `feedStartDate` and `earliestPendingDate`. Retry with a `feedStartDate` on or before `earliestPendingDate` |
 
 ## Create a Bank Account from a discovered account
@@ -209,11 +210,16 @@ Create a new Bank Account and feed it from a discovered account in one operation
 | `name` | `string` | Yes | Display name |
 | `ledgerAccountId` | `uuid` | Yes | Asset Ledger Account to map |
 | `providerAccountId` | `string` | Yes | Provider's opaque handle |
-| `feedStartDate` | `ISO date` | Yes | Day the feed begins. Must not be older than 90 days or in the future |
+| `feedStartDate` | `ISO date` | Yes | Day the feed begins. Any past day or today, on the calendar of Santiago (Chile). A future day is refused |
 
 ### Response
 
-The created Bank Account with its `balance` and `unreconciledCount` summary, in the same shape as the list response on the [Bank Accounts](/api-reference/bank-accounts) page.
+The created Bank Account with its `balance` and `unreconciledCount` summary, in the same shape as the list response on the [Bank Accounts](/api-reference/bank-accounts) page, plus one field:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `shortHistory` | `object \| null` | Set when the Bank Account has a [short history](#short-history). `null` otherwise |
+| `shortHistory.oldestServedDate` | `ISO date \| null` | The oldest day on or after `feedStartDate` with a movement the Provider served. `null` when the Provider served no movement since `feedStartDate` |
 
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/bank-accounts \
@@ -228,6 +234,31 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INT
     "feedStartDate": "2026-09-01"
   }'
 ```
+
+### Short history
+
+The feed lands the account's balance on `feedStartDate` as an opening balance, and loads the Provider's movements from that day on. Some Providers don't keep a long history. When the Provider can't show that its history reaches `feedStartDate`, any movement between `feedStartDate` and the oldest movement it served is missing, and its amount sits inside the opening balance.
+
+Sintropix still creates the Bank Account, and tells you once in `shortHistory`. Nothing stores it, so a later read of the Bank Account doesn't carry it. `shortHistory` stays `null` when:
+
+- The Provider holds a movement before `feedStartDate`, or states the balance on that day. A quiet period after the start doesn't count as a short history.
+- The opening balance is `0`, such as for an account opened after `feedStartDate`.
+
+```json
+{
+  "id": "0192a8b4-0000-7000-8000-000000000003",
+  "name": "Banco Principal",
+  "shortHistory": { "oldestServedDate": "2026-09-18" }
+}
+```
+
+In this example, the Provider served movements only from September 18. Any movement from September 1 to that day is inside the opening balance.
+
+Mapping a discovered account to an existing Bank Account never answers `shortHistory`: that Bank Account already holds every row before `feedStartDate`.
+
+### Refusals
+
+The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `400` with `BANK_FEED_START_DATE_IN_FUTURE_ERROR` or `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`.
 
 To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid).
 
