@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Entity"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Store Portal Logins for a bank, Getnet, the SII, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Export the General Ledger to a Google Sheet. Store Portal Logins for a bank, Getnet, the SII, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -16,6 +16,7 @@ What an Integration can feed depends on its kind:
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
 | `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `mercadolibre`, `gmail` | Nothing yet |
+| `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 
 An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account still belongs to a single Entity.
 
@@ -26,6 +27,8 @@ The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Pla
 The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
 The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Entity can connect several mailboxes, but each mailbox can belong to only one Entity. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
+
+The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the Entity's General Ledger of the current year to a tab of that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
 
 The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sign in to Polar as a user with the owner, admin, or finance role in the organization: Polar shows an organization's money to those roles only. It can feed a USD Bank Account with each organization's Polar balance. Sintropix only reads: it never charges, refunds, or withdraws money. See [Bank Feeds](/api-reference/bank-feeds#polar).
 
@@ -51,8 +54,8 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `entityId` | uuid | Owning Entity. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `google_sheets` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds and the OAuth authorizations. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
@@ -60,20 +63,22 @@ The access token is stored encrypted and is never returned on any read.
 | `feedableFamilies` | array | The [Document Families](/api-reference/source-feeds#document-families) this Integration's provider can feed: `["dte", "honorarium"]` for `sii_mirror`, `["dte"]` for `bsale` and `wasabil`. Empty for every kind that feeds no documents. |
 | `sourceFeeds` | array | The Source Feeds that read through this Integration, at most one per family, in the shape documented on [Source Feeds](/api-reference/source-feeds). Empty when the Integration feeds no Source. |
 | `fedBankAccounts` | array | `{ id, name }` of each Bank Account this Integration feeds, in name order. Empty when it feeds none. |
+| `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads when the Entity keeps Books. `null` for every other kind, and when the Entity has no Book. |
+| `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## POST `/integrations`
 
 Create an Integration by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted.
 
-This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, and Polar use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint.
+This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, Polar, and Google Sheets use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint.
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, and `polar` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `polar`, and `google_sheets` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -118,6 +123,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   "feedableFamilies": ["dte"],
   "sourceFeeds": [],
   "fedBankAccounts": [],
+  "bookId": null,
+  "lastGeneralLedgerExport": null,
   "createdAt": "2025-01-02T12:00:00.000Z",
   "updatedAt": "2025-01-02T12:00:00.000Z"
 }
@@ -244,7 +251,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$IN
 
 ## GET `/integrations`
 
-List every Integration for the Entity, including any Mercado Pago, Mercado Libre, Gmail, or Polar authorization connected from the app. Each item carries the Source Feed and the Bank Accounts it feeds.
+List every Integration for the Entity, including any Mercado Pago, Mercado Libre, Gmail, Polar, or Google Sheets authorization connected from the app. Each item carries the Source Feed and the Bank Accounts it feeds, and a Google Sheets Integration carries its last General Ledger Export.
 
 - **Response:** array of Integration objects.
 
@@ -254,7 +261,7 @@ Remove an Integration. Every feed of the Integration is removed as part of the s
 
 - For a `fintoc` Integration, Sintropix also deletes the Link at Fintoc, so the bank stops being read.
 - For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `502` or `503` and the Integration stays. Retry later.
-- For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked.
+- For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked. For `google_sheets`, the Sheet keeps the last General Ledger written to it.
 
 **Response**
 
@@ -273,6 +280,119 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$
 {
   "deletedIntegrationId": "0192a8b4-0000-7000-8000-000000000001",
   "unfedBankAccounts": []
+}
+```
+
+## Google Sheets
+
+A Google Sheets Integration keeps a copy of the Entity's General Ledger in a Google Sheet you own. Use it to work on the ledger with Sheets formulas, or to share it with someone who has no access to Sintropix. Sintropix only writes: nothing you change in the Sheet reaches the books.
+
+Each Integration exports to one Sheet, and each Sheet can receive the General Ledger of only one Entity. One Google account can connect Sheets for several Entities.
+
+<Note>
+  A `client` or `staff` caller can connect a Google Sheet and run an export. See [Access and roles](/api-reference/overview#access-and-roles).
+</Note>
+
+### Connect a Google Sheet
+
+You connect Google Sheets from the app, because Google asks for consent in a browser:
+
+1. Open **Settings → Integrations**, click **Conectar integración**, and pick **Google Sheets**.
+2. Paste the address of the Sheet, as your browser shows it with the Sheet open. It starts with `https://docs.google.com/spreadsheets/d/`.
+3. If the Entity keeps [Books](/api-reference/books), pick the **Libro** the export reads.
+4. Continue on Google with an account that can edit the Sheet, and keep the permission to edit your spreadsheets checked.
+
+When you return, Sintropix checks that the account can edit the Sheet by creating its tab, and connects the Integration. It refuses the connection, and stores nothing, when:
+
+- The address isn't the address of a Google Sheet.
+- Google can't find the Sheet with the account you authorized.
+- The account can view the Sheet but can't edit it. Share the Sheet with that account as an editor, then connect it again.
+- Another Integration already exports to that Sheet.
+
+### What the Sheet holds
+
+Each export rewrites the whole tab **Libro mayor** with the General Ledger of the current calendar year, on the calendar of Santiago (Chile). It reads the live Ledger Entries (`active` and `reversed`), the same lines as the [general ledger report](/api-reference/reports#general-ledger). For an Entity that keeps Books, it reads the Book you picked. Sintropix writes only that tab and leaves the rest of the Sheet alone. If you rename or delete the tab, the next export creates a new **Libro mayor** tab.
+
+The tab has one row per line, sorted by account code, then by date:
+
+| Column | Content |
+| --- | --- |
+| **Fecha** | The entry date, as a Sheets date |
+| **Asiento** | The Ledger Entry, linked to the entry in the app |
+| **Código** | The Ledger Account code |
+| **Cuenta** | The Ledger Account name |
+| **Glosa** | The entry memo |
+| **Contacto** | The partner on the line |
+| **Débito** | The debit amount |
+| **Crédito** | The credit amount |
+| **Saldo** | The account's running balance after this line, signed by the account's normal side |
+
+Amounts are numbers in currency units, not minor units, so Sheets formulas work on them.
+
+Each account opens with a **Saldo inicial** row dated January 1. It holds the balance the account carries in from before the year, with no entry. An account with no line this year shows that row alone when its balance isn't zero, and doesn't show at all when its balance is zero.
+
+Because every export rewrites the whole tab, running it again is safe: an entry posted, changed, or reversed since the last export shows up on the next one.
+
+### When the export runs
+
+Sintropix exports every Google Sheets Integration every four hours. To export right away, click **Sincronizar ahora** on the Integration's panel, or call [`POST /integrations/:integrationId/general-ledger-exports`](#post-integrations-integrationid-general-ledger-exports). The panel shows when the last export ran and how many lines it wrote, or why it failed.
+
+### The General Ledger Export object
+
+A General Ledger Export is one run that writes the General Ledger to the Sheet. It states either the lines it wrote or why it wrote nothing: exactly one of `lineCount` and `failure` is set.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Export id. |
+| `entityId` | uuid | Owning Entity. |
+| `integrationId` | uuid | The Google Sheets Integration. |
+| `occurredAt` | ISO 8601 timestamp | When the export ran. |
+| `lineCount` | integer \| null | Ledger lines written to the tab. The **Saldo inicial** rows don't count. `null` when the export failed. |
+| `failure` | string \| null | Why Google refused the export (see below). `null` when the export succeeded. |
+
+| `failure` | Meaning | What to do |
+| --- | --- | --- |
+| `authorization_expired` | The Google authorization expired or was revoked | Renew the authorization, or disconnect the Integration and connect the Sheet again |
+| `sheet_not_found` | Google can't find the Sheet: it was deleted, or the account lost access | Check the Sheet, then connect it again |
+| `sheet_not_writable` | The account can no longer edit the Sheet | Give the account edit access, then export again |
+| `provider_unreachable` | Google couldn't be reached | Export again in a few minutes |
+| `provider_failure` | Google failed | Export again in a few minutes |
+
+### POST `/integrations/:integrationId/general-ledger-exports`
+
+Export the General Ledger to the Integration's Sheet now. No request body.
+
+The export answers `200` with the General Ledger Export it recorded, whether it succeeded or Google refused it. Check `failure` to tell them apart.
+
+An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. While another export of the same Integration is still writing, including the scheduled one, the request answers `409` with `GENERAL_LEDGER_EXPORT_RUNNING_ERROR`. Retry when it finishes.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/general-ledger-exports" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+```json
+{
+  "id": "9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d",
+  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "integrationId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+  "occurredAt": "2026-10-19T15:00:00.000Z",
+  "lineCount": 1284,
+  "failure": null
+}
+```
+
+A refused export:
+
+```json
+{
+  "id": "0b1c2d3e-4f5a-4b6c-9d7e-8f9a0b1c2d3e",
+  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "integrationId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+  "occurredAt": "2026-10-19T19:15:00.000Z",
+  "lineCount": null,
+  "failure": "sheet_not_writable"
 }
 ```
 
@@ -462,13 +582,13 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `DELETE`. |
+| `200` | Success on `GET`, `DELETE`, and a General Ledger Export, including one Google refused. |
 | `201` | Integration or Portal Login created. |
 | `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
 | `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration (`PERMISSION_DENIED_ERROR`). |
 | `404` | Entity, Integration, or Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the external account is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`). |
+| `409` | Integration id already exists, the external account is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), or a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), or a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`). |
 | `502` | The Provider failed (`BANK_FEED_PROVIDER_FAILURE_ERROR`). Retry later. |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), or Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`). Retry later. |
