@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Onboarding API: Provision Users and Grant Memberships"
 sidebarTitle: "Onboarding"
-description: "Superadmin-only endpoints to create Users, look them up by email, list every Organization, grant Organization Memberships with a Role, send set-password links, and revoke sessions."
+description: "Superadmin-only endpoints to create Users, look them up by email or by inactivity, list every Organization, grant Organization Memberships with a Role, send set-password links, and revoke sessions."
 ---
 
 The Onboarding API is how a Sintropix Superadmin provisions new Users and controls which Organizations they can access. Public sign-up is disabled, so User creation happens only through this surface.
@@ -31,6 +31,7 @@ Create a User. A User has no Role of their own: a new User reaches no Entity unt
 | `email` | string | The email, stored in lowercase. |
 | `name` | string | The display name, trimmed. |
 | `createdAt` | ISO datetime | Creation timestamp. |
+| `lastSignInAt` | ISO datetime \| null | When the User last completed a sign-in. `null` for a User who never did, so always `null` for a new User. |
 
 An email another User already holds returns `409` with `USER_ALREADY_EXISTS_ERROR`.
 
@@ -49,25 +50,50 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users" \
   "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
   "email": "ana.perez@example.com",
   "name": "Ana Perez",
-  "createdAt": "2026-09-26T12:00:00.000Z"
+  "createdAt": "2026-09-26T12:00:00.000Z",
+  "lastSignInAt": null
 }
 ```
 
 ## GET `/onboarding/users`
 
-List Users, or look one up by email. Use the email filter to recover a User's id when all you hold is their address.
+List Users, look one up by email, or find the Users who haven't signed in for a while. Use the email filter to recover a User's id when all you hold is their address. Use `inactiveForDays` to find accounts nobody uses, for example before you revoke their Memberships.
 
 **Query params**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `email` | string | No | A valid email address. Matching ignores case. Without it, the response lists every User. |
+| `email` | string | No | A valid email address. Matching ignores case. |
+| `inactiveForDays` | integer | No | A positive whole number of days. Lists only the Users whose last sign-in is older than that many days before now. A User who never signed in counts from `createdAt`, so a User created today is not inactive. A sign-in exactly that many days ago is not inactive either. |
 
-**Response** `200`: an array of User objects in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `createdAt`). An unknown email returns an empty array.
+Without filters, the response lists every User. With both filters, a User must match both. A value of `inactiveForDays` that is not a positive integer, such as `0`, `-3`, or `1.5`, returns `400`.
+
+**Response** `200`: an array of User objects in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `createdAt`, `lastSignInAt`). An unknown email returns an empty array.
+
+`lastSignInAt` moves only when a sign-in completes, including its second factor when the User has one. A wrong password, a sign-in that stops at the second-factor code, and a session refresh leave it unchanged.
 
 ```bash
 curl "https://api.sintropix.com/api/onboarding/users?email=ana.perez%40example.com" \
   --cookie cookies.txt
+```
+
+List the Users with no sign-in in the last 30 days:
+
+```bash
+curl "https://api.sintropix.com/api/onboarding/users?inactiveForDays=30" \
+  --cookie cookies.txt
+```
+
+```json
+[
+  {
+    "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+    "email": "ana.perez@example.com",
+    "name": "Ana Perez",
+    "createdAt": "2026-07-01T12:00:00.000Z",
+    "lastSignInAt": "2026-08-14T09:30:00.000Z"
+  }
+]
 ```
 
 ## GET `/onboarding/organizations`
