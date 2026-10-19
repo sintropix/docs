@@ -123,6 +123,7 @@ Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which 
 | `accountName` | string | Name of the account |
 | `accountType` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
 | `partnerName` | string or null | Name of the partner |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it |
 | `lineDimensionValues` | array | Tags on the line: `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }` |
 
 Each item in `relatedInvoices`:
@@ -528,6 +529,7 @@ Each item in `lines` is a Ledger Entry Line object (see the entry detail endpoin
 | `entryDate` | ISO date | Date of the parent entry |
 | `entryMemo` | string or null | Memo of the parent entry |
 | `partnerName` | string or null | Name of the partner |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it |
 | `settlementStatus` | enum | `open` (nothing settled), `partial`, or `settled` (nothing left open) |
 
 ```bash
