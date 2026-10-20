@@ -260,7 +260,7 @@ Mapping a discovered account to an existing Bank Account never answers `shortHis
 
 The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `400` with `BANK_FEED_START_DATE_IN_FUTURE_ERROR` or `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`.
 
-To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid).
+To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To check whether a feed's Movements add up to the Provider's balance, read its [tie-out](/api-reference/bank-accounts#tie-out). To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid).
 
 ## What each Provider lands
 
@@ -271,6 +271,7 @@ Cardda is a prepaid wallet and card provider. The company holds one CLP wallet, 
 - Only approved rows that affect the balance land as Movements. Pending rows, declined rows, and rows that do not affect the balance stay out of the books.
 - The reported balance is the wallet amount minus the pending holds that affect the balance.
 - The Movement date is the transaction's `authorized_at`, or `created_at` when `authorized_at` is absent. Sintropix reads that timestamp as the calendar day in Santiago (Chile).
+- A Movement that landed stays when Cardda later declines its transaction. It isn't a [restatement](/api-reference/bank-accounts#restatement): the sync still lands, and the account goes [out of tie-out](/api-reference/bank-accounts#tie-out) by its amount.
 
 ### dLocal Go
 
@@ -279,7 +280,17 @@ dLocal Go is a payment processor that reports payments and settlements. The feed
 - A paid payment lands as an inflow. It joins the feed by the day dLocal Go created it: a payment created on or after the feed start date lands, and one created before it belongs in the opening balance, even when dLocal Go paid it later.
 - The payment's Movement date is the day dLocal Go approved it. If dLocal Go later changes that date, the Movement keeps the day it first landed on, and the payment never lands a second time.
 - A completed settlement lands as an outflow, dated and joined by the day dLocal Go paid it.
+- A payment that landed stays when dLocal Go later rejects it. It isn't a [restatement](/api-reference/bank-accounts#restatement): the sync still lands, and the account goes [out of tie-out](/api-reference/bank-accounts#tie-out) by its amount.
 - The feed start date must be on or before the creation day of the oldest payment that is still open. A later date is refused with `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`, and `earliestPendingDate` is that creation day.
+
+### Fintoc
+
+A Fintoc feed reads a bank account through the bank login you connected with the Fintoc widget.
+
+- Only posted movements land. A movement the bank still shows as pending, such as a deposited check that hasn't cleared, lands on the first sync after Fintoc serves it as posted. If it never posts, for example a check that bounces, it never lands.
+- The bank's balance already counts a pending movement. Each sync leaves pending movements out of the balance it checks against, so a pending check doesn't put the account [out of tie-out](/api-reference/bank-accounts#tie-out).
+- When you create a Bank Account from a Fintoc account, the opening balance leaves out the movements pending on that day too. Each lands once, when it posts.
+- The discovered account's `balance.current` is the bank's balance as Fintoc reports it, pending movements included.
 
 ### Mercado Pago
 
@@ -335,7 +346,7 @@ The Additional Information holds these lines, in this order, each only when Plai
 A sync updates the description and these lines on an unbooked Movement. A booked Movement keeps its description.
 
 <Warning>
-  Feed dates follow the calendar of Santiago (Chile), not US time. A transaction can post late on a US day that is already the next day in Santiago, or post after you map with a date before the feed start date. Such a transaction never lands, but the account's balance at Plaid counts it, so every later sync fails its balance check with `BANK_FEED_SYNC_TIE_OUT_MISMATCH_ERROR`. To fix it, [remove the feed](/api-reference/bank-accounts#delete-a-bank-account-feed) and map the account again with a feed start date on or before that transaction.
+  Feed dates follow the calendar of Santiago (Chile), not US time. A transaction can post late on a US day that is already the next day in Santiago, or post after you map with a date before the feed start date. Such a transaction never lands, but the account's balance at Plaid counts it, so every later sync leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out) by its amount. To fix it, [remove the feed](/api-reference/bank-accounts#delete-a-bank-account-feed) and map the account again with a feed start date on or before that transaction.
 </Warning>
 
 **Errors.** When the bank login expires at the bank, a sync answers `502` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect).
@@ -389,6 +400,6 @@ The Additional Information holds these lines, in this order, each only when Pola
 | `Monto recibido Polar` | On a payout, the amount your bank received, in minor units of its currency |
 | `Moneda recibida Polar` | On a payout, the currency your bank received, such as `CLP` |
 
-**Balance check.** Each sync reads the whole Polar ledger and checks it against the organization's Polar balance. When the ledger doesn't add up to the balance, the map, the Bank Account creation, and every sync answer `502` with `BANK_FEED_PROVIDER_FAILURE_ERROR`, so no made-up opening balance absorbs the gap. A row type, fee type, or currency that Sintropix doesn't know refuses the sync with the same code. When the landed Movements don't reach the balance, the sync answers `BANK_FEED_SYNC_TIE_OUT_MISMATCH_ERROR`.
+**Balance check.** Each sync reads the whole Polar ledger and checks it against the organization's Polar balance. When the ledger doesn't add up to the balance, the map, the Bank Account creation, and every sync answer `502` with `BANK_FEED_PROVIDER_FAILURE_ERROR`, so no made-up opening balance absorbs the gap. A row type, fee type, or currency that Sintropix doesn't know refuses the sync with the same code. When the landed Movements don't reach the balance, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out).
 
 The Polar Integration renews its authorization on its own before a sync reads.
