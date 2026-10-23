@@ -57,6 +57,15 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
     ```
 
     Keep the `client_id` from the response. `client_name` is what Users see on the approval screen and in their list of connected apps.
+
+    The redirect URIs you can register depend on where your app runs:
+
+    | `application_type` | Redirect URIs |
+    | --- | --- |
+    | `web` (the default) | `https` on a host that isn't a loopback address, such as `https://assistant.acme.example/callback`. |
+    | `native`, for an app on the User's device | `http` on `localhost`, `127.0.0.1`, or `[::1]`, such as `http://localhost:53682/callback`. Or a private-use scheme in reverse-domain form with no host, such as `com.acme.assistant:/callback`. Or `https`, as for `web`. |
+
+    Any other redirect URI, such as a custom scheme with a host like `acme://callback`, returns `400` with `invalid_redirect_uri`.
   </Step>
   <Step title="Send the User to approve">
     Create a PKCE code verifier and its S256 challenge, then open the authorization URL in the User's browser:
@@ -72,7 +81,9 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
       &code_challenge_method=S256
     ```
 
-    The `redirect_uri` must match one you registered exactly. The User then goes through these screens in the Sintropix app:
+    The `redirect_uri` must match one you registered exactly. If you send a `resource`, it must be the [Sintropix MCP server](/guides/mcp-server), `https://mcp.sintropix.com/mcp`. Any other resource sends the User back to your `redirect_uri` with `error=invalid_target`.
+
+    The User then goes through these screens in the Sintropix app:
 
     1. Signs in with their password and second factor. A User without two-step verification is asked to set it up first.
     2. Picks the Organization the app will work in (**Elige la organización**). A User with one Membership skips this screen. A User with no Membership can't approve any app.
@@ -110,7 +121,7 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
       -d '{"id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88", "name": "Servicios Cloud SpA"}'
     ```
 
-    When a request returns `401`, refresh the token:
+    When a request returns `401`, refresh the token. An access token also ends when the User signs out of the browser session they approved the app from, but its refresh token keeps working.
 
     ```bash
     curl -X POST https://api.sintropix.com/api/auth/oauth2/token \
@@ -125,7 +136,7 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
 
 ## Manage connected apps
 
-Users see their connected apps in the Sintropix app under **Ajustes** > **Apps conectadas**, at `https://app.sintropix.com/{entityId}/settings/connected-apps`. Each row shows the app, its return domain, the Organization, the access, and the connection date. Click the revoke button on a row and confirm with **Revocar**: the app's access and refresh tokens stop working at once. Revoking one Organization's approval leaves the same app's approvals in other Organizations.
+Users see their connected apps in the Sintropix app under **Tu cuenta** > **Apps conectadas**, at `https://app.sintropix.com/account/connected-apps`. To get there, click your name at the bottom of the left sidebar and choose **Tu cuenta**. Each row shows the app, its return domain, the Organization, the access, and the connection date. Click the revoke button on a row and confirm with **Revocar**: the app's access and refresh tokens stop working at once. Revoking one Organization's approval leaves the same app's approvals in other Organizations.
 
 The same actions are available over the API, from a signed-in browser session only. An API key or an OAuth token gets `403` with `PERMISSION_DENIED_ERROR`.
 
