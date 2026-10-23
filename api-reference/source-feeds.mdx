@@ -24,6 +24,8 @@ Every Feed lands one **Document Family**:
 
 An Entity holds at most one Feed of each family, and a Source holds at most one Feed. Two providers of one family describe the same documents, so a second Feed of a family would land them twice. An [Integration](/api-reference/integrations) lists the families its provider can feed in `feedableFamilies`.
 
+An Integration belongs to the Organization, and its Feeds route it to Entities. A Feed lands in the Entity of its route, `/api/entities/:entityId/source-feeds`, and reads through any Integration of that Entity's Organization, even one that already feeds other Entities.
+
 ## The Source Feed object
 
 Every route on this page returns Feeds in this shape.
@@ -74,7 +76,7 @@ Create a Source Feed. The body names the Source to fill, either an existing one 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `integrationId` | uuid | Yes | The Integration to read through. |
+| `integrationId` | uuid | Yes | The Integration to read through: any Integration of the Entity's Organization. Another Organization's answers `404` with `INTEGRATION_NOT_FOUND_ERROR`. |
 | `family` | `dte` \| `honorarium` | Yes | The [Document Family](#document-families) to land. It must be one of the Integration's `feedableFamilies`. |
 | `feedStartDate` | string (`YYYY-MM-DD`) | Yes | The link date: the earliest emission date to import. |
 | `source` | object | Yes | Exactly one of `{ "sourceId": "<uuid>" }` (an existing Source) or `{ "sourceName": "<name>" }` (create a Source with that name). A body carrying both keys is rejected. |
@@ -259,7 +261,7 @@ A sync with `preview: true` lists the updates it would make in `report.updates` 
 
 ## SII Mirror Feeds
 
-A Feed that reads through a `sii_mirror` [Integration](/api-reference/integrations) reads the SII registers month by month, from the link date to the day it runs.
+A Feed that reads through a `sii_mirror` [Integration](/api-reference/integrations#sii) reads the SII registers of the RUT the Integration connected, month by month, from the link date to the day it runs. It reads that RUT whatever Entity the Feed lands in. Each document it lands names that RUT, with the Entity's name, as the company's side: the issuer of a sale and the receiver of a purchase.
 
 ### SII Mirror boletas
 
@@ -296,7 +298,7 @@ The providers that carry files today:
 
 | Provider `kind` | Documents with files attached |
 | --- | --- |
-| `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. A [Honorarium Feed](#honorarium-feeds) attaches the PDF of each BHE and BTE. |
+| `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. The SII serves these files only to the legal representative, so add the [legal representative's Clave](/api-reference/integrations#the-legal-representatives-clave) to the Integration. A [Honorarium Feed](#honorarium-feeds) attaches the PDF of each BHE and BTE. |
 | `bsale` | Sales documents. Purchases keep their PDF and XML as evidence lines on the Source Feed, because the Bsale purchase `urlPdf` answers HTML rather than a PDF. |
 | `wasabil` | Issued and received documents. |
 
@@ -380,7 +382,7 @@ A reference is linked only when its target is already in the Entity's books: a D
 | `200` | Success on `GET`, `PATCH`, `DELETE`, `POST /sync`. |
 | `201` | Source Feed created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity or Source Feed not found. |
+| `404` | Entity, Source Feed, or Integration (`INTEGRATION_NOT_FOUND_ERROR`) not found. |
 | `409` | The Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), or the Source already has a Feed. |
 | `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`). |
 | `502` | External sync failed at the provider. |

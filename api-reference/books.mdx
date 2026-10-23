@@ -25,7 +25,7 @@ The database enforces the structural half of the rule so a hand-written statemen
 
 ## When `bookId` is required
 
-Once an Entity has at least one Book, every book-scoped read must carry `bookId`, and the server answers `BOOK_REQUIRED_ERROR` (`409`) without it. An Entity with no Book must not send `bookId`.
+Once an Entity has at least one Book, every book-scoped read must carry `bookId`, and the server answers `BOOK_REQUIRED_ERROR` (`400`) without it. An Entity with no Book must not send `bookId`.
 
 Book-scoped reads:
 
