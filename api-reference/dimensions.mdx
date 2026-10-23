@@ -1,55 +1,69 @@
 ---
 title: "Sintropix Dimensions API: Reporting Axes and Values"
 sidebarTitle: "Dimensions"
-description: "Create, update, and delete Dimensions and Dimension Values to tag Ledger Entry Lines for segmented reporting."
+description: "Create, update, and delete the Dimensions and Dimension Values an Organization shares across its Entities, and tag Ledger Entry Lines with them for segmented reporting."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-Dimensions are reporting axes you define for an Entity. Each Dimension holds Dimension Values that tag Ledger Entry Lines. Only lines on Result Accounts (income and expense types) can carry Dimension Values. This page covers full CRUD for both Dimensions and their Values.
+Dimensions are reporting axes you define for an Organization. Each Dimension holds Dimension Values that tag Ledger Entry Lines. Only lines on Result Accounts (income and expense types) can carry Dimension Values. This page covers full CRUD for both Dimensions and their Values.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/dimensions?dimension={dimensionId}"
+  note="Open the page from any Entity of the Organization: it shows the Organization's Dimensions."
 />
 
-## GET /api/entities/:entityId/dimensions
+## Dimensions belong to the Organization
 
-List all Dimensions for an Entity.
+A Dimension and its Values belong to the [Organization](/api-reference/organizations), not to one Entity. Every Entity of the Organization can tag its lines with every Value, so one Dimension splits the results of all its Entities the same way.
 
-- **Path param:** `entityId` (UUID)
+- A Dimension name is unique in the Organization. A Value code is unique in its Dimension.
+- A rename, a recode, or a move in the hierarchy applies to every Entity of the Organization, whichever Entity you make it from.
+- Each Entity keeps its own lines and tags. When you book or [retag](/api-reference/ledger-entries#put-api-entities-entityid-ledger-lines-lineid-dimension-values) a line, `dimensionValueIds` must name Values of the Entity's Organization.
+- You can't delete a Value while a line of any Entity of the Organization carries it.
+- The [Income Statement by Dimension](/api-reference/reports#income-statement-by-dimension) stays per Entity: it lists the Organization's Values and adds up that Entity's lines.
+- An Entity whose lines carry a Value can't [move to another Organization](/api-reference/entities#patch-api-entities-entityid-organization).
+
+The routes on this page live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). The routes need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization. Any other Organization, or one where you hold no Membership, answers `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+
+## GET /api/organizations/:organizationId/dimensions
+
+List all Dimensions of the Organization.
+
+- **Path param:** `organizationId` (UUID)
 - **Success response:** array of Dimension objects
 - **Status:** 200
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | UUID | Dimension id |
-| `entityId` | UUID | Owning Entity |
+| `organizationId` | UUID | Owning Organization |
 | `name` | string | Dimension name |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
-curl https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions \
+curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-## POST /api/entities/:entityId/dimensions
+## POST /api/organizations/:organizationId/dimensions
 
 Create a new Dimension.
 
-- **Path param:** `entityId` (UUID)
+- **Path param:** `organizationId` (UUID)
 - **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied idempotency id |
-| `name` | string | Yes | Dimension name, non-empty |
+| `name` | string | Yes | Dimension name, non-empty and unique in the Organization |
 
 - **Success response:** the created Dimension (same shape as the list response)
 - **Status:** 201
 
 ```bash
-curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions \
+curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -59,11 +73,11 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions \
   }'
 ```
 
-## PATCH /api/entities/:entityId/dimensions/:dimensionId
+## PATCH /api/organizations/:organizationId/dimensions/:dimensionId
 
-Rename a Dimension.
+Rename a Dimension. The new name applies to every Entity of the Organization.
 
-- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Path params:** `organizationId` (UUID), `dimensionId` (UUID)
 - **Body:**
 
 | Field | Type | Required | Description |
@@ -74,39 +88,39 @@ Rename a Dimension.
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions/$DIMENSION_ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -d '{"name": "Proyecto"}'
 ```
 
-## DELETE /api/entities/:entityId/dimensions/:dimensionId
+## DELETE /api/organizations/:organizationId/dimensions/:dimensionId
 
 Delete a Dimension. A Dimension that has values cannot be deleted.
 
-- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Path params:** `organizationId` (UUID), `dimensionId` (UUID)
 - **Success response:** the deleted Dimension (same shape as the list response)
 - **Status:** 200
 
 ```bash
-curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID \
+curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions/$DIMENSION_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
 
-## GET /api/entities/:entityId/dimensions/:dimensionId/values
+## GET /api/organizations/:organizationId/dimensions/:dimensionId/values
 
 List all Dimension Values for a Dimension.
 
-- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Path params:** `organizationId` (UUID), `dimensionId` (UUID)
 - **Success response:** array of Dimension Value objects
 - **Status:** 200
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | UUID | Value id |
-| `entityId` | UUID | Owning Entity |
+| `organizationId` | UUID | Owning Organization |
 | `dimensionId` | UUID | Parent Dimension |
 | `code` | string | Value code |
 | `name` | string | Value name |
@@ -115,21 +129,21 @@ List all Dimension Values for a Dimension.
 | `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
-curl https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
+curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions/$DIMENSION_ID/values \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-## POST /api/entities/:entityId/dimensions/:dimensionId/values
+## POST /api/organizations/:organizationId/dimensions/:dimensionId/values
 
 Create a new Dimension Value.
 
-- **Path params:** `entityId` (UUID), `dimensionId` (UUID)
+- **Path params:** `organizationId` (UUID), `dimensionId` (UUID)
 - **Body:**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied idempotency id |
-| `code` | string | Yes | Value code, non-empty |
+| `code` | string | Yes | Value code, non-empty and unique in the Dimension |
 | `name` | string | Yes | Value name, non-empty |
 | `parentId` | UUID or null | No | Parent value id; null for top-level |
 
@@ -137,7 +151,7 @@ Create a new Dimension Value.
 - **Status:** 201
 
 ```bash
-curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values \
+curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions/$DIMENSION_ID/values \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -149,11 +163,11 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMEN
   }'
 ```
 
-## PATCH /api/entities/:entityId/dimensions/:dimensionId/values/:dimensionValueId
+## PATCH /api/organizations/:organizationId/dimensions/:dimensionId/values/:dimensionValueId
 
-Update a Dimension Value. You can rename, recode, or reparent it.
+Update a Dimension Value. You can rename, recode, or reparent it. The change applies to every Entity of the Organization.
 
-- **Path params:** `entityId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
+- **Path params:** `organizationId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
 - **Body:**
 
 | Field | Type | Required | Description |
@@ -168,23 +182,23 @@ At least one field must be provided.
 - **Status:** 200
 
 ```bash
-curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -d '{"name": "Ventas sur"}'
 ```
 
-## DELETE /api/entities/:entityId/dimensions/:dimensionId/values/:dimensionValueId
+## DELETE /api/organizations/:organizationId/dimensions/:dimensionId/values/:dimensionValueId
 
-Delete a Dimension Value. A value that is tagged on any Ledger Entry Line or that has children cannot be deleted.
+Delete a Dimension Value. A value that a Ledger Entry Line of any Entity of the Organization carries, or that has children, cannot be deleted.
 
-- **Path params:** `entityId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
+- **Path params:** `organizationId` (UUID), `dimensionId` (UUID), `dimensionValueId` (UUID)
 - **Success response:** the deleted Dimension Value (same shape as the values list response)
 - **Status:** 200
 
 ```bash
-curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
+curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimensions/$DIMENSION_ID/values/$VALUE_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -193,16 +207,17 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/dimensions/$DIM
 
 | Code | Meaning |
 | --- | --- |
-| `DIMENSION_NOT_FOUND_ERROR` | Dimension does not exist |
+| `ORGANIZATION_NOT_FOUND_ERROR` | Organization does not exist or is outside your reach |
+| `DIMENSION_NOT_FOUND_ERROR` | Dimension does not exist in the Organization |
 | `DIMENSION_ALREADY_EXISTS_ERROR` | Dimension id already used |
-| `DIMENSION_NAME_ALREADY_EXISTS_ERROR` | Dimension name already in use |
+| `DIMENSION_NAME_ALREADY_EXISTS_ERROR` | Dimension name already in use in the Organization |
 | `DIMENSION_HAS_VALUES_ERROR` | Cannot delete a Dimension that has values |
 | `DIMENSION_VALUE_NOT_FOUND_ERROR` | Dimension Value does not exist |
 | `DIMENSION_VALUE_ALREADY_EXISTS_ERROR` | Dimension Value id already used |
 | `DIMENSION_VALUE_CODE_ALREADY_EXISTS_ERROR` | Code already in use for this Dimension |
 | `DIMENSION_VALUE_PARENT_NOT_FOUND_ERROR` | Parent value not found |
 | `DIMENSION_VALUE_PARENT_CYCLE_ERROR` | Value cannot become a descendant of itself |
-| `DIMENSION_VALUE_IN_USE_ERROR` | Value is tagged on a Ledger Entry Line |
+| `DIMENSION_VALUE_IN_USE_ERROR` | Value is tagged on a Ledger Entry Line of an Entity of the Organization |
 | `DIMENSION_VALUE_HAS_CHILDREN_ERROR` | Value has child values |
 
 ## Status codes
