@@ -53,7 +53,7 @@ Each **envelope**:
 | `occurredAt` | ISO datetime | When the request was processed. |
 | `requestId` | string | Server-generated unique id for the request. |
 | `actorUserId` | UUID or `null` | The authenticated user, when there was one. |
-| `actor` | object or `null` | `{ id, name, role }` of the authenticated user. `role` is the user's current Membership Role in the entity's Organization (`staff`, `client`, or `viewer`), or `null` when they hold no Membership there. |
+| `actor` | object or `null` | `{ id, name, role, deleted }` of the authenticated user, as they were at the write. `role` is the user's Membership Role in the Organization of the write (`staff`, `client`, or `viewer`), or `null` when they held no Membership there. `deleted` is `true` when a Superadmin has [deleted the user](/api-reference/onboarding#delete-onboarding-users-userid) since. |
 | `credentialType` | enum | `session`, `api_key`, `oauth`, or `system`. `oauth` marks a write made by a [connected app](/guides/connected-apps) with an OAuth access token. |
 | `apiKeyId` | UUID or `null` | The API key used, for `api_key` requests. |
 | `connectedAppClientId` | string or `null` | The OAuth `client_id` of the connected app, for `oauth` requests. |
@@ -108,7 +108,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?limit=50"
       "occurredAt": "2025-01-15T09:23:00.000Z",
       "requestId": "req_8f1c2e7a9b",
       "actorUserId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
-      "actor": { "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b", "name": "Ana Perez", "role": "client" },
+      "actor": { "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b", "name": "Ana Perez", "role": "client", "deleted": false },
       "credentialType": "api_key",
       "apiKeyId": "7a1e4d2c-3b5f-4e6a-8c9d-0f1a2b3c4d5e",
       "connectedAppClientId": null,
@@ -150,7 +150,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?limit=50"
 
 The audit trail is row-level and automatic: every write is recorded by the database itself, so no endpoint can skip it. Every mutating request produces one **Audit Envelope** grouping its **Audit Changes**:
 
-- **Actor:** `actorUserId` plus name and role of the authenticated user
+- **Actor:** `actorUserId` plus the name and role the authenticated user had at the write. A deleted user keeps that name and role in the trail, and the **Log** shows **(eliminado)** after their name.
 - **Credential type:** `session` for browser sessions, `api_key` for API key requests, `system` for changes made by Sintropix itself
 - **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor. A [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync that writes the Standing or Tax Period of a landed DTE carries `source-feed`, credited to the system.
 - **Declared reason:** the value of the `x-audit-reason` header (trimmed, up to 500 characters) explaining why the change was made; required on API-key mutations, optional on browser sessions
