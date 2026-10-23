@@ -1,7 +1,7 @@
 ---
 title: "Obtén una clave de API de Sintropix para agentes e integraciones"
 sidebarTitle: "Obtener una clave de API"
-description: "Crea una clave de API de Sintropix desde Ajustes, envíala en el encabezado x-api-key y entiende el alcance, los límites de solicitudes y las reglas de rotación que aplican al acceso programático."
+description: "Crea una clave de API de Sintropix desde Tu cuenta, envíala en el encabezado x-api-key y entiende el alcance, los límites de solicitudes y las reglas de rotación que aplican al acceso programático."
 ---
 
 Las claves de API de Sintropix permiten que agentes e integraciones se autentiquen como un Usuario sin una sesión de navegador. Cada clave es una credencial de larga duración que se envía en el encabezado `x-api-key`, actúa como el Usuario propietario con sus Membresías de Organización y está limitada a 25.000 solicitudes por hora.
@@ -9,29 +9,21 @@ Las claves de API de Sintropix permiten que agentes e integraciones se autentiqu
 Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](https://app.sintropix.com). Todo el proceso toma menos de un minuto.
 
 <Steps>
-  <Step title="Inicia sesión y abre Ajustes">
+  <Step title="Inicia sesión y abre Tu cuenta">
     Inicia sesión como el Usuario en cuyo nombre actuará la clave. La clave actúa con las Membresías de Organización de ese Usuario y sus Roles, así que elige un Usuario con el acceso que la integración realmente necesita.
 
     El inicio de sesión siempre pide la **Verificación en dos pasos**. Por defecto, Sintropix te envía un código de 6 dígitos por correo después de la contraseña. El código vence a los 5 minutos. Haz clic en **Enviar otro código** para recibir uno nuevo; solo sirve el último. Después de 5 códigos incorrectos, debes ingresar tu contraseña de nuevo.
 
-    Tu primer inicio de sesión empieza en el enlace para definir tu contraseña que Sintropix te envía por correo. Elige una contraseña de al menos 8 caracteres y haz clic en **Guardar contraseña**. Sintropix inicia tu sesión y te envía un código por correo para activar la verificación en dos pasos, así que escribes tu contraseña una sola vez. Si inicias sesión desde la página de inicio de sesión antes de activar la verificación en dos pasos, Sintropix te envía el código justo después de la contraseña. Si el enlace ya se usó o venció, la página muestra **Enlace no válido**. Haz clic en **Pedir un enlace nuevo** para solicitar otro.
+    Tu primer inicio de sesión empieza en el enlace para definir tu contraseña que Sintropix te envía por correo. Elige una contraseña de entre 8 y 128 caracteres y haz clic en **Guardar contraseña**. Sintropix inicia tu sesión y te envía un código por correo para activar la verificación en dos pasos, así que escribes tu contraseña una sola vez. Si inicias sesión desde la página de inicio de sesión antes de activar la verificación en dos pasos, Sintropix te envía el código justo después de la contraseña. Si el enlace ya se usó o venció, la página muestra **Enlace no válido**. Haz clic en **Pedir un enlace nuevo** para solicitar otro.
 
     Si olvidaste tu contraseña, haz clic en **¿Olvidaste tu contraseña?** en la página de inicio de sesión e ingresa tu correo. Si la dirección tiene una cuenta en Sintropix, recibes un enlace para elegir una contraseña nueva. El enlace vence en 1 hora y sirve una sola vez. Al guardar la contraseña nueva se cierran todas tus sesiones; luego Sintropix inicia tu sesión en la misma página y te pide el segundo factor.
 
-    Si prefieres una aplicación de autenticación, elige **Usar una aplicación de autenticación** durante la configuración. Para entonces, Sintropix ya te envió un código por correo, que puedes ignorar. También puedes cambiar más tarde: haz clic en **Configurar aplicación de autenticación** en **Ajustes** > **Seguridad**. Escaneas un código QR, confirmas un código y guardas 10 códigos de respaldo. Desde entonces, el inicio de sesión pide el código de la aplicación o un código de respaldo, y Sintropix deja de enviarte códigos por correo. Solo una sesión con verificación en dos pasos puede crear claves de API.
+    Si prefieres una aplicación de autenticación, elige **Usar una aplicación de autenticación** durante la configuración. Para entonces, Sintropix ya te envió un código por correo, que puedes ignorar. También puedes cambiar más tarde: haz clic en **Configurar aplicación de autenticación** en **Tu cuenta** > **Seguridad**. Escaneas un código QR, confirmas un código y guardas 10 códigos de respaldo. Desde entonces, el inicio de sesión pide el código de la aplicación o un código de respaldo, y Sintropix deja de enviarte códigos por correo. Solo una sesión con verificación en dos pasos puede crear claves de API.
 
-    Haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Ajustes**.
-
-    <Frame caption="El menú de usuario en la esquina inferior izquierda de la aplicación. Ajustes abre la configuración.">
-      <img src="/images/api-keys/01-user-menu.png" alt="Pantalla de inicio de Sintropix con el menú de usuario abierto, mostrando Ajustes y Cerrar sesión" />
-    </Frame>
+    Haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Tu cuenta**.
   </Step>
   <Step title="Ve a Claves de API">
-    Ajustes se abre en la página **Empresa**. En la lista Configuración de la izquierda, haz clic en **Claves de API**.
-
-    <Frame caption="Claves de API en la barra lateral de Ajustes.">
-      <img src="/images/api-keys/02-settings-api-keys-nav.png" alt="Ajustes de Sintropix con la barra lateral Configuración y Claves de API resaltado" />
-    </Frame>
+    **Tu cuenta** se abre en **Preferencias**. En la lista de la izquierda, haz clic en **Claves de API**. La página está en `https://app.sintropix.com/account/api-keys`.
 
     La página lista todas las claves que te pertenecen con su nombre, prefijo, fecha de creación, vencimiento y último uso. Puedes revocar una clave desde el ícono de papelera de cada fila.
 
@@ -99,7 +91,7 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
 - Una clave se autentica como su Usuario propietario, con las Membresías de Organización de ese Usuario. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
 - Una clave nunca hace trabajo de Superadmin, aunque sea de un Superadmin. Administrar Usuarios, Organizaciones y Membresías requiere una sesión iniciada; una clave recibe `403` con `SUPERADMIN_SESSION_REQUIRED`.
 - Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las Organizaciones en las que el Usuario propietario tiene una Membresía, y solo puede hacer lo que el Rol del Usuario allí permite. Una clave de un `viewer` solo puede leer.
-- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, `GET /api/entities` lista solo la Entidad acotada y `GET /api/organizations` devuelve un arreglo vacío. La clave alcanza los [Partners de la Organización de su Entidad](/api-reference/partners#organization-partners), pero solo puede fusionar un Partner que ninguna otra Entidad usa. Cualquier otra Organización responde `404`. Las rutas que administran una Organización completa, como [Agent Channels](/api-reference/agent-channels) y [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-organizations-organizationid-role), devuelven `403`. Ninguna clave de API puede crear Entidades. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
+- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, `GET /api/entities` lista solo la Entidad acotada y `GET /api/organizations` devuelve un arreglo vacío. La clave alcanza los [Partners de la Organización de su Entidad](/api-reference/partners#organization-partners), pero solo puede fusionar un Partner que ninguna otra Entidad usa. También alcanza las [Dimensiones de esa Organización](/api-reference/dimensions#dimensions-belong-to-the-organization). Lista todas las [Integraciones de esa Organización](/api-reference/integrations#integrations-belong-to-the-organization), nunca un secreto, pero no puede conectar, renovar ni desconectar ninguna (`403` con `PERMISSION_DENIED_ERROR`), y solo agrega o quita los feeds que llegan a su propia Entidad. Cualquier otra Organización responde `404`. Las rutas que administran una Organización completa, como [Agent Channels](/api-reference/agent-channels) y [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-organizations-organizationid-role), devuelven `403`. Ninguna clave de API puede crear Entidades. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
 
 ## Límites de solicitudes
 
@@ -108,7 +100,7 @@ Cada clave está limitada a **25.000 solicitudes por hora** en una ventana desli
 ## Rotación y revocación
 
 - Rota las claves de forma periódica y cada vez que un miembro del equipo con acceso deje la empresa.
-- Revoca una clave de inmediato desde **Ajustes → Claves de API** si sospechas que se filtró. La revocación aplica desde la siguiente solicitud.
+- Revoca una clave de inmediato desde **Tu cuenta → Claves de API** si sospechas que se filtró. La revocación aplica desde la siguiente solicitud.
 - Toda acción realizada con una clave queda registrada en el [registro de auditoría](/api-reference/audit-trail) bajo el Usuario propietario, así que la actividad de una clave filtrada es rastreable.
 
 <Card title="Descripción general de la API" icon="code" href="/es/api-reference/overview" horizontal>

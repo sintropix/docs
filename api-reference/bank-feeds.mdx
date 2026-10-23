@@ -6,7 +6,7 @@ description: "List the accounts an Integration discovers at its Provider, and fe
 
 import AppLink from "/snippets/app-link.mdx"
 
-A bank feed reads the movements of one account at a Provider and lands them on a Bank Account. The feed reads through an [Integration](/api-reference/integrations): the grant you connected for that Provider. An Integration can discover one or more accounts at its Provider, and you map each one to an existing Bank Account or use it to create a new one.
+A bank feed reads the movements of one account at a Provider and lands them on a Bank Account. The feed reads through an [Integration](/api-reference/integrations): the grant your Organization connected for that Provider. An Integration can discover one or more accounts at its Provider, and you map each one to an existing Bank Account or use it to create a new one, in any Entity of the Organization. One bank login can feed a Bank Account in each of several Entities.
 
 These Integration kinds can feed a Bank Account:
 
@@ -22,10 +22,10 @@ These Integration kinds can feed a Bank Account:
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
-All routes live under `/api/entities/:entityId/integrations/:integrationId`. Path parameters are UUIDs, except `providerAccountId`.
+The routes that read or change the Integration's accounts live under the Organization, at `/api/organizations/:organizationId/integrations/:integrationId/discovered-accounts`. The routes that feed a Bank Account live under the Entity the Bank Account belongs to, at `/api/entities/:entityId/integrations/:integrationId`, and take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`. Path parameters are UUIDs, except `providerAccountId`.
 
 <AppLink
-  url="https://app.sintropix.com/{entityId}/settings/integrations"
+  url="https://app.sintropix.com/organizations/{organizationId}/settings/integrations"
 />
 
 ## Authentication
@@ -34,9 +34,11 @@ Use a session cookie or an API key via the `x-api-key` header. Mutations with an
 
 ## Get discovered accounts
 
-`GET /api/entities/:entityId/integrations/:integrationId/discovered-accounts`
+`GET /api/organizations/:organizationId/integrations/:integrationId/discovered-accounts`
 
-Read the live account panel for one Integration. This fetches the Provider's current status, the discovered accounts, and the local Bank Accounts and Ledger Accounts you can map to.
+Read the live account panel for one Integration. This fetches the Provider's current status, the discovered accounts, and, for each Entity of the Organization, the local Bank Accounts and Ledger Accounts you can map to.
+
+An API key confined to one Entity gets its own Entity as the one entry of `entities`, and doesn't see an account that already feeds a Bank Account of another Entity.
 
 ### Response
 
@@ -44,8 +46,7 @@ Read the live account panel for one Integration. This fetches the Provider's cur
 | --- | --- | --- |
 | `status` | `active`, `inactive`, or `login_required` | Provider's judgment of the grant. `login_required` means the institution rejected the stored grant and you must [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect) |
 | `accounts` | `array` | Accounts the Provider discovered (see below) |
-| `mappableBankAccounts` | `array` | Local Bank Accounts that can still take a feed (see below) |
-| `ledgerAccounts` | `array` | Asset Ledger Accounts eligible for mapped creation (see below) |
+| `entities` | `array` | Every Entity of the Organization a discovered account can feed, in name order (see below) |
 | `refreshing` | `boolean \| null` | `true` while the Provider is still refreshing the grant, `false` when every refresh has finished, `null` when the refresh state could not be read |
 
 Each element of `accounts` carries:
@@ -61,9 +62,16 @@ Each element of `accounts` carries:
 | `balance.available` | `integer \| null` | Available balance in minor units; null when the institution does not report it |
 | `balance.limit` | `integer \| null` | Credit limit in minor units; null when the institution does not report it |
 | `refreshedAt` | `ISO datetime \| null` | When the Provider last refreshed this account |
-| `fedBankAccount` | `object \| null` | The Bank Account this account already feeds, as `{ id, name }`, or null |
+| `fedBankAccount` | `object \| null` | The Bank Account this account already feeds, as `{ id, name, entityId }`, or null |
 
-Each element of `mappableBankAccounts` carries `id` (`uuid`), `name` (`string`), and `currency` (`string`). Each element of `ledgerAccounts` carries `id` (`uuid`), `code` (`string`), and `name` (`string`).
+Each element of `entities` carries:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `uuid` | The Entity |
+| `name` | `string` | The Entity's name |
+| `mappableBankAccounts` | `array` | The Entity's Bank Accounts that can still take a feed. Each carries `id` (`uuid`), `name` (`string`), and `currency` (`string`) |
+| `ledgerAccounts` | `array` | The Entity's asset Ledger Accounts eligible for mapped creation. Each carries `id` (`uuid`), `code` (`string`), and `name` (`string`) |
 
 ```json
 {
@@ -80,24 +88,30 @@ Each element of `mappableBankAccounts` carries `id` (`uuid`), `name` (`string`),
       "fedBankAccount": null
     }
   ],
-  "mappableBankAccounts": [
-    { "id": "0192a8b4-0000-7000-8000-000000000002", "name": "Primary Checking", "currency": "CLP" }
-  ],
-  "ledgerAccounts": [
-    { "id": "0192a8b4-0000-7000-8000-000000000004", "code": "1102", "name": "Banco" }
+  "entities": [
+    {
+      "id": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+      "name": "Acme SpA",
+      "mappableBankAccounts": [
+        { "id": "0192a8b4-0000-7000-8000-000000000002", "name": "Primary Checking", "currency": "CLP" }
+      ],
+      "ledgerAccounts": [
+        { "id": "0192a8b4-0000-7000-8000-000000000004", "code": "1102", "name": "Banco" }
+      ]
+    }
   ],
   "refreshing": false
 }
 ```
 
 ```bash
-curl https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/discovered-accounts \
+curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/discovered-accounts \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
 ## Add accounts to a Global66 Integration
 
-`POST /api/entities/:entityId/integrations/:integrationId/discovered-accounts`
+`POST /api/organizations/:organizationId/integrations/:integrationId/discovered-accounts`
 
 Global66 does not list its accounts, so you name each account the Integration reads. Use this route to add accounts after you connect. Sintropix checks access with the stored grant before it adds the accounts. The Integration keeps its id and its feeds. An account id that is already on the grant with the same currency stays unchanged, and a currency change is refused.
 
@@ -114,7 +128,7 @@ Global66 does not list its accounts, so you name each account the Integration re
 The updated Integration, in the shape of one item of [`GET /integrations`](/api-reference/integrations#the-integration-object).
 
 ```bash
-curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/discovered-accounts \
+curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/discovered-accounts \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
@@ -123,7 +137,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INT
 
 ## Remove one account from a Global66 Integration
 
-`DELETE /api/entities/:entityId/integrations/:integrationId/discovered-accounts/:providerAccountId`
+`DELETE /api/organizations/:organizationId/integrations/:integrationId/discovered-accounts/:providerAccountId`
 
 Narrow a Global66 Integration by taking one account off its grant, without disconnecting the whole Integration. Use it when a wrong account was added to a Global66 grant and you want to keep reading the rest. Sintropix rebuilds the grant from the remaining accounts, keeps the same Global66 tokens, and does not call Global66. This route only applies to Global66 Integrations.
 
@@ -131,7 +145,7 @@ Narrow a Global66 Integration by taking one account off its grant, without disco
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `entityId` | `uuid` | Entity that owns the Integration |
+| `organizationId` | `uuid` | Organization that owns the Integration |
 | `integrationId` | `uuid` | Global66 Integration to narrow |
 | `providerAccountId` | `string` | Global66 account id to remove from the grant |
 
@@ -152,7 +166,7 @@ The endpoint returns `409 Conflict` with a body of `{ "code": "<code>", "params"
 | `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` | The narrowed grant equals another existing Global66 Integration |
 
 ```bash
-curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/discovered-accounts/acc_789 \
+curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/discovered-accounts/acc_789 \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -161,7 +175,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$I
 
 `POST /api/entities/:entityId/integrations/:integrationId/bank-account-feeds`
 
-Create a feed that attaches a discovered account to an existing local Bank Account. The server derives the currency from the Provider and rejects a mismatch. The first sync runs before the server answers, so the request can take a while. For Mercado Pago it usually takes about a minute.
+Create a feed that attaches a discovered account to an existing Bank Account of the Entity in the path. The server derives the currency from the Provider and rejects a mismatch. The first sync runs before the server answers, so the request can take a while. For Mercado Pago it usually takes about a minute.
 
 ### Request body
 
@@ -200,7 +214,7 @@ The endpoint returns `400 Bad Request` with a body of `{ "code": "<code>", "para
 
 `POST /api/entities/:entityId/integrations/:integrationId/bank-accounts`
 
-Create a new Bank Account and feed it from a discovered account in one operation. The creation is always kind `bank`, so only an asset Ledger Account is accepted. Like the map, the first sync runs before the server answers.
+Create a new Bank Account in the Entity in the path, and feed it from a discovered account, in one operation. The creation is always kind `bank`, so only an asset Ledger Account is accepted. Like the map, the first sync runs before the server answers.
 
 ### Request body
 
@@ -355,7 +369,7 @@ A sync updates the description and these lines on an unbooked Movement. A booked
 
 [Polar](https://polar.sh) is a Merchant of Record: it charges your buyers, holds the money in a USD balance, and pays it out to your bank. A Polar feed mirrors that USD balance, row by row.
 
-**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `502` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Settings → Integrations** with an owner, admin, or finance user.
+**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `502` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Configuración de empresa → Integraciones** with an owner, admin, or finance user.
 
 ```json
 {

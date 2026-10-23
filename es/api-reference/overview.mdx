@@ -42,6 +42,14 @@ GET  /api/entities/{entityId}/reports/balance-sheet
 
 Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para Superadmins) y `/api/health`.
 
+Los datos que comparten las Entidades de una Organización viven bajo la Organización, como sus [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensiones](/api-reference/dimensions#dimensions-belong-to-the-organization) e [Integraciones](/api-reference/integrations#integrations-belong-to-the-organization):
+
+```text
+/api/organizations/{organizationId}/partners
+/api/organizations/{organizationId}/dimensions
+/api/organizations/{organizationId}/integrations
+```
+
 `{entityId}` es siempre un UUID. Una solicitud sobre una Entidad a la que quien llama no tiene acceso devuelve `404`, nunca `403`, de modo que sondear rutas no revela si una Entidad desconocida existe.
 
 ## Acceso y roles
@@ -55,7 +63,7 @@ El acceso a una Entidad proviene de una **Membresía de Organización**. Una [Or
 | `viewer` | Sí | No | No |
 
 - **Leer** cubre las solicitudes `GET` sobre rutas de Entidad, incluido el [Audit Trail](/api-reference/audit-trail). **Escribir** cubre `POST`, `PUT`, `PATCH` y `DELETE`.
-- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), el [Inbox](/api-reference/inbox), políticas contables y la [sincronización de tipos de cambio](/api-reference/fx-rates).
+- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), el [Inbox](/api-reference/inbox) y la [sincronización de tipos de cambio](/api-reference/fx-rates).
 - Una Entidad fuera de tus Organizaciones devuelve `404`. Una acción que tu Rol no permite devuelve `403` con `PERMISSION_DENIED_ERROR`.
 - Ningún Rol es global. Un Usuario sin Membresía en una Organización no puede acceder a sus Entidades, sin importar el Rol que tenga en otras.
 

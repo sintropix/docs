@@ -45,7 +45,8 @@ Returns the home dashboard snapshot: cash position, daily balances for the last 
 | `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines |
 | `payable` | object | `{ total, count }`: open payable amount and the number of open lines |
 | `salesToBook` | integer | Unbooked sales invoices. Invoices [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books) don't count. |
-| `purchasesToBook` | integer | Unbooked purchase invoices. Excluded invoices don't count. |
+| `purchasesToBook` | integer | Unbooked purchase invoices, the ones **Compras** lists. Excluded invoices and [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions) don't count. |
+| `expenseRenditionsToBook` | integer | Unbooked [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions), the ones **Rendiciones** lists. Excluded invoices don't count. |
 | `incompatibleStandingCount` | integer | Booked invoices whose DTE the SII holds as `claimed`, `annulment_requested`, or `annulled`. See [Incompatible Standing](/api-reference/source-feeds#incompatible-standing). |
 
 ```bash
@@ -236,7 +237,7 @@ Pass `budgetId` to compare the actual results against a [Budget](/api-reference/
 | --- | --- | --- | --- |
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
-| `dimensionId` | UUID | No | Dimension of the Entity to split the accounts by. A Dimension of another Entity returns `404` with `DIMENSION_NOT_FOUND_ERROR` |
+| `dimensionId` | UUID | No | Dimension of the Entity's Organization to split the accounts by. See [Dimensions belong to the Organization](/api-reference/dimensions#dimensions-belong-to-the-organization). A Dimension of another Organization returns `404` with `DIMENSION_NOT_FOUND_ERROR` |
 | `budgetId` | UUID | No | Budget of the Entity to compare against. A Budget of another Entity returns `404` with `BUDGET_NOT_FOUND_ERROR` |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
@@ -253,7 +254,7 @@ Pass `budgetId` to compare the actual results against a [Budget](/api-reference/
 | `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
 | `accountGroups` | array | Account Groups, each `{ id, parentGroupId, codePrefix, name }` |
 | `accounts` | array | Result accounts in code order, each with the fields below. With `budgetId`, an account the Budget plans in the range is listed even when it has no lines |
-| `dimension` | object or null | The Dimension asked for in `dimensionId`: `{ id, entityId, name, createdAt, updatedAt }`; `null` when none was asked |
+| `dimension` | object or null | The Dimension asked for in `dimensionId`: `{ id, organizationId, name, createdAt, updatedAt }`; `null` when none was asked |
 | `dimensionValues` | array | Every value of that Dimension, ordered by code, each `{ id, code, name, parentId }`; `parentId` is `null` at the top level. Empty when no Dimension was asked |
 | `budget` | object or null | The Budget asked for in `budgetId`: `{ id, name }`; `null` when none was asked |
 
@@ -314,13 +315,13 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statem
 
 `GET /api/entities/:entityId/reports/income-statement-by-dimension`
 
-Returns the income statement broken down by the values of a single dimension (for example, a cost center).
+Returns the income statement broken down by the values of a single dimension (for example, a cost center). The Dimension belongs to the Entity's [Organization](/api-reference/dimensions#dimensions-belong-to-the-organization): the report lists every value of that Dimension, and adds up only this Entity's lines.
 
 **Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
-| `dimensionId` | UUID | Yes | Dimension to split by |
+| `dimensionId` | UUID | Yes | Dimension of the Entity's Organization to split by. A Dimension of another Organization returns `404` with `DIMENSION_NOT_FOUND_ERROR` |
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -329,7 +330,7 @@ Returns the income statement broken down by the values of a single dimension (fo
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `dimension` | object | The dimension: `{ id, entityId, name, createdAt, updatedAt }` |
+| `dimension` | object | The dimension: `{ id, organizationId, name, createdAt, updatedAt }` |
 | `dimensionValues` | array | Every value of the dimension, ordered by code, each with the fields below |
 | `unassignedAmount` | integer | Net result of lines that carry no value of this dimension |
 | `total` | integer | Net result of the whole period; equals `unassignedAmount` plus every `directAmount` |

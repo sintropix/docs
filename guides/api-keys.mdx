@@ -1,7 +1,7 @@
 ---
 title: "Get a Sintropix API Key for Agents and Integrations"
 sidebarTitle: "Get an API Key"
-description: "Create a Sintropix API key from Settings, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
+description: "Create a Sintropix API key from Tu cuenta, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
 ---
 
 Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, acts as the owning User with that User's Organization Memberships, and is rate-limited to 25,000 requests per hour.
@@ -9,29 +9,21 @@ Sintropix API keys let agents and integrations authenticate as a User without a 
 Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sintropix.com). The whole trip takes under a minute.
 
 <Steps>
-  <Step title="Sign in and open Settings">
+  <Step title="Sign in and open Tu cuenta">
     Sign in as the User the key should act on behalf of. The key acts with that User's Organization Memberships and their Roles, so choose a User with the access the integration actually needs.
 
     Sign-in always asks for two-step verification (**Verificación en dos pasos**). By default, Sintropix emails you a 6-digit code after the password. The code expires after 5 minutes. Click **Enviar otro código** for a new one; only the latest code works. After 5 wrong codes, you must enter your password again.
 
-    Your first sign-in starts from the set-password link Sintropix emails you. Choose a password of at least 8 characters and click **Guardar contraseña**. Sintropix signs you in and emails you a code to activate two-step verification, so you type your password only once. If you sign in from the sign-in page before two-step verification is active, Sintropix emails you the code right after the password. If the link was already used or has expired, the page shows **Enlace no válido**. Click **Pedir un enlace nuevo** to ask for another one.
+    Your first sign-in starts from the set-password link Sintropix emails you. Choose a password of 8 to 128 characters and click **Guardar contraseña**. Sintropix signs you in and emails you a code to activate two-step verification, so you type your password only once. If you sign in from the sign-in page before two-step verification is active, Sintropix emails you the code right after the password. If the link was already used or has expired, the page shows **Enlace no válido**. Click **Pedir un enlace nuevo** to ask for another one.
 
     If you forgot your password, click **¿Olvidaste tu contraseña?** on the sign-in page and enter your email. If the address has a Sintropix account, you receive a link to choose a new password. The link expires after 1 hour and works once. Saving the new password signs you out of every session, then signs you in on the same page and asks for your second factor.
 
-    If you prefer an authenticator app, choose **Usar una aplicación de autenticación** during setup. By then, Sintropix has already emailed you a code, which you can ignore. You can also switch later: click **Configurar aplicación de autenticación** under **Ajustes** > **Seguridad**. You scan a QR code, confirm a code, and save 10 backup codes. From then on, sign-in asks for the code from the app or a backup code, and Sintropix stops emailing codes. Only a session with two-step verification can create API keys.
+    If you prefer an authenticator app, choose **Usar una aplicación de autenticación** during setup. By then, Sintropix has already emailed you a code, which you can ignore. You can also switch later: click **Configurar aplicación de autenticación** under **Tu cuenta** > **Seguridad**. You scan a QR code, confirm a code, and save 10 backup codes. From then on, sign-in asks for the code from the app or a backup code, and Sintropix stops emailing codes. Only a session with two-step verification can create API keys.
 
-    Click your name at the bottom of the left sidebar and choose **Ajustes**.
-
-    <Frame caption="The user menu at the bottom-left of the app. Ajustes opens Settings.">
-      <img src="/images/api-keys/01-user-menu.png" alt="Sintropix home screen with the user menu open, showing Ajustes and Cerrar sesión" />
-    </Frame>
+    Click your name at the bottom of the left sidebar and choose **Tu cuenta**.
   </Step>
   <Step title="Go to Claves de API">
-    Settings opens on the **Empresa** page. In the Configuración list on the left, click **Claves de API**.
-
-    <Frame caption="Claves de API in the Settings sidebar.">
-      <img src="/images/api-keys/02-settings-api-keys-nav.png" alt="Sintropix Settings with the Configuración sidebar, Claves de API highlighted" />
-    </Frame>
+    **Tu cuenta** opens on **Preferencias**. In the list on the left, click **Claves de API**. The page is at `https://app.sintropix.com/account/api-keys`.
 
     The page lists every key you own with its name, prefix, creation date, expiry, and last use. Keys can be revoked from the trash icon on each row.
 
@@ -99,7 +91,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 - A key authenticates as its owning User, with that User's Organization Memberships. See [Access and roles](/api-reference/overview#access-and-roles).
 - A key never does Superadmin work, even when a Superadmin owns it. Managing Users, Organizations, and Memberships needs a signed-in session; a key gets `403` with `SUPERADMIN_SESSION_REQUIRED`.
 - Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities of the Organizations the owning User holds a Membership in, and only do what the User's Role there allows. A key owned by a `viewer` can only read.
-- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, `GET /api/entities` lists only the confined Entity, and `GET /api/organizations` returns an empty array. The key reaches the [Partners of its Entity's Organization](/api-reference/partners#organization-partners), but it can only merge a Partner that no other Entity uses. Any other Organization answers `404`. Routes that manage a whole Organization, such as [Agent Channels](/api-reference/agent-channels) and [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-organizations-organizationid-role), return `403`. No API key can create Entities. Use one-Entity keys when the integration should only ever touch one company.
+- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, `GET /api/entities` lists only the confined Entity, and `GET /api/organizations` returns an empty array. The key reaches the [Partners of its Entity's Organization](/api-reference/partners#organization-partners), but it can only merge a Partner that no other Entity uses. It also reaches the [Dimensions of that Organization](/api-reference/dimensions#dimensions-belong-to-the-organization). It lists every [Integration of that Organization](/api-reference/integrations#integrations-belong-to-the-organization), never a secret, but it can't connect, renew, or disconnect one (`403` with `PERMISSION_DENIED_ERROR`), and it adds or removes only the feeds that land in its own Entity. Any other Organization answers `404`. Routes that manage a whole Organization, such as [Agent Channels](/api-reference/agent-channels) and [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-organizations-organizationid-role), return `403`. No API key can create Entities. Use one-Entity keys when the integration should only ever touch one company.
 
 ## Rate Limits
 
@@ -108,7 +100,7 @@ Each key is limited to **25,000 requests per hour** on a sliding window. Request
 ## Rotation and Revocation
 
 - Rotate keys on a schedule and whenever a team member with access leaves.
-- Revoke a key immediately from **Ajustes → Claves de API** if you suspect it has leaked. Revocation takes effect on the next request.
+- Revoke a key immediately from **Tu cuenta → Claves de API** if you suspect it has leaked. Revocation takes effect on the next request.
 - Every action taken with a key is recorded in the [audit trail](/api-reference/audit-trail) under the owning User, so leaked-key activity is traceable.
 
 <Card title="API Overview" icon="code" href="/api-reference/overview" horizontal>

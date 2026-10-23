@@ -12,7 +12,7 @@ Cada registro que devuelve la API tiene una página en la aplicación web de Sin
 
 ## Gramática de las URLs
 
-Toda página autenticada vive bajo la Entidad a la que pertenece:
+La mayoría de las páginas autenticadas viven bajo la Entidad a la que pertenecen:
 
 ```text
 https://app.sintropix.com/{entityId}/<pagina>[?<parametros>]
@@ -21,6 +21,11 @@ https://app.sintropix.com/{entityId}/<pagina>[?<parametros>]
 - `{entityId}` es el mismo UUID que usas en `/api/entities/{entityId}/...`. Siempre es el primer segmento de la ruta.
 - `<pagina>` es una de las páginas listadas abajo. No hay prefijo de idioma; la aplicación elige el idioma por sí misma.
 - Los parámetros de consulta son opcionales y los valores por defecto se omiten. Pasa los ids como UUID sin adornos y las fechas como `YYYY-MM-DD`.
+
+Dos áreas viven fuera de una Entidad:
+
+- Las páginas de **Configuración de empresa** que pertenecen a toda la Organización, como la página Empresa e Integraciones, viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Toma `organizationId` de la Entidad o del registro.
+- **Tu cuenta**, los ajustes propios del Usuario que inició sesión, vive bajo `https://app.sintropix.com/account`.
 
 Los enlaces directos sobreviven al inicio de sesión. Si el usuario no está autenticado, la aplicación muestra el formulario de acceso y luego aterriza en la URL exacta solicitada. Un usuario sin acceso a la Entidad ve una pantalla de "sin acceso" en lugar de una redirección.
 
@@ -39,7 +44,8 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 
 | Recurso de la API | URL en la aplicación | Notas |
 | --- | --- | --- |
-| Entidad | `/{entityId}/home` | El panel de la Entidad. `/{entityId}/settings/entity` para sus ajustes. |
+| Entidad | `/{entityId}/home` | El panel de la Entidad. Sus ajustes están en su fila de la página Empresa de la Organización. |
+| Organización | `/organizations/{organizationId}/settings` | La página Empresa: el logo y el nombre de la Organización, y una fila por Entidad (**Entidades legales**) con sus ajustes. |
 | Asiento contable | `/{entityId}/entries/{entryId}` | Detalle a página completa. El listado es `/{entityId}/entries`. |
 | Factura, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | Documentos por cobrar. Elige la página según el campo `direction`. |
 | Factura, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | Documentos por pagar. |
@@ -57,10 +63,11 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Nómina (Payment Batch) | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lista todas las nóminas. Acepta `search` (busca en el nombre y la etiqueta) y `label` (deja las nóminas con esa etiqueta exacta). |
 | Fuente | `/{entityId}/sources/{sourceId}` | Documentos importados por esa fuente. Las fuentes se configuran en `/{entityId}/settings/sources`. |
 | Feed de fuente | `/{entityId}/settings/sources` | Los feeds se gestionan dentro de los ajustes de su fuente. |
-| Integración | `/{entityId}/settings/integrations?open={integrationId}` | Abre el panel lateral de la integración, con sus detalles, las cuentas bancarias o la fuente que alimenta y sus acciones. Quita `open` para ver la lista de todas las integraciones. Los feeds bancarios también se gestionan aquí. |
+| Integración | `/organizations/{organizationId}/settings/integrations?open={integrationId}` | Abre el panel lateral de la integración, con sus detalles, las cuentas bancarias o la fuente que alimenta y sus acciones. Quita `open` para ver la lista de todas las integraciones. Los feeds bancarios también se gestionan aquí. |
 | Tipo de cambio | `/{entityId}/settings/fx-rates` | |
 | Registro de auditoría | `/{entityId}/settings/log` | |
-| Claves de API | `/{entityId}/settings/api-keys` | |
+| Claves de API | `/account/api-keys` | Las claves propias del Usuario que inició sesión. |
+| Apps conectadas | `/account/connected-apps` | Las apps que aprobó el Usuario que inició sesión. |
 | Erwin | Ninguna | Erwin no tiene página. Enlaza cualquier página de la entidad, y la persona abre Erwin desde el botón **Erwin**, abajo a la derecha. |
 
 ## Informes
@@ -117,6 +124,6 @@ El patrón es el mismo para todos los recursos: toma el id de la Entidad de la r
     URL base, formato de solicitudes y respuestas y alcance por Entidad.
   </Card>
   <Card title="Obtener una clave de API" icon="key" href="/es/guides/api-keys">
-    Crea una clave desde Ajustes y empieza a llamar a la API.
+    Crea una clave desde Tu cuenta y empieza a llamar a la API.
   </Card>
 </CardGroup>

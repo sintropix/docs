@@ -4,9 +4,16 @@ sidebarTitle: "Organizations"
 description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website, read its logo, list its members, and read your own Role in it."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 An Organization groups the Entities that a client runs as one business. Every Entity belongs to exactly one Organization. Users reach Entities through an Organization Membership, which carries one Role and covers every Entity of the Organization, including Entities added later. See [Access and roles](/api-reference/overview#access-and-roles) for what each Role allows.
 
-An Organization also owns the data its Entities share, while each Entity keeps its own books. [Partners](/api-reference/partners#partners-belong-to-the-organization) are shared this way: list them with [`GET /api/organizations/:organizationId/partners`](/api-reference/partners#get-api-organizations-organizationid-partners), which asks the `books` read permission like an Entity route.
+An Organization also owns the data its Entities share, while each Entity keeps its own books. [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization), and [Integrations](/api-reference/integrations#integrations-belong-to-the-organization) are shared this way. For example, list the Partners with [`GET /api/organizations/:organizationId/partners`](/api-reference/partners#get-api-organizations-organizationid-partners), which asks the `books` read permission like an Entity route.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/settings"
+  note="That is the Empresa page: the Organization's logo and name, and one row per Entity (Entidad legal) with its settings."
+/>
 
 Use this page to manage Organizations themselves. To grant, change, or revoke a User's Membership, use the [Onboarding API](/api-reference/onboarding). To move an Entity to another Organization, use [`PATCH /api/entities/:entityId/organization`](/api-reference/entities).
 

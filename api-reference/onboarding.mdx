@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Onboarding API: Provision Users and Grant Memberships"
 sidebarTitle: "Onboarding"
-description: "Superadmin-only endpoints to create Users, look them up by email or by inactivity, list every Organization, grant Organization Memberships with a Role, send set-password links, and revoke sessions."
+description: "Superadmin-only endpoints to create Users, look them up by email or by inactivity, list every Organization, grant Organization Memberships with a Role, send set-password links, revoke sessions, and delete Users."
 ---
 
 The Onboarding API is how a Sintropix Superadmin provisions new Users and controls which Organizations they can access. Public sign-up is disabled, so User creation happens only through this surface.
@@ -219,14 +219,42 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/revoke-ses
   --cookie cookies.txt
 ```
 
+## DELETE `/onboarding/users/:userId`
+
+Delete a User for good. The User loses access on their next request. No request body.
+
+- The deletion removes the User with everything that lets them in: their sessions, password, two-step verification, API keys, Organization Memberships, the [connected apps](/guides/connected-apps) they approved, and their pending set-password links.
+- The records the User wrote stay. The [audit trail](/api-reference/audit-trail) keeps the name and Role they had at each write and marks them `deleted`. A [Payment Batch](/api-reference/payment-batches) they created or marked Ready keeps its orders, with `createdBy`, `createdByName`, and `readyBy` set to `null`.
+- A request the User sent before the deletion that writes after it returns `401` and changes nothing.
+- The email is free again: you can create a new User with it, and that User starts with no Memberships.
+- You can't delete yourself: deleting your own User returns `403` with `USER_SELF_DELETION_ERROR`, and `params.userId` names you.
+- An unknown User returns `404` with `USER_NOT_FOUND_ERROR`.
+
+**Response** `200`: the deleted User, in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `createdAt`, `lastSignInAt`).
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID" \
+  --cookie cookies.txt
+```
+
+```json
+{
+  "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "email": "ana.perez@example.com",
+  "name": "Ana Perez",
+  "createdAt": "2026-07-01T12:00:00.000Z",
+  "lastSignInAt": "2026-08-14T09:30:00.000Z"
+}
+```
+
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET /users`, `GET /organizations`, and `GET /memberships`. |
+| `200` | Success on `GET /users`, `GET /organizations`, `GET /memberships`, and `DELETE /users/:userId`. |
 | `201` | Success on `POST /users` and `POST /set-password-link`. |
 | `204` | Success on Membership grant, role change, revoke, and session revocation. |
 | `400` | Validation error, including a blank name or a `:userId` that is not a UUID. |
-| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), or the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`). |
+| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`), or you tried to delete yourself (`USER_SELF_DELETION_ERROR`). |
 | `404` | User not found (`USER_NOT_FOUND_ERROR`), Organization not found (`ORGANIZATION_NOT_FOUND_ERROR`), or no Membership to change or revoke (`ORGANIZATION_MEMBERSHIP_NOT_FOUND_ERROR`). |
 | `409` | The email is taken (`USER_ALREADY_EXISTS_ERROR`), or the User already holds a Membership in this Organization (`ORGANIZATION_MEMBERSHIP_ALREADY_EXISTS_ERROR`). |

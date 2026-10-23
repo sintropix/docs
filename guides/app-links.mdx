@@ -12,7 +12,7 @@ Every record the API returns has a page in the Sintropix web app at [app.sintrop
 
 ## URL grammar
 
-Every authenticated page lives under the Entity it belongs to:
+Most authenticated pages live under the Entity they belong to:
 
 ```text
 https://app.sintropix.com/{entityId}/<page>[?<params>]
@@ -21,6 +21,11 @@ https://app.sintropix.com/{entityId}/<page>[?<params>]
 - `{entityId}` is the same UUID you use in `/api/entities/{entityId}/...`. It is always the first path segment.
 - `<page>` is one of the pages listed below. There is no locale prefix; the app picks the language itself.
 - Query parameters are optional and default values are dropped. Pass ids as bare UUIDs and dates as `YYYY-MM-DD`.
+
+Two areas live outside an Entity:
+
+- **Configuración de empresa** pages that belong to the whole Organization, such as the Empresa page and Integraciones, live under `https://app.sintropix.com/organizations/{organizationId}/settings`. Take `organizationId` from the Entity or the record.
+- **Tu cuenta**, the signed-in User's own settings, lives under `https://app.sintropix.com/account`.
 
 Deep links survive login. If the user is signed out, the app shows the login form and then lands on the exact URL requested. A user without access to the Entity sees a "no access" screen rather than a redirect.
 
@@ -39,7 +44,8 @@ The `open` parameter is the universal convention: whichever list page you are on
 
 | API resource | App URL | Notes |
 | --- | --- | --- |
-| Entity | `/{entityId}/home` | The Entity dashboard. `/{entityId}/settings/entity` for its settings. |
+| Entity | `/{entityId}/home` | The Entity dashboard. Its settings are in its row on the Organization's Empresa page. |
+| Organization | `/organizations/{organizationId}/settings` | The Empresa page: the Organization's logo and name, and one row per Entity (**Entidades legales**) with its settings. |
 | Ledger Entry | `/{entityId}/entries/{entryId}` | Full-page detail. The list is `/{entityId}/entries`. |
 | Invoice, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | AR documents. Pick the page from the `direction` field. |
 | Invoice, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | AP documents. |
@@ -57,10 +63,11 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Source | `/{entityId}/sources/{sourceId}` | Documents imported by that Source. Sources are configured at `/{entityId}/settings/sources`. |
 | Payment Batch | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lists every batch. It takes `search` (matches name and label) and `label` (keeps the batches with that exact label). |
 | Source Feed | `/{entityId}/settings/sources` | Feeds are managed inside their Source's settings. |
-| Integration | `/{entityId}/settings/integrations?open={integrationId}` | Opens the Integration's side panel, with its details, the Bank Accounts or Source it feeds, and its actions. Drop `open` for the list of every Integration. Bank feeds are managed here too. |
+| Integration | `/organizations/{organizationId}/settings/integrations?open={integrationId}` | Opens the Integration's side panel, with its details, the Bank Accounts or Source it feeds, and its actions. Drop `open` for the list of every Integration. Bank feeds are managed here too. |
 | FX Rate | `/{entityId}/settings/fx-rates` | |
 | Audit Trail | `/{entityId}/settings/log` | |
-| API keys | `/{entityId}/settings/api-keys` | |
+| API keys | `/account/api-keys` | The signed-in User's own keys. |
+| Connected apps | `/account/connected-apps` | The apps the signed-in User approved. |
 | Erwin | None | Erwin has no page. Link any Entity page, and the person opens Erwin from the **Erwin** button at the bottom right. |
 
 ## Reports
@@ -117,6 +124,6 @@ The pattern is the same for every resource: take the Entity id from the route yo
     Base URL, request and response format, and per-Entity scoping.
   </Card>
   <Card title="Get an API Key" icon="key" href="/guides/api-keys">
-    Create a key from Settings and start calling the API.
+    Create a key from Tu cuenta and start calling the API.
   </Card>
 </CardGroup>

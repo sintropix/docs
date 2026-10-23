@@ -102,9 +102,9 @@ Every route on this page except the list returns the batch with its orders.
 | `name` | string \| null | The batch's [name](#name-and-label). `null` when it has none. |
 | `label` | string \| null | The batch's [label](#name-and-label). `null` when it has none. |
 | `readyAt` | ISO 8601 timestamp \| null | When the batch was last marked Ready. `null` for a Draft, including a reopened one. |
-| `readyBy` | uuid \| null | The user who marked it Ready. `null` for a Draft. |
-| `createdBy` | uuid | The user who created the batch. |
-| `createdByName` | string | Name of that user. |
+| `readyBy` | uuid \| null | The user who marked it Ready. `null` for a Draft, or once that user is [deleted](/api-reference/onboarding#delete-onboarding-users-userid). |
+| `createdBy` | uuid \| null | The user who created the batch. `null` once that user is deleted. |
+| `createdByName` | string \| null | Name of that user. `null` once that user is deleted. |
 | `paymentOrderCount` | integer | Number of orders in the batch. |
 | `totals` | array | The orders' amounts summed per currency, as `{ currency, amount }`, in currency-code order. `amount` is in minor units, as a decimal string such as `"4820500"`. Amounts in different currencies are never converted or added together. Empty for a batch with no orders. |
 | `paymentOrders` | array | The orders, in payee name order (see below). Not present on the list. |

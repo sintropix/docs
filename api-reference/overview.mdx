@@ -38,10 +38,12 @@ GET  /api/entities/{entityId}/reports/balance-sheet
 
 A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (Superadmin only), and `/api/health`.
 
-Data an Organization's Entities share lives under the Organization instead, such as its [Partners](/api-reference/partners#organization-partners):
+Data an Organization's Entities share lives under the Organization instead, such as its [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization), and [Integrations](/api-reference/integrations#integrations-belong-to-the-organization):
 
 ```text
 /api/organizations/{organizationId}/partners
+/api/organizations/{organizationId}/dimensions
+/api/organizations/{organizationId}/integrations
 ```
 
 `{entityId}` is always a UUID. A request for an Entity the caller cannot access returns `404`, never `403`, so probing does not reveal whether an unknown Entity exists.
@@ -57,7 +59,7 @@ Access to an Entity comes from an **Organization Membership**. An [Organization]
 | `viewer` | Yes | No | No |
 
 - **Read** covers `GET` requests on Entity routes, including the [Audit Trail](/api-reference/audit-trail). **Write** covers `POST`, `PUT`, `PATCH`, and `DELETE`.
-- **Sintropix work** covers routes reserved for the accounting team: credentials (except [Portal Logins](/api-reference/integrations#portal-logins), the bank, Getnet, SII, and Clay logins a `client` can store too), [connecting or reconnecting a bank through Fintoc](/api-reference/integrations#post-integrations-fintoc-link-intents), automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), the [Inbox](/api-reference/inbox), accounting policies, and [FX rate sync](/api-reference/fx-rates).
+- **Sintropix work** covers routes reserved for the accounting team: credentials (except [Portal Logins](/api-reference/integrations#portal-logins), the bank, Getnet, SII, and Clay logins a `client` can store too), [connecting or reconnecting a bank through Fintoc](/api-reference/integrations#post-integrations-fintoc-link-intents), automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), the [Inbox](/api-reference/inbox), and [FX rate sync](/api-reference/fx-rates).
 - An Entity outside your Organizations returns `404`. An action your Role doesn't allow returns `403` with `PERMISSION_DENIED_ERROR`.
 - No Role is global. A User with no Membership in an Organization can't reach its Entities, whatever Role they hold elsewhere.
 

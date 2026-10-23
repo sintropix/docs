@@ -1,12 +1,12 @@
 ---
-title: "Sintropix Integrations API: Link External Systems to an Entity"
+title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the linked credentials for external systems that feed data into an Entity through Source Feeds and bank feeds. Export the General Ledger to a Google Sheet. Store Portal Logins for a bank, Getnet, the SII, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Connect the SII with the company Clave, export the General Ledger to a Google Sheet, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Entity's behalf. Every grant to an external account is an Integration, including the banks and payment providers that feed Bank Accounts. Integrations are the credential side. The feeds are the recurring pull jobs that import data through them.
+An Integration is a linked external system: the credentials, tokens, and configuration Sintropix stores to reach that system on the Organization's behalf. Every grant to an external account is an Integration, including the banks and payment providers that feed Bank Accounts. Integrations are the credential side. The feeds are the recurring pull jobs that import data through them.
 
 What an Integration can feed depends on its kind:
 
@@ -18,7 +18,7 @@ What an Integration can feed depends on its kind:
 | `mercadolibre`, `gmail` | Nothing yet |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 
-An Entity can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account still belongs to a single Entity.
+An Organization can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account can be connected only once.
 
 The `fintoc` kind connects a bank login through the [Fintoc](https://fintoc.com) widget. Only `staff` can connect or reconnect a bank through Fintoc. A `client` connects a bank by storing its [Bank Login](#portal-logins). The `global66` kind connects Global66 with a client id, a client secret, and the accounts you name. The `cardda` kind connects a Cardda company with its API key, and the `dlocal` kind connects a dLocal Go merchant with its API key and secret key. Sintropix reads the Provider before it stores the credentials, so credentials that cannot read are refused at connect.
 
@@ -26,25 +26,42 @@ The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Pla
 
 The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
-The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Entity can connect several mailboxes, but each mailbox can belong to only one Entity. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
+The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Organization can connect several mailboxes, but each mailbox can be connected only once. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
 
-The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the Entity's General Ledger of the current year to a tab of that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
+The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of the current year of every Entity of the Organization to that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
 
 The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sign in to Polar as a user with the owner, admin, or finance role in the organization: Polar shows an organization's money to those roles only. It can feed a USD Bank Account with each organization's Polar balance. Sintropix only reads: it never charges, refunds, or withdraws money. See [Bank Feeds](/api-reference/bank-feeds#polar).
 
-To connect a bank that no Provider reads, such as a credit card Fintoc can't fetch, store its login as a [Bank Login](#portal-logins). To connect the Getnet merchant portal, store its login as a [Getnet Login](#portal-logins). To connect the SII, store the company's or a person's SII login as an [SII Login](#portal-logins). To give Sintropix access to Clay, the Chilean ERP you migrate your books from, store it as a [Clay Login](#portal-logins). None of these is an Integration kind, but the app lists them with the Integrations.
+To connect a bank that no Provider reads, such as a credit card Fintoc can't fetch, store its login as a [Bank Login](#portal-logins). To connect the Getnet merchant portal, store its login as a [Getnet Login](#portal-logins). To give Sintropix access to Clay, the Chilean ERP you migrate your books from, store it as a [Clay Login](#portal-logins). None of these is an Integration kind, but the app lists them with the Integrations.
 
-The `sii_mirror` kind is the SII Mirror ("SII Espejo") document Provider, and the only SII document Provider. It reads the RCV registers of the Entity's RUT directly from Sintropix's Chilean SII mirror, so it has no credential to paste. You can only connect it on an Entity whose country is Chile. The mirror reads the SII registers every 4 hours, so a document reaches it a few hours after the SII records it.
+The `sii_mirror` kind connects the SII, the Chilean tax authority, and is the only SII document Provider. You connect it with the company's RUT and its SII password (Clave), and the SII checks them at once. It then reads the RCV registers of that RUT from Sintropix's Chilean SII mirror. The mirror reads the SII registers every 4 hours, so a document reaches it a few hours after the SII records it. See [SII](#sii).
 
-The app no longer offers the SII Mirror on **Settings → Integrations**: the **SII** option there stores an [SII Login](#portal-logins) instead. You can still connect the SII Mirror through [`POST /integrations`](#post-integrations). A Mirror you already connected keeps showing in the app and keeps syncing as before.
+In the app, open **Configuración de empresa → Integraciones** and click **Conectar integración**. The catalog lists every option with its logo, and you can search it or filter it by tag: **Banco**, **Pagos**, **Ventas**, **Facturador**, **Impuestos**, **Correo**, or **ERP**. Each Chilean bank is its own option, and you can find it by its short name too, such as "bci". Pick an option and fill in its form. For a Provider that uses OAuth, such as Google or Mercado Pago, you continue on the Provider's page and return to Sintropix afterwards.
 
-In the app, open **Settings → Integrations** and click **Conectar integración**. The catalog lists every option with its logo, and you can search it or filter it by tag: **Banco**, **Pagos**, **Ventas**, **Facturador**, **Impuestos**, **Correo**, or **ERP**. Each Chilean bank is its own option, and you can find it by its short name too, such as "bci". Pick an option and fill in its form. For a Provider that uses OAuth, such as Google or Mercado Pago, you continue on the Provider's page and return to Sintropix afterwards.
+Connecting asks for no Entity. When the connection is stored, its panel opens on the step it still lacks, where you route it to the Entities (**Entidades legales**) of the Organization. For a document Provider, pick the Source each Document Family lands in, from the Sources of every Entity grouped by Entity, and the date to read from. You can also create a Source in any Entity. For a bank Provider, link each of its accounts to a Bank Account of any Entity, or create one in the Entity you pick. Until you finish that step, the list shows the connection as **Falta elegir fuentes** or **Falta elegir cuentas**.
 
-When the connection is stored, its panel opens on the step it still lacks. For a document Provider, pick the Source each Document Family lands in and the date to read from. For a bank Provider, link each of its accounts to a Bank Account. Until you finish that step, the list shows the connection as **Falta elegir fuentes** or **Falta elegir cuentas**.
+The list shows every connection of the Organization. Each Integration's row names the Entities its feeds reach, or **Sin asignar** until a feed routes it. A Portal Login's row names its own Entity.
 
 <AppLink
-  url="https://app.sintropix.com/{entityId}/settings/integrations"
+  url="https://app.sintropix.com/organizations/{organizationId}/settings/integrations"
 />
+
+## Integrations belong to the Organization
+
+An Integration belongs to the [Organization](/api-reference/organizations), not to one Entity. Its feeds route it: each [Source Feed](/api-reference/source-feeds) or [bank feed](/api-reference/bank-feeds) names the Entity whose Source or Bank Account it fills. One Integration can feed several Entities of its Organization. For example, one bank login can feed a Bank Account in each of two Entities. No tax id decides or limits where a feed lands: any feed can land in any Entity of the Organization.
+
+The routes follow the same split:
+
+- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the SII legal representative's Clave, the discovered accounts, the General Ledger Export, and disconnect.
+- Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. It takes an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
+
+Connecting, reconnecting, and disconnecting an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations. An API key confined to one Entity:
+
+- Lists every Integration of its Organization, but sees only the Sources and Bank Accounts of its own Entity.
+- Can't connect, reconnect, renew, or disconnect an Integration, or run a General Ledger Export. It gets `403` with `PERMISSION_DENIED_ERROR`.
+- Adds and removes only the feeds that land in its own Entity.
+
+An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-api-entities-entityid-organization).
 
 ## The Integration object
 
@@ -53,25 +70,28 @@ The access token is stored encrypted and is never returned on any read.
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
-| `entityId` | uuid | Owning Entity. |
+| `organizationId` | uuid | Owning Organization. |
 | `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `google_sheets` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the Entity's RUT; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet). `null` when a document provider could not determine it at connect time. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds and the OAuth authorizations. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
 | `mode` | `test` \| `live` \| null | Whether a `fintoc` or `plaid` Integration runs against the Provider's test or live environment. `null` for every other kind. |
 | `feedableFamilies` | array | The [Document Families](/api-reference/source-feeds#document-families) this Integration's provider can feed: `["dte", "honorarium"]` for `sii_mirror`, `["dte"]` for `bsale` and `wasabil`. Empty for every kind that feeds no documents. |
-| `sourceFeeds` | array | The Source Feeds that read through this Integration, at most one per family, in the shape documented on [Source Feeds](/api-reference/source-feeds). Empty when the Integration feeds no Source. |
-| `fedBankAccounts` | array | `{ id, name }` of each Bank Account this Integration feeds, in name order. Empty when it feeds none. |
-| `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads when the Entity keeps Books. `null` for every other kind, and when the Entity has no Book. |
+| `sourceFeeds` | array | The Source Feeds that read through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). Each Entity holds at most one Feed per family. Empty when the Integration feeds no Source. |
+| `fedBankAccounts` | array | `{ id, name, entityId }` of each Bank Account this Integration feeds, in any Entity, in name order. Empty when it feeds none. |
+| `routedEntities` | array | `{ id, name }` of each Entity the Integration's feeds reach, in name order. Empty while no feed routes it. |
+| `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads for the Entity that keeps it. `null` for every other kind, and when no Book was picked. |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## POST `/integrations`
 
-Create an Integration by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted.
+`POST /api/organizations/:organizationId/integrations`
 
-This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, Polar, and Google Sheets use OAuth and are connected from **Settings → Integrations** in the Sintropix app. You cannot create them through this endpoint.
+Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
+
+This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, Polar, and Google Sheets use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint.
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
@@ -85,21 +105,21 @@ Each kind adds its own fields:
 | Kind | Fields | Description |
 | --- | --- | --- |
 | `bsale`, `wasabil` | `accessToken` (string) | The provider's API access token. Whitespace is trimmed and must be non-empty. |
-| `sii_mirror` | None | Reads Sintropix's SII mirror using the Entity's RUT and takes no credential. |
+| `sii_mirror` | `rut` (string), `clave` (string) | The company's RUT and its SII password (Clave). The RUT takes the same format and check-digit rule as a [Portal Login](#post-portal-logins) `rut`. The Clave must be non-empty. See [SII](#sii). |
 | `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-integrations-fintoc-link-intents) and the user completes the widget. |
 | `plaid` | `publicToken` (string) | The public token Plaid Link mints after you [create a Link token](#post-integrations-plaid-link-tokens) and the user signs in to the bank. Connecting the same Plaid Item twice is refused with `409`. |
 | `global66` | `clientId` (string), `clientSecret` (string), `accounts` (array) | Your Global66 client credentials and at least one account to read. Each account is `{ accountId, currency }`, where `currency` is an ISO 4217 code of three uppercase letters. A currency Sintropix does not know is refused with `INTEGRATION_CURRENCY_UNKNOWN_ERROR` before Global66 is called. |
 | `cardda` | `apiKey` (string) | The Cardda API key. It selects the company, and the Integration discovers that company's one CLP wallet. |
 | `dlocal` | `apiKey` (string), `secretKey` (string) | The dLocal Go API key and its paired secret key. They name the merchant, and the Integration discovers its one balance. |
 
-For `sii_mirror`, Sintropix verifies at connect time that the Entity's country is Chile and that the mirror already follows the Entity's RUT. The connect is refused otherwise (see [Status codes](#status-codes)).
+For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the Integration, so the request can take up to about a minute. A Clave the SII refuses answers `422` with `SII_CLAVE_REFUSED_ERROR`. When the SII gives no answer in time, the request answers `503` with `SII_UNAVAILABLE_ERROR` and creates nothing. Retry in a few minutes.
 
 Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
 
 - **Response** (`201`): the Integration object (its `sourceFeeds` and `fedBankAccounts` are empty on creation).
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -113,7 +133,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
 ```json
 {
   "id": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
-  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "organizationId": "5f1c2a3b-4d5e-4f6a-8b7c-9d0e1f2a3b4c",
   "kind": "bsale",
   "providerRef": "12345",
   "documentCount": 355,
@@ -123,6 +143,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   "feedableFamilies": ["dte"],
   "sourceFeeds": [],
   "fedBankAccounts": [],
+  "routedEntities": [],
   "bookId": null,
   "lastGeneralLedgerExport": null,
   "createdAt": "2025-01-02T12:00:00.000Z",
@@ -130,23 +151,25 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
 }
 ```
 
-Connect the SII Mirror on a Chilean Entity with no `accessToken`:
+Connect the SII with the company's RUT and Clave:
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
   -d '{
     "id": "e7a1b2c3-d4e5-4f6a-8b9c-0d1e2f3a4b5c",
-    "kind": "sii_mirror"
+    "kind": "sii_mirror",
+    "rut": "76.123.456-0",
+    "clave": "my-sii-clave"
   }'
 ```
 
 Connect a dLocal Go merchant:
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -158,9 +181,11 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
   }'
 ```
 
-After you connect a bank Provider, list its accounts and feed them into Bank Accounts. See [Bank Feeds](/api-reference/bank-feeds).
+After you connect a bank Provider, list its accounts and feed them into Bank Accounts of any Entity. See [Bank Feeds](/api-reference/bank-feeds). After you connect a document Provider, feed a Source of any Entity with it. See [Source Feeds](/api-reference/source-feeds#post-source-feeds).
 
 ## POST `/integrations/fintoc/link-intents`
+
+`POST /api/organizations/:organizationId/integrations/fintoc/link-intents`
 
 Start the Fintoc connect flow. Sintropix creates a Link Intent at Fintoc and answers what the frontend needs to open the Fintoc widget. When the user completes the widget, it mints an exchange token. Send that token to [`POST /integrations`](#post-integrations) with `kind: "fintoc"`.
 
@@ -184,7 +209,7 @@ The widget needs a browser, so you can't complete a Fintoc connect from the API 
 | `publicKey` | string | Public key for the widget session. |
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/fintoc/link-intents" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/fintoc/link-intents" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -192,6 +217,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/fin
 ```
 
 ## POST `/integrations/plaid/link-tokens`
+
+`POST /api/organizations/:organizationId/integrations/plaid/link-tokens`
 
 Start the Plaid connect flow. Sintropix creates a Link token at Plaid and answers it. Open Plaid Link with it. When the user signs in to the bank, Plaid Link mints a public token. Send that token to [`POST /integrations`](#post-integrations) with `kind: "plaid"`.
 
@@ -204,7 +231,7 @@ Plaid Link needs a browser, so you can't complete a Plaid connect from the API a
 | `linkToken` | string | Token that opens Plaid Link. |
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/plaid/link-tokens" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/plaid/link-tokens" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -212,7 +239,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/pla
 Then connect with the public token Plaid Link minted:
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -226,6 +253,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations" \
 The response is the Integration object, with the bank's name in `institutionName`. Next, [list the bank's accounts](/api-reference/bank-feeds#get-discovered-accounts) and feed them into Bank Accounts.
 
 ## POST `/integrations/:integrationId/reconnect`
+
+`POST /api/organizations/:organizationId/integrations/:integrationId/reconnect`
 
 Restore a Fintoc Integration whose bank stopped trusting the stored grant. You know it needs this when [its discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) answer `status: "login_required"`. Run the Fintoc widget again and send the fresh exchange token. The Integration keeps its id and every feed it holds.
 
@@ -242,7 +271,7 @@ A grant from another bank or another holder, or an Integration that is not `fint
 - **Response:** the restored Integration object.
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/reconnect" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/reconnect" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -251,16 +280,23 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$IN
 
 ## GET `/integrations`
 
-List every Integration for the Entity, including any Mercado Pago, Mercado Libre, Gmail, Polar, or Google Sheets authorization connected from the app. Each item carries the Source Feed and the Bank Accounts it feeds, and a Google Sheets Integration carries its last General Ledger Export.
+`GET /api/organizations/:organizationId/integrations`
+
+List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Polar, or Google Sheets authorization connected from the app. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
+
+An API key confined to one Entity gets every Integration of the Organization, with only the Source Feeds and Bank Accounts of its own Entity. `routedEntities` still names every Entity a feed reaches.
 
 - **Response:** array of Integration objects.
 
 ## DELETE `/integrations/:integrationId`
 
-Remove an Integration. Every feed of the Integration is removed as part of the same operation: its Source Feed and the feed of each Bank Account it fed. The Source, the Bank Accounts, and the documents and Movements already landed stay.
+`DELETE /api/organizations/:organizationId/integrations/:integrationId`
+
+Remove an Integration. Every feed of the Integration is removed as part of the same operation, in every Entity: its Source Feeds and the feed of each Bank Account it fed. The Sources, the Bank Accounts, and the documents and Movements already landed stay.
 
 - For a `fintoc` Integration, Sintropix also deletes the Link at Fintoc, so the bank stops being read.
 - For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `502` or `503` and the Integration stays. Retry later.
+- For a `sii_mirror` Integration, the SII mirror first deletes the company Clave and the legal representative's Clave, and stops reading that RUT. If the mirror is busy with that RUT or can't be reached, the disconnect answers `503` with `SII_UNAVAILABLE_ERROR`, and the Integration and both Claves stay. Retry in a few minutes.
 - For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked. For `google_sheets`, the Sheet keeps the last General Ledger written to it.
 
 **Response**
@@ -268,10 +304,10 @@ Remove an Integration. Every feed of the Integration is removed as part of the s
 | Field | Type | Description |
 | --- | --- | --- |
 | `deletedIntegrationId` | uuid | The removed Integration. |
-| `unfedBankAccounts` | array | Every Bank Account that lost its feed, in the shape documented on [Bank Accounts](/api-reference/bank-accounts) without the summary fields, and with `feed` set to `null`. Empty when the Integration fed no Bank Account. |
+| `unfedBankAccounts` | array | Every Bank Account that lost its feed, in any Entity, in the shape documented on [Bank Accounts](/api-reference/bank-accounts) without the summary fields, and with `feed` set to `null`. Empty when the Integration fed no Bank Account. |
 
 ```bash
-curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID" \
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -283,23 +319,110 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$
 }
 ```
 
+## SII
+
+The SII Integration (`sii_mirror`) reads the company's DTEs and boletas de honorarios from the SII through Sintropix's SII mirror. Sintropix stores the company RUT as the Integration's `providerRef`, and none of the Clave. The Clave is held by the SII mirror, which signs in to the SII with it.
+
+### Connect the SII
+
+In the app, open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **SII**. Type the company's **RUT** and its **Clave del SII**, then click **Conectar**. While the SII checks the Clave, the form shows **Verificando la Clave con el SII…**. A refused Clave shows **Clave incorrecta** under the field.
+
+Through the API, send `kind: "sii_mirror"` with `rut` and `clave` to [`POST /integrations`](#post-integrations). The SII checks the Clave before the Integration exists:
+
+| Outcome | Answer |
+| --- | --- |
+| The SII accepts the RUT and Clave | `201` with the Integration |
+| The SII refuses the Clave | `422` with `SII_CLAVE_REFUSED_ERROR`. Nothing is stored |
+| The SII gives no answer in time, or the mirror is busy with that RUT | `503` with `SII_UNAVAILABLE_ERROR`. Nothing is stored. Retry in a few minutes |
+| Another Integration already reads that RUT | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` |
+
+The connect asks for no Entity, and the Entity's tax id doesn't need to match the RUT. Route the documents with a [Source Feed](/api-reference/source-feeds#sii-mirror-feeds) on the Entity they belong to. Each document a feed lands names the connected RUT, with the Entity's name, as the company's side: the issuer of a sale and the receiver of a purchase.
+
+The app doesn't offer the [SII Login](#portal-logins) for new connections. SII Logins stored before keep showing in the list.
+
+### The legal representative's Clave
+
+The company Clave reads the RCV registers. The SII opens the PDF and XML of the DTEs only to the legal representative, so add the legal representative's own RUT and Clave to receive those [files](/api-reference/source-feeds#file-attachments). It's optional: the company Clave alone connects the SII.
+
+In the app, open **Conectar integración** and pick **Clave del representante legal**, under the **Impuestos** tag. The option is dimmed until the company's SII is connected. When the Organization has two or more SII Integrations, the dialog first asks which company, by RUT. The option shows a check once the SII mirror holds a Clave or a certificate of the legal representative of every connected company.
+
+Disconnecting the SII deletes the legal representative's Clave together with the company Clave.
+
+#### PUT `/integrations/:integrationId/sii-representative-clave`
+
+`PUT /api/organizations/:organizationId/integrations/:integrationId/sii-representative-clave`
+
+Add the legal representative's Clave to an SII Integration. The SII checks it at once, the same way as the company Clave. Sintropix stores neither the RUT nor the Clave. Sending it again replaces the Clave the SII mirror holds for that person.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `rut` | string | Yes | The legal representative's own RUT, as a person. Same format and check-digit rule as a [Portal Login](#post-portal-logins) `rut`. The company's RUT is refused. |
+| `clave` | string | Yes | The legal representative's SII password (Clave). Must be non-empty. |
+
+**Response:** the Integration object.
+
+| Status | Code | When it happens |
+| --- | --- | --- |
+| `422` | `SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR` | `rut` is the company's own RUT. Nothing is sent to the SII |
+| `422` | `SII_CLAVE_REFUSED_ERROR` | The SII refused the Clave |
+| `422` | `INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR` | The Integration isn't `sii_mirror` |
+| `503` | `SII_UNAVAILABLE_ERROR` | The SII gave no answer in time. Retry in a few minutes |
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/sii-representative-clave" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rut": "12.345.678-5",
+    "clave": "representative-sii-clave"
+  }'
+```
+
+#### GET `/integrations/:integrationId/sii-representative-clave`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/sii-representative-clave`
+
+Read whether the SII mirror holds a Clave or a certificate of the company's legal representative. Sintropix asks the SII mirror on every read.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `representativeClave` | object \| null | `null` while the SII mirror holds no Clave or certificate of the legal representative. |
+| `representativeClave.rut` | string | The legal representative's RUT. |
+| `representativeClave.verifiedAt` | ISO 8601 timestamp \| null | The last time the SII accepted a sign-in with it. `null` until the first sign-in. |
+
+```json
+{
+  "representativeClave": {
+    "rut": "12345678-5",
+    "verifiedAt": "2026-10-22T14:00:00.000Z"
+  }
+}
+```
+
+An Integration that isn't `sii_mirror` answers `422` with `INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`. When the SII mirror can't answer, the read answers `502` or `503`.
+
 ## Google Sheets
 
-A Google Sheets Integration keeps a copy of the Entity's General Ledger in a Google Sheet you own. Use it to work on the ledger with Sheets formulas, or to share it with someone who has no access to Sintropix. Sintropix only writes: nothing you change in the Sheet reaches the books.
+A Google Sheets Integration keeps a copy of the Organization's General Ledger in a Google Sheet you own, with every Entity of the Organization in the same tabs. Use it to work on the ledger with Sheets formulas, or to share it with someone who has no access to Sintropix. Sintropix only writes: nothing you change in the Sheet reaches the books.
 
-Each Integration exports to one Sheet, and each Sheet can receive the General Ledger of only one Entity. One Google account can connect Sheets for several Entities.
+Each Integration exports to one Sheet, and each Sheet can be connected only once. One Google account can connect Sheets for several Organizations.
 
 <Note>
-  A `client` or `staff` caller can connect a Google Sheet and run an export. See [Access and roles](/api-reference/overview#access-and-roles).
+  A `client` or `staff` caller can connect a Google Sheet and run an export. An API key confined to one Entity can't run an export, because it writes every Entity of the Organization. See [Access and roles](/api-reference/overview#access-and-roles).
 </Note>
 
 ### Connect a Google Sheet
 
 You connect Google Sheets from the app, because Google asks for consent in a browser:
 
-1. Open **Settings → Integrations**, click **Conectar integración**, and pick **Google Sheets**.
+1. Open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Google Sheets**.
 2. Paste the address of the Sheet, as your browser shows it with the Sheet open. It starts with `https://docs.google.com/spreadsheets/d/`.
-3. If the Entity keeps [Books](/api-reference/books), pick the **Libro** the export reads.
+3. If an Entity of the Organization keeps [Books](/api-reference/books), pick the **Libro** the export reads for that Entity.
 4. Continue on Google with an account that can edit the Sheet, and keep the permission to edit your spreadsheets checked.
 
 When you return, Sintropix checks that the account can edit the Sheet by creating its tab, and connects the Integration. It refuses the connection, and stores nothing, when:
@@ -311,27 +434,67 @@ When you return, Sintropix checks that the account can edit the Sheet by creatin
 
 ### What the Sheet holds
 
-Each export rewrites the whole tab **Libro mayor** with the General Ledger of the current calendar year, on the calendar of Santiago (Chile). It reads the live Ledger Entries (`active` and `reversed`), the same lines as the [general ledger report](/api-reference/reports#general-ledger). For an Entity that keeps Books, it reads the Book you picked. Sintropix writes only that tab and leaves the rest of the Sheet alone. If you rename or delete the tab, the next export creates a new **Libro mayor** tab.
+Each export rewrites three tabs whole: **Libro mayor**, **Plan de cuentas**, and **Dimensiones**. Sintropix finds each tab by its title, creates a missing one, and leaves the rest of the Sheet alone. If you rename or delete a tab, the next export creates a new one with that title.
 
-The tab has one row per line, sorted by account code, then by date:
+Every Entity of the Organization goes into the same tabs, one Entity after another, in name order. Each Entity's rows are in that Entity's own currency.
+
+The export reads the Book you picked for the Entity that keeps it. It reads every other Entity with no Book. If another Entity of the Organization keeps Books, the export fails with `400` and `BOOK_REQUIRED_ERROR`, and `params.entityId` names that Entity. That export records no run.
+
+#### Libro mayor
+
+**Libro mayor** holds the General Ledger of the current calendar year, on the calendar of Santiago (Chile). It reads the live Ledger Entries (`active` and `reversed`), the same lines as the [general ledger report](/api-reference/reports#general-ledger). Each Entity's rows have one row per line, sorted by account code, then by date:
 
 | Column | Content |
 | --- | --- |
+| **Entidad** | The Entity's name |
 | **Fecha** | The entry date, as a Sheets date |
 | **Asiento** | The Ledger Entry, linked to the entry in the app |
+| **Fecha de creación** | When the entry was written, as a Sheets date and time in Santiago (Chile) |
 | **Código** | The Ledger Account code |
 | **Cuenta** | The Ledger Account name |
 | **Glosa** | The entry memo |
-| **Contacto** | The partner on the line |
+| **Contacto** | The [Partner](/api-reference/partners) on the line |
+| **RUT** | The Partner's tax id |
+| **País** | The Partner's country, as an ISO 3166-1 alpha-2 code |
+| **Tipo de contacto** | `Proveedor`, `Cliente`, or `Ambos`: what the row's Entity's books say the Partner is to it. Empty when they say neither |
+| One column per [Dimension](/api-reference/dimensions) | The name of the Dimension Value the line carries for that Dimension, or empty. Every Dimension of the Organization takes a column, in name order, even one no line uses |
+| **Moneda** | The Entity's currency, which **Débito**, **Crédito**, and **Saldo** are in |
 | **Débito** | The debit amount |
 | **Crédito** | The credit amount |
 | **Saldo** | The account's running balance after this line, signed by the account's normal side |
+| **Moneda transacción** | The line's transaction currency. The Entity's currency for a line booked in it |
+| **Monto transacción** | The line's amount in its transaction currency |
+| **Tipo de cambio** | The line's exchange rate. `1` for a line booked in the Entity's currency |
 
-Amounts are numbers in currency units, not minor units, so Sheets formulas work on them.
+Amounts and rates are numbers in currency units, not minor units, so Sheets formulas work on them.
 
-Each account opens with a **Saldo inicial** row dated January 1. It holds the balance the account carries in from before the year, with no entry. An account with no line this year shows that row alone when its balance isn't zero, and doesn't show at all when its balance is zero.
+Each account of each Entity opens with a **Saldo inicial** row dated January 1. It holds the balance the account carries in from before the year, in **Saldo** and as its own transaction at a rate of `1`. It has no entry, creation date, Partner, Dimension Value, debit, or credit. An account with no line this year shows that row alone when its balance isn't zero, and doesn't show at all when its balance is zero.
 
-Because every export rewrites the whole tab, running it again is safe: an entry posted, changed, or reversed since the last export shows up on the next one.
+#### Plan de cuentas
+
+**Plan de cuentas** holds one row per Ledger Account of each Entity, sorted by code:
+
+| Column | Content |
+| --- | --- |
+| **Entidad** | The Entity's name |
+| **Código** | The account code |
+| **Nombre** | The account name |
+| **Tipo** | The account type, in Spanish: `Activo`, `Pasivo`, `Patrimonio`, `Ingreso`, `Costo de ventas`, `Gasto operacional`, `Otros ingresos`, or `Otros gastos` |
+| **Grupo** | The account's own group, as its code prefix and its name |
+| **Descripción** | The account description |
+
+#### Dimensiones
+
+**Dimensiones** holds one row per Dimension Value of the Organization, sorted by Dimension name, then by code. A Dimension with no value has no row.
+
+| Column | Content |
+| --- | --- |
+| **Dimensión** | The Dimension's name |
+| **Código** | The value's code |
+| **Valor** | The value's name |
+| **Código padre** | The code of the value's parent, or empty |
+
+Because every export rewrites the whole tabs, running it again is safe: an entry posted, changed, or reversed since the last export shows up on the next one.
 
 ### When the export runs
 
@@ -339,15 +502,15 @@ Sintropix exports every Google Sheets Integration every four hours. To export ri
 
 ### The General Ledger Export object
 
-A General Ledger Export is one run that writes the General Ledger to the Sheet. It states either the lines it wrote or why it wrote nothing: exactly one of `lineCount` and `failure` is set.
+A General Ledger Export is one run that writes the General Ledger of every Entity of the Organization to the Sheet. It states either the lines it wrote or why it wrote nothing: exactly one of `lineCount` and `failure` is set.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | uuid | Export id. |
-| `entityId` | uuid | Owning Entity. |
+| `organizationId` | uuid | Owning Organization. |
 | `integrationId` | uuid | The Google Sheets Integration. |
 | `occurredAt` | ISO 8601 timestamp | When the export ran. |
-| `lineCount` | integer \| null | Ledger lines written to the tab. The **Saldo inicial** rows don't count. `null` when the export failed. |
+| `lineCount` | integer \| null | Ledger lines written to **Libro mayor**, across every Entity. The **Saldo inicial** rows don't count. `null` when the export failed. |
 | `failure` | string \| null | Why Google refused the export (see below). `null` when the export succeeded. |
 
 | `failure` | Meaning | What to do |
@@ -360,14 +523,16 @@ A General Ledger Export is one run that writes the General Ledger to the Sheet. 
 
 ### POST `/integrations/:integrationId/general-ledger-exports`
 
-Export the General Ledger to the Integration's Sheet now. No request body.
+`POST /api/organizations/:organizationId/integrations/:integrationId/general-ledger-exports`
+
+Export the General Ledger of every Entity of the Organization to the Integration's Sheet now. No request body.
 
 The export answers `200` with the General Ledger Export it recorded, whether it succeeded or Google refused it. Check `failure` to tell them apart.
 
-An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. While another export of the same Integration is still writing, including the scheduled one, the request answers `409` with `GENERAL_LEDGER_EXPORT_RUNNING_ERROR`. Retry when it finishes.
+An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. While another export of the same Integration is still writing, including the scheduled one, the request answers `409` with `GENERAL_LEDGER_EXPORT_RUNNING_ERROR`. Retry when it finishes. When an Entity other than the one of the picked Book keeps Books, the request answers `400` with `BOOK_REQUIRED_ERROR` and records no run.
 
 ```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$INTEGRATION_ID/general-ledger-exports" \
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/general-ledger-exports" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -375,7 +540,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/integrations/$IN
 ```json
 {
   "id": "9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d",
-  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "organizationId": "5f1c2a3b-4d5e-4f6a-8b7c-9d0e1f2a3b4c",
   "integrationId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
   "occurredAt": "2026-10-19T15:00:00.000Z",
   "lineCount": 1284,
@@ -388,7 +553,7 @@ A refused export:
 ```json
 {
   "id": "0b1c2d3e-4f5a-4b6c-9d7e-8f9a0b1c2d3e",
-  "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
+  "organizationId": "5f1c2a3b-4d5e-4f6a-8b7c-9d0e1f2a3b4c",
   "integrationId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
   "occurredAt": "2026-10-19T19:15:00.000Z",
   "lineCount": null,
@@ -398,18 +563,18 @@ A refused export:
 
 ## Portal Logins
 
-A Portal Login is the login of a portal that no Provider reads. Sintropix stores the login and the password encrypted and uses them only to read the portal. No read ever returns them, so not even you can see them again in Sintropix. A Portal Login has one of four kinds:
+A Portal Login is the login of a portal that no Provider reads. Unlike an Integration, a Portal Login belongs to one Entity, and its routes live under `/api/entities/:entityId/portal-logins`. Sintropix stores the login and the password encrypted and uses them only to read the portal. No read ever returns them, so not even you can see them again in Sintropix. A Portal Login has one of four kinds:
 
 | Kind | Portal | What you store |
 | --- | --- | --- |
 | `bank_login` | A bank's portal | The bank, picked from the [Banks catalog](/api-reference/reference-data#get-banks), plus the RUT and the password you sign in with |
 | `getnet_login` | The Getnet merchant portal | The username or email, and the password you sign in with |
-| `sii_login` | The SII, as a company or as a person | The taxpayer type, plus the RUT and the SII password (clave) you sign in with |
+| `sii_login` | The SII, as a company or as a person. To connect the SII, use the [SII Integration](#sii) instead | The taxpayer type, plus the RUT and the SII password (clave) you sign in with |
 | `clay_login` | Clay, the Chilean ERP you migrate your books from, so the Sintropix team can migrate them | A name you choose, plus either an API key or the username and password you sign in with |
 
 Sintropix doesn't sign in to the portal when you store a Portal Login, so a wrong login or password isn't refused. A Portal Login has no health status: it's stored, never "working" or "failed". To change the password, delete the Portal Login and store it again.
 
-In the app, connect one from **Settings → Integrations**: pick your bank by its name, or pick **Getnet**, **SII**, or **Clay** (under the **ERP** tag). For **SII**, pick the **Tipo de contribuyente**: **Empresa** for the company or **Persona** for a person, such as its legal representative. For **Clay**, give it a **Nombre** (prefilled as "Clay") and pick how it signs in: **API key** or **Usuario y clave**. Name each Clay Login after the company it holds, so you can store one per company you migrate. A Portal Login shows in the list with the status **Clave guardada**.
+In the app, connect one from **Configuración de empresa → Integraciones**: pick your bank by its name, or pick **Getnet** or **Clay** (under the **ERP** tag). Pick the **Entidad legal** the login belongs to. It's preset when the Organization has only one Entity. For **Clay**, give it a **Nombre** (prefilled as "Clay") and pick how it signs in: **API key** or **Usuario y clave**. Name each Clay Login after the company it holds, so you can store one per company you migrate. A Portal Login shows in the list with the status **Clave guardada**.
 
 <Note>
   A `client` or `staff` caller can store and delete Portal Logins. A `viewer` can only list them. See [Access and roles](/api-reference/overview#access-and-roles).
@@ -564,6 +729,19 @@ List the Entity's Portal Logins of every kind.
 
 - **Response:** array of Portal Login objects.
 
+### GET `/organizations/:organizationId/portal-logins`
+
+`GET /api/organizations/:organizationId/portal-logins`
+
+List the Portal Logins of every Entity of the Organization. An API key confined to one Entity gets only its own Entity's. To store or delete a Portal Login, use the routes of its Entity.
+
+- **Response:** array of Portal Login objects, each with one more field, `entityName`: the name of the Entity that holds it.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/portal-logins" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
 ### DELETE `/portal-logins/:portalLoginId`
 
 Delete a Portal Login and its stored login and password. Sintropix stops reading the portal with it. Your login at the portal is unchanged.
@@ -582,13 +760,13 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `DELETE`, and a General Ledger Export, including one Google refused. |
+| `200` | Success on `GET`, `PUT`, `DELETE`, and a General Ledger Export, including one Google refused. |
 | `201` | Integration or Portal Login created. |
-| `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or connecting `sii_mirror` on an Entity whose country is not Chile or whose RUT the mirror does not follow. |
-| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration (`PERMISSION_DENIED_ERROR`). |
-| `404` | Entity, Integration, or Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the external account is already connected to an Entity (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
+| `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while an Entity other than the one of the picked Book keeps Books (`BOOK_REQUIRED_ERROR`). |
+| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), or Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`) not found. |
+| `409` | Integration id already exists, the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), or a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), or the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`). |
 | `502` | The Provider failed (`BANK_FEED_PROVIDER_FAILURE_ERROR`). Retry later. |
-| `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), or Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`). Retry later. |
+| `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), or the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`). Retry later. |

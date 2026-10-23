@@ -57,6 +57,15 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
     ```
 
     Guarda el `client_id` de la respuesta. `client_name` es lo que los Usuarios ven en la pantalla de aprobación y en su lista de apps conectadas.
+
+    Las URI de redirección que puedes registrar dependen de dónde corre tu app:
+
+    | `application_type` | URI de redirección |
+    | --- | --- |
+    | `web` (por defecto) | `https` en un host que no sea una dirección de loopback, como `https://assistant.acme.example/callback`. |
+    | `native`, para una app en el dispositivo del Usuario | `http` en `localhost`, `127.0.0.1` o `[::1]`, como `http://localhost:53682/callback`. O un esquema de uso privado en forma de dominio invertido y sin host, como `com.acme.assistant:/callback`. O `https`, como en `web`. |
+
+    Cualquier otra URI de redirección, como un esquema propio con host del tipo `acme://callback`, devuelve `400` con `invalid_redirect_uri`.
   </Step>
   <Step title="Envía al Usuario a aprobar">
     Crea un code verifier de PKCE y su challenge S256, y abre la URL de autorización en el navegador del Usuario:
@@ -72,7 +81,9 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
       &code_challenge_method=S256
     ```
 
-    El `redirect_uri` debe coincidir exactamente con uno registrado. Luego el Usuario pasa por estas pantallas en la app de Sintropix:
+    El `redirect_uri` debe coincidir exactamente con uno registrado. Si envías un `resource`, debe ser el [servidor MCP de Sintropix](/es/guides/mcp-server), `https://mcp.sintropix.com/mcp`. Cualquier otro recurso devuelve al Usuario a tu `redirect_uri` con `error=invalid_target`.
+
+    Luego el Usuario pasa por estas pantallas en la app de Sintropix:
 
     1. Inicia sesión con su contraseña y su segundo factor. A un Usuario sin verificación en dos pasos se le pide activarla primero.
     2. Elige la Organización en la que trabajará la app (**Elige la organización**). Un Usuario con una sola Membresía se salta esta pantalla. Un Usuario sin Membresías no puede aprobar ninguna app.
@@ -110,7 +121,7 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
       -d '{"id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88", "name": "Servicios Cloud SpA"}'
     ```
 
-    Cuando una solicitud devuelve `401`, actualiza el token:
+    Cuando una solicitud devuelve `401`, actualiza el token. Un token de acceso también termina cuando el Usuario cierra la sesión del navegador desde la que aprobó la app, pero su token de actualización sigue funcionando.
 
     ```bash
     curl -X POST https://api.sintropix.com/api/auth/oauth2/token \
@@ -125,7 +136,7 @@ https://api.sintropix.com/.well-known/oauth-authorization-server/api/auth
 
 ## Administra las apps conectadas
 
-Los Usuarios ven sus apps conectadas en la app de Sintropix en **Ajustes** > **Apps conectadas**, en `https://app.sintropix.com/{entityId}/settings/connected-apps`. Cada fila muestra la app, su dominio de retorno, la Organización, el acceso y la fecha de conexión. Haz clic en el botón de revocar de una fila y confirma con **Revocar**: los tokens de acceso y de actualización de la app dejan de funcionar de inmediato. Revocar la aprobación de una Organización mantiene las aprobaciones de la misma app en otras Organizaciones.
+Los Usuarios ven sus apps conectadas en la app de Sintropix en **Tu cuenta** > **Apps conectadas**, en `https://app.sintropix.com/account/connected-apps`. Para llegar, haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Tu cuenta**. Cada fila muestra la app, su dominio de retorno, la Organización, el acceso y la fecha de conexión. Haz clic en el botón de revocar de una fila y confirma con **Revocar**: los tokens de acceso y de actualización de la app dejan de funcionar de inmediato. Revocar la aprobación de una Organización mantiene las aprobaciones de la misma app en otras Organizaciones.
 
 Las mismas acciones están disponibles en la API, solo desde una sesión iniciada en el navegador. Una clave de API o un token OAuth recibe `403` con `PERMISSION_DENIED_ERROR`.
 

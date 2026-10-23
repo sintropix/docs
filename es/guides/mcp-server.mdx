@@ -29,13 +29,15 @@ https://mcp.sintropix.com/mcp
   </Step>
 </Steps>
 
-Cada conexión lee una Organización, y todas sus empresas (Entidades). Para leer otra Organización, vuelve a aprobar el asistente y elige esa Organización. Cada aprobación aparece como una fila propia en **Ajustes** > **Apps conectadas**.
+Cada conexión lee una Organización, y todas sus empresas (Entidades). Para leer otra Organización, vuelve a aprobar el asistente y elige esa Organización. Cada aprobación aparece como una fila propia en **Tu cuenta** > **Apps conectadas**.
+
+El asistente se registra en Sintropix la primera vez que te conectas. Un asistente que vuelve a un esquema propio con host, como `cursor://`, no puede registrarse, así que no puede conectarse. Consulta las [URI de redirección que una app puede registrar](/es/guides/connected-apps#conecta-tu-app).
 
 ## Acceso
 
 - El asistente lee como tú, en la Organización que aprobaste, con tu Rol en ella. Todos los Roles pueden leer, así que los Usuarios `staff`, `client` y `viewer` pueden conectarse.
 - Si pierdes tu Membresía en la Organización, la conexión termina.
-- Revoca la conexión cuando quieras desde **Ajustes** > **Apps conectadas** en la app de Sintropix. El asistente pierde el acceso de inmediato y te pide iniciar sesión otra vez la próxima vez que necesite Sintropix.
+- Revoca la conexión cuando quieras desde **Tu cuenta** > **Apps conectadas** en la app de Sintropix. El asistente pierde el acceso de inmediato y te pide iniciar sesión otra vez la próxima vez que necesite Sintropix.
 - El token de acceso dura 1 hora, y el asistente lo renueva solo. Si el asistente pasa 30 días sin renovarlo, te pide iniciar sesión otra vez.
 
 Consulta [Conectar una app con OAuth](/es/guides/connected-apps) para ver todas las reglas de las apps conectadas.

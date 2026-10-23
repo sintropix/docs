@@ -9,7 +9,7 @@ export const AgentPrompt = ({ defaultLang }) => {
       textareaLabel: "Full Sintropix agent prompt",
       text: `Help me work with the Sintropix ERP through its API.
   Use https://docs.sintropix.com/llms.txt to find documentation as needed.
-  Ask me for my API key through a secure input. If I don’t have one yet, give me both options: guide me step by step through creating it at https://app.sintropix.com under Ajustes → Claves de API → Crear clave, and point me to the illustrated guide at https://docs.sintropix.com/guides/api-keys. Then wait for me to come back with the key.
+  Ask me for my API key through a secure input. If I don’t have one yet, give me both options: guide me step by step through creating it at https://app.sintropix.com under Tu cuenta → Claves de API → Crear clave, and point me to the illustrated guide at https://docs.sintropix.com/guides/api-keys. Then wait for me to come back with the key.
   Store the key securely as SINTROPIX_API_KEY; never print or commit it.
   Confirm the API base URL, send the key in x-api-key, and use GET /api/entities to identify the company to work with.
   Only make changes I authorize, and include x-audit-actor with your agent name on every write. Ground your answers in the returned records.
@@ -25,7 +25,7 @@ export const AgentPrompt = ({ defaultLang }) => {
       textareaLabel: "Prompt completo del agente de Sintropix en español",
       text: `Ayúdame a trabajar con el ERP de Sintropix a través de su API. Háblame siempre en español.
   Usa https://docs.sintropix.com/llms.txt para encontrar la documentación que necesites.
-  Pídeme mi clave de API mediante una entrada segura. Si todavía no tengo una, dame las dos opciones: guíame paso a paso para crearla en https://app.sintropix.com en Ajustes → Claves de API → Crear clave, y muéstrame la guía ilustrada en https://docs.sintropix.com/guides/api-keys. Luego espera a que vuelva con la clave.
+  Pídeme mi clave de API mediante una entrada segura. Si todavía no tengo una, dame las dos opciones: guíame paso a paso para crearla en https://app.sintropix.com en Tu cuenta → Claves de API → Crear clave, y muéstrame la guía ilustrada en https://docs.sintropix.com/guides/api-keys. Luego espera a que vuelva con la clave.
   Guarda la clave de forma segura como SINTROPIX_API_KEY; nunca la imprimas ni la subas a un repositorio.
   Confirma la URL base de la API, envía la clave en x-api-key y usa GET /api/entities para identificar la empresa con la que vamos a trabajar.
   Haz solo los cambios que yo autorice e incluye x-audit-actor con el nombre de tu agente en cada escritura. Basa tus respuestas en los registros devueltos.

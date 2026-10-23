@@ -48,7 +48,8 @@ A record that waits stays unbooked. For example, when only one leg of an interna
 
 The panel of a Bank Movement or an Invoice shows its Follow-up in a **Follow-up** section (**Seguimiento** in Spanish), with the proposed steps of each Plan named in full:
 
-- **Approve** runs the Plan of a `proposal`. For a `question`, **Choose** runs the Plan of the option you pick.
+- **Approve** runs the Plan of a `proposal`. For a `question`, **Choose** runs the Plan of the option you pick. The app blocks either one, and says why, while the Plan names a record the Entity doesn't hold, such as a missing account or the missing Recognition Account of a deferred line.
+- A line that a booking [defers](/api-reference/invoices#deferrals) shows its terms in one sentence under it: the months, the Recognition Account, and the amount of each month. For example, *Diferido de oct 2026 a dic 2026 (3 meses) · se reconoce en 4.01.01.02 Ventas B2B · $350.000 / mes*.
 - **Discard** removes the Follow-up of any kind.
 - **Answer Erwin** opens a chat with Erwin about that record, for every kind. Use it to answer a question, correct a proposal, or tell Erwin what a record waits on. Erwin acts in the same conversation with your rights, and writes, replaces, or settles the Follow-up through these routes.
 
@@ -210,10 +211,40 @@ Read the Follow-up of a record with every record in its Plan named, so you can s
 
 - `movement` names the Movement with its date, amount, side, description, and Bank Account.
 - `invoice` names the Invoice with its document kind, number, direction, issue date, total, currency, and Partner.
-- Each item in `newLines` is a line the act creates, with its `account` and `partner` named.
+- Each item in `newLines` is a line the act creates: its `id`, `side`, `functionalAmount`, `transactionCurrency`, and `transactionAmount`, with its `account` (`{ id, code, name }`) and `partner` (`{ id, name }`) named, and its `deferral`.
+- `deferral` is `null` unless the line carries [`deferral`](/api-reference/invoices#defer-a-line-when-you-book) in a `bookInvoice` act. Then it holds the terms the booking will defer the line by: `startMonth` (`YYYY-MM`), `monthCount` (integer), and `recognitionAccount` (`{ id, code, name }`), the account each Release will land in.
 - Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`. The `target` of an `assign` is `null` when its `lineId` is `null`.
 
-A named record is `null` when the Plan names a record the Entity does not hold. Approving that Plan fails.
+A named record is `null` when the Plan names a record the Entity does not hold. That includes the `recognitionAccount` of a `deferral`. Approving that Plan fails.
+
+A `bookInvoice` act whose Plan defers a line reads, for example:
+
+```json
+{
+  "act": "bookInvoice",
+  "invoice": { "id": "6f1c2b1e-0d1a-4c7b-9a3e-2b8f5d0e1a11", "documentKind": "invoice", "documentNumber": "369", "direction": "receivable", "issueDate": "2026-10-01", "total": 1249500, "currency": "CLP", "partner": { "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88", "name": "Cliente Ejemplo SpA" } },
+  "controlAccount": { "id": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "code": "1.01.05.01", "name": "Clientes" },
+  "entry": { "id": "9c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f", "entryDate": "2026-10-01", "memo": "Factura 369" },
+  "newLines": [
+    {
+      "id": "8c9d0e1f-2a3b-4c4d-8e5f-6a7b8c9d0e1f",
+      "side": "credit",
+      "functionalAmount": 1050000,
+      "transactionCurrency": null,
+      "transactionAmount": null,
+      "account": { "id": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f", "code": "2.10.01.02", "name": "Ingresos por Adelantado" },
+      "partner": { "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88", "name": "Cliente Ejemplo SpA" },
+      "deferral": {
+        "startMonth": "2026-10",
+        "monthCount": 3,
+        "recognitionAccount": { "id": "d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f7a", "code": "4.01.01.02", "name": "Ventas B2B" }
+      }
+    }
+  ]
+}
+```
+
+The example shows only the deferred line. The other lines of the booking carry `"deferral": null`.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/follow-up" \
