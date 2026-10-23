@@ -23,7 +23,7 @@ Amounts are integers in the minor units of their currency (`1190000` is CLP 1,19
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/invoices?open={invoiceId}"
-  note="That page is for direction receivable. For direction payable use /{entityId}/bills?open={invoiceId}."
+  note="That page is for direction receivable. For direction payable use /{entityId}/bills?open={invoiceId}, and for an Expense Rendition use /{entityId}/expense-renditions?open={invoiceId}."
 />
 
 ## Ontop invoices
@@ -88,6 +88,8 @@ Erwin never changes or books again an Invoice that was already in Sintropix, and
 
 A **rendition** (rendición) is an expense that a person paid with their own money for the company, which the company pays back. Sintropix records each rendition as a `payable` Invoice whose Partner is the person who paid, never the merchant. Erwin loads renditions from [Rindegastos](https://www.rindegastos.com) and books them, together with the renditions that people report to him in Slack.
 
+Mark the Source of the renditions, such as `Rindegastos`, as one that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions). Its Invoices are then listed in **Rendiciones** instead of **Compras**, and `GET /invoices/pages` tells them apart with `isExpenseRendition`.
+
 ### Load Rindegastos
 
 Ask Erwin in a Slack channel bound to the Entity's Organization through an [Agent Channel](/api-reference/agent-channels), for example *"carga Rindegastos"*. Before the first load:
@@ -95,7 +97,7 @@ Ask Erwin in a Slack channel bound to the Entity's Organization through an [Agen
 - Add a login Credential for Rindegastos to the Entity in **Integraciones**. Erwin only reads Rindegastos. He never approves, rejects, closes, or edits anything there.
 - If a person's name in Rindegastos differs from the name of their Partner, note the pair on the Rindegastos page of Erwin's [wiki](/core-concepts).
 
-The Rindegastos company must keep its accounts in the Entity's functional currency. If it doesn't, Erwin stops.
+The Rindegastos company must keep its accounts in the Entity's functional currency. If it doesn't, Erwin stops. Every Invoice of a load is in that currency.
 
 Each load reads every report, because a report can close months after it was sent. Erwin loads each **approved** expense of a **closed** report that isn't in Sintropix yet. He skips rejected expenses and the expenses of reports still in process.
 
@@ -107,10 +109,12 @@ For each new expense, Erwin creates one Invoice and attaches its receipt:
 | `sourceId` | The [Source](/api-reference/sources) named `Rindegastos`. Erwin creates it on the first load if the Entity has none. |
 | `direction`, `documentKind` | `payable`, `invoice` |
 | `documentNumber` | `RG-<expense id>`, the key that keeps a load from adding an expense twice |
-| `currency`, `total` | The currency the person paid in, and the amount in that currency |
+| `currency`, `total` | The currency of the Rindegastos company, and the amount the person is paid back, as Rindegastos states it. An expense paid in another currency is loaded at that amount too. |
 | `issueDate` | The date of the expense |
 | `memo` | `Informe <folio> · <report title> · <merchant>` |
-| `metadata` | In this order, when Rindegastos shows them: `Informe`, `Título informe`, `ID informe`, `ID gasto`, `Comercio`, `Categoría`, `Cuenta contable Rindegastos`, `Nota`, `Nota informe`, `Total <currency>` and `Tasa de cambio` for an expense in another currency, `Reembolsable: No`, `Fondo`, `Tipo de documento (OCR)`, `RUT comercio (OCR)`, `Folio (OCR)`, then each custom field of the expense, and each custom field of the report as `<name> (informe)`. A value longer than 500 characters is split into numbered labels, such as `Nota (1)` and `Nota (2)`. |
+| `metadata` | In this order, when Rindegastos shows them: `Informe`, `Título informe`, `ID informe`, `ID gasto`, `Comercio`, `Categoría`, `Cuenta contable Rindegastos`, `Nota`, `Nota informe`, `Moneda original`, `Total original`, and `Tasa de cambio` for an expense paid in another currency, `Reembolsable: No`, `Fondo`, `Tipo de documento (OCR)`, `RUT comercio (OCR)`, `Folio (OCR)`, then each custom field of the expense, and each custom field of the report as `<name> (informe)`. A value longer than 500 characters is split into numbered labels, such as `Nota (1)` and `Nota (2)`. |
+
+For an expense paid in another currency, such as a USD hotel, the Invoice holds the amount the person is paid back. The currency they paid in, the amount in that currency, and the rate Rindegastos applied are only in `Moneda original`, `Total original`, and `Tasa de cambio`, as Rindegastos shows them.
 
 A load books nothing. An expense without a receipt, or whose receipt fails to download, is still loaded, and Erwin reports it. `Cuenta contable Rindegastos` is information only: it doesn't follow your chart of accounts, so Erwin never books to it. Erwin also ignores the **Pagado** status of Rindegastos, because Sintropix learns what's paid from the bank.
 
@@ -131,7 +135,7 @@ The Entity needs a control account for renditions, such as *Rendiciones por paga
 
 - **Expense account.** Erwin uses the account the wiki gives for the expense's category. Otherwise, he uses the one expense account that clearly fits. When none clearly fits, he leaves the Invoice unbooked with a `question` Follow-up that offers one option per account that fits.
 - **Factura.** Erwin reads the receipt to tell a factura from a boleta. A factura of a supplier with the same RUT and total, within 10 days of the expense, also confirms it. He finds the supplier by the RUT on the receipt, and creates its Partner when there is none. When the receipt shows no RUT, he leaves a `question` Follow-up that asks for the supplier. He never creates the supplier's factura from a receipt.
-- **Other currency.** For an Invoice in another currency, Erwin uses the `Tasa de cambio` and `Total <currency>` from its metadata. Without them, he uses the [FX rate](/api-reference/fx-rates) for the issue date, or for the last earlier date with a rate.
+- **Other currency.** An Invoice of a Rindegastos load is already in the functional currency, so Erwin books its `total` as it is. For a rendition reported in Slack in another currency, he uses the [FX rate](/api-reference/fx-rates) for the issue date, or for the last earlier date with a rate.
 - **Not reimbursable, or a fund.** When the expense is marked `Reembolsable: No` or spends a `Fondo`, Erwin leaves it unbooked with a `question` Follow-up that asks how to book it.
 
 The debit to a supplier's payable is an advance until the supplier's factura is booked. On each run, Erwin [matches](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match) each open advance to the Control Line of a booked factura of the same supplier, with the same total, within 10 days of the expense. When two facturas fit, he matches neither and reports both. When the amounts differ, the smaller one settles and the rest stays open. He reports each advance still without a factura 30 days after the expense.
@@ -208,6 +212,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `statusFilter` | string | No | `all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, or `notExcluded`. Default `all`, which lists excluded documents too. `notExcluded` leaves them out. |
 | `dteType` | string | No | Keep only documents whose DTE has this type code (`33`, `61`, ...). Repeat the parameter to allow several codes. Use `none` for documents with no DTE. |
 | `sourceId` | string | No | A Source id, or `none` for documents that came from no Source. Also scopes the totals in the response. |
+| `isExpenseRendition` | boolean | No | `true` keeps only [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions), the payable documents of a Source that holds them, as **Rendiciones** lists. `false` leaves them out, as **Compras** does. Omit to return both. A `receivable` document is never an Expense Rendition. Also scopes the totals in the response. |
 | `partnerId` | uuid | No | Keep only documents of this Partner. |
 | `currency` | string | No | ISO 4217 code. |
 | `paymentStatus` | string | No | `paid`, `partial`, or `unpaid`. |
@@ -233,7 +238,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | --- | --- | --- |
 | `invoices` | array | The Invoice rows on this page (see below). |
 | `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page. |
-| `totalCount` | integer | Documents in scope: the direction and Source requested, ignoring every other filter. |
+| `totalCount` | integer | Documents in scope: the direction, Source, and `isExpenseRendition` requested, ignoring every other filter. |
 | `unbookedCount` | integer | How many of those are not yet booked. Excluded documents don't count. |
 | `outstandingTotal` | integer | Sum of the unbooked documents' totals, in the Entity's functional currency. Excluded documents don't count. |
 
@@ -245,6 +250,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `partnerName` | string | Name of the Partner. |
 | `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
+| `isExpenseRendition` | boolean | Whether the document is an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions): a `payable` Invoice whose Source holds Expense Renditions. Read from the Source, so marking or unmarking the Source changes it on every row at once. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
 | `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked; `0` once it is fully paid. |
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
@@ -272,6 +278,13 @@ The type of `group.value` depends on `group.by`:
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&statusFilter=unbooked&limit=25" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+To list the Expense Renditions still to book, with their own totals, pass `isExpenseRendition=true`:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&isExpenseRendition=true&statusFilter=unbooked" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -364,6 +377,7 @@ Example response:
     "partnerName": "Servicios Cloud SpA",
     "partnerWebsite": "servicioscloud.cl",
     "sourceName": null,
+    "isExpenseRendition": false,
     "paymentStatus": null,
     "openAmount": null,
     "bookingAccountLabel": null,
@@ -790,7 +804,7 @@ Some documents land but should never be booked: for example, an annulled boleta 
 
 An excluded Invoice:
 
-- Is still listed by `statusFilter=all`, the default, and the app crosses those rows out. It's left out of `statusFilter=notExcluded` and `statusFilter=unbooked`, of `unbookedCount` and `outstandingTotal`, of the home dashboard's `salesToBook` and `purchasesToBook`, and of match candidates.
+- Is still listed by `statusFilter=all`, the default, and the app crosses those rows out. It's left out of `statusFilter=notExcluded` and `statusFilter=unbooked`, of `unbookedCount` and `outstandingTotal`, of the home dashboard's `salesToBook`, `purchasesToBook`, and `expenseRenditionsToBook`, and of match candidates.
 - Can't be booked, single or bulk, and can't hold a [Follow-up](/api-reference/follow-ups). Excluding the Invoice clears its Follow-up.
 - Owes nothing to plan in a [Payment Batch](/api-reference/payment-batches).
 - Stays landed. A sync skips it, but still writes the Standing and Tax Period of its DTE.

@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Sources API: Named Origins for Imported Documents"
 sidebarTitle: "Sources"
-description: "List, create, rename, and delete Sources: named origins that group Invoices and other documents imported from external systems into an Entity."
+description: "List, create, rename, mark, and delete Sources: named origins that group Invoices and other documents imported from external systems into an Entity."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -12,6 +12,20 @@ A Source is a named origin an Entity uses to group documents it pulls from exter
   url="https://app.sintropix.com/{entityId}/sources/{sourceId}"
   note="Source configuration is at /{entityId}/settings/sources."
 />
+
+## Sources that hold Expense Renditions
+
+An **Expense Rendition** (rendición) is an expense that a person of the Entity paid with their own money and reports for reimbursement through a tool such as Rindegastos or Xpendit. Its Partner is the person who paid, not the merchant.
+
+Mark the Source of those documents as one that holds Expense Renditions (`holdsExpenseRenditions: true`). Every `payable` Invoice of a marked Source is an Expense Rendition:
+
+- In the app, it's listed in **Rendiciones** (under **Datos**) instead of **Compras**, with its own totals and counts. **Rendiciones** has the filters and groupings of **Compras** except the ones that read a DTE: no document type or DTE columns, no DTE type, Standing, or Tax Period filter, and no grouping by DTE type or Tax Period. **Nueva rendición** creates the document in a Source that holds Expense Renditions.
+- In the API, its Invoice row carries `isExpenseRendition: true`, and [`GET /invoices/pages`](/api-reference/invoices#get-invoices-pages) filters by it with `isExpenseRendition`.
+- The home dashboard counts it in `expenseRenditionsToBook`, not in `purchasesToBook`. See [Home dashboard](/api-reference/reports#home-dashboard).
+
+A `receivable` Invoice is never an Expense Rendition, whatever its Source. Sintropix reads the mark from the Source and never stores it on the Invoice. Unmark the Source and its Invoices go back to **Compras** right away, booked or not.
+
+In the app, turn on **Fuente de rendiciones** for the Source in **Configuración** → **Fuentes**, or when you create it.
 
 ## GET `/sources`
 
@@ -24,6 +38,7 @@ List every Source for the Entity, each annotated with the count of Invoices it h
 | `id` | uuid | Source id. |
 | `entityId` | uuid | Owning Entity. |
 | `name` | string | Display name, unique within the Entity. |
+| `holdsExpenseRenditions` | boolean | Whether the Source's `payable` Invoices are [Expense Renditions](#sources-that-hold-expense-renditions). |
 | `invoiceCount` | integer | How many Invoices name this Source. |
 | `createdAt` | timestamp | Creation time (ISO 8601). |
 | `updatedAt` | timestamp | Last update time (ISO 8601). |
@@ -41,6 +56,7 @@ Example response:
     "id": "5d6e7f80-91a2-4b3c-8d4e-5f6a7b8c9d0e",
     "entityId": "b2f0c1d4-7e8a-4b9c-8d1e-2f3a4b5c6d7e",
     "name": "Bsale",
+    "holdsExpenseRenditions": false,
     "invoiceCount": 412,
     "createdAt": "2026-03-02T09:15:44.000Z",
     "updatedAt": "2026-03-02T09:15:44.000Z"
@@ -58,6 +74,7 @@ Create a Source.
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Caller-generated id. Retrying with the same id is answered `409`, so a retried request never creates a second Source. |
 | `name` | string | Yes | Trimmed before it is stored; must be non-empty after trimming and unique within the Entity. |
+| `holdsExpenseRenditions` | boolean | No | Mark the Source as one that holds [Expense Renditions](#sources-that-hold-expense-renditions). Default `false`. |
 
 **Response** (`201`): the created Source object, with `invoiceCount` of `0`.
 
@@ -71,13 +88,14 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/sources" \
 
 ## PATCH `/sources/:sourceId`
 
-Rename a Source. The name is the only attribute a Source has, so it is the only one this endpoint updates.
+Rename a Source, mark or unmark it as one that holds Expense Renditions, or both. Send at least one field. A field you omit keeps its value. An empty body is answered `400`.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `name` | string | Yes | New name. Trimmed, non-empty, unique within the Entity. |
+| `name` | string | No | New name. Trimmed, non-empty, unique within the Entity. |
+| `holdsExpenseRenditions` | boolean | No | `true` marks the Source as one that holds [Expense Renditions](#sources-that-hold-expense-renditions); `false` unmarks it. |
 
 **Response:** the updated Source object.
 
@@ -87,6 +105,16 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/sources/$SOURCE
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
   -d '{ "name": "Bsale (ventas)" }'
+```
+
+To mark a Source as one that holds Expense Renditions:
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/sources/$SOURCE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "holdsExpenseRenditions": true }'
 ```
 
 ## DELETE `/sources/:sourceId`
@@ -101,6 +129,6 @@ Delete a Source. Sources referenced by existing Invoices or attached Source Feed
 | --- | --- |
 | `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
 | `201` | Source created. |
-| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `400` | Validation error, an empty `PATCH` body, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity or Source not found. |
 | `409` | Source id or name already exists, or the Source has attached Invoices or Feeds and cannot be deleted. |
