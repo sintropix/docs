@@ -78,7 +78,7 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/inbox",
+                  "api-reference/mailbox",
                   "api-reference/sii",
                   "api-reference/agent-channels"
                 ]
@@ -166,7 +166,7 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/inbox",
+                  "api-reference/mailbox",
                   "api-reference/sii",
                   "api-reference/agent-channels"
                 ]
@@ -211,6 +211,10 @@
     "eyebrows": "section"
   },
   "redirects": [
+    {
+      "source": "/api-reference/inbox",
+      "destination": "/api-reference/mailbox"
+    },
     {
       "source": "/api-reference/recommendations",
       "destination": "/api-reference/follow-ups"

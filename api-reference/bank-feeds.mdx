@@ -369,7 +369,7 @@ A sync updates the description and these lines on an unbooked Movement. A booked
 
 [Polar](https://polar.sh) is a Merchant of Record: it charges your buyers, holds the money in a USD balance, and pays it out to your bank. A Polar feed mirrors that USD balance, row by row.
 
-**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `502` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Configuración de empresa → Integraciones** with an owner, admin, or finance user.
+**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `502` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Configuración → Integraciones** with an owner, admin, or finance user.
 
 ```json
 {
