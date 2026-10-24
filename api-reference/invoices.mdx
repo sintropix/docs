@@ -248,7 +248,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | --- | --- | --- |
 | `dte` | object or null | The DTE behind the document (fields listed under `PUT /invoices/:invoiceId/dte`). Null when none. |
 | `partnerName` | string | Name of the Partner. |
-| `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it. |
+| `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-api-organizations-organizationid-partners-partnerid-logo) is read from it. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `isExpenseRendition` | boolean | Whether the document is an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions): a `payable` Invoice whose Source holds Expense Renditions. Read from the Source, so marking or unmarking the Source changes it on every row at once. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |

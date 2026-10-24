@@ -23,7 +23,7 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
     Haz clic en tu nombre, en la parte inferior de la barra lateral izquierda, y elige **Tu cuenta**.
   </Step>
   <Step title="Ve a Claves de API">
-    **Tu cuenta** se abre en **Preferencias**. En la lista de la izquierda, haz clic en **Claves de API**. La página está en `https://app.sintropix.com/account/api-keys`.
+    **Tu cuenta** se abre en **Perfil**, donde puedes subir, cambiar o quitar tu foto de perfil. En la lista de la izquierda, haz clic en **Claves de API**. La página está en `https://app.sintropix.com/account/api-keys`.
 
     La página lista todas las claves que te pertenecen con su nombre, prefijo, fecha de creación, vencimiento y último uso. Puedes revocar una clave desde el ícono de papelera de cada fila.
 
@@ -34,13 +34,13 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
   <Step title="Crea la clave">
     Haz clic en **Crear clave**. Dale a la clave un nombre descriptivo (por ejemplo `erwin-agent` o `reconciliation-bot`) para poder identificarla después en la lista de claves y en el registro de auditoría.
 
-    Si el Usuario propietario pertenece a más de una Entidad, el diálogo muestra además un selector **Empresa**. Déjalo en **Todas las empresas** para que la clave actúe sobre todas las Entidades a las que el Usuario ya tiene acceso, o elige una Entidad para acotar la clave a esa única empresa. Una clave acotada no puede leer ni escribir los datos de las otras Entidades, y la restricción se ve en la columna **Empresa** de la lista de claves.
+    Si el Usuario propietario pertenece a más de una Entidad, el diálogo muestra además un selector **Entidad legal**. Déjalo en **Todas las entidades legales** para que la clave actúe sobre todas las Entidades a las que el Usuario ya tiene acceso, o elige una Entidad para acotar la clave a ella. Una clave acotada no puede leer ni escribir los datos de las otras Entidades, y la restricción se ve en la columna **Entidad legal** de la lista de claves.
 
     Elige una sola Entidad cuando la integración solo necesita trabajar con una empresa (por ejemplo, un bot contable que atiende a un solo cliente), para que una clave filtrada no pueda tocar el resto.
 
     Haz clic en **Crear clave** en el diálogo para generar la clave.
 
-    <Frame caption="Nombra la clave según el software que la va a usar. El selector Empresa solo aparece cuando el Usuario propietario tiene acceso a más de una empresa.">
+    <Frame caption="Nombra la clave según el software que la va a usar. El selector Entidad legal solo aparece cuando el Usuario propietario tiene acceso a más de una Entidad.">
       <img src="/images/api-keys/04-create-key-dialog.png" alt="Diálogo Crear clave de API con un campo Nombre" />
     </Frame>
   </Step>

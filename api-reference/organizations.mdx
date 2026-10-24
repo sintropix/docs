@@ -195,7 +195,7 @@ Delete an empty Organization. Deleting an Organization also removes every Member
 
 An Organization that still holds an Entity can't be deleted. The request returns `409` with `ORGANIZATION_NOT_EMPTY_ERROR`. Move its Entities to another Organization first. Release its [Agent Channels](/api-reference/agent-channels) first, too.
 
-An Organization that holds an [Inbox](/api-reference/inbox) can't be deleted either. The request returns `409` with `ORGANIZATION_HAS_INBOX_ERROR`.
+An Organization that holds a [Mailbox](/api-reference/mailbox) can't be deleted either. The request returns `409` with `ORGANIZATION_HAS_MAILBOX_ERROR`.
 
 - **Status:** `204`.
 
@@ -242,7 +242,7 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | `PERMISSION_DENIED_ERROR` | `403` | On the website route: the caller is not `staff` in the Organization, or uses an API key confined to one Entity. On the role route: the caller uses an API key confined to one Entity. |
 | `ORGANIZATION_NAME_ALREADY_EXISTS_ERROR` | `409` | Another Organization already uses this name, ignoring case. |
 | `ORGANIZATION_NOT_EMPTY_ERROR` | `409` | The Organization still holds at least one Entity. |
-| `ORGANIZATION_HAS_INBOX_ERROR` | `409` | The Organization holds an [Inbox](/api-reference/inbox). |
+| `ORGANIZATION_HAS_MAILBOX_ERROR` | `409` | The Organization holds a [Mailbox](/api-reference/mailbox). |
 | `SUPERADMIN_SESSION_REQUIRED` | `403` | The request carries an API key or an OAuth access token. Superadmin routes accept only a signed-in session. |
 | `SUPERADMIN_REQUIRED` | `403` | The signed-in User is not a Superadmin. |
 
@@ -256,4 +256,4 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | `400` | Validation error, including a blank or too-long name, an invalid website (`WEBSITE_INVALID_ERROR`), or an `:organizationId` that is not a UUID. |
 | `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`), or the caller can't set the website (`PERMISSION_DENIED_ERROR`). |
 | `404` | Organization not found, or the Organization has no logo (`ORGANIZATION_LOGO_NOT_FOUND_ERROR`). |
-| `409` | Duplicate name, or the Organization still holds an Entity or an Inbox. |
+| `409` | Duplicate name, or the Organization still holds an Entity or a Mailbox. |

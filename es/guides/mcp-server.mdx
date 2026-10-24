@@ -60,7 +60,7 @@ Lista las empresas que lee la conexión. Cada elemento tiene `entityId`, `name`,
 
 ### `get_receivables` y `get_payables`
 
-Listan las líneas abiertas de cada Cuenta Contable por cobrar o por pagar de la empresa, de la más antigua a la más reciente. Cada línea tiene su fecha, fecha de vencimiento, Partner, factura, glosa y monto abierto. Un monto abierto positivo se le debe a la empresa en `get_receivables`, y lo debe la empresa en `get_payables`.
+Listan las líneas abiertas de cada Cuenta Contable por cobrar o por pagar de la empresa, de la más antigua a la más reciente. Cada línea tiene su fecha, fecha de vencimiento, Partner, factura, glosa y monto abierto. Un monto abierto positivo se le debe a la empresa en `get_receivables`, y lo debe la empresa en `get_payables`. La respuesta nombra la Entidad en `entity`.
 
 - Una línea sin factura es una Partida No Aplicada, como un pago recibido a cuenta. El asistente la informa junto a lo adeudado, nunca neteada contra ello.
 - Cada cuenta devuelve hasta 100 líneas abiertas. `openLinesNotShown` cuenta el resto.

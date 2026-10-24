@@ -78,7 +78,7 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/inbox",
+                  "api-reference/mailbox",
                   "api-reference/sii",
                   "api-reference/agent-channels"
                 ]
@@ -89,6 +89,7 @@
                   "api-reference/fx-rates",
                   "api-reference/reference-data",
                   "api-reference/organizations",
+                  "api-reference/users",
                   "api-reference/onboarding"
                 ]
               }
@@ -166,7 +167,7 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/inbox",
+                  "api-reference/mailbox",
                   "api-reference/sii",
                   "api-reference/agent-channels"
                 ]
@@ -177,6 +178,7 @@
                   "api-reference/fx-rates",
                   "api-reference/reference-data",
                   "api-reference/organizations",
+                  "api-reference/users",
                   "api-reference/onboarding"
                 ]
               }
@@ -211,6 +213,10 @@
     "eyebrows": "section"
   },
   "redirects": [
+    {
+      "source": "/api-reference/inbox",
+      "destination": "/api-reference/mailbox"
+    },
     {
       "source": "/api-reference/recommendations",
       "destination": "/api-reference/follow-ups"

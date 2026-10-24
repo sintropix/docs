@@ -1,0 +1,194 @@
+---
+title: "Mailbox API: Read the Email an Organization Receives"
+sidebarTitle: "Mailbox"
+description: "Staff-only endpoints to create an Organization's Mailbox on a subdomain of its own, list its Conversations, and read each Conversation's Emails and attachments."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+The Mailbox is the email address Sintropix gives an Organization, on a subdomain of `sintropix.com` that belongs to that Organization alone: `<name>@<subdomain>.sintropix.com`, such as `inbox@acme.sintropix.com`. The Organization's clients forward their invoices and other documents to it, and staff read them in Sintropix. An Organization has at most one Mailbox. It belongs to the Organization, not to one Entity, so every route below lives under `/api/organizations/:organizationId/mailbox`. In the app, every Entity of the Organization shows the same Mailbox.
+
+- A **Conversation** is a chain of Emails on one subject, like a thread in an email client.
+- An **Email** is one message in a Conversation, received by the Mailbox or sent from it.
+
+Sintropix does not store the email or turn it into documents. Every read fetches it live. You can't send or reply to email through the API.
+
+<Warning>
+  Staff-only. Every route below requires the `staff` Role in the Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR` on every route, even when its owner is `staff`. Use a key that isn't confined. See [Access and roles](/api-reference/overview#access-and-roles).
+</Warning>
+
+<Note>
+  The Mailbox used to be called the Inbox, and its routes lived under the Entity, at `/api/entities/:entityId/inbox`. Those routes now answer `404`, and the `INBOX_*` error codes are now `MAILBOX_*`. The `inbox` field of the Conversation list is now `mailbox`.
+</Note>
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/mailbox"
+  note="Shown as Correo (Email in English) in the sidebar. Add ?open={conversationId} to open a Conversation in its side panel."
+/>
+
+## GET `/mailbox/open-subdomains`
+
+`GET /api/organizations/:organizationId/mailbox/open-subdomains`
+
+List the **open subdomains**: the subdomains of `sintropix.com` that are set up to receive email and that no Mailbox holds yet. A new Mailbox must take one of them. Each Mailbox holds its subdomain alone, so two Organizations never share one.
+
+A subdomain must be set up to receive email before it's listed. When the list is empty, no subdomain is ready yet: set one up, then read the list again.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `subdomains` | string[] | The open subdomains, in alphabetical order, without `.sintropix.com`. For example, `acme` stands for `acme.sintropix.com`. Empty when none is open. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/mailbox/open-subdomains" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{ "subdomains": ["acme", "magnar"] }
+```
+
+## POST `/mailbox`
+
+`POST /api/organizations/:organizationId/mailbox`
+
+Create the Organization's Mailbox. The address is `<name>@<subdomain>.sintropix.com`. Choose the name and the subdomain carefully: you can't change them later.
+
+In the app, an Organization with no Mailbox shows a form. Enter the **Nombre de la casilla**, pick the **Subdominio** among the open subdomains, and click **Crear casilla**. When no subdomain is open, the form says so instead.
+
+**Body.** Unknown keys are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | The part of the address before `@`. Up to 64 characters: lowercase letters and digits, in groups joined by a single `.` or `-` (for example, `inbox` or `compras`). |
+| `subdomain` | string | Yes | One of the [open subdomains](#get-mailbox-open-subdomains), without `.sintropix.com`. A single label of up to 63 characters: lowercase letters, digits, and `-`, starting and ending with a letter or digit (for example, `acme`). A dotted value such as `a.b` is refused with `400`. |
+
+- An Organization that already has a Mailbox is refused with `409` (`MAILBOX_ALREADY_EXISTS_ERROR`).
+- A subdomain that isn't open is refused with `409` (`MAILBOX_SUBDOMAIN_NOT_OPEN_ERROR`): it isn't set up to receive email, or another Mailbox already holds it. The error's `params.subdomain` names it. Read the open subdomains again and choose another.
+- An Organization deleted before the Mailbox is created answers `404` (`ORGANIZATION_NOT_FOUND_ERROR`), and no Mailbox is created.
+
+**Response** `201`: `{ "address": "inbox@acme.sintropix.com" }`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/mailbox" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Mailbox for Acme to forward its supplier invoices" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "inbox", "subdomain": "acme" }'
+```
+
+## GET `/mailbox/conversations`
+
+`GET /api/organizations/:organizationId/mailbox/conversations`
+
+List the Conversations the Mailbox received, newest first, 50 per page.
+
+**Query**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `after` | uuid | No | The `nextCursor` of the previous page. Omit it for the first page. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `mailbox` | object \| null | `{ address }` of the Organization's Mailbox. `null` when the Organization has no Mailbox yet, and `conversations` is then empty. |
+| `conversations` | array | The Conversations on this page, newest first. See below. |
+| `nextCursor` | string \| null | Pass it back as `after` to read the next, older page. `null` on the last page. |
+
+Each element of `conversations`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Conversation id. Use it with `GET /mailbox/conversations/:conversationId`. |
+| `subject` | string \| null | Subject line. |
+| `from` | string \| null | Sender. |
+| `to` | string[] | Recipients. |
+| `emailCount` | integer | Number of Emails in the Conversation, at least 1. |
+| `hasAttachment` | boolean | Whether any Email in the Conversation has an attachment. |
+| `read` | boolean | Whether the Conversation has been read. |
+| `lastActivityAt` | ISO 8601 timestamp | When the Conversation last received an Email. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/mailbox/conversations" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "mailbox": { "address": "inbox@acme.sintropix.com" },
+  "conversations": [
+    {
+      "id": "4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b",
+      "subject": "Factura 45210",
+      "from": "facturacion@proveedor.cl",
+      "to": ["inbox@acme.sintropix.com"],
+      "emailCount": 1,
+      "hasAttachment": true,
+      "read": false,
+      "lastActivityAt": "2026-10-12T13:05:41.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+## GET `/mailbox/conversations/:conversationId`
+
+`GET /api/organizations/:organizationId/mailbox/conversations/:conversationId`
+
+Read one Conversation with every Email in it, oldest first. `conversationId` must be a UUID. A Conversation that is not in the Organization's Mailbox answers `404` (`CONVERSATION_NOT_FOUND_ERROR`), the same as an id that does not exist or an Organization with no Mailbox.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Conversation id. |
+| `subject` | string \| null | Subject line. |
+| `emails` | array | The Conversation's Emails, oldest first. See below. |
+
+Each element of `emails`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Email id. |
+| `direction` | `inbound` \| `outbound` | `inbound` for an Email the Mailbox received, `outbound` for one it sent. |
+| `from` | string | Sender. |
+| `to` | string[] | To recipients. |
+| `cc` | string[] | Cc recipients. |
+| `subject` | string \| null | Subject line. |
+| `text` | string \| null | Plain-text body. |
+| `html` | string \| null | HTML body. Render it in a sandbox: it can load remote images. |
+| `sentAt` | ISO 8601 timestamp | When the Email was sent or received. |
+| `attachments` | array | `{ id, filename, size, downloadUrl }` for each attachment. `filename` can be `null`; `size` is in bytes. `downloadUrl` is set only on the attachments of an `inbound` Email, and is `null` otherwise. It expires shortly after the read, so read the Conversation again to get a fresh link. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/mailbox/conversations/$CONVERSATION_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Domain error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `PERMISSION_DENIED_ERROR` | `403` | The caller is not `staff` in the Organization, or calls with an API key confined to one Entity. |
+| `ORGANIZATION_NOT_FOUND_ERROR` | `404` | The Organization doesn't exist, or the caller isn't a member of it. |
+| `CONVERSATION_NOT_FOUND_ERROR` | `404` | No Conversation with this id is in the Organization's Mailbox, or the Organization has no Mailbox. |
+| `MAILBOX_ALREADY_EXISTS_ERROR` | `409` | The Organization already has a Mailbox. |
+| `MAILBOX_SUBDOMAIN_NOT_OPEN_ERROR` | `409` | The subdomain in `params.subdomain` isn't set up to receive email, or another Mailbox already holds it. Choose another [open subdomain](#get-mailbox-open-subdomains). |
+| `MAILBOX_UNAVAILABLE_ERROR` | `503` | The email can't be created or read right now. Retry later. |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`. |
+| `201` | Mailbox created. |
+| `400` | Validation error: an invalid `name` or `subdomain`, an unknown body key, an `after` or `conversationId` that is not a UUID, or a missing `x-audit-actor` or `x-audit-reason` on a key-authenticated create. |
+| `403` | The caller isn't `staff` in the Organization, or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization (`ORGANIZATION_NOT_FOUND_ERROR`) or Conversation (`CONVERSATION_NOT_FOUND_ERROR`) not found. |
+| `409` | The Organization already has a Mailbox (`MAILBOX_ALREADY_EXISTS_ERROR`), or the subdomain isn't open (`MAILBOX_SUBDOMAIN_NOT_OPEN_ERROR`). |
+| `503` | The email can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |

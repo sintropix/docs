@@ -223,7 +223,7 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users/$USER_ID/revoke-ses
 
 Delete a User for good. The User loses access on their next request. No request body.
 
-- The deletion removes the User with everything that lets them in: their sessions, password, two-step verification, API keys, Organization Memberships, the [connected apps](/guides/connected-apps) they approved, and their pending set-password links.
+- The deletion removes the User with everything that lets them in: their sessions, password, two-step verification, API keys, [profile photo](/api-reference/users), Organization Memberships, the [connected apps](/guides/connected-apps) they approved, and their pending set-password links.
 - The records the User wrote stay. The [audit trail](/api-reference/audit-trail) keeps the name and Role they had at each write and marks them `deleted`. A [Payment Batch](/api-reference/payment-batches) they created or marked Ready keeps its orders, with `createdBy`, `createdByName`, and `readyBy` set to `null`.
 - A request the User sent before the deletion that writes after it returns `401` and changes nothing.
 - The email is free again: you can create a new User with it, and that User starts with no Memberships.

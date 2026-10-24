@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<page>[?<params>]
 
 Two areas live outside an Entity:
 
-- **Configuración de empresa** pages that belong to the whole Organization, such as the Empresa page and Integraciones, live under `https://app.sintropix.com/organizations/{organizationId}/settings`. Take `organizationId` from the Entity or the record.
+- **Configuración** pages that belong to the whole Organization, such as the Empresa page and Integraciones, live under `https://app.sintropix.com/organizations/{organizationId}/settings`. Take `organizationId` from the Entity or the record.
 - **Tu cuenta**, the signed-in User's own settings, lives under `https://app.sintropix.com/account`.
 
 Deep links survive login. If the user is signed out, the app shows the login form and then lands on the exact URL requested. A user without access to the Entity sees a "no access" screen rather than a redirect.
@@ -51,7 +51,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Invoice, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | AP documents. |
 | Attachment | `/{entityId}/invoices?open={invoiceId}` or `/{entityId}/bills?open={invoiceId}` | Attachments are shown inside the invoice panel. |
 | To-do | `/{entityId}/todos` | Staff only. A linked To-do also shows in the panel of its Invoice, Bank Movement, or Ledger Entry. |
-| Inbox Conversation | `/{entityId}/inbox?open={conversationId}` | Staff only. Opens the Conversation in its side panel. Drop `open` for the Organization's Inbox. |
+| Mailbox Conversation | `/{entityId}/mailbox?open={conversationId}` | Staff only. Opens the Conversation in its side panel. Drop `open` for the Organization's Mailbox. |
 | Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. |
 | Bank Movement | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Use the `bankAccountId` field on the Movement. Replace `open` with `reconcile` to start reconciling it. |
 | Bank Movements of every account | `/{entityId}/banks/movements` | Every Movement of the Entity, grouped by Bank Account. Add `status=unreconciled` for the ones still to reconcile, and `open={movementId}` to open one in its panel without leaving the list. |
