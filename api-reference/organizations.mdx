@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Organizations API: Group Entities for Access"
 sidebarTitle: "Organizations"
-description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website, read its logo, list its members, and read your own Role in it."
+description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website, read its logo, list its members, read your own Role in it, and write in its Chat."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -233,16 +233,98 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 ]
 ```
 
+## Chat
+
+Every Organization has one **Chat**, where its members write to each other. Every member reads it and writes in it, whatever their Role: `staff`, `client`, and `viewer` alike. A `viewer` can't write Entity data, but can write in the Chat. You see only the Chats of the Organizations you are a member of.
+
+- An **ERP Message** is one plain-text message in the Chat, attributed to the User who wrote it and dated.
+- An ERP Message of the main Chat can be answered in its **ERP Thread**. A reply is an ERP Message with a parent. You can reply to a message of the main Chat, but not to a reply, so an ERP Thread is one level deep.
+
+The Chat isn't Erwin's: an ERP Message goes to the people of the Organization, not to Erwin. To talk to Erwin, use his Thread in the app or an [Agent Channel](/api-reference/agent-channels).
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/chat"
+  note="The Chat tab of the sidebar. It is the same Chat from every Entity of the Organization. New messages and replies appear for everyone without a reload, and an ERP Thread opens beside the Chat with its reply count on the parent."
+/>
+
+Read the Chat in the app. The API has no route that lists ERP Messages.
+
+### POST `/organizations/:organizationId/chat/messages`
+
+Write an ERP Message in the Organization's Chat, or reply to one.
+
+- Any member of the Organization can call it, from a session or an API key. A User outside the Organization receives `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+- An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR`.
+- The message is attributed to the User who calls: the signed-in User, or the User who owns the API key.
+
+**Body.**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Id of the new ERP Message. You choose it, so a retried request can't write the message twice: a second request with the same `id` receives `409` with `ERP_MESSAGE_ALREADY_EXISTS_ERROR`. |
+| `text` | string | Yes | The message, in plain text. Sintropix trims spaces at both ends. It must be 1 to 4000 characters long after trimming. |
+| `parentMessageId` | UUID or null | Yes | The ERP Message of the main Chat that this one answers, in the same Organization. Send `null` for a message of the main Chat. |
+
+**Response** `201`: the ERP Message.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | ERP Message id |
+| `organizationId` | UUID | The Organization whose Chat holds it |
+| `authorUserId` | UUID | The User who wrote it |
+| `parentMessageId` | UUID or null | The ERP Message it answers; `null` in the main Chat |
+| `text` | string | The message, trimmed |
+| `createdAt` | ISO datetime | When it was written |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+**Errors**
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `ERP_MESSAGE_NOT_FOUND_ERROR` | `404` | `parentMessageId` names no ERP Message of this Organization. `params.messageId` is the id you sent. |
+| `CHAT_REPLY_TO_REPLY_ERROR` | `409` | `parentMessageId` names a reply. Reply to the message of the main Chat it answers. `params.messageId` is the id you sent. |
+| `ERP_MESSAGE_ALREADY_EXISTS_ERROR` | `409` | An ERP Message with this `id` already exists. `params.messageId` is the id. When you retry a request, treat it as written. |
+
+```bash
+curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/chat/messages \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: closing-agent" \
+  -H "x-audit-reason: Tell the team the October close is ready" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "5b1f0c3e-8a2d-4e7b-9c6f-1d2e3f4a5b6c",
+    "text": "El cierre de octubre está listo para revisar.",
+    "parentMessageId": null
+  }'
+```
+
+```json
+{
+  "id": "5b1f0c3e-8a2d-4e7b-9c6f-1d2e3f4a5b6c",
+  "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
+  "authorUserId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "parentMessageId": null,
+  "text": "El cierre de octubre está listo para revisar.",
+  "createdAt": "2026-10-24T13:05:00.000Z",
+  "updatedAt": "2026-10-24T13:05:00.000Z"
+}
+```
+
+To reply in that message's ERP Thread, send another request with a new `id` and `"parentMessageId": "5b1f0c3e-8a2d-4e7b-9c6f-1d2e3f4a5b6c"`.
+
 ## Domain error codes
 
 | Code | Status | Meaning |
 | --- | --- | --- |
-| `ORGANIZATION_NOT_FOUND_ERROR` | `404` | No Organization has this id, or you are not a member of it on the website, logo, and role routes. |
+| `ORGANIZATION_NOT_FOUND_ERROR` | `404` | No Organization has this id, or you are not a member of it on the website, logo, role, and Chat routes. |
 | `ORGANIZATION_LOGO_NOT_FOUND_ERROR` | `404` | The Organization has no `website`, or its site shows no usable icon. |
-| `PERMISSION_DENIED_ERROR` | `403` | On the website route: the caller is not `staff` in the Organization, or uses an API key confined to one Entity. On the role route: the caller uses an API key confined to one Entity. |
+| `PERMISSION_DENIED_ERROR` | `403` | On the website route: the caller is not `staff` in the Organization, or uses an API key confined to one Entity. On the role and Chat routes: the caller uses an API key confined to one Entity. |
 | `ORGANIZATION_NAME_ALREADY_EXISTS_ERROR` | `409` | Another Organization already uses this name, ignoring case. |
 | `ORGANIZATION_NOT_EMPTY_ERROR` | `409` | The Organization still holds at least one Entity. |
 | `ORGANIZATION_HAS_INBOX_ERROR` | `409` | The Organization holds an [Inbox](/api-reference/inbox). |
+| `ERP_MESSAGE_NOT_FOUND_ERROR` | `404` | The parent of a Chat reply is not an ERP Message of this Organization. |
+| `CHAT_REPLY_TO_REPLY_ERROR` | `409` | The parent of a Chat reply is itself a reply. |
+| `ERP_MESSAGE_ALREADY_EXISTS_ERROR` | `409` | An ERP Message with this `id` already exists. |
 | `SUPERADMIN_SESSION_REQUIRED` | `403` | The request carries an API key or an OAuth access token. Superadmin routes accept only a signed-in session. |
 | `SUPERADMIN_REQUIRED` | `403` | The signed-in User is not a Superadmin. |
 
@@ -251,9 +333,9 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET` and `PATCH`, including the logo PNG on `GET /organizations/:organizationId/logo`. |
-| `201` | Organization created. |
+| `201` | Organization created, or ERP Message written. |
 | `204` | Success on `DELETE`. |
-| `400` | Validation error, including a blank or too-long name, an invalid website (`WEBSITE_INVALID_ERROR`), or an `:organizationId` that is not a UUID. |
-| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`), or the caller can't set the website (`PERMISSION_DENIED_ERROR`). |
-| `404` | Organization not found, or the Organization has no logo (`ORGANIZATION_LOGO_NOT_FOUND_ERROR`). |
-| `409` | Duplicate name, or the Organization still holds an Entity or an Inbox. |
+| `400` | Validation error, including a blank or too-long name, an invalid website (`WEBSITE_INVALID_ERROR`), a blank or too-long Chat message, or an `:organizationId` that is not a UUID. |
+| `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`), or the caller can't set the website or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization not found, the Organization has no logo (`ORGANIZATION_LOGO_NOT_FOUND_ERROR`), or a Chat reply names no message of the Organization (`ERP_MESSAGE_NOT_FOUND_ERROR`). |
+| `409` | Duplicate name, the Organization still holds an Entity or an Inbox, or an ERP Message already exists or answers a reply. |

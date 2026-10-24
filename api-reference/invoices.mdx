@@ -10,12 +10,13 @@ Invoices are Sintropix's model for both AR (issued to customers) and AP (receive
 
 ## Status
 
-Invoices carry two derived, read-only status values on the listing rows:
+Invoices carry two derived, read-only status values on the listing rows, and the date a paid Invoice was paid:
 
 | Field | Values | Meaning |
 | --- | --- | --- |
 | Booking status | `unbooked`, `booked`, `excluded` | An Invoice is `booked` when a Ledger Entry backs it (`controlLineId` is set), `excluded` when someone [excluded it from the books](#exclude-an-invoice-from-the-books), and `unbooked` otherwise. Only an `unbooked` Invoice is pending work. |
 | `paymentStatus` | `paid`, `partial`, `unpaid`, `null` | Derived from the open amount of the Control Line (ADR 0018) in the Entity's functional currency. `null` means the Invoice is not booked and settles nothing yet. |
+| `paymentDate` | `YYYY-MM-DD`, `null` | The day a paid Invoice was paid: the latest date of the Ledger Entries that its Allocations reach, whatever settled it (a payment, a credit note, or a manual offset). For an Invoice paid in several payments, it is the date of the last one. `null` while the Invoice is unpaid, partially paid, or not booked. |
 
 The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, and `notExcluded`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `all` lists every document, excluded ones included. `notExcluded` lists every document still headed for the books, and `excluded` lists only the excluded ones. `notPaid` is the filter a payment run works from.
 
@@ -252,6 +253,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `isExpenseRendition` | boolean | Whether the document is an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions): a `payable` Invoice whose Source holds Expense Renditions. Read from the Source, so marking or unmarking the Source changes it on every row at once. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
+| `paymentDate` | string or null | `YYYY-MM-DD`. The day the document was paid, as described under [Status](#status). Null until `paymentStatus` is `paid`. |
 | `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked; `0` once it is fully paid. |
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
@@ -450,7 +452,7 @@ Return the full Invoice detail: the Invoice row (as listed by `GET /invoices/pag
 | `lines` | array | The entry's lines (below). |
 | `relatedInvoices` | array | Invoice objects linked to this entry, each with a `partnerName`. |
 | `relatedMovements` | array | Bank Movements linked to this entry, each with `bankAccountCurrency`, `bankAccountLedgerAccountId`, and `partnerName`. |
-| `allocations` | array | Settlements against this entry's lines. Each carries a `counterpart` with `lineId`, `entryId`, `entryMemo`, `accountId`, `accountCode`, `accountName`, `partnerId`, and `partnerName`. |
+| `allocations` | array | Settlements against this entry's lines. Each carries a `counterpart` with `lineId`, `entryId`, `entryDate`, `entryMemo`, `accountId`, `accountCode`, `accountName`, `partnerId`, and `partnerName`. `counterpart.entryDate` is the date of the entry that settled the line, so each payment of an Invoice paid in several shows its own date. |
 | `deferralRelease` | object or null | Set when this entry is a [Release](#deferrals): `{ deferralId, invoiceId, invoiceDocumentNumber }`. Null otherwise, and null once the booking that holds the deferred line is unbooked or reversed. |
 | `deferrals` | array | The Deferrals whose deferred line this entry books, in the shape of `deferrals` above. Unbooking or reversing this entry also undoes their Releases. |
 | `createdAt`, `updatedAt` | timestamp | |

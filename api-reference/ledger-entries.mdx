@@ -184,7 +184,7 @@ Each item in `allocations`:
 | `amount` | integer | Settled amount |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
-| `counterpart` | object | The other side of the allocation: `{ lineId, entryId, entryMemo, accountId, accountCode, accountName, partnerId, partnerName }` |
+| `counterpart` | object | The other side of the allocation: `{ lineId, entryId, entryDate, entryMemo, accountId, accountCode, accountName, partnerId, partnerName }`. `entryDate` is the date of the counterpart's Ledger Entry, such as the day a payment came in. |
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \

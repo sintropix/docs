@@ -68,6 +68,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Registro de auditoría | `/{entityId}/settings/log` | |
 | Claves de API | `/account/api-keys` | Las claves propias del Usuario que inició sesión. |
 | Apps conectadas | `/account/connected-apps` | Las apps que aprobó el Usuario que inició sesión. |
+| Chat | `/{entityId}/chat` | El [Chat](/api-reference/organizations#chat) de la Organización. Es el mismo desde cualquier entidad de la Organización. Los ERP Messages no tienen enlace propio. |
 | Erwin | Ninguna | Erwin no tiene página. Enlaza cualquier página de la entidad, y la persona abre Erwin desde el botón **Erwin**, abajo a la derecha. |
 
 ## Informes
@@ -82,7 +83,7 @@ Los informes son páginas con el período en la cadena de consulta. Omite un par
 | Estado de resultados por dimensión | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | Libro mayor | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Libro diario | `/{entityId}/journal` | `from`, `to`, `search` |
-| Libro de contrapartes | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId` |
+| Libro de contrapartes | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId`. Agrega `open={entryId}` para abrir un asiento junto al informe, y `line={lineId}` para destacar su línea. |
 | Antigüedad de cuentas por cobrar | `/{entityId}/receivables` | `open` |
 | Antigüedad de cuentas por pagar | `/{entityId}/payables` | `open` |
 | Realización de ingresos | `/{entityId}/revenue-realization` | `from`, `to` |

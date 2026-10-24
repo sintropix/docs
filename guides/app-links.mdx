@@ -68,6 +68,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Audit Trail | `/{entityId}/settings/log` | |
 | API keys | `/account/api-keys` | The signed-in User's own keys. |
 | Connected apps | `/account/connected-apps` | The apps the signed-in User approved. |
+| Chat | `/{entityId}/chat` | The Organization's [Chat](/api-reference/organizations#chat). It is the same from every Entity of the Organization. ERP Messages have no link of their own. |
 | Erwin | None | Erwin has no page. Link any Entity page, and the person opens Erwin from the **Erwin** button at the bottom right. |
 
 ## Reports
@@ -82,7 +83,7 @@ Reports are pages with the period in the query string. Omit a parameter to get t
 | Income Statement by Dimension | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | General Ledger | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Journal | `/{entityId}/journal` | `from`, `to`, `search` |
-| Partner Ledger | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId` |
+| Partner Ledger | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId`. Add `open={entryId}` to open a Ledger Entry beside the report, and `line={lineId}` to highlight its line. |
 | Receivables aging | `/{entityId}/receivables` | `open` |
 | Payables aging | `/{entityId}/payables` | `open` |
 | Revenue Realization | `/{entityId}/revenue-realization` | `from`, `to` |
