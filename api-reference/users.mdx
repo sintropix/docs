@@ -1,0 +1,94 @@
+---
+title: "Users API: Set Your Profile Photo"
+sidebarTitle: "Users"
+description: "Upload, replace, and remove the signed-in User's profile photo, and read the profile photo of any User."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+A User's **profile photo** shows next to their name in the Sintropix app: in the user menu at the bottom of the sidebar and on their Chat messages. A User with no photo shows their initials instead.
+
+Each User sets and removes only their own photo. Any signed-in User can read another User's photo.
+
+In the app, click your name at the bottom of the left sidebar, choose **Tu cuenta**, and open **Perfil**. Under **Foto de perfil**, click **Subir foto**, **Cambiar foto**, or **Quitar foto**.
+
+<AppLink
+  url="https://app.sintropix.com/account"
+  note="Tu cuenta opens on Perfil."
+/>
+
+## The photo
+
+- Upload a PNG, JPEG, or WebP image of up to 5 MB.
+- Sintropix crops the image to a centered square, resizes it to 256 × 256 pixels, and stores it as WebP. It turns a phone photo upright and removes its metadata, such as the location where it was taken.
+- Each upload gets a new photo id, and the photo it replaces is deleted.
+- The User's `image` holds the id of their current photo, never a URL. It's `null` when the User has no photo. Build the photo's URL from the User's id and this id: `/api/users/:userId/photos/:photoId`.
+- Only these routes set the photo. Sending `image` to Better Auth's `POST /api/auth/update-user` is refused with `400` and `USER_IMAGE_READ_ONLY_ERROR`.
+- Deleting a User deletes their photo too.
+
+## PUT `/users/me/photo`
+
+`PUT /api/users/me/photo`
+
+Upload or replace the signed-in User's photo. Send a `multipart/form-data` body with the image in a single `photo` field. With an API key, the photo is that of the User who owns the key.
+
+**Response** `200`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | The User's id. |
+| `image` | uuid | The id of the new photo. |
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/users/me/photo" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -F "photo=@ana.jpg;type=image/jpeg"
+```
+
+```json
+{
+  "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "image": "7c1e2d3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f"
+}
+```
+
+## DELETE `/users/me/photo`
+
+`DELETE /api/users/me/photo`
+
+Remove the signed-in User's photo. The app shows their initials again.
+
+**Response** `200`: `{ id, image }`, with `image` set to `null`.
+
+## GET `/users/:userId/photos/:photoId`
+
+`GET /api/users/:userId/photos/:photoId`
+
+Read a User's photo. Any signed-in User can read it. `photoId` must be the User's current photo: a replaced or removed photo answers `404`.
+
+**Response**
+
+- `200` with the image itself (`Content-Type: image/webp`). The response carries `Cache-Control: private, max-age=31536000, immutable`. A new photo always gets a new id, so a cached photo never goes stale.
+- `404` with `USER_PHOTO_NOT_FOUND_ERROR` when the User has no photo with this id. `params` names `userId` and `photoId`.
+
+## Domain error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `USER_PHOTO_MISSING_ERROR` | `400` | The request has no `photo` file. |
+| `USER_PHOTO_CONTENT_TYPE_NOT_SUPPORTED_ERROR` | `400` | The file isn't PNG, JPEG, or WebP. `params.contentType` names the type you sent. |
+| `USER_PHOTO_NOT_READABLE_ERROR` | `400` | The file says it's a supported image, but it can't be read as one. Try another image. |
+| `USER_IMAGE_READ_ONLY_ERROR` | `400` | A Better Auth `update-user` request sets `image`. Use `PUT /users/me/photo` instead. |
+| `USER_PHOTO_NOT_FOUND_ERROR` | `404` | The User has no photo with this id. |
+| `USER_PHOTO_TOO_LARGE_ERROR` | `413` | The file is over 5 MB. `params.maxByteSize` holds the limit in bytes. The current photo stays. |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success. |
+| `400` | No photo, an unsupported or unreadable image, or an `image` sent to `update-user`. |
+| `401` | No signed-in session or API key. |
+| `404` | The photo isn't the User's current photo (`USER_PHOTO_NOT_FOUND_ERROR`). |
+| `413` | The photo is over 5 MB (`USER_PHOTO_TOO_LARGE_ERROR`). |
