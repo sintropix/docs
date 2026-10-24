@@ -60,7 +60,7 @@ Lists the companies the connection reads. Each item has `entityId`, `name`, `tax
 
 ### `get_receivables` and `get_payables`
 
-List the open lines of each receivable or payable Ledger Account of the company, oldest first. Each line has its date, due date, Partner, invoice, memo, and open amount. A positive open amount is owed to the company in `get_receivables`, and owed by the company in `get_payables`.
+List the open lines of each receivable or payable Ledger Account of the company, oldest first. Each line has its date, due date, Partner, invoice, memo, and open amount. A positive open amount is owed to the company in `get_receivables`, and owed by the company in `get_payables`. The answer names the Entity in `entity`.
 
 - A line with no invoice is an Unapplied Item, such as a payment received on account. The assistant reports it beside what is owed, never netted against it.
 - Each account returns up to 100 open lines. `openLinesNotShown` counts the rest.

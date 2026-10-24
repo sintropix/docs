@@ -68,7 +68,7 @@ List every Partner the Entity uses, each row enriched with this Entity's Open It
 | `legalName` | string or null | Registered legal name. |
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
-| `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-partners-partnerid-logo) from it. |
+| `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-api-organizations-organizationid-partners-partnerid-logo) from it. |
 | `aliases` | string[] | Other names that find this Partner, in name order. See [Aliases](#aliases). |
 | `mergedIntoPartnerId` | uuid or null | The Partner this one was [merged](#merge-partners) into. Null for an active Partner. |
 | `openReceivable` | integer | Unsettled amount this Partner owes the Entity. |
@@ -258,17 +258,20 @@ A Partner this Entity's records still reference, such as Ledger Lines with Open 
 
 **Response:** the deleted Partner row, as `GET /partners/pages` listed it.
 
-## GET `/partners/:partnerId/logo`
+## GET `/api/organizations/:organizationId/partners/:partnerId/logo`
 
 Read the Partner's logo: a 64 × 64 PNG that Sintropix takes from the icon of the Partner's `website`. The app shows it in place of the Partner's initial.
+
+The Partner and its website belong to the Organization, so this route lives under the Organization, like the [Organization's logo](/api-reference/organizations#get-organizations-organizationid-logo). Any member of the Organization can read it. The old route under the Entity, `/api/entities/:entityId/partners/:partnerId/logo`, now answers `404`.
 
 **Response**
 
 - `200` with the PNG itself (`Content-Type: image/png`). The response carries `Cache-Control: private, max-age=31536000, immutable`, so a browser keeps it for up to a year. The URL stays the same when the `website` changes, so a cached logo can outlive it. Add the website to the URL, for example `?website=acme.cl`, to fetch the new logo after a change.
+- `404` with `ORGANIZATION_NOT_FOUND_ERROR` when you aren't a member of the Organization, and `PARTNER_NOT_FOUND_ERROR` when the Partner isn't one of the Organization's.
 - `404` with `PARTNER_LOGO_NOT_FOUND_ERROR` when the Partner has no `website`, or its site shows no usable icon. A `404` carries no cache header. A site that could not be reached is tried again on the next request; a site that answered with no usable icon is not.
 
 ```bash
-curl -i "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/logo" \
+curl -i "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partners/$PARTNER_ID/logo" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -546,7 +549,7 @@ A Control Line on the wrong side or on an account Book invoice refuses as a paya
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success on `GET`, `PUT`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the row as it was before. `GET /partners/:partnerId/logo` answers with the logo PNG. |
+| `200` | Success on `GET`, `PUT`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the row as it was before. `GET /api/organizations/:organizationId/partners/:partnerId/logo` answers with the logo PNG. |
 | `201` | Partner created. |
 | `400` | Validation error (including an invalid RUT, an invalid website, an unknown country, or an unknown bank), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | A merge with an API key confined to one Entity would move another Entity's books (`PERMISSION_DENIED_ERROR`). |
