@@ -63,7 +63,7 @@ El acceso a una Entidad proviene de una **Membresía de Organización**. Una [Or
 | `viewer` | Sí | No | No |
 
 - **Leer** cubre las solicitudes `GET` sobre rutas de Entidad, incluido el [Audit Trail](/api-reference/audit-trail). **Escribir** cubre `POST`, `PUT`, `PATCH` y `DELETE`.
-- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), el [Inbox](/api-reference/inbox) y la [sincronización de tipos de cambio](/api-reference/fx-rates).
+- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [Tareas](/api-reference/tasks), el [Inbox](/api-reference/inbox) y la [sincronización de tipos de cambio](/api-reference/fx-rates).
 - Una Entidad fuera de tus Organizaciones devuelve `404`. Una acción que tu Rol no permite devuelve `403` con `PERMISSION_DENIED_ERROR`.
 - Ningún Rol es global. Un Usuario sin Membresía en una Organización no puede acceder a sus Entidades, sin importar el Rol que tenga en otras.
 
@@ -150,8 +150,11 @@ Las respuestas distintas de 2xx son JSON. Toda respuesta, exitosa o fallida, lle
 | `403` | Quien llama no tiene permiso para esta acción (por ejemplo, una clave de solo lectura intentando una mutación, o un `viewer` intentando escribir). Los rechazos por Rol llevan `PERMISSION_DENIED_ERROR`. |
 | `404` | El recurso no existe, o quien llama no tiene acceso a la Entidad solicitada. |
 | `409` | Conflicto de dominio (por ejemplo, un asiento contable ya contabilizado o una fila duplicada). |
+| `422` | La solicitud está bien formada, pero el dominio la rechaza (por ejemplo, un valor que otro registro no permite). |
+| `424` | Un sistema externo del que depende Sintropix, como un banco, un proveedor de pagos o el SII, rechazó la solicitud. El cuerpo lleva un error con código, por ejemplo `BANK_FEED_PROVIDER_FAILURE_ERROR`. Un rechazo responde lo mismo hasta que alguien actúe, por ejemplo reconectando la integración, así que no lo reintentes en bucle. |
 | `429` | Se superó el límite de solicitudes de una clave de API. |
 | `500` | Error de servidor no controlado. |
+| `503` | Un servicio o sistema externo no está disponible en este momento. Reintenta más tarde. |
 
 Los errores de dominio llevan en el cuerpo un `code` de tipo string estable, por ejemplo `API_KEY_READ_ONLY_ERROR`. Compara contra `code`, no contra el mensaje legible por humanos.
 

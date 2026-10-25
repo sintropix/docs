@@ -269,6 +269,18 @@ The SII states boletas (types `39` and `41`) as one consolidated row per type an
 
 A boleta that states the RUT `66666666-6`, or that the Entity issued with no buyer RUT, lands on the final-consumer Partner, named `Consumidor Final` with `taxId` `66666666-6`. A consolidated row that the SII never itemizes counts as `ignored`.
 
+### SII Mirror sales summaries
+
+For the sales types the SII states only as a monthly total (`35`, `38`, `47`, `48`, `105`, `919`, `920`, `922`, and `924`), a sync writes a [Sales Summary](/api-reference/sii#sales-summaries) per type and month and lands it as receivable Invoices on the final-consumer Partner, in the Feed's Source:
+
+- **The first Invoice** lands the SII's figures. Its `documentNumber` names the type and the month, such as `48-2026-09`, and its memo reads `RCV tipo 48 · 2026-09`. It is dated on the last day of the month. Its DTE carries the type, the Tax Period, and the Standing `accepted`, and names the Sales Summary in place of a folio.
+- **Before you book it**, a later sync writes the SII's new figures over the Invoice. This holds for any Invoice of the Sales Summary that is neither booked nor [excluded](/api-reference/invoices#exclude-an-invoice-from-the-books).
+- **After you book it**, a change the SII makes lands as an adjustment: a new Invoice for the difference, numbered `48-2026-09-2`, `48-2026-09-3`, and so on, with the memo `Ajuste RCV tipo 48 · 2026-09`. When the total drops, the adjustment is a credit note of the same type. Nothing you booked moves, so its Matches and the Lock Date stay as they are.
+
+Book, match, and pay these Invoices like any other receivable. Their DTE can't be written or removed by hand; see [Sales Summary errors](/api-reference/sii#sales-summary-errors). In the app, each of these Invoices says whether it is the original or an adjustment, states the SII's figure, and lists every Invoice of the month with its booking state.
+
+The tie-out line of a total-only type is tracked. Its `count` is the SII's document count. A sync that writes the Sales Summary counts it as `landed`, and a sync that finds the figures unchanged counts it as `skipped`.
+
 ### Honorarium Feeds
 
 A Feed with `family: "honorarium"` reads through a `sii_mirror` Integration and lands the Entity's boletas de honorarios from two SII books:
@@ -282,11 +294,11 @@ A sync reads every month of both books from the link date to the day it runs, an
 
 ### The current month
 
-The mirror may not have read the current month yet, for example in the first hours of a month. A sync then reads the current month, on the Chilean calendar, as empty: it states no tie-out line for it and does not fail. A past month the mirror holds no answer for still fails the sync with `502`, because that is a real gap.
+The mirror may not have read the current month yet, for example in the first hours of a month. A sync then reads the current month, on the Chilean calendar, as empty: it states no tie-out line for it and does not fail. A past month the mirror holds no answer for still fails the sync with `424`, because that is a real gap.
 
 ### Recent months
 
-The SII can still change a month for a while after it closes, so the mirror reads its newest months again on every pass. A sync needs the current month, on the Chilean calendar, and the 2 months before it to hold an answer the mirror read in the last 24 hours. If one of them doesn't, the sync fails with `502`.
+The SII can still change a month for a while after it closes, so the mirror reads its newest months again on every pass. A sync needs the current month, on the Chilean calendar, and the 2 months before it to hold an answer the mirror read in the last 24 hours. If one of them doesn't, the sync fails with `424`.
 
 An older month only needs an answer, of any age. A Feed with an early link date keeps syncing, and an older month lands as the mirror last read it. A past month with no answer at all still fails the sync, whatever its age.
 
@@ -385,4 +397,4 @@ A reference is linked only when its target is already in the Entity's books: a D
 | `404` | Entity, Source Feed, or Integration (`INTEGRATION_NOT_FOUND_ERROR`) not found. |
 | `409` | The Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), or the Source already has a Feed. |
 | `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`). |
-| `502` | External sync failed at the provider. |
+| `424` | The provider refused the sync (`SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |

@@ -59,7 +59,7 @@ Access to an Entity comes from an **Organization Membership**. An [Organization]
 | `viewer` | Yes | No | No |
 
 - **Read** covers `GET` requests on Entity routes, including the [Audit Trail](/api-reference/audit-trail). **Write** covers `POST`, `PUT`, `PATCH`, and `DELETE`.
-- **Sintropix work** covers routes reserved for the accounting team: credentials (except [Portal Logins](/api-reference/integrations#portal-logins), the bank, Getnet, SII, and Clay logins a `client` can store too), [connecting or reconnecting a bank through Fintoc](/api-reference/integrations#post-integrations-fintoc-link-intents), automations, [Agent Channels](/api-reference/agent-channels), [To-dos](/api-reference/todos), the [Inbox](/api-reference/inbox), and [FX rate sync](/api-reference/fx-rates).
+- **Sintropix work** covers routes reserved for the accounting team: credentials (except [Portal Logins](/api-reference/integrations#portal-logins), the bank, Getnet, SII, and Clay logins a `client` can store too), [connecting or reconnecting a bank through Fintoc](/api-reference/integrations#post-integrations-fintoc-link-intents), automations, [Agent Channels](/api-reference/agent-channels), [Tasks](/api-reference/tasks), the [Inbox](/api-reference/inbox), and [FX rate sync](/api-reference/fx-rates).
 - An Entity outside your Organizations returns `404`. An action your Role doesn't allow returns `403` with `PERMISSION_DENIED_ERROR`.
 - No Role is global. A User with no Membership in an Organization can't reach its Entities, whatever Role they hold elsewhere.
 
@@ -162,10 +162,24 @@ Non-2xx responses are JSON. Every response, success or failure, carries an `x-re
 | `403` | The caller is not allowed to perform this action (for example a read-only key attempting a mutation, or a `viewer` attempting a write). Role refusals carry `PERMISSION_DENIED_ERROR`. |
 | `404` | Resource does not exist, or the caller has no access to the requested Entity. |
 | `409` | Domain conflict (for example an already-booked Ledger Entry, a duplicate row). |
+| `422` | The request is well formed, but the domain refuses it (for example a value another record doesn't allow). |
+| `424` | An outside system Sintropix depends on, such as a bank, a payment provider, or the SII, refused the request. The body carries a coded error, for example `BANK_FEED_PROVIDER_FAILURE_ERROR`. See [Provider refusals](#provider-refusals). |
 | `429` | Rate limit exceeded on an API key. |
 | `500` | Unhandled server error. |
+| `503` | A service or outside system can't be reached right now. Retry later. |
 
 Domain-level errors carry a stable string `code` in the body, for example `API_KEY_READ_ONLY_ERROR`. Match on `code`, not on the human-readable message.
+
+### Provider refusals
+
+When an outside system refuses a request, the API answers `424 Failed Dependency` with a coded body. These codes answer `424`:
+
+- `BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, and `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`
+- `INTEGRATION_PROVIDER_FAILURE_ERROR`
+- `SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`
+- `AUTOMATION_PROVIDER_FAILURE_ERROR` and `AUTOMATION_PROVIDER_UNAUTHORIZED_ERROR`
+
+A refusal answers the same until someone acts, for example by reconnecting the Integration, so don't retry it in a loop. An outside system that doesn't answer at all returns `503` with its own code, and that one is worth retrying later. The API doesn't send `502` or `504` on purpose: if you see one, it comes from the network in front of the API, not from Sintropix.
 
 ## Rate Limits
 

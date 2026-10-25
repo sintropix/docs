@@ -295,7 +295,7 @@ An API key confined to one Entity gets every Integration of the Organization, wi
 Remove an Integration. Every feed of the Integration is removed as part of the same operation, in every Entity: its Source Feeds and the feed of each Bank Account it fed. The Sources, the Bank Accounts, and the documents and Movements already landed stay.
 
 - For a `fintoc` Integration, Sintropix also deletes the Link at Fintoc, so the bank stops being read.
-- For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `502` or `503` and the Integration stays. Retry later.
+- For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `424` or `503` and the Integration stays. Retry later.
 - For a `sii_mirror` Integration, the SII mirror first deletes the company Clave and the legal representative's Clave, and stops reading that RUT. If the mirror is busy with that RUT or can't be reached, the disconnect answers `503` with `SII_UNAVAILABLE_ERROR`, and the Integration and both Claves stay. Retry in a few minutes.
 - For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked. For `google_sheets`, the Sheet keeps the last General Ledger written to it.
 
@@ -404,7 +404,7 @@ Read whether the SII mirror holds a Clave or a certificate of the company's lega
 }
 ```
 
-An Integration that isn't `sii_mirror` answers `422` with `INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`. When the SII mirror can't answer, the read answers `502` or `503`.
+An Integration that isn't `sii_mirror` answers `422` with `INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`. When the SII mirror refuses the read, it answers `424`. When the SII mirror can't be reached, it answers `503`.
 
 ## Google Sheets
 
@@ -768,5 +768,5 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `409` | Integration id already exists, the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
 | `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), or the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`). |
-| `502` | The Provider failed (`BANK_FEED_PROVIDER_FAILURE_ERROR`). Retry later. |
+| `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), or the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`). Retry later. |

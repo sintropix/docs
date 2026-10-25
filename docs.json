@@ -62,7 +62,7 @@
                   "api-reference/follow-ups",
                   "api-reference/partners",
                   "api-reference/attachments",
-                  "api-reference/todos"
+                  "api-reference/tasks"
                 ]
               },
               {
@@ -90,6 +90,7 @@
                   "api-reference/fx-rates",
                   "api-reference/reference-data",
                   "api-reference/organizations",
+                  "api-reference/notifications",
                   "api-reference/onboarding"
                 ]
               }
@@ -151,7 +152,7 @@
                   "api-reference/follow-ups",
                   "api-reference/partners",
                   "api-reference/attachments",
-                  "api-reference/todos"
+                  "api-reference/tasks"
                 ]
               },
               {
@@ -179,6 +180,7 @@
                   "api-reference/fx-rates",
                   "api-reference/reference-data",
                   "api-reference/organizations",
+                  "api-reference/notifications",
                   "api-reference/onboarding"
                 ]
               }
@@ -220,6 +222,10 @@
     {
       "source": "/api-reference/bank-connections",
       "destination": "/api-reference/bank-feeds"
+    },
+    {
+      "source": "/api-reference/todos",
+      "destination": "/api-reference/tasks"
     }
   ]
 }

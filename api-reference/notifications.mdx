@@ -1,0 +1,149 @@
+---
+title: "Notifications API: Mentions and the Signed-in User's Inbox"
+sidebarTitle: "Notifications"
+description: "Mention Members in the Organization Chat, then list, count, and mark read the Notifications of the signed-in User in one Organization."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+A Notification tells one User that something in an Organization needs their attention. Each User has their own Notifications in each Organization they belong to. The app shows them in the **Bandeja**, below **Chat** in the sidebar, with a badge that counts the unread ones.
+
+Today a Notification has one kind, `mention`: another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. More kinds may come later, so read `kind` before you read the rest of a Notification.
+
+Every Role can use the routes on this page, `viewer` included. Each route reads or marks only the caller's own Notifications: the User of the session or of the API key.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/notifications"
+  note="It shows the signed-in User's Notifications in the Entity's Organization. Opening a mention marks it read and opens the Chat on that message's ERP Thread."
+/>
+
+## Mention a Member
+
+To mention a Member, write the token `<@userId>` in the `text` of a message you send with `POST /organizations/:organizationId/chat/messages`. The app writes the same token when you pick a name after typing `@`, and draws it as the Member's name.
+
+```json
+{
+  "id": "4f1d8a2c-6b9e-4c3a-8d7f-2e5b1a9c0d64",
+  "parentMessageId": null,
+  "text": "<@5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93> ¿puedes revisar la factura 10452?"
+}
+```
+
+When the message is saved, each User it mentions gets one `mention` Notification, even when the message names them more than once. These rules apply:
+
+- Mention only other Members of the Organization. You can't mention yourself.
+- A message that breaks a rule is refused with `422` and saves nothing, neither the message nor any Notification.
+
+| Status | `code` | `params` | When |
+| --- | --- | --- | --- |
+| `422` | `ERP_MESSAGE_MENTION_OF_SELF_ERROR` | `{}` | The message mentions its author. |
+| `422` | `ERP_MESSAGE_MENTION_OF_NON_MEMBER_ERROR` | `{ userId }` | The message mentions a User with no Membership in the Organization, for example someone removed after you read the Members. |
+
+### GET `/api/organizations/:organizationId/chat/members`
+
+List the Members a message can mention, ordered by name. Leave yourself out when you offer the list to the author.
+
+**Response** `200`: an array of `{ userId, name }`.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/chat/members" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## The Notification object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Notification id. |
+| `kind` | string | `mention`. |
+| `readAt` | ISO datetime or null | When the User first read it. `null` while unread. |
+| `createdAt` | ISO datetime | When the Notification was written. |
+| `message` | object | On a `mention`: the message that mentioned the User. See below. |
+
+The `message` object of a `mention` carries:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | The message id. |
+| `text` | string | The message text, with each mention as a `<@userId>` token. |
+| `parentMessageId` | UUID or null | The main Chat message the reply answers, or `null` for a message of the main Chat. |
+| `authorName` | string | Name of the Member who wrote it. |
+| `mentionedUserIds` | array of UUID | The Users the message mentions. |
+| `mentionedUserNames` | array of string | Their names, in the same order as `mentionedUserIds`. Use them to draw each token as a name. |
+| `createdAt` | ISO datetime | When the message was sent. |
+
+```json
+{
+  "id": "a3c7e9b1-2d4f-4a6c-8e0b-5f1d3a7c9e28",
+  "kind": "mention",
+  "readAt": null,
+  "createdAt": "2026-10-24T15:20:04.512Z",
+  "message": {
+    "id": "4f1d8a2c-6b9e-4c3a-8d7f-2e5b1a9c0d64",
+    "text": "<@5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93> ¿puedes revisar la factura 10452?",
+    "parentMessageId": null,
+    "authorName": "Tomás Fuentes",
+    "mentionedUserIds": ["5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93"],
+    "mentionedUserNames": ["Camila Rojas"],
+    "createdAt": "2026-10-24T15:20:04.498Z"
+  }
+}
+```
+
+## GET `/api/organizations/:organizationId/notifications`
+
+List your Notifications in the Organization, newest first, one page at a time.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cursor` | UUID | No | The `nextCursor` of the previous page. Omit it for the first page. |
+| `limit` | integer | No | Page size, 1 to 100. Defaults to 50. |
+
+**Response** `200`: `{ notifications, nextCursor }`. `notifications` is an array of Notification objects. `nextCursor` is the id to pass as `cursor` for the next page, or `null` on the last page. A `cursor` that isn't one of your Notifications returns `404` with `NOTIFICATION_NOT_FOUND_ERROR`.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/notifications?limit=20" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/api/organizations/:organizationId/notifications/unread-count`
+
+Count your unread Notifications in the Organization.
+
+**Response** `200`: `{ "unreadCount": integer }`.
+
+## POST `/api/organizations/:organizationId/notifications/:notificationId/read`
+
+Mark one of your Notifications read. Marking it again keeps the first `readAt`.
+
+**Response** `200`: the Notification object. A Notification that doesn't exist, or that belongs to another User, returns `404` with `NOTIFICATION_NOT_FOUND_ERROR`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/notifications/$NOTIFICATION_ID/read" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST `/api/organizations/:organizationId/notifications/read-all`
+
+Mark every unread Notification of yours in the Organization read. This is **Marcar todo como leído** in the app.
+
+**Response** `200`: an array of the Notification objects this call marked read, newest first. It is empty when nothing was unread.
+
+## Errors
+
+| Status | `code` | `params` | When |
+| --- | --- | --- | --- |
+| `404` | `NOTIFICATION_NOT_FOUND_ERROR` | `{ notificationId }` | The Notification, or the `cursor`, isn't one of yours in the Organization. |
+
+## Status codes
+
+| Code | Meaning |
+| --- | --- |
+| `200` | Success. |
+| `400` | Validation error, such as a `limit` outside 1 to 100. |
+| `401` | Unauthenticated. |
+| `404` | Notification not found, or no Membership in the Organization. |
+| `422` | A Chat message mentions its author or a non-Member. |
+| `429` | Rate limit exceeded (25,000 requests per hour per API key). |
