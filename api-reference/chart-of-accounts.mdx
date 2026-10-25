@@ -134,6 +134,8 @@ Initialize the Chart of Accounts from a template. The Entity must have an empty 
 - **Success response:** the full Chart of Accounts (`groups` and `accounts`, same shape as the GET chart-of-accounts response)
 - **Status:** 201
 
+Read `templateKey` and `templateVersion` from [`GET /ledger/chart-templates`](#get-api-entities-entityid-ledger-chart-templates). The current `sintropix-ifrs-starter` version is `2026.5`. It gives the depreciable property, plant, and equipment accounts the `fixed_asset` sub-type: `1.4.2 Construcciones`, `1.4.3 Maquinaria y equipos`, `1.4.4 Vehículos`, and `1.4.5 Equipos informáticos`. A Fixed Asset Class can use them right away, without marking them first. `1.4.1 Terrenos` and `1.4.6 Activos por derecho de uso` have no sub-type. A chart initialized from an earlier version keeps the sub-types that version gave it.
+
 ```bash
 curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-initializations \
   -H "Content-Type: application/json" \
@@ -142,7 +144,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-init
   -d '{
     "id": "55555555-5555-4555-8555-555555555555",
     "templateKey": "sintropix-ifrs-starter",
-    "templateVersion": "2026.1"
+    "templateVersion": "2026.5"
   }'
 ```
 
