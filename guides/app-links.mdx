@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<page>[?<params>]
 
 Two areas live outside an Entity:
 
-- **Configuración de empresa** pages that belong to the whole Organization, such as the Empresa page and Integraciones, live under `https://app.sintropix.com/organizations/{organizationId}/settings`. Take `organizationId` from the Entity or the record.
+- **Configuración de empresa** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Integraciones, Dimensiones, Canales del agente, and Tipos de cambio. Take `organizationId` from the Entity or the record. The Organization's Tasks live under `https://app.sintropix.com/organizations/{organizationId}/tasks`.
 - **Tu cuenta**, the signed-in User's own settings, lives under `https://app.sintropix.com/account`.
 
 Deep links survive login. If the user is signed out, the app shows the login form and then lands on the exact URL requested. A user without access to the Entity sees a "no access" screen rather than a redirect.
@@ -50,21 +50,23 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Invoice, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | AR documents. Pick the page from the `direction` field. |
 | Invoice, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | AP documents. |
 | Attachment | `/{entityId}/invoices?open={invoiceId}` or `/{entityId}/bills?open={invoiceId}` | Attachments are shown inside the invoice panel. |
-| To-do | `/{entityId}/todos` | Staff only. A linked To-do also shows in the panel of its Invoice, Bank Movement, or Ledger Entry. |
+| Task | `/organizations/{organizationId}/tasks` | Staff only. Every Task of the Organization, across its Entities. Add `assignee=me` for the caller's own Tasks (**Mías**). A linked Task also shows in the panel of its Invoice, Bank Movement, or Ledger Entry. |
+| Notification | `/{entityId}/notifications` | The signed-in User's [Notifications](/api-reference/notifications) (**Bandeja**) in the Entity's Organization. |
 | Inbox Conversation | `/{entityId}/inbox?open={conversationId}` | Staff only. Opens the Conversation in its side panel. Drop `open` for the Organization's Inbox. |
-| Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. |
+| Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. `/{entityId}/settings/bank-accounts?open={bankAccountId}` opens the account's settings to edit its name, bank, and number. |
 | Bank Movement | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Use the `bankAccountId` field on the Movement. Replace `open` with `reconcile` to start reconciling it. |
 | Bank Movements of every account | `/{entityId}/banks/movements` | Every Movement of the Entity, grouped by Bank Account. Add `status=unreconciled` for the ones still to reconcile, and `open={movementId}` to open one in its panel without leaving the list. |
 | Partner | `/{entityId}/partner-ledger?partners={partnerId}` | Partner statement filtered to that Partner. `/{entityId}/partners` and `/{entityId}/vendors` are the customer and supplier lists. |
 | Ledger Account | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movements of one account. The chart itself is `/{entityId}/settings/chart-of-accounts`. |
 | Open Item | `/{entityId}/receivables?open={entryId}` or `/{entityId}/payables?open={entryId}` | Pass the id of the Ledger Entry that carries the item. `/{entityId}/open-items` shows all. |
 | Allocation | `/{entityId}/entries/{entryId}` | Allocations have no page. Link the Ledger Entry being settled. |
-| Dimension | `/{entityId}/settings/dimensions?dimension={dimensionId}` | |
+| Dimension | `/organizations/{organizationId}/settings/dimensions?dimension={dimensionId}` | Drop `dimension` for the list of every Dimension. |
 | Source | `/{entityId}/sources/{sourceId}` | Documents imported by that Source. Sources are configured at `/{entityId}/settings/sources`. |
 | Payment Batch | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lists every batch. It takes `search` (matches name and label) and `label` (keeps the batches with that exact label). |
 | Source Feed | `/{entityId}/settings/sources` | Feeds are managed inside their Source's settings. |
 | Integration | `/organizations/{organizationId}/settings/integrations?open={integrationId}` | Opens the Integration's side panel, with its details, the Bank Accounts or Source it feeds, and its actions. Drop `open` for the list of every Integration. Bank feeds are managed here too. |
-| FX Rate | `/{entityId}/settings/fx-rates` | |
+| FX Rate | `/organizations/{organizationId}/settings/fx-rates` | |
+| Agent Channel | `/organizations/{organizationId}/settings/agent-channels` | Staff only. |
 | Audit Trail | `/{entityId}/settings/log` | |
 | API keys | `/account/api-keys` | The signed-in User's own keys. |
 | Connected apps | `/account/connected-apps` | The apps the signed-in User approved. |

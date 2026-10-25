@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<pagina>[?<parametros>]
 
 Dos áreas viven fuera de una Entidad:
 
-- Las páginas de **Configuración de empresa** que pertenecen a toda la Organización, como la página Empresa e Integraciones, viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Toma `organizationId` de la Entidad o del registro.
+- Las páginas de **Configuración de empresa** que pertenecen a toda la Organización viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Son la página Empresa, Integraciones, Dimensiones, Canales del agente y Tipos de cambio. Toma `organizationId` de la Entidad o del registro. Las Tareas de la Organización viven bajo `https://app.sintropix.com/organizations/{organizationId}/tasks`.
 - **Tu cuenta**, los ajustes propios del Usuario que inició sesión, vive bajo `https://app.sintropix.com/account`.
 
 Los enlaces directos sobreviven al inicio de sesión. Si el usuario no está autenticado, la aplicación muestra el formulario de acceso y luego aterriza en la URL exacta solicitada. Un usuario sin acceso a la Entidad ve una pantalla de "sin acceso" en lugar de una redirección.
@@ -50,21 +50,23 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Factura, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | Documentos por cobrar. Elige la página según el campo `direction`. |
 | Factura, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | Documentos por pagar. |
 | Adjunto | `/{entityId}/invoices?open={invoiceId}` o `/{entityId}/bills?open={invoiceId}` | Los adjuntos se muestran dentro del panel de la factura. |
-| Pendiente (To-do) | `/{entityId}/todos` | Solo staff. Un pendiente vinculado también aparece en el panel de su factura, movimiento bancario o asiento contable. |
+| Tarea (Task) | `/organizations/{organizationId}/tasks` | Solo staff. Todas las tareas de la Organización, de todas sus Entidades. Agrega `assignee=me` para ver solo las tuyas (**Mías**). Una tarea vinculada también aparece en el panel de su factura, movimiento bancario o asiento contable. |
+| Notificación | `/{entityId}/notifications` | Las [notificaciones](/api-reference/notifications) del Usuario que inició sesión (**Bandeja**) en la Organización de la Entidad. |
 | Conversación del Inbox | `/{entityId}/inbox?open={conversationId}` | Solo staff. Abre la conversación en su panel lateral. Quita `open` para ver el Inbox de la Organización. |
-| Cuenta bancaria | `/{entityId}/banks/{bankAccountId}` | La vista de conciliación de esa cuenta. `/{entityId}/banks` lista todas las cuentas. |
+| Cuenta bancaria | `/{entityId}/banks/{bankAccountId}` | La vista de conciliación de esa cuenta. `/{entityId}/banks` lista todas las cuentas. `/{entityId}/settings/bank-accounts?open={bankAccountId}` abre los ajustes de la cuenta para editar su nombre, banco y número. |
 | Movimiento bancario | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Usa el campo `bankAccountId` del movimiento. Cambia `open` por `reconcile` para iniciar su conciliación. |
 | Movimientos bancarios de todas las cuentas | `/{entityId}/banks/movements` | Todos los movimientos de la entidad, agrupados por cuenta bancaria. Agrega `status=unreconciled` para ver los que faltan por conciliar, y `open={movementId}` para abrir uno en su panel sin salir del listado. |
 | Contraparte | `/{entityId}/partner-ledger?partners={partnerId}` | Estado de cuenta filtrado por esa contraparte. `/{entityId}/partners` y `/{entityId}/vendors` son los listados de clientes y proveedores. |
 | Cuenta contable | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movimientos de una cuenta. El plan de cuentas está en `/{entityId}/settings/chart-of-accounts`. |
 | Partida abierta | `/{entityId}/receivables?open={entryId}` o `/{entityId}/payables?open={entryId}` | Pasa el id del asiento que contiene la partida. `/{entityId}/open-items` las muestra todas. |
 | Asignación | `/{entityId}/entries/{entryId}` | Las asignaciones no tienen página. Enlaza el asiento que se está liquidando. |
-| Dimensión | `/{entityId}/settings/dimensions?dimension={dimensionId}` | |
+| Dimensión | `/organizations/{organizationId}/settings/dimensions?dimension={dimensionId}` | Quita `dimension` para ver la lista de todas las dimensiones. |
 | Nómina (Payment Batch) | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lista todas las nóminas. Acepta `search` (busca en el nombre y la etiqueta) y `label` (deja las nóminas con esa etiqueta exacta). |
 | Fuente | `/{entityId}/sources/{sourceId}` | Documentos importados por esa fuente. Las fuentes se configuran en `/{entityId}/settings/sources`. |
 | Feed de fuente | `/{entityId}/settings/sources` | Los feeds se gestionan dentro de los ajustes de su fuente. |
 | Integración | `/organizations/{organizationId}/settings/integrations?open={integrationId}` | Abre el panel lateral de la integración, con sus detalles, las cuentas bancarias o la fuente que alimenta y sus acciones. Quita `open` para ver la lista de todas las integraciones. Los feeds bancarios también se gestionan aquí. |
-| Tipo de cambio | `/{entityId}/settings/fx-rates` | |
+| Tipo de cambio | `/organizations/{organizationId}/settings/fx-rates` | |
+| Canal del agente | `/organizations/{organizationId}/settings/agent-channels` | Solo staff. |
 | Registro de auditoría | `/{entityId}/settings/log` | |
 | Claves de API | `/account/api-keys` | Las claves propias del Usuario que inició sesión. |
 | Apps conectadas | `/account/connected-apps` | Las apps que aprobó el Usuario que inició sesión. |
