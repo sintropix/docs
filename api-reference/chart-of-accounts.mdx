@@ -69,7 +69,7 @@ Each account in `accounts` carries:
 | `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
-| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue` |
+| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
 | `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, `booking_template`, or null when deletable |
@@ -223,7 +223,7 @@ Create a new Ledger Account.
 | `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`; null or omitted means none |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`; null or omitted means none |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the created Ledger Account with its derived facts, in the same shape as the `accounts` rows of the Chart of Accounts
@@ -283,7 +283,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, or null to clear |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, or null to clear |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the updated Ledger Account with its derived facts, in the same shape as the create response above
@@ -318,6 +318,12 @@ The sub-types `prepaid_expense` and `deferred_revenue` mark the accounts that ho
 | `deferred_revenue` | Revenue billed ahead of the months that earn it, such as a multi-month service. A deferred line of a receivable Invoice credits it. | `liability` | `balance` |
 
 Create the account, or `PATCH` an existing one, with the matching `type`, `tracking: "balance"`, and the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `open_item` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`. In the cash flow statement, a prepaid expense account counts by default under `supplier_payments` and a deferred revenue account under `customer_receipts`.
+
+### Expense rendition payable
+
+The sub-type `expense_rendition_payable` (**Rendición por pagar**) marks the account for what the Entity owes the people who paid its expenses with their own money. When an [Expense Claim](/api-reference/expense-claims) is approved, its Expense Rendition credits this account with the person as Partner.
+
+Create the account, or `PATCH` an existing one, with `type: "liability"`, `tracking: "open_item"`, and the sub-type. A `payable` Invoice accepts it as its control account, as it accepts a `payable` account. In the cash flow statement, it counts by default under `employee_payments`.
 
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 

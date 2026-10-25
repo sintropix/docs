@@ -1,0 +1,323 @@
+---
+title: "Sintropix Expense Claims API: Submit and Approve Renditions"
+sidebarTitle: "Expense Claims"
+description: "Submit an expense a person paid with their own money, and let the Organization's Approver approve it into a booked Expense Rendition or reject it. Set the Approver and the Source and accounts each Entity books with."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+An **Expense Claim** (rendición) is one expense that a person paid with their own money and asks the Entity to pay back. You submit it in Sintropix itself, with no outside tool such as Rindegastos. It waits until the Organization's **Approver** approves or rejects it:
+
+- **Approved:** Sintropix creates the person's payable Invoice in a Source that holds [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions), and books it in the same request. From then on it's an Expense Rendition like any other, and you pay it from a [Payment Batch](/api-reference/payment-batches).
+- **Rejected:** the claim keeps the reason, and the decision is final. To try again, submit a new claim.
+
+While a claim waits, it is no Invoice. It isn't listed among the Expense Renditions or in **Compras**, isn't a payable to plan in a Payment Batch, and doesn't count on the home dashboard.
+
+<AppLink
+  url="https://app.sintropix.com/{entityId}/expense-renditions?expenseClaimStatus=submitted"
+  note="Rendiciones, under Datos. Por aprobar (expenseClaimStatus=submitted) lists the claims that wait, with the Approve and Reject actions, and Rechazadas (expenseClaimStatus=rejected) lists the rejected ones. Drop the parameter for the Expense Renditions. Nueva rendición submits a claim."
+/>
+
+## Concepts
+
+- **Person.** The Partner who paid the expense and is paid back, never the merchant.
+- **Receipt Kind.** What the person holds as proof: a `boleta` or a `factura` issued to the Entity. It decides what the approval debits. See [What approving books](#what-approving-books).
+- **Proposed expense account.** The expense account the submitter suggests. It must be an account of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`. The Approver can pick another one on approval.
+- **Approver.** The one User of the Organization who approves and rejects the claims of all its Entities. It must be a member with the `staff` or `client` Role, because approving writes the books. The Approver role ends when the User's Membership ends.
+- **Status.** Sintropix derives it, and never stores it:
+  - `submitted`: the claim waits for the Approver.
+  - `approved`: the claim has its Expense Rendition, in `invoiceId`.
+  - `rejected`: the claim has a `rejectionReason`.
+
+Who approved or rejected a claim, and when, is in the [Audit Trail](/api-reference/audit-trail).
+
+## Before you submit claims
+
+Approving needs two settings. Set them in **Configuración → Rendiciones**, at `/{entityId}/settings/expense-claims`, or through the API:
+
+1. **The Approver of the Organization.** Use [`PUT /organizations/:organizationId/expense-claim-approver`](#put-organizations-organizationid-expense-claim-approver).
+2. **The booking setting of each Entity.** Use [`PUT /expense-claim-setting`](#put-expense-claim-setting). It names three things:
+   - The Source the Expense Renditions land in. It must be a Source that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions).
+   - The **Rendición por pagar** account, which the approval credits with the person as Partner. It must be a `liability` account with the sub-type [`expense_rendition_payable`](/api-reference/chart-of-accounts#expense-rendition-payable).
+   - The supplier payable account, which a `factura` claim debits. It must have the sub-type `payable`, and it must be the account the Entity's SII invoices credit, so that you can [match](/api-reference/allocations) the two lines later.
+
+You can submit claims before you set either one. Only approving and rejecting need them.
+
+While the setting names a Source, you can't unmark the Source as one that holds Expense Renditions, or delete it. Sintropix refuses both with `409` and `SOURCE_PINNED_ERROR`. Each account also keeps its sub-type while the setting names it. To change any of them, set another one first.
+
+## What approving books
+
+Approving creates one `payable` Invoice and books it in the same request:
+
+| Invoice field | Value |
+| --- | --- |
+| `partnerId` | The claim's person |
+| `sourceId` | The Source of the Entity's setting |
+| `documentKind` | `invoice` |
+| `documentNumber` | The claim's `id` |
+| `currency`, `total` | The Entity's functional currency, and the claim's `amount` |
+| `issueDate` | The claim's `expenseDate` |
+| `memo` | The claim's `memo` |
+
+The booking entry is dated on the expense date. Its Control Line credits the **Rendición por pagar** account with the person as Partner. The debit depends on the Receipt Kind:
+
+| Receipt Kind | Debit | Why |
+| --- | --- | --- |
+| `boleta` | The expense account: the proposed one, or the one the Approver picks | The expense exists only in the claim. |
+| `factura` | The supplier payable account of the setting | The factura was issued to the Entity, so its expense and IVA reach the books with the SII invoice. Debiting an expense account would book it twice. |
+
+For a `factura`, the claim keeps the expense account as the suggestion for booking the SII invoice. The debit to the supplier payable stays open until you settle it against the Control Line of the SII invoice with [`POST /ledger/allocations/match`](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match). The SII invoice then reads as paid.
+
+If you unbook the Expense Rendition and [delete](/api-reference/invoices#delete-invoices-invoiceid) it, the claim loses its `invoiceId` and is `submitted` again.
+
+## Access
+
+| Route | Who can call it |
+| --- | --- |
+| Read claims, the setting, or the Approver | Any member of the Organization |
+| Submit a claim, set the Approver, or set the setting | A member with the `staff` or `client` Role |
+| Approve or reject a claim | The Approver alone, from a session or their own API key |
+
+A `viewer` who writes receives `403` with `PERMISSION_DENIED_ERROR`. Anyone but the Approver who approves or rejects receives `403` with `EXPENSE_CLAIM_NOT_APPROVER_ERROR`, even a `staff` member. See [Access and roles](/api-reference/overview#access-and-roles).
+
+## The Expense Claim object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Expense Claim id. You choose it on create. |
+| `entityId` | uuid | Owning Entity. |
+| `partnerId` | uuid | The person who paid the expense. |
+| `partnerName` | string | The person's name. |
+| `expenseDate` | date (`YYYY-MM-DD`) | When the expense was paid. |
+| `amount` | integer | The amount to pay back, in minor units of the Entity's functional currency. Always positive. |
+| `memo` | string | What the expense was. |
+| `receiptKind` | `boleta` \| `factura` | The proof the person holds. |
+| `expenseAccountId` | uuid | The proposed expense account. After approval, the account the Approver booked or suggested. |
+| `expenseAccountCode`, `expenseAccountName` | string | The code and name of that account. |
+| `status` | `submitted` \| `approved` \| `rejected` | Derived. See [Concepts](#concepts). |
+| `invoiceId` | uuid or null | The Expense Rendition the approval created. `null` until the claim is approved. |
+| `rejectedAt` | ISO datetime or null | When the claim was rejected. |
+| `rejectionReason` | string or null | Why the claim was rejected. |
+| `createdAt`, `updatedAt` | ISO datetime | Row timestamps. |
+
+## POST `/expense-claims`
+
+Submit an Expense Claim. It starts as `submitted`.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Id of the new claim. You choose it, so a retried request can't submit the claim twice. A second request with the same `id` receives `409` with `EXPENSE_CLAIM_ALREADY_EXISTS_ERROR`. |
+| `partnerId` | uuid | Yes | The person who paid. A Partner of the Organization. It can't be the Partner that represents the Entity, or a Merged Partner. |
+| `expenseDate` | date (`YYYY-MM-DD`) | Yes | When the expense was paid. |
+| `amount` | integer | Yes | Positive, in minor units of the Entity's functional currency. |
+| `memo` | string | Yes | Non-blank after trimming. |
+| `receiptKind` | `boleta` \| `factura` | Yes | The proof the person holds. |
+| `expenseAccountId` | uuid | Yes | The proposed expense account: an account of the Entity of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`. |
+
+**Response** (`201`): the Expense Claim object.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claims" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "3f6c2a1e-7b4d-4c8e-9a1f-2d3e4f5a6b7c",
+    "partnerId": "8a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+    "expenseDate": "2026-10-20",
+    "amount": 18500,
+    "memo": "Almuerzo con cliente",
+    "receiptKind": "boleta",
+    "expenseAccountId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"
+  }'
+```
+
+## GET `/expense-claims`
+
+List the Entity's Expense Claims, newest expense first. Claims with the same `expenseDate` come in a stable order.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `status` | `submitted` \| `approved` \| `rejected` | No | Keep only the claims with this status. Omit for every claim. |
+| `limit` | integer | No | Page size, 1 to 100. Default `50`. |
+| `cursor` | string | No | The `nextCursor` of the previous page. An invalid cursor receives `400`. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `expenseClaims` | array | Expense Claim objects. |
+| `nextCursor` | string or null | Pass it as `cursor` for the next page. `null` on the last page. |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claims?status=submitted" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/expense-claims/:expenseClaimId`
+
+Read one Expense Claim.
+
+**Response:** the Expense Claim object. An unknown id receives `404` with `EXPENSE_CLAIM_NOT_FOUND_ERROR`.
+
+## POST `/expense-claims/:expenseClaimId/approve`
+
+Approve a `submitted` claim. Sintropix creates its Expense Rendition and books it, as [What approving books](#what-approving-books) describes. Only the Approver can call it.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expenseAccountId` | uuid | No | Book to this expense account instead of the proposed one. Same rules as on create. For a `factura`, it becomes the suggested account for the SII invoice. |
+
+**Response** (`200`)
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `expenseClaim` | object | The Expense Claim object, now `approved`. |
+| `invoice` | object | The created Invoice, in the shape of the [`POST /invoices`](/api-reference/invoices#post-invoices) response, with its `bookingEntry`. |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claims/$EXPENSE_CLAIM_ID/approve" \
+  -H "x-api-key: $SINTROPIX_APPROVER_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+## POST `/expense-claims/:expenseClaimId/reject`
+
+Reject a `submitted` claim. The rejection is final. Only the Approver can call it.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `reason` | string | Yes | Why the claim is rejected. 1 to 500 characters after trimming. |
+
+**Response** (`200`): the Expense Claim object, now `rejected`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claims/$EXPENSE_CLAIM_ID/reject" \
+  -H "x-api-key: $SINTROPIX_APPROVER_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "El gasto no corresponde a la empresa." }'
+```
+
+## GET `/expense-claim-setting`
+
+Read the Entity's booking setting.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `setting` | object or null | The setting, or `null` when the Entity has none yet. |
+| `setting.entityId` | uuid | The Entity. |
+| `setting.sourceId` | uuid | The Source the Expense Renditions land in. |
+| `setting.renditionPayableAccountId` | uuid | The **Rendición por pagar** account. |
+| `setting.supplierPayableAccountId` | uuid | The supplier payable account a `factura` claim debits. |
+| `setting.createdAt`, `setting.updatedAt` | ISO datetime | Row timestamps. |
+
+## PUT `/expense-claim-setting`
+
+Create or replace the Entity's booking setting. A change applies to the claims you approve after it. Expense Renditions already created keep their Source and booking.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `sourceId` | uuid | Yes | A Source of the Entity that holds Expense Renditions. Otherwise `400` with `EXPENSE_CLAIM_SETTING_SOURCE_INELIGIBLE_ERROR`. |
+| `renditionPayableAccountId` | uuid | Yes | An account of the Entity with the sub-type `expense_rendition_payable`. |
+| `supplierPayableAccountId` | uuid | Yes | An account of the Entity with the sub-type `payable`. |
+
+An account without the right sub-type receives `400` with `EXPENSE_CLAIM_SETTING_ACCOUNT_INELIGIBLE_ERROR`. Its `params.role` says which one: `rendition_payable` or `supplier_payable`.
+
+**Response:** the same shape as `GET /expense-claim-setting`.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claim-setting" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceId": "6d7e8f9a-0b1c-4d2e-8f3a-4b5c6d7e8f9a",
+    "renditionPayableAccountId": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+    "supplierPayableAccountId": "9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a"
+  }'
+```
+
+## GET `/organizations/:organizationId/expense-claim-approver`
+
+Read the Organization's Approver, and the members who can be one.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `approver` | object or null | The Approver, or `null` when the Organization has none. |
+| `candidates` | array | Every member with the `staff` or `client` Role. |
+
+`approver` and each element of `candidates` carry `userId` (uuid), `name` (string), and `email` (string).
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/expense-claim-approver" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## PUT `/organizations/:organizationId/expense-claim-approver`
+
+Set or change the Organization's Approver. The new Approver decides every claim that still waits, in every Entity of the Organization.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `userId` | uuid | Yes | A member of the Organization with the `staff` or `client` Role. A `viewer`, or a User outside the Organization, receives `400` with `EXPENSE_CLAIM_APPROVER_INELIGIBLE_ERROR`. |
+
+**Response:** the same shape as `GET /organizations/:organizationId/expense-claim-approver`.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/expense-claim-approver" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "userId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b" }'
+```
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success on `GET`, `PUT`, approve, and reject. |
+| `201` | Expense Claim submitted. |
+| `400` | Validation error, an invalid cursor, an ineligible account, Source, or Approver, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `403` | Your Role can't write (`PERMISSION_DENIED_ERROR`), or you aren't the Approver (`EXPENSE_CLAIM_NOT_APPROVER_ERROR`). |
+| `404` | Entity, Organization, Expense Claim, or Partner not found. |
+| `409` | The claim's `id` already exists, the claim was already decided, the Organization has no Approver, the Entity has no setting, or the Partner was merged. |
+| `422` | The Partner represents the Entity (`PARTNER_REPRESENTS_ENTITY_ERROR`). |
+
+## Domain error codes
+
+| Code | Status | When |
+| --- | --- | --- |
+| `EXPENSE_CLAIM_NOT_FOUND_ERROR` | `404` | No Expense Claim of the Entity has this id. `params.expenseClaimId`. |
+| `EXPENSE_CLAIM_ALREADY_EXISTS_ERROR` | `409` | A claim with this `id` already exists. When you retry a request, treat it as submitted. `params.expenseClaimId`. |
+| `EXPENSE_CLAIM_EXPENSE_ACCOUNT_INELIGIBLE_ERROR` | `400` | The expense account isn't an expense account of the Entity. `params.ledgerAccountId`. |
+| `EXPENSE_CLAIM_ALREADY_DECIDED_ERROR` | `409` | The claim isn't `submitted` anymore. `params.status` is `approved` or `rejected`. |
+| `EXPENSE_CLAIM_APPROVER_NOT_SET_ERROR` | `409` | The Organization has no Approver. Set one first. `params.organizationId`. |
+| `EXPENSE_CLAIM_NOT_APPROVER_ERROR` | `403` | You aren't the Approver. `params.approverUserId` names who is. |
+| `EXPENSE_CLAIM_APPROVER_INELIGIBLE_ERROR` | `400` | The User isn't a `staff` or `client` member of the Organization. `params.userId`. |
+| `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` | `409` | The Entity has no booking setting, so the claim can't be approved. `params.entityId`. |
+| `EXPENSE_CLAIM_SETTING_ACCOUNT_INELIGIBLE_ERROR` | `400` | An account of the setting lacks its sub-type. `params.ledgerAccountId` and `params.role`. |
+| `EXPENSE_CLAIM_SETTING_SOURCE_INELIGIBLE_ERROR` | `400` | The Source isn't a Source of the Entity that holds Expense Renditions. `params.sourceId`. |
+| `PARTNER_NOT_FOUND_ERROR` | `404` | The `partnerId` names no Partner. `params.partnerId`. |
+| `PARTNER_MERGED_ERROR` | `409` | The Partner was merged into another one. Use `params.mergedIntoPartnerId`. |
+| `PARTNER_REPRESENTS_ENTITY_ERROR` | `422` | The Partner represents the Entity itself. `params.partnerId` and `params.entityId`. |
+
+A [Merge of Partners](/api-reference/partners#merge-partners) moves the merged Partner's claims to the kept one.

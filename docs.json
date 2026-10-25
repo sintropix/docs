@@ -58,6 +58,7 @@
                 "group": "Documents",
                 "pages": [
                   "api-reference/invoices",
+                  "api-reference/expense-claims",
                   "api-reference/follow-ups",
                   "api-reference/partners",
                   "api-reference/attachments",
@@ -146,6 +147,7 @@
                 "group": "Documentos",
                 "pages": [
                   "api-reference/invoices",
+                  "api-reference/expense-claims",
                   "api-reference/follow-ups",
                   "api-reference/partners",
                   "api-reference/attachments",

@@ -49,6 +49,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Ledger Entry | `/{entityId}/entries/{entryId}` | Full-page detail. The list is `/{entityId}/entries`. |
 | Invoice, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | AR documents. Pick the page from the `direction` field. |
 | Invoice, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | AP documents. |
+| Expense Claim | `/{entityId}/expense-renditions?expenseClaimStatus=submitted` | **Rendiciones**, on its **Por aprobar** view. Use `expenseClaimStatus=rejected` for **Rechazadas**. An approved claim is its Expense Rendition, at `/{entityId}/expense-renditions?open={invoiceId}`. The Approver and the booking setting are at `/{entityId}/settings/expense-claims`. |
 | Attachment | `/{entityId}/invoices?open={invoiceId}` or `/{entityId}/bills?open={invoiceId}` | Attachments are shown inside the invoice panel. |
 | To-do | `/{entityId}/todos` | Staff only. A linked To-do also shows in the panel of its Invoice, Bank Movement, or Ledger Entry. |
 | Inbox Conversation | `/{entityId}/inbox?open={conversationId}` | Staff only. Opens the Conversation in its side panel. Drop `open` for the Organization's Inbox. |
