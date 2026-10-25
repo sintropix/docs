@@ -363,13 +363,13 @@ A sync updates the description and these lines on an unbooked Movement. A booked
   Feed dates follow the calendar of Santiago (Chile), not US time. A transaction can post late on a US day that is already the next day in Santiago, or post after you map with a date before the feed start date. Such a transaction never lands, but the account's balance at Plaid counts it, so every later sync leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out) by its amount. To fix it, [remove the feed](/api-reference/bank-accounts#delete-a-bank-account-feed) and map the account again with a feed start date on or before that transaction.
 </Warning>
 
-**Errors.** When the bank login expires at the bank, a sync answers `502` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect).
+**Errors.** When the bank login expires at the bank, a sync answers `424` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect).
 
 ### Polar
 
 [Polar](https://polar.sh) is a Merchant of Record: it charges your buyers, holds the money in a USD balance, and pays it out to your bank. A Polar feed mirrors that USD balance, row by row.
 
-**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `502` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Configuración de empresa → Integraciones** with an owner, admin, or finance user.
+**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `424` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Configuración de empresa → Integraciones** with an owner, admin, or finance user.
 
 ```json
 {
@@ -414,6 +414,6 @@ The Additional Information holds these lines, in this order, each only when Pola
 | `Monto recibido Polar` | On a payout, the amount your bank received, in minor units of its currency |
 | `Moneda recibida Polar` | On a payout, the currency your bank received, such as `CLP` |
 
-**Balance check.** Each sync reads the whole Polar ledger and checks it against the organization's Polar balance. When the ledger doesn't add up to the balance, the map, the Bank Account creation, and every sync answer `502` with `BANK_FEED_PROVIDER_FAILURE_ERROR`, so no made-up opening balance absorbs the gap. A row type, fee type, or currency that Sintropix doesn't know refuses the sync with the same code. When the landed Movements don't reach the balance, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out).
+**Balance check.** Each sync reads the whole Polar ledger and checks it against the organization's Polar balance. When the ledger doesn't add up to the balance, the map, the Bank Account creation, and every sync answer `424` with `BANK_FEED_PROVIDER_FAILURE_ERROR`, so no made-up opening balance absorbs the gap. A row type, fee type, or currency that Sintropix doesn't know refuses the sync with the same code. When the landed Movements don't reach the balance, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out).
 
 The Polar Integration renews its authorization on its own before a sync reads.
