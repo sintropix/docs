@@ -1,39 +1,154 @@
 ---
-title: "Sintropix Chart of Accounts API: Templates, Groups, and Accounts"
+title: "Sintropix Chart of Accounts API: Group Chart, Groups, and Accounts"
 sidebarTitle: "Chart of Accounts"
-description: "Initialize, read, and edit the Chart of Accounts for an Entity. Covers templates, account groups, ledger accounts, and the chart initialization endpoint."
+description: "Read and edit the Chart of Accounts of an Entity and the group chart of its Organization. Covers Group Accounts, Account Groups, and Ledger Accounts."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for an Entity. You can initialize it from a template, create groups and accounts individually, and read the whole chart in one call. This page also covers the Ledger Account endpoints under `entities/:entityId/ledger/accounts`.
+The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for an Entity. You build it one group and one account at a time, and read the whole chart in one call. This page also covers the Ledger Account endpoints under `entities/:entityId/ledger/accounts`, and the [group chart](#the-group-chart) that the Organization shares across its Entities.
 
 <AppLink
-  url="https://app.sintropix.com/{entityId}/settings/chart-of-accounts"
-  note="To show the movements of one account, link /{entityId}/general-ledger?selectedAccountId={accountId} instead."
+  url="https://app.sintropix.com/organizations/{organizationId}/settings/chart-of-accounts"
+  note="Plan de cuentas opens on the group chart (Grupo). Add ?entity={entityId} for one Entity's chart. To show the movements of one account, link /{entityId}/general-ledger?selectedAccountId={accountId} instead."
 />
 
-## GET /api/entities/:entityId/ledger/chart-templates
+## The group chart
 
-List the available chart templates that can be used to initialize an Entity's Chart of Accounts.
+The Organization owns one flat group chart. It is a list of Group Accounts (**Cuentas de grupo**), each with a code, a name, and a type. Every Ledger Account of every Entity of the Organization maps to exactly one Group Account of its own type. Because the mapping is total, the group chart adds up the books of every Entity by construction.
 
-- **Success response:** array of chart template summaries
-- **Status:** 200
+- A Group Account code is unique in the Organization.
+- A Ledger Account names its Group Account in `groupAccountId` when you [create](#post-api-entities-entityid-ledger-accounts) it. You can't create one without it.
+- To map a Ledger Account to another Group Account, `PATCH` it with a new `groupAccountId`.
+- A Ledger Account that changes `type` must name a Group Account of the new type in the same request.
+- You can always change a Group Account's code and name. Its type can't change, and it can't be deleted, while a Ledger Account maps to it.
+- An Entity that has Ledger Accounts can't [move to another Organization](/api-reference/entities#patch-api-entities-entityid-organization).
 
-Each template summary carries:
+In the app, **Plan de cuentas** lives in the Organization's settings. It opens on **Grupo**, which lists each Group Account with the Ledger Accounts of each Entity nested under it. Pick an Entity in the switcher to see its own chart, with a **Cuenta de grupo** column.
+
+The group chart routes live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). They need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization, and the listing shows only that Entity's Ledger Accounts.
+
+### The Group Account object
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `key` | string | Template identifier |
-| `version` | string | Template version |
-| `locale` | string | Locale code |
-| `effectiveFrom` | ISO date | Effective date |
-| `groupCount` | integer | Number of groups in the template |
-| `accountCount` | integer | Number of accounts in the template |
+| `id` | UUID | Group Account id |
+| `organizationId` | UUID | Owning Organization |
+| `code` | string | Code, unique in the Organization |
+| `name` | string | Name |
+| `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+## GET /api/organizations/:organizationId/group-accounts
+
+List the Group Accounts of the Organization, ordered by code. Each one carries the Ledger Accounts that map to it.
+
+- **Path param:** `organizationId` (UUID)
+- **Success response:** array of Group Account objects, each with a `ledgerAccounts` array
+- **Status:** 200
+
+Each item of `ledgerAccounts` carries `id`, `entityId`, `code`, and `name`, ordered by code.
+
+```json
+[
+  {
+    "id": "66666666-6666-4666-8666-666666666666",
+    "organizationId": "99999999-9999-4999-8999-999999999999",
+    "code": "1101",
+    "name": "Caja",
+    "type": "asset",
+    "createdAt": "2026-02-01T12:00:00.000Z",
+    "updatedAt": "2026-02-01T12:00:00.000Z",
+    "ledgerAccounts": [
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "code": "1101",
+        "name": "Caja"
+      },
+      {
+        "id": "44444444-4444-4444-8444-444444444444",
+        "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "code": "1.1.01",
+        "name": "Caja chica"
+      }
+    ]
+  }
+]
+```
 
 ```bash
-curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-templates \
+curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts \
   -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/organizations/:organizationId/group-accounts
+
+Create a Group Account.
+
+- **Path param:** `organizationId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `code` | string | Yes | Code, non-empty and unique in the Organization |
+| `name` | string | Yes | Name, non-empty |
+| `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
+
+- **Success response:** the created Group Account object
+- **Status:** 201
+
+```bash
+curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "66666666-6666-4666-8666-666666666666",
+    "code": "1101",
+    "name": "Caja",
+    "type": "asset"
+  }'
+```
+
+## PATCH /api/organizations/:organizationId/group-accounts/:groupAccountId
+
+Rename, recode, or retype a Group Account. Send at least one field. The new code and name show on every Ledger Account that maps to it.
+
+- **Path params:** `organizationId` (UUID), `groupAccountId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `code` | string | No | New code, unique in the Organization |
+| `name` | string | No | New name |
+| `type` | enum | No | New type. Refused while a Ledger Account maps to the Group Account |
+
+- **Success response:** the updated Group Account object
+- **Status:** 200
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts/$GROUP_ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"name": "Caja y fondos fijos"}'
+```
+
+## DELETE /api/organizations/:organizationId/group-accounts/:groupAccountId
+
+Delete a Group Account that no Ledger Account maps to. Map those accounts to another Group Account first.
+
+- **Path params:** `organizationId` (UUID), `groupAccountId` (UUID)
+- **Success response:** the deleted Group Account object
+- **Status:** 200
+
+```bash
+curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts/$GROUP_ACCOUNT_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
 ```
 
 ## GET /api/entities/:entityId/ledger/chart-of-accounts
@@ -63,6 +178,10 @@ Each account in `accounts` carries:
 | --- | --- | --- |
 | `id` | UUID | Account id |
 | `entityId` | UUID | Owning Entity |
+| `organizationId` | UUID | Organization of the Entity |
+| `groupAccountId` | UUID | [Group Account](#the-group-chart) the account maps to |
+| `groupAccountCode` | string | Code of that Group Account |
+| `groupAccountName` | string | Name of that Group Account |
 | `groupId` | UUID or null | Parent group |
 | `code` | string | Account code |
 | `name` | string | Account name |
@@ -95,6 +214,10 @@ Each account in `accounts` carries:
     {
       "id": "33333333-3333-4333-8333-333333333333",
       "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "organizationId": "99999999-9999-4999-8999-999999999999",
+      "groupAccountId": "66666666-6666-4666-8666-666666666666",
+      "groupAccountCode": "1101",
+      "groupAccountName": "Caja",
       "groupId": "11111111-1111-4111-8111-111111111111",
       "code": "1101",
       "name": "Caja",
@@ -116,36 +239,6 @@ Each account in `accounts` carries:
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-of-accounts \
   -H "x-api-key: $SINTROPIX_API_KEY"
-```
-
-## POST /api/entities/:entityId/ledger/chart-initializations
-
-Initialize the Chart of Accounts from a template. The Entity must have an empty chart. The response is the full Chart of Accounts, in the same shape as the GET chart-of-accounts response above.
-
-- **Path param:** `entityId` (UUID)
-- **Body:**
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `id` | UUID | Yes | Client-supplied idempotency id |
-| `templateKey` | string | Yes | Template key from chart-templates |
-| `templateVersion` | string | Yes | Template version |
-
-- **Success response:** the full Chart of Accounts (`groups` and `accounts`, same shape as the GET chart-of-accounts response)
-- **Status:** 201
-
-Read `templateKey` and `templateVersion` from [`GET /ledger/chart-templates`](#get-api-entities-entityid-ledger-chart-templates). The current `sintropix-ifrs-starter` version is `2026.5`. It gives the depreciable property, plant, and equipment accounts the `fixed_asset` sub-type: `1.4.2 Construcciones`, `1.4.3 Maquinaria y equipos`, `1.4.4 Vehículos`, and `1.4.5 Equipos informáticos`. A Fixed Asset Class can use them right away, without marking them first. `1.4.1 Terrenos` and `1.4.6 Activos por derecho de uso` have no sub-type. A chart initialized from an earlier version keeps the sub-types that version gave it.
-
-```bash
-curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/chart-initializations \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -d '{
-    "id": "55555555-5555-4555-8555-555555555555",
-    "templateKey": "sintropix-ifrs-starter",
-    "templateVersion": "2026.5"
-  }'
 ```
 
 ## POST /api/entities/:entityId/ledger/account-groups
@@ -203,7 +296,7 @@ List all Ledger Accounts for an Entity.
 - **Success response:** array of Ledger Accounts
 - **Status:** 200
 
-Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `normalSide`, `createdAt`, `updatedAt`) without the derived `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
+Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `organizationId`, `groupAccountId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `normalSide`, `createdAt`, `updatedAt`) without `groupAccountCode`, `groupAccountName`, and the derived `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
@@ -226,6 +319,7 @@ Create a new Ledger Account.
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
 | `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`; null or omitted means none |
+| `groupAccountId` | UUID | Yes | [Group Account](#the-group-chart) of the Entity's Organization, of the same `type` |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the created Ledger Account with its derived facts, in the same shape as the `accounts` rows of the Chart of Accounts
@@ -235,11 +329,17 @@ Create a new Ledger Account.
   `normalSide` is derived from `type`. Do not send it in the payload.
 </Note>
 
+An unknown `groupAccountId`, or one of another Organization, returns `404` with `GROUP_ACCOUNT_NOT_FOUND_ERROR`. A Group Account of another type returns `422` with `LEDGER_ACCOUNT_GROUP_ACCOUNT_TYPE_INCOMPATIBLE_ERROR`; `params` names `groupAccountId`, `groupAccountType`, and `ledgerAccountType`.
+
 ```json
 {
   "account": {
     "id": "11111111-1111-4111-8111-111111111111",
     "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "organizationId": "99999999-9999-4999-8999-999999999999",
+    "groupAccountId": "66666666-6666-4666-8666-666666666666",
+    "groupAccountCode": "1101",
+    "groupAccountName": "Caja",
     "groupId": null,
     "code": "1101",
     "name": "Caja",
@@ -267,7 +367,8 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
     "name": "Caja",
     "code": "1101",
     "type": "asset",
-    "tracking": "balance"
+    "tracking": "balance",
+    "groupAccountId": "66666666-6666-4666-8666-666666666666"
   }'
 ```
 
@@ -286,6 +387,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
 | `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, or null to clear |
+| `groupAccountId` | UUID | No | Map the account to another Group Account of its type. Required with a `type` change: a Group Account of the new type |
 | `groupId` | UUID | No | Parent group |
 
 - **Success response:** an object with a single `account` field holding the updated Ledger Account with its derived facts, in the same shape as the create response above
@@ -301,7 +403,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
 
 ### The Suspense Account
 
-The sub-type `suspense` marks the Entity's Suspense Account. When a [bank Match](/api-reference/bank-movements#overpayments-and-the-suspense-account) pays more than the target's Open Amount, Sintropix books the rest there until you assign it. The `sintropix-ifrs-starter` template includes one, `1.5.5 Asignación pendiente`. Without a Suspense Account, a Match that leaves a rest is refused.
+The sub-type `suspense` marks the Entity's Suspense Account. When a [bank Match](/api-reference/bank-movements#overpayments-and-the-suspense-account) pays more than the target's Open Amount, Sintropix books the rest there until you assign it. Without a Suspense Account, a Match that leaves a rest is refused.
 
 To mark an account as the Suspense Account, create it or `PATCH` it with `type: "asset"`, `tracking: "open_item"`, and `subtype: "suspense"`. These rules apply:
 
@@ -325,7 +427,7 @@ Create the account, or `PATCH` an existing one, with the matching `type`, `track
 
 The sub-type `expense_rendition_payable` (**Rendición por pagar**) marks the account for what the Entity owes the people who paid its expenses with their own money. When an [Expense Claim](/api-reference/expense-claims) is approved, its Expense Rendition credits this account with the person as Partner.
 
-Create the account, or `PATCH` an existing one, with `type: "liability"`, `tracking: "open_item"`, and the sub-type. A `payable` Invoice accepts it as its control account, as it accepts a `payable` account. In the cash flow statement, it counts by default under `employee_payments`.
+Create the account, or `PATCH` an existing one, with `type: "liability"`, `tracking: "open_item"`, and the sub-type. A `payable` Invoice accepts it as its control account, as it accepts a `payable` account. Its open lines appear in the payables [open positions](/api-reference/reports#open-positions-receivables-and-payables) (**Por pagar**) and in the payable total of the home dashboard. In the cash flow statement, it counts by default under `employee_payments`.
 
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 
@@ -366,9 +468,12 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_GROUP_ID_ALREADY_EXISTS_ERROR` | Group id already exists |
 | `LEDGER_ACCOUNT_GROUP_PARENT_TYPE_INCOMPATIBLE_ERROR` | Parent group type mismatch |
 | `LEDGER_ACCOUNT_GROUP_TYPE_INCOMPATIBLE_ERROR` | Group and account type mismatch |
-| `CHART_TEMPLATE_NOT_FOUND_ERROR` | Template key/version not found |
-| `CHART_TEMPLATE_REQUIRES_EMPTY_CHART_ERROR` | Entity already has a chart |
-| `CHART_INITIALIZATION_ALREADY_EXISTS_ERROR` | Initialization id already used |
+| `LEDGER_ACCOUNT_GROUP_ACCOUNT_TYPE_INCOMPATIBLE_ERROR` | The Group Account is not of the Ledger Account's type (`422`) |
+| `GROUP_ACCOUNT_NOT_FOUND_ERROR` | The Group Account doesn't exist in the Organization (`404`) |
+| `GROUP_ACCOUNT_ALREADY_EXISTS_ERROR` | A Group Account with the supplied `id` already exists (`409`) |
+| `GROUP_ACCOUNT_CODE_ALREADY_EXISTS_ERROR` | Group Account code already in use in the Organization (`409`) |
+| `GROUP_ACCOUNT_TYPE_LOCKED_ERROR` | Type change refused: a Ledger Account maps to the Group Account (`409`) |
+| `GROUP_ACCOUNT_IN_USE_ERROR` | Delete refused: a Ledger Account maps to the Group Account (`409`) |
 
 ## Status codes
 
@@ -381,3 +486,4 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | 403 | Forbidden |
 | 404 | Resource not found |
 | 409 | Domain rule violation |
+| 422 | Group Account of another type |
