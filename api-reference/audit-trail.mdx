@@ -1,43 +1,99 @@
 ---
 title: "Sintropix Audit Trail API: Query Forensic Change History"
 sidebarTitle: "Audit Trail"
-description: "Query the forensic audit trail for an entity. Returns paginated mutation envelopes with actor attribution, diffs, and named resources. GET requests are not audited."
+description: "Query the forensic audit trail of an Organization, filtered by Entity, or the history of one record. Returns paginated mutation envelopes with actor attribution, diffs, and named resources. GET requests are not audited."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-The audit trail is a forensic, append-only log of every mutating request against an entity's data. Each row stores the actor, credential type, declared actor, request id, route, method, and a diff of what changed. GET requests do not produce audit records.
+The audit trail is a forensic, append-only log of every mutating request against an Organization's data. Each row stores the actor, credential type, declared actor, request id, route, method, and a diff of what changed. GET requests do not produce audit records.
+
+The trail belongs to the Organization. You read it in two ways:
+
+- The **Log** of the Organization, every write to any of its Entities and to the data the Organization shares, filtered by Entity if you like: [`GET /api/organizations/:organizationId/audit-trail`](#list-the-organization-log).
+- The **Actividad** of one record, its own history: [`GET /api/entities/:entityId/audit-trail`](#list-the-history-of-one-record).
+
+Both routes need `books` read in the Organization. Both return the same [page shape](#response).
 
 <AppLink
-  url="https://app.sintropix.com/{entityId}/settings/log"
+  url="https://app.sintropix.com/organizations/{organizationId}/settings/log"
+  note="The Log lives in the Organization's settings, with an Entidad filter. A record's own history is in the Actividad tab of its panel."
 />
 
-## List audit trail
+<Note>
+  The Log moved from the Entity to the Organization. `GET /api/entities/:entityId/audit-trail` now requires `tableName` and `rowId`. To list every write of an Entity, call the Organization route with `entityIds`.
+</Note>
 
-`GET /api/entities/:entityId/audit-trail`
+## List the Organization Log
 
-Returns a paginated page of audit envelopes for the entity, plus the named resources needed to render them without extra lookups. The page also lists the envelopes of its Organization's routes that name no Entity, such as a [Partner merge](/api-reference/partners#merge-partners). Those have `entityId` set to `null`. An envelope never shows a change to another Entity's rows. A change to a row the whole Organization shares, such as a Partner, shows in every Entity's trail.
+`GET /api/organizations/:organizationId/audit-trail`
+
+Returns a paginated page of the Organization's audit envelopes, plus the named resources needed to render them without extra lookups. Writes that belong to no Organization never appear.
+
+With no filter, the page lists every envelope of the Organization. That includes the envelopes of Organization routes that name no Entity, such as a [Partner merge](/api-reference/partners#merge-partners) or a [Dimension](/api-reference/dimensions) change. Those have `entityId` set to `null`, and the app labels them **Empresa**.
 
 **Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
+| `entityIds` | UUID | No | Keep the envelopes of this Entity. Repeat the param for several Entities, up to 100. |
+| `includeOrganizationEnvelopes` | boolean | No | `true` keeps the envelopes that name no Entity (**Empresa**). Defaults to `false`. |
 | `cursor` | integer | No | Page cursor (positive integer). Pass the `nextCursor` from the previous page to fetch the next one. |
 | `limit` | integer | No | Page size, 1 to 100. Defaults to 50. |
 | `from` | ISO date | No | Filter envelopes on or after this date. Must be before or equal to `to` when both are given. |
 | `to` | ISO date | No | Filter envelopes on or before this date. |
 | `actorUserId` | UUID | No | Filter to a specific user. |
-| `conversationId` | UUID | No | Filter to a specific conversation / request grouping. |
-| `tableName` | string | No | Filter to a specific table; must be provided together with `rowId`. See accepted values below. |
-| `rowId` | UUID | No | Filter to a specific row; must be provided together with `tableName`. |
+
+**How the Entity filter matches**
+
+Send `entityIds`, `includeOrganizationEnvelopes`, or both, to narrow the Log:
+
+- An envelope matches an Entity when it names that Entity, or when it changes a row of that Entity. For example, a Partner merge names no Entity, but it shows under each Entity whose rows it changed.
+- Inside a matched envelope, the changes to rows of Entities you didn't select are hidden. Changes to rows the whole Organization shares, such as a Partner, always show.
+- A row that moved between two Entities shows under both.
+- With `includeOrganizationEnvelopes=true`, the envelopes that name no Entity also match.
+
+Selecting every Entity plus **Empresa** gives the same Log as no filter.
+
+An API key [confined to one Entity](/guides/api-keys) reads its own Entity and the **Empresa** envelopes by default. Asking for another Entity in `entityIds` answers `404` with `ENTITY_NOT_FOUND`.
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/audit-trail?entityIds=$ENTITY_ID&includeOrganizationEnvelopes=true&limit=50" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## List the history of one record
+
+`GET /api/entities/:entityId/audit-trail`
+
+Returns the audit envelopes that changed one row of the Entity, the same history the **Actividad** tab of a record shows in the app. An envelope never shows a change to another Entity's rows.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `tableName` | string | Yes | The table of the row. See accepted values below. |
+| `rowId` | UUID | Yes | The id of the row. |
+| `cursor` | integer | No | Page cursor (positive integer). Pass the `nextCursor` from the previous page to fetch the next one. |
+| `limit` | integer | No | Page size, 1 to 100. Defaults to 50. |
+| `from` | ISO date | No | Filter envelopes on or after this date. Must be before or equal to `to` when both are given. |
+| `to` | ISO date | No | Filter envelopes on or before this date. |
+| `actorUserId` | UUID | No | Filter to a specific user. |
 
 **Accepted `tableName` values**
 
 The trail records changes to these tables: `ledger_entry`, `ledger_entry_line`, `invoice`, `invoice_attachment`, `attachment`, `partner`, `bank_movement`, `bank_account`, `reconciliation_allocation`, `fixed_asset`, `fixed_asset_class`, `fixed_asset_depreciation_entry`. Any other string is accepted but matches no rows.
 
-Two parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry and to its `ledger_entry_line` rows; `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links.
+Two parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry and to its `ledger_entry_line` rows; `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links. For an [Expense Rendition](/api-reference/expense-claims), `tableName=invoice` also returns the history of the Expense Claim it came from: who submitted it and who approved it.
 
-**Response** `200`
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=invoice&rowId=$INVOICE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Response
+
+Both routes answer `200` with this page:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -94,11 +150,6 @@ Keys inside `before`, `after`, and `rowPrimaryKey` are the stored column names i
 | `ledgerEntryLines` | array | `{ id, accountName, entryMemo, entryDate }` where `entryMemo` may be `null` and `entryDate` is `YYYY-MM-DD`. |
 
 A resource that no longer exists is absent from these lists; treat an id you cannot resolve as unknown.
-
-```bash
-curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?limit=50" \
-  -H "Cookie: <session-cookie>"
-```
 
 ```json
 {
@@ -176,6 +227,6 @@ A sync you [start on demand](/api-reference/source-feeds#post-source-feeds-sourc
 | Code | Meaning |
 | --- | --- |
 | 200 | Success |
-| 400 | Invalid query parameters (bad type, `from` after `to`, or `tableName` without `rowId`) |
+| 400 | Invalid query parameters (bad type, a malformed `entityIds`, `from` after `to`, or a record history request without `tableName` and `rowId`) |
 | 401 | Unauthenticated |
-| 404 | Entity not found, or outside your Organizations |
+| 404 | Organization or Entity not found, outside your Organizations, or an Entity your API key is not confined to |
