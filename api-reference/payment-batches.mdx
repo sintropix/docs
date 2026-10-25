@@ -205,7 +205,7 @@ Delete a Draft and its orders. A Ready batch can't be deleted: [reopen it](#post
 
 ## POST `/payment-batches/:paymentBatchId/invoice-payment-orders`
 
-Add purchase invoices to a Draft. Each invoice becomes an order for its current [Amount to Plan](#amount-to-plan), in the Invoice's currency, paid to the Invoice's Partner. Invoices in any currency can join the same batch.
+Add purchase invoices to a Draft. Each invoice becomes an order for its current [Amount to Plan](#amount-to-plan), in the Invoice's currency, paid to the Invoice's Partner. The order starts with the Invoice's `memo` as its glosa, so an [Expense Rendition](/api-reference/expense-claims) carries the claim's memo. An Invoice with no memo, such as most SII invoices, gives an order with none. Invoices in any currency can join the same batch.
 
 **Body**
 
