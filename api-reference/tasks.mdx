@@ -1,14 +1,14 @@
 ---
 title: "Tasks API: Track Pending Work across an Organization"
 sidebarTitle: "Tasks"
-description: "Staff-only endpoints to create, list, assign, schedule, move through states, and delete the Tasks of an Organization, optionally linked to an Invoice, Bank Movement, or Ledger Entry."
+description: "Staff-only endpoints to create, list, assign, schedule, describe, move through states, and delete the Tasks of an Organization, and to relate them to Invoices, Bank Movements, or Ledger Entries."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Task (**Tarea** in the app) is a piece of pending work that staff tracks for an Organization. A Task stands alone or links to at most one record: an Invoice, a Bank Movement, or a Ledger Entry. Use Tasks to leave yourself or your team a reminder, such as "Ask the client for the signed contract", on the record it concerns.
+A Task (**Tarea** in the app) is a piece of pending work that staff tracks for an Organization. A Task stands alone or relates to one or several records: Invoices, Bank Movements, or Ledger Entries. Use Tasks to leave yourself or your team a reminder, such as "Ask the client for the signed contract", on the record it concerns.
 
-Tasks belong to the Organization, not to one Entity. A Task names an Entity only through the record it links to, so one list holds the Tasks of every Entity of the Organization. A Task moves through three states, can be assigned to a staff Member, and can carry a due date.
+Tasks belong to the Organization, not to one Entity. A Task names an Entity only through the records it relates to, so one Task can relate to records of several Entities, and one list holds the Tasks of every Entity of the Organization. A Task moves through three states, can be assigned to a staff Member, and can carry a due date and a description.
 
 Tasks are independent of a record's [Follow-up](/api-reference/follow-ups) and of Comments. Setting or clearing one never changes the others.
 
@@ -22,7 +22,7 @@ Tasks are independent of a record's [Follow-up](/api-reference/follow-ups) and o
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/tasks"
-  note="Add ?assignee=me for your own Tasks (Mías). Linked Tasks also appear in the panel of their Invoice, Bank Movement, or Ledger Entry."
+  note="Add ?assignee=me for your own Tasks (Mías), or ?task={taskId} to open one Task in its detail panel. Related Tasks also appear in the panel of their Invoice, Bank Movement, or Ledger Entry."
 />
 
 ## States
@@ -41,17 +41,28 @@ A Task can be assigned to one staff Member of its Organization. List the staff a
 
 `dueDate` is a calendar day, `YYYY-MM-DD`. Lists show the nearest due date first and the Tasks with no due date last.
 
-## Linked records
+## Related records
 
-Link a Task to a record by sending exactly one of `invoiceId`, `bankMovementId`, or `ledgerEntryId` when you create it, together with the `entityId` of the Entity that holds the record. The Entity must belong to the Organization. A stand-alone Task sends neither a link id nor `entityId`. The link is set on creation and cannot be changed later.
+A Task Link (**Relación** in the app) relates a Task to one record: an Invoice, a Bank Movement, or a Ledger Entry. A Task has any number of Task Links, and each record appears at most once per Task. Each Task Link names the Entity that holds its record, and that Entity must belong to the Task's Organization.
 
-When the linked record goes away, Sintropix keeps the Task and clears its link and its `entityId`, so it becomes stand-alone. This happens when you:
+You relate records in two ways:
+
+- When you create the Task, send them in `links`.
+- Later, add one at a time with [`POST /tasks/:taskId/links`](#post-api-organizations-organizationid-tasks-taskid-links), and remove one with [`DELETE /tasks/:taskId/links/:taskLinkId`](#delete-api-organizations-organizationid-tasks-taskid-links-tasklinkid).
+
+When a related record goes away, Sintropix removes that Task Link and keeps the Task with its other links, or stand-alone if it has none left. This happens when you:
 
 - Delete the Invoice or the Bank Movement.
 - [Unbook](/api-reference/ledger-entries) the Ledger Entry (its status becomes `deleted`).
 - Cancel the Scheduled Entry (its status becomes `cancelled`).
 
-You cannot link a new Task to an Unbooked Ledger Entry or a cancelled Scheduled Entry.
+You cannot relate a Task to an Unbooked Ledger Entry or a cancelled Scheduled Entry.
+
+Task Links don't change who the Task is assigned to or when it is due.
+
+<Note>
+  `links` replaces the single link a Task used to carry. The Task object no longer has `entityId`, `invoiceId`, `bankMovementId`, `ledgerEntryId`, or `link`, and a create sends its records in `links` instead of top-level ids.
+</Note>
 
 ## The Task object
 
@@ -59,36 +70,45 @@ You cannot link a new Task to an Unbooked Ledger Entry or a cancelled Scheduled 
 | --- | --- | --- |
 | `id` | UUID | Client-supplied id sent on creation. |
 | `organizationId` | UUID | Organization that owns the Task. |
-| `entityId` | UUID or null | Entity of the linked record. `null` for a stand-alone Task. |
 | `text` | string | What needs doing. 1 to 500 characters after trimming. |
+| `description` | string | Free-text detail of the Task, up to 10,000 characters. An empty string when it has none. |
 | `status` | string | `todo`, `in_progress`, or `completed`. See [States](#states). |
 | `completedAt` | ISO datetime or null | When the Task first became `completed`. `null` while it is in another state. |
 | `assigneeUserId` | UUID or null | The staff Member the Task is assigned to. `null` when unassigned. |
 | `assignee` | object or null | The assignee as the app shows them: `userId`, `name`, and `image` (a photo URL or `null`). `null` when unassigned. |
 | `dueDate` | string or null | Due date, `YYYY-MM-DD`. `null` when the Task has none. |
-| `invoiceId` | UUID or null | Linked Invoice, if any. |
-| `bankMovementId` | UUID or null | Linked Bank Movement, if any. |
-| `ledgerEntryId` | UUID or null | Linked Ledger Entry, if any. |
-| `link` | object or null | Summary of the linked record. `null` for a stand-alone Task. See below. |
+| `links` | array | The Task Links, oldest first. An empty array for a stand-alone Task. See below. |
 | `createdAt` | ISO datetime | When the Task was created. |
 | `updatedAt` | ISO datetime | When the Task was last updated. |
 
-### The `link` object
+### The Task Link object
 
-`link.kind` tells you which record the Task points to. Each kind carries the fields you need to display the record and open it in the app. Every kind also carries `entityName`, the name of the Entity that holds the record.
+Each item of `links` describes one related record. `kind` tells you which kind of record it is, and `id` is the record's id. Each kind carries the fields you need to display the record and open it in the app.
+
+Every kind carries these fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `taskLinkId` | UUID | Id of the Task Link. Use it to remove the relation. |
+| `kind` | string | `invoice`, `bank_movement`, or `ledger_entry`. |
+| `id` | UUID | Id of the related record. |
+| `entityId` | UUID | Entity that holds the record. |
+| `entityName` | string | Name of that Entity. |
+
+Each kind adds its own fields:
 
 | `kind` | Fields |
 | --- | --- |
-| `invoice` | `id`, `direction`, `documentKind`, `documentNumber`, `partnerName`, `entityName` |
-| `bank_movement` | `id`, `bankAccountId`, `movementDate`, `amount`, `side`, `bankAccountCurrency`, `entityName` |
-| `ledger_entry` | `id`, `entryDate`, `memo`, `entityName` |
+| `invoice` | `direction`, `documentKind`, `documentNumber`, `partnerName` |
+| `bank_movement` | `bankAccountId`, `movementDate`, `amount`, `side`, `bankAccountCurrency` |
+| `ledger_entry` | `entryDate`, `memo` |
 
 ```json
 {
   "id": "7c1e4b2a-9d3f-4a6e-8b0c-5f2d1e7a9c34",
   "organizationId": "9b4e2f1a-6c3d-4e8b-a0f2-1d7c5e9b3a68",
-  "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
   "text": "Ask the supplier for the credit note",
+  "description": "The invoice bills 12 units; only 10 arrived.",
   "status": "in_progress",
   "completedAt": null,
   "assigneeUserId": "5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93",
@@ -98,18 +118,19 @@ You cannot link a new Task to an Unbooked Ledger Entry or a cancelled Scheduled 
     "image": null
   },
   "dueDate": "2026-10-30",
-  "invoiceId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
-  "bankMovementId": null,
-  "ledgerEntryId": null,
-  "link": {
-    "kind": "invoice",
-    "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
-    "direction": "payable",
-    "documentKind": "invoice",
-    "documentNumber": "10452",
-    "partnerName": "Proveedora Andina SpA",
-    "entityName": "Andes Chile SpA"
-  },
+  "links": [
+    {
+      "taskLinkId": "c41d7e2a-8b3f-4a9c-9e1d-6f2b0a7c3e58",
+      "kind": "invoice",
+      "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+      "direction": "payable",
+      "documentKind": "invoice",
+      "documentNumber": "10452",
+      "partnerName": "Proveedora Andina SpA",
+      "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
+      "entityName": "Andes Chile SpA"
+    }
+  ],
   "createdAt": "2026-10-20T14:02:11.000Z",
   "updatedAt": "2026-10-22T09:15:40.000Z"
 }
@@ -117,7 +138,7 @@ You cannot link a new Task to an Unbooked Ledger Entry or a cancelled Scheduled 
 
 ## GET `/api/organizations/:organizationId/tasks`
 
-List the Tasks of the Organization, in every state and across every Entity. Pass one link filter to list only the Tasks of that record. Pass `assignee=me` to keep only the Tasks assigned to you, the User of the session or of the API key.
+List the Tasks of the Organization, in every state and across every Entity. Pass one record filter to list only the Tasks related to that record. Pass `assignee=me` to keep only the Tasks assigned to you, the User of the session or of the API key.
 
 Tasks come ordered by `dueDate`, nearest first, with the Tasks that have no due date last. Ties go to the oldest Task first.
 
@@ -125,12 +146,12 @@ Tasks come ordered by `dueDate`, nearest first, with the Tasks that have no due 
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `invoiceId` | UUID | No | Only Tasks linked to this Invoice. |
-| `bankMovementId` | UUID | No | Only Tasks linked to this Bank Movement. |
-| `ledgerEntryId` | UUID | No | Only Tasks linked to this Ledger Entry. |
+| `invoiceId` | UUID | No | Only Tasks related to this Invoice. |
+| `bankMovementId` | UUID | No | Only Tasks related to this Bank Movement. |
+| `ledgerEntryId` | UUID | No | Only Tasks related to this Ledger Entry. |
 | `assignee` | string | No | `me`: only the Tasks assigned to the caller. |
 
-Send at most one link filter. Sending two returns `400`. `assignee` combines with a link filter.
+Send at most one record filter. Sending two returns `400`. A Task matches when any of its Task Links names the record. `assignee` combines with a record filter.
 
 **Response** `200`: an array of Task objects.
 
@@ -152,7 +173,7 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/tasks/assigne
 
 ## POST `/api/organizations/:organizationId/tasks`
 
-Create a Task. It starts in `todo`, unassigned, with no due date. You supply the `id`, so a retried request with the same id returns `409` instead of creating a duplicate.
+Create a Task. It starts in `todo`, unassigned, with no due date and an empty description. You supply the `id`, so a retried request with the same id returns `409` instead of creating a duplicate.
 
 **Body**
 
@@ -160,14 +181,20 @@ Create a Task. It starts in `todo`, unassigned, with no due date. You supply the
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied idempotency id. |
 | `text` | string | Yes | 1 to 500 characters after trimming. |
-| `entityId` | UUID | With a link | The Entity that holds the linked record. Send it exactly when you send a link id. |
-| `invoiceId` | UUID | No | Link to this Invoice. |
-| `bankMovementId` | UUID | No | Link to this Bank Movement. |
-| `ledgerEntryId` | UUID | No | Link to this Ledger Entry. |
+| `links` | array | No | The records to relate the Task to. Omit it, or send `[]`, for a stand-alone Task. |
 
-Send at most one link id. Omit all three, and `entityId`, for a stand-alone Task. Sending `entityId` without a link id, or a link id without `entityId`, returns `400`.
+Each item of `links` names one record:
 
-**Response** `201`: the created Task object, including `link`.
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entityId` | UUID | Yes | The Entity that holds the record. |
+| `invoiceId` | UUID | One of three | Relate to this Invoice. |
+| `bankMovementId` | UUID | One of three | Relate to this Bank Movement. |
+| `ledgerEntryId` | UUID | One of three | Relate to this Ledger Entry. |
+
+Each item sends exactly one of `invoiceId`, `bankMovementId`, or `ledgerEntryId`. An item with none or several, or two items that name the same record, return `400`. The items can name records of different Entities of the Organization. If one record is refused, no Task is created.
+
+**Response** `201`: the created Task object, including `links`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/tasks" \
@@ -176,20 +203,25 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/tasks
   -d '{
     "id": "7c1e4b2a-9d3f-4a6e-8b0c-5f2d1e7a9c34",
     "text": "Ask the supplier for the credit note",
-    "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
-    "invoiceId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b"
+    "links": [
+      {
+        "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
+        "invoiceId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b"
+      }
+    ]
   }'
 ```
 
 ## PATCH `/api/organizations/:organizationId/tasks/:taskId`
 
-Edit the text of a Task, move it to another state, assign or unassign it, or set or clear its due date. Send at least one field.
+Edit the text or description of a Task, move it to another state, assign or unassign it, or set or clear its due date. Send at least one field.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `text` | string | No | New text, 1 to 500 characters after trimming. |
+| `description` | string | No | New description, up to 10,000 characters. `""` clears it. |
 | `status` | string | No | `todo`, `in_progress`, or `completed`. |
 | `assigneeUserId` | UUID or null | No | A staff Member of the Organization. `null` unassigns the Task. |
 | `dueDate` | string or null | No | `YYYY-MM-DD`. `null` clears the due date. |
@@ -205,6 +237,35 @@ curl -X PATCH "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/task
     "assigneeUserId": "5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93",
     "dueDate": "2026-10-30"
   }'
+```
+
+## POST `/api/organizations/:organizationId/tasks/:taskId/links`
+
+Relate a Task to one more record. The body is one Task Link item, as in the `links` of a [create](#post-api-organizations-organizationid-tasks): the `entityId` of the record's Entity and exactly one of `invoiceId`, `bankMovementId`, or `ledgerEntryId`.
+
+Relating a record the Task already relates to changes nothing and returns the Task as it is.
+
+**Response** `201`: the Task object, with every Task Link.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/tasks/$TASK_ID/links" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -d '{
+    "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
+    "bankMovementId": "8d2f6a1c-4e7b-4c3a-9f5e-0b1d7a2c6e49"
+  }'
+```
+
+## DELETE `/api/organizations/:organizationId/tasks/:taskId/links/:taskLinkId`
+
+Remove one relation from a Task. Read `taskLinkId` from the Task's `links`. The Task and the record stay.
+
+**Response** `200`: the Task object, with its remaining Task Links.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/tasks/$TASK_ID/links/$TASK_LINK_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
 ## DELETE `/api/organizations/:organizationId/tasks/:taskId`
@@ -225,7 +286,8 @@ Task domain errors carry a `code` and a `params` object in the body.
 | Status | `code` | `params` | When |
 | --- | --- | --- | --- |
 | `404` | `TASK_NOT_FOUND_ERROR` | `{ taskId }` | No Task with that id exists in the Organization. |
-| `404` | `TASK_LINKED_RECORD_NOT_FOUND_ERROR` | `{ linkKind, recordId }` | The linked record does not exist, belongs to an Entity other than `entityId` or outside the Organization, or is an Unbooked or cancelled Ledger Entry. `linkKind` is `invoice`, `bank_movement`, or `ledger_entry`. |
+| `404` | `TASK_LINKED_RECORD_NOT_FOUND_ERROR` | `{ linkKind, recordId }` | The related record does not exist, belongs to an Entity other than its `entityId` or outside the Organization, or is an Unbooked or cancelled Ledger Entry. `linkKind` is `invoice`, `bank_movement`, or `ledger_entry`. |
+| `404` | `TASK_LINK_NOT_FOUND_ERROR` | `{ taskId, taskLinkId }` | The Task has no Task Link with that id. |
 | `409` | `TASK_ALREADY_EXISTS_ERROR` | `{ taskId }` | A Task with the supplied `id` already exists. |
 | `422` | `TASK_ASSIGNEE_NOT_STAFF_ERROR` | `{ userId }` | `assigneeUserId` is not a staff Member of the Organization. |
 
@@ -245,11 +307,11 @@ Task domain errors carry a `code` and a `params` object in the body.
 | Code | Meaning |
 | --- | --- |
 | `200` | Success (GET, PATCH, DELETE). |
-| `201` | Task created. |
-| `400` | Validation error: blank or too-long `text`, an unknown `status`, a malformed `dueDate`, more than one link id or filter, `entityId` without a link or a link without `entityId`, or an empty PATCH body. |
+| `201` | Task created, or a record related to it. |
+| `400` | Validation error: blank or too-long `text`, a `description` over 10,000 characters, an unknown `status`, a malformed `dueDate`, a Task Link item without exactly one record id or without `entityId`, the same record twice in `links`, more than one record filter, or an empty PATCH body. |
 | `401` | Unauthenticated. |
 | `403` | Caller does not hold the `staff` Role in the Organization, or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
-| `404` | Task or linked record not found. |
+| `404` | Task, Task Link, or related record not found. |
 | `409` | A Task with that `id` already exists. |
 | `422` | The assignee is not a staff Member of the Organization. |
 | `429` | Rate limit exceeded (25,000 requests per hour per API key). |

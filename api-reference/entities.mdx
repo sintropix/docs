@@ -183,6 +183,7 @@ Move an Entity to another Organization. Members of the old Organization lose acc
     - Has Ledger Lines that carry a Dimension Value.
     - Has a Source Feed or a bank feed that routes an Integration of its Organization.
     - Has a Book that a Google Sheets Integration exports.
+    - Has Ledger Accounts, because each one maps to a [Group Account](/api-reference/chart-of-accounts#the-group-chart) of its Organization.
   - An Entity whose representing Partner another Entity uses returns `409` with `ENTITY_MOVE_REPRESENTING_PARTNER_IN_USE_ERROR`. `params.partnerId` names that Partner.
   - When the target Organization already has a Partner with the Entity's tax identity, the move returns `409` with `ENTITY_MOVE_TAX_IDENTITY_TAKEN_ERROR`. `params.partnerId` names that Partner.
 
@@ -239,7 +240,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ENTITY_SELF_PARENT_ERROR` | An Entity cannot control itself |
 | `ENTITY_PARENT_CYCLE_ERROR` | Parent would create a control cycle |
 | `ENTITY_MOVE_IN_GROUP_ERROR` | The Entity has a parent Entity or a subsidiary, so it can't move to another Organization |
-| `ENTITY_MOVE_USES_ORGANIZATION_DATA_ERROR` | The Entity uses Partners, Dimension Values, or Integrations of its Organization, so it can't move to another Organization |
+| `ENTITY_MOVE_USES_ORGANIZATION_DATA_ERROR` | The Entity uses Partners, Dimension Values, Integrations, or Group Accounts of its Organization, so it can't move to another Organization |
 | `ENTITY_MOVE_REPRESENTING_PARTNER_IN_USE_ERROR` | Another Entity uses the Partner that represents this Entity, so it can't move to another Organization |
 | `ENTITY_MOVE_TAX_IDENTITY_TAKEN_ERROR` | The target Organization already has a Partner with the Entity's tax identity |
 | `ENTITY_TAX_IDENTITY_TAKEN_ERROR` | Another Partner of the Organization already holds the Entity's corrected tax identity |

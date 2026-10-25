@@ -1,20 +1,27 @@
 ---
-title: "Notifications API: Mentions and the Signed-in User's Inbox"
+title: "Notifications API: Mentions, Thread Replies, and the Signed-in User's Inbox"
 sidebarTitle: "Notifications"
-description: "Mention Members in the Organization Chat, then list, count, and mark read the Notifications of the signed-in User in one Organization."
+description: "Mention Members in the Organization Chat, follow the ERP Threads you take part in, then list, count, and mark read the Notifications of the signed-in User in one Organization."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
 A Notification tells one User that something in an Organization needs their attention. Each User has their own Notifications in each Organization they belong to. The app shows them in the **Bandeja**, below **Chat** in the sidebar, with a badge that counts the unread ones.
 
-Today a Notification has one kind, `mention`: another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. More kinds may come later, so read `kind` before you read the rest of a Notification.
+A Notification has one of two kinds:
+
+| `kind` | When you get it | In the **Bandeja** |
+| --- | --- | --- |
+| `mention` | Another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. | The message that mentions you. |
+| `thread_reply` | Someone replied in an ERP Thread you [take part in](#follow-the-erp-threads-you-take-part-in), without mentioning you. | "*Autor* respondió en un hilo en el que participas", naming the reply's author. |
+
+More kinds may come later, so read `kind` before you read the rest of a Notification.
 
 Every Role can use the routes on this page, `viewer` included. Each route reads or marks only the caller's own Notifications: the User of the session or of the API key.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/notifications"
-  note="It shows the signed-in User's Notifications in the Entity's Organization. Opening a mention marks it read and opens the Chat on that message's ERP Thread."
+  note="It shows the signed-in User's Notifications in the Entity's Organization. Opening a Notification marks it read and opens the Chat on that message's ERP Thread."
 />
 
 ## Mention a Member
@@ -39,6 +46,8 @@ When the message is saved, each User it mentions gets one `mention` Notification
 | `422` | `ERP_MESSAGE_MENTION_OF_SELF_ERROR` | `{}` | The message mentions its author. |
 | `422` | `ERP_MESSAGE_MENTION_OF_NON_MEMBER_ERROR` | `{ userId }` | The message mentions a User with no Membership in the Organization, for example someone removed after you read the Members. |
 
+In the app, type `@` and pick a name, or type the name in full: `@erwin`, a Member's full name, or their first name. Case and accents don't matter. The typed name becomes the mention when a space or punctuation follows it, or when you send, as long as exactly one Member answers to it. A name that several Members share stays plain text.
+
 ### GET `/api/organizations/:organizationId/chat/members`
 
 List the Members a message can mention, ordered by name. Leave yourself out when you offer the list to the author.
@@ -50,24 +59,42 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/chat/members"
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
+## Follow the ERP Threads you take part in
+
+When someone replies in an ERP Thread, its Participants get a `thread_reply` Notification, even when nobody tagged them. It works like following a thread in Slack. You don't follow a thread by hand: you become a Participant by taking part.
+
+The Participants of an ERP Thread are:
+
+- The author of its first message.
+- Everyone who has replied in it.
+- Everyone mentioned in any of its messages.
+
+Only current Members of the Organization count. These rules apply when a reply is sent:
+
+- The author of the reply gets no Notification.
+- A Participant the reply mentions gets only the `mention`, not a second Notification.
+- Each User gets at most one Notification per message.
+- Erwin is never a Participant. His answer in an ERP Thread notifies its Participants once, when his text arrives, not while he shows his progress. A later edit of his answer doesn't notify again.
+
 ## The Notification object
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | UUID | Notification id. |
-| `kind` | string | `mention`. |
+| `kind` | string | `mention` or `thread_reply`. |
 | `readAt` | ISO datetime or null | When the User first read it. `null` while unread. |
 | `createdAt` | ISO datetime | When the Notification was written. |
-| `message` | object | On a `mention`: the message that mentioned the User. See below. |
+| `message` | object | On a `mention`, the message that mentioned the User. On a `thread_reply`, the reply. See below. |
 
-The `message` object of a `mention` carries:
+The `message` object carries:
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | UUID | The message id. |
 | `text` | string | The message text, with each mention as a `<@userId>` token. |
 | `parentMessageId` | UUID or null | The main Chat message the reply answers, or `null` for a message of the main Chat. |
-| `authorName` | string | Name of the Member who wrote it. |
+| `byErwin` | boolean | Whether Erwin wrote the message. |
+| `authorName` | string | Name of the Member who wrote it, or Erwin's when `byErwin` is `true`. |
 | `mentionedUserIds` | array of UUID | The Users the message mentions. |
 | `mentionedUserNames` | array of string | Their names, in the same order as `mentionedUserIds`. Use them to draw each token as a name. |
 | `createdAt` | ISO datetime | When the message was sent. |
@@ -82,6 +109,7 @@ The `message` object of a `mention` carries:
     "id": "4f1d8a2c-6b9e-4c3a-8d7f-2e5b1a9c0d64",
     "text": "<@5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93> ¿puedes revisar la factura 10452?",
     "parentMessageId": null,
+    "byErwin": false,
     "authorName": "Tomás Fuentes",
     "mentionedUserIds": ["5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93"],
     "mentionedUserNames": ["Camila Rojas"],

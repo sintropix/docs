@@ -260,7 +260,7 @@ List Invoices and Ledger Entries that could plausibly settle this Movement (per 
 | `entry` | object | `{ id, entryDate, memo }` of the entry the line belongs to. |
 | `account` | object | `{ id, code, name }` of the Ledger Account the line sits on. |
 | `partner` | object \| null | `{ id, name, legalName, taxId }` when the line names a Partner. |
-| `invoice` | object \| null | `{ id, documentNumber, issueDate }` when the line is an Invoice's control line. |
+| `invoice` | object \| null | `{ id, documentNumber, issueDate, isExpenseRendition }` when the line is an Invoice's control line. `isExpenseRendition` is `true` for an [Expense Rendition](/api-reference/expense-claims), which the app names **Rendición** instead of **Factura**. |
 
 Pass the candidate's `line.id` as `lineId` to `POST /movements/:movementId/match`.
 
@@ -276,7 +276,7 @@ Return the Movement's current booking or match state and the Ledger Lines that d
 | `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, `partnerWebsite` (the Partner's website as a bare domain, or `null`), and `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`). |
 | `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
 | `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount`. `null` when the booking touches no open-item account. |
-| `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.entryDate`, `counterpart.invoiceDocumentNumber` (nullable), and `counterpart.openAmount` added. `counterpart.openAmount` is the balance still unsettled on the counterpart line, such as an Invoice, after every Allocation against it. It is nullable. A value above `0` means the Movement settled the counterpart only in part. |
+| `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.entryDate`, `counterpart.invoiceDocumentNumber` (nullable), `counterpart.invoiceIsExpenseRendition` (boolean), and `counterpart.openAmount` added. `counterpart.invoiceIsExpenseRendition` is `true` when the counterpart is an [Expense Rendition](/api-reference/expense-claims). `counterpart.openAmount` is the balance still unsettled on the counterpart line, such as an Invoice, after every Allocation against it. It is nullable. A value above `0` means the Movement settled the counterpart only in part. |
 
 ## GET `/movements/:movementId/erwin-context`
 
@@ -517,7 +517,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 A Movement can pay more than the document you match it to. For example, a customer transfers 1,000,000 against an invoice with 700,000 open. The extra 300,000 might pay another invoice, belong to another Partner, or cover an invoice that has not arrived yet. Sintropix doesn't credit it to the invoice's Partner. It books the rest on the Entity's Suspense Account instead.
 
-The Suspense Account is an `asset` Open-Item Account with sub-type `suspense`, shown as **Asignación pendiente** in the starter chart. Each Entity has at most one. See [Chart of Accounts](/api-reference/chart-of-accounts) to create or mark it. Its lines carry no Partner, and only Match, Assign, and Unassign write them.
+The Suspense Account is an `asset` Open-Item Account with sub-type `suspense`. Each Entity has at most one. See [Chart of Accounts](/api-reference/chart-of-accounts) to create or mark it. Its lines carry no Partner, and only Match, Assign, and Unassign write them.
 
 The flow for the example above:
 

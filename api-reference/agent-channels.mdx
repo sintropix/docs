@@ -186,7 +186,7 @@ To change a schedule, ask Erwin. He can change its instructions, hours, time zon
 
 Every Organization has a Chat in the app, where its members write to each other in ERP Messages and answer them in ERP Threads. Erwin answers there too, when someone tags him, and he follows the ERP Threads he has written in.
 
-To tag Erwin, type `@` in a message or a reply and pick **Erwin**. He's first in the list, ahead of the Organization's members. Any member can tag him, whatever their Role, `viewer` included.
+To tag Erwin, type `@` in a message or a reply and pick **Erwin**, or type `@erwin` in full. He's first in the list, ahead of the Organization's members. The composer shows each tag as a chip, and Backspace right after a tag deletes it whole. Any member can tag him, whatever their Role, `viewer` included.
 
 - **Where he answers.** In the ERP Thread of the message you tagged him in. Tag him in a message of the main Chat, and he answers in its ERP Thread. Tag him in a reply, and he answers in that ERP Thread.
 - **What he reads.** The first time, the whole ERP Thread. After that, what was said since his last message.
@@ -194,7 +194,7 @@ To tag Erwin, type `@` in a message or a reply and pick **Erwin**. He's first in
 - **Where only a tag reaches him.** A new message in the main Chat, and a reply in an ERP Thread he hasn't written in. Without a tag, he doesn't read them.
 - **While he works.** His reply appears at once with what he's doing, such as *Pensando*, and fills in with his answer without a reload. A new tag in the same ERP Thread, or a reply there that he answers, interrupts the answer that runs, and his next answer takes every message sent in the meantime. The Chat has no **Detener** button yet.
 - **His answer.** It shows **Erwin** and his own avatar, and its text renders as markdown. An answer longer than one ERP Message holds continues in further replies.
-- **Who reads it.** Every member of the Organization reads the Chat, `client` and `viewer` members included, so Erwin writes for all of them. He never tags a person: he names people, and his messages notify no one.
+- **Who reads it.** Every member of the Organization reads the Chat, `client` and `viewer` members included, so Erwin writes for all of them. He never tags a person: he names people. His answer notifies the ERP Thread's [Participants](/api-reference/notifications#follow-the-erp-threads-you-take-part-in), as any reply does.
 
 Erwin works on the Entities of the Chat's Organization, as in a Slack channel. See [Which company Erwin works on](#which-company-erwin-works-on). His changes appear in the [Audit Trail](/api-reference/audit-trail) with `erwin` as the declared actor. He can't receive files in the Chat yet.
 
@@ -219,7 +219,7 @@ Only Erwin writes his progress, and only Erwin updates a message, with `PATCH /o
 
 ## Choose the agent's model
 
-In a bound Slack channel, anyone in the channel can pick the model the Sintropix agent uses with the `/model` slash command. In the Organization's Chat, any member can do the same by tagging Erwin with it, for example `@Erwin /model opus`.
+In a bound Slack channel, anyone in the channel can pick the model the Sintropix agent uses with the `/model` slash command. In the Organization's Chat, any member can do the same: send `/model opus` as a message, and the app tags Erwin for you. Through the API, tag him in the text, for example `<@erwin> /model opus`. The Chat knows no other command: a message that starts with another `/word` stays in the composer with "No existe el comando /word." and isn't sent.
 
 | Command | Result |
 | --- | --- |

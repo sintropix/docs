@@ -29,7 +29,7 @@ While a claim waits, it is no Invoice. It isn't listed among the Expense Renditi
   - `approved`: the claim has its Expense Rendition, in `invoiceId`.
   - `rejected`: the claim has a `rejectionReason`.
 
-Who approved or rejected a claim, and when, is in the [Audit Trail](/api-reference/audit-trail).
+Who approved or rejected a claim, and when, is in the [Audit Trail](/api-reference/audit-trail). Once a claim is approved, the **Actividad** of its Expense Rendition shows who submitted it and who approved it.
 
 ## Before you submit claims
 
@@ -42,6 +42,8 @@ Approving needs two settings. Set them in **Configuración → Rendiciones**, at
    - The supplier payable account, which a `factura` claim debits. It must have the sub-type `payable`, and it must be the account the Entity's SII invoices credit, so that you can [match](/api-reference/allocations) the two lines later.
 
 You can submit claims before you set either one. Only approving and rejecting need them.
+
+In the app, each pick saves at once, with no **Guardar** button. The booking setting saves once the Source and both accounts are set.
 
 While the setting names a Source, you can't unmark the Source as one that holds Expense Renditions, or delete it. Sintropix refuses both with `409` and `SOURCE_PINNED_ERROR`. Each account also keeps its sub-type while the setting names it. To change any of them, set another one first.
 
@@ -254,14 +256,14 @@ curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claim-set
 
 ## GET `/organizations/:organizationId/expense-claim-approver`
 
-Read the Organization's Approver, and the members who can be one.
+Read the Organization's Approver, and the members offered as one.
 
 **Response**
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `approver` | object or null | The Approver, or `null` when the Organization has none. |
-| `candidates` | array | Every member with the `staff` or `client` Role. |
+| `candidates` | array | The members with the `client` Role. Sintropix staff are not offered, though a `staff` member set as Approver through `PUT` stays valid and shows as `approver`. |
 
 `approver` and each element of `candidates` carry `userId` (uuid), `name` (string), and `email` (string).
 
