@@ -1,7 +1,7 @@
 ---
 title: "Sintropix SII API: Chilean DTE Documents and References"
 sidebarTitle: "SII"
-description: "List Chilean SII document types, fetch a DTE, and manage cross-DTE references for Chilean tax documents linked to Invoices in Sintropix."
+description: "List Chilean SII document types, fetch a DTE, manage cross-DTE references, and read the Sales Summaries the SII states as monthly totals for Chilean tax documents linked to Invoices in Sintropix."
 ---
 
 The SII (Servicio de Impuestos Internos) is Chile's national tax authority. A DTE (Documento Tributario Electrónico) is a Chilean e-invoice or credit note issued through the SII. Sintropix imports DTEs from an SII feed and exposes them through the endpoints on this page so callers can read them and manage cross-DTE references (for example, a credit note referencing an original invoice). Sintropix does not emit DTEs on the caller's behalf here; issuance happens in the SII portal or through an integration that populates the feed.
@@ -48,7 +48,8 @@ Fetch a single DTE with its detail, including its amounts and any references to 
 | `entityId` | uuid | Owning Entity. |
 | `invoiceId` | uuid or null | The Invoice this DTE backs. Null for a document the books do not track as a claim (a boleta, a guía). |
 | `dteTypeCode` | string | SII document type code. |
-| `folio` | integer | The number the SII assigned. |
+| `folio` | integer or null | The number the SII assigned. `null` only on the DTE of a [Sales Summary](#sales-summaries) Invoice. |
+| `salesSummaryId` | uuid or null | The [Sales Summary](#sales-summaries) the DTE lands. `null` on every other DTE. |
 | `issuerRut` | string | Issuer RUT, canonical form (`76123456-0`). |
 | `receiverRut` | string or null | Receiver RUT. |
 | `issuerName` | string or null | Issuer name as printed. |
@@ -64,8 +65,8 @@ Fetch a single DTE with its detail, including its amounts and any references to 
 | `withheldIvaAmount` | integer or null | The part of `taxAmount` the buyer withholds, minor units. Mostly stated on a factura de compra (type `46`). Null when the DTE withholds no IVA. |
 | `externalRef` | string or null | The id an external provider gave the document. Null when entered by hand. |
 | `metadata` | array | Additional Information lines, `{ "label": string, "value": string }`. |
-| `statedDteReferences` | array | References this DTE makes to other DTEs. Each has `targetDteId` (uuid), `referenceCode` (integer or null), `targetDteTypeCode` (string), and `targetFolio` (integer). |
-| `receivedDteReferences` | array | References other DTEs make to this one. Each has `dteId` (uuid, the referencing DTE), `referenceCode` (integer or null), `referencingDteTypeCode` (string), and `referencingFolio` (integer). |
+| `statedDteReferences` | array | References this DTE makes to other DTEs. Each has `targetDteId` (uuid), `referenceCode` (integer or null), `targetDteTypeCode` (string), and `targetFolio` (integer, or null when the target lands a Sales Summary). |
+| `receivedDteReferences` | array | References other DTEs make to this one. Each has `dteId` (uuid, the referencing DTE), `referenceCode` (integer or null), `referencingDteTypeCode` (string), and `referencingFolio` (integer, or null when the referencing DTE lands a Sales Summary). |
 | `createdAt` | timestamp | Creation time. |
 | `updatedAt` | timestamp | Last update time. |
 
@@ -82,6 +83,7 @@ Example response for a credit note that voids an invoice:
   "invoiceId": "8a9b0c1d-2e3f-4a5b-8c6d-7e8f9a0b1c2d",
   "dteTypeCode": "61",
   "folio": 1187,
+  "salesSummaryId": null,
   "issuerRut": "76123456-0",
   "receiverRut": "77654321-7",
   "issuerName": "Servicios Cloud SpA",
@@ -138,11 +140,99 @@ Remove a previously added reference.
 
 **Response:** the updated DTE detail, as returned by `GET /sii/dte/:dteId`.
 
+## Sales Summaries
+
+For some sales types, the SII's Registro de Compras y Ventas (RCV) states no documents, only one total per month. The most common is type `48`, the vouchers of card payments. A Sales Summary holds the SII's figures for one of these types in one Tax Period of an Entity: how many documents the total counts, and the net, exempt, tax, and total amounts.
+
+The total-only types are `35`, `38`, `47`, `48`, `105`, `919`, `920`, `922`, and `924`. Boletas (`39` and `41`) are not among them, because the SII lists each boleta; see [SII Mirror boletas](/api-reference/source-feeds#sii-mirror-boletas).
+
+A [Source Feed](/api-reference/source-feeds#sii-mirror-sales-summaries) of family `dte` on an `sii_mirror` Integration writes the Sales Summaries and lands each one as receivable Invoices, which you book like any other sale. Only a Sync writes them. When the SII changes a figure, the Sync writes the new one over the stored one, and the [Audit Trail](/api-reference/audit-trail) keeps every earlier figure.
+
+### The Sales Summary object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Sales Summary id. |
+| `entityId` | uuid | Owning Entity. |
+| `taxPeriod` | string | The month, `YYYY-MM`. |
+| `dteTypeCode` | string | The total-only SII document type. |
+| `documentCount` | integer | How many documents the SII counts in the total. Zero or more. |
+| `currency` | string | ISO 4217 code. |
+| `netAmount` | integer | Net base, minor units of `currency`. |
+| `exemptAmount` | integer | Exempt part of the base, minor units. |
+| `taxAmount` | integer | Tax amount, minor units. |
+| `total` | integer | Total, minor units. |
+| `createdAt` | timestamp | When a Sync first wrote it. |
+| `updatedAt` | timestamp | When its figures last changed. |
+
+### GET `/sales-summaries`
+
+List the Entity's Sales Summaries, newest Tax Period first, then by `dteTypeCode`.
+
+**Response:** an array of Sales Summary objects.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/sales-summaries" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+### GET `/sales-summaries/:salesSummaryId`
+
+Fetch one Sales Summary with the Invoices that land it.
+
+**Response:** the Sales Summary object plus `invoices`, the Invoices that land it, oldest first. The first one lands the SII's figures, and each later one lands a change the SII made after the earlier ones were booked. Each item carries `id`, `documentNumber`, `documentKind`, `total`, `issueDate`, `controlLineId` (`null` until the Invoice is booked), `excludedAt`, and `createdAt`.
+
+```json
+{
+  "id": "6d2b8f4a-1c3e-4a7b-9e5d-0f8c2a6b4e19",
+  "entityId": "b2f0c1d4-7e8a-4b9c-8d1e-2f3a4b5c6d7e",
+  "taxPeriod": "2026-09",
+  "dteTypeCode": "48",
+  "documentCount": 270,
+  "currency": "CLP",
+  "netAmount": 4340504,
+  "exemptAmount": 0,
+  "taxAmount": 824696,
+  "total": 5165200,
+  "createdAt": "2026-10-02T06:10:11.204Z",
+  "updatedAt": "2026-10-18T06:10:09.877Z",
+  "invoices": [
+    {
+      "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "documentNumber": "48-2026-09",
+      "documentKind": "invoice",
+      "total": 4986700,
+      "issueDate": "2026-09-30",
+      "controlLineId": "7f8e9d0c-1b2a-4c3d-8e4f-5a6b7c8d9e0f",
+      "excludedAt": null,
+      "createdAt": "2026-10-02T06:10:11.204Z"
+    },
+    {
+      "id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+      "documentNumber": "48-2026-09-2",
+      "documentKind": "invoice",
+      "total": 178500,
+      "issueDate": "2026-09-30",
+      "controlLineId": null,
+      "excludedAt": null,
+      "createdAt": "2026-10-18T06:10:09.877Z"
+    }
+  ]
+}
+```
+
+### Sales Summary errors
+
+| Status | `code` | `params` | When |
+| --- | --- | --- | --- |
+| `404` | `SALES_SUMMARY_NOT_FOUND_ERROR` | `{ salesSummaryId }` | No Sales Summary with that id exists on the Entity. |
+| `409` | `DTE_HELD_BY_SALES_SUMMARY_ERROR` | `{ dteId }` | A write or delete of the DTE of a Sales Summary Invoice, through [`PUT` or `DELETE /invoices/:invoiceId/dte`](/api-reference/invoices#put-invoices-invoiceid-dte). The SII owns these DTEs, so only a Sync writes them. |
+
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | `200` | Success. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity, DTE, or target DTE not found. |
+| `404` | Entity, DTE, target DTE, or Sales Summary not found. |
 | `409` | Duplicate reference or invalid reference target (for example, a DTE referencing itself). |
