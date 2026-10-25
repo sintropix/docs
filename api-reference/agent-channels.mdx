@@ -1,12 +1,14 @@
 ---
 title: "Sintropix Agent Channels API: Bind an Outside Place to an Organization"
 sidebarTitle: "Agent Channels"
-description: "Staff-only endpoints to bind a channel on an outside platform (Slack today) to one Organization, so the Sintropix agent knows which client a thread is about."
+description: "Staff-only endpoints to bind a channel on an outside platform (Slack today) to one Organization, so the Sintropix agent knows which client a thread is about. Also how to work with Erwin in Slack and in the Organization's Chat."
 ---
 
 An Agent Channel binds a place on an outside platform (a Slack channel today) to exactly one [Organization](/api-reference/organizations). Staff creates the binding once. The Sintropix agent reads it on each message, and works for that Organization in the place.
 
 A place answers one Organization, with every Entity of it. An Organization can hold many places (for example, one Slack channel per topic). Rebinding a place to a different Organization is a delete then a create, so an old binding never reads as the new one. A thread that started before the move stays with the first Organization: the agent asks people to open a new thread.
+
+The Organization's own Chat in the app needs no Agent Channel: every Organization has one, and Erwin answers there when someone tags him. See [Work with Erwin in the Chat](#work-with-erwin-in-the-chat).
 
 A place has no default Entity: the agent works on the Entity each request is about. See [Which company Erwin works on](#which-company-erwin-works-on).
 
@@ -24,7 +26,7 @@ In the app, staff manages the same bindings in **Configuración → Canales del 
 | --- | --- | --- |
 | `id` | uuid | Agent Channel id. |
 | `organizationId` | uuid | Owning Organization. |
-| `platform` | `slack` | The outside platform. One value today; WhatsApp and the in-app chat add a value when they arrive. |
+| `platform` | `slack` | The outside platform. One value today; WhatsApp adds a value when it arrives. |
 | `channelId` | string | The id the platform gives the place (for Slack, the channel id such as `C0123ABC`). Unique per `platform`. |
 | `label` | string | The name staff reads the place by, for example `#bulk-contabilidad`. Free text. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
@@ -180,9 +182,42 @@ Each run posts its first message straight into the channel as a new message, usu
 
 To change a schedule, ask Erwin. He can change its instructions, hours, time zone, model, or channel. Changes apply from the next run. A run already underway, and the threads of past runs, stay where they started.
 
-## Choose the agent's model in a Slack channel
+## Work with Erwin in the Chat
 
-In a bound Slack channel, anyone in the channel can pick the model the Sintropix agent uses with the `/model` slash command.
+Every Organization has a Chat in the app, where its members write to each other in ERP Messages and answer them in ERP Threads. Erwin answers there too, when someone tags him.
+
+To tag Erwin, type `@` in a message or a reply and pick **Erwin**. He's first in the list, ahead of the Organization's members. Any member can tag him, whatever their Role, `viewer` included.
+
+- **Where he answers.** In the ERP Thread of the message you tagged him in. Tag him in a message of the main Chat, and he answers in its ERP Thread. Tag him in a reply, and he answers in that ERP Thread.
+- **What he reads.** The first time, the whole ERP Thread. After that, what was said since his last message. To get his attention again later in the same ERP Thread, tag him again.
+- **While he works.** His reply appears at once with what he's doing, such as *Pensando*, and fills in with his answer without a reload. A new tag in the same ERP Thread interrupts the answer that runs, and his next answer takes every message sent in the meantime. The Chat has no **Detener** button yet.
+- **His answer.** It shows **Erwin** and his own avatar, and its text renders as markdown. An answer longer than one ERP Message holds continues in further replies.
+- **Who reads it.** Every member of the Organization reads the Chat, `client` and `viewer` members included, so Erwin writes for all of them. He never tags a person: he names people, and his messages notify no one.
+
+Erwin works on the Entities of the Chat's Organization, as in a Slack channel. See [Which company Erwin works on](#which-company-erwin-works-on). His changes appear in the [Audit Trail](/api-reference/audit-trail) with `erwin` as the declared actor. He can't receive files in the Chat yet.
+
+### Tag Erwin through the API
+
+A message tags Erwin when its `text` holds the token `<@erwin>`, for example `"<@erwin> ¿cuánto le debemos a Proveedora Andina?"`. Write it with `POST /organizations/:organizationId/chat/messages`, from a session or an API key, as you write any ERP Message. The app shows the token as an `@Erwin` chip.
+
+Each ERP Message also carries two fields about Erwin:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `byErwin` | boolean | Whether Erwin wrote the message. |
+| `erwinProgress` | string or null | While Erwin writes his reply, what he's doing, such as `Pensando`. `null` once his answer is in, and always `null` on other messages. While it's set, `text` can be empty. |
+
+Only Erwin writes his progress, and only Erwin updates a message, with `PATCH /organizations/:organizationId/chat/messages/:messageId` on his own replies. Sintropix treats a write as Erwin's when it comes from an API key that declares `x-audit-actor: erwin`, so don't declare `erwin` for your own integration.
+
+| Code | Status | When |
+| --- | --- | --- |
+| `ERP_MESSAGE_PROGRESS_NOT_ERWIN_ERROR` | `403` | A message that isn't Erwin's sends `erwinProgress`. |
+| `ERP_MESSAGE_MENTION_BY_ERWIN_ERROR` | `422` | A write of Erwin's mentions a member. |
+| `ERP_MESSAGE_NOT_FOUND_ERROR` | `404` | A `PATCH` that isn't Erwin's, or on a message that isn't his. |
+
+## Choose the agent's model
+
+In a bound Slack channel, anyone in the channel can pick the model the Sintropix agent uses with the `/model` slash command. In the Organization's Chat, any member can do the same by tagging Erwin with it, for example `@Erwin /model opus`.
 
 | Command | Result |
 | --- | --- |
@@ -194,6 +229,7 @@ In a bound Slack channel, anyone in the channel can pick the model the Sintropix
 | `gpt-sol` (default) | OpenAI GPT-6.1 Sol |
 | `gpt-sol-ultra-fast` | OpenAI GPT-6.1 Sol on the Ultrafast tier. Answers faster. |
 | `opus` | Anthropic Claude Opus 5.5 |
+| `opus-fast` | Anthropic Claude Opus 5.5 in fast mode. Answers faster. |
 
 ```text
 /model opus
@@ -201,7 +237,7 @@ In a bound Slack channel, anyone in the channel can pick the model the Sintropix
 
 A change applies only to threads that start after it. A thread keeps the model it started with, so an open conversation never switches models midway. A scheduled task keeps its own model, so `/model` never changes an existing schedule. Ask Erwin to change a schedule's model instead.
 
-The choice belongs to one channel. Other channels bound to the same Organization keep their own model. An unknown name changes nothing, and the agent replies with the list of options. In an unbound channel or a direct message, the agent replies that no one speaks there and changes nothing.
+The choice belongs to one channel. Other channels bound to the same Organization keep their own model. In the Chat, the choice belongs to the Organization's Chat and applies to the ERP Threads Erwin starts answering after it. Erwin answers `/model` in the ERP Thread you sent it in, and answers any other new messages there as usual. An unknown name changes nothing, and the agent replies with the list of options. In an unbound channel or a direct message, the agent replies that no one speaks there and changes nothing.
 
 ## Status codes
 
