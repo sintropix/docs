@@ -88,6 +88,8 @@ Erwin never changes or books again an Invoice that was already in Sintropix, and
 
 A **rendition** (rendición) is an expense that a person paid with their own money for the company, which the company pays back. Sintropix records each rendition as a `payable` Invoice whose Partner is the person who paid, never the merchant. Erwin loads renditions from [Rindegastos](https://www.rindegastos.com) and books them, together with the renditions that people report to him in Slack.
 
+People can also submit a rendition in Sintropix itself, as an [Expense Claim](/api-reference/expense-claims). When the Approver approves it, Sintropix creates its Invoice already booked.
+
 Mark the Source of the renditions, such as `Rindegastos`, as one that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions). Its Invoices are then listed in **Rendiciones** instead of **Compras**, and `GET /invoices/pages` tells them apart with `isExpenseRendition`.
 
 ### Load Rindegastos

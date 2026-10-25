@@ -369,7 +369,7 @@ The kept Partner takes these shared fields from the merged Partner only where it
 
 In each Entity, the kept Partner takes the merged Partner's `defaultPurchaseAccountId` when it has none there. It takes the merged Partner's Booking Template and `booksAutomatically` only when it has no template in that Entity. Otherwise, Sintropix removes the merged Partner's template.
 
-The kept Partner also takes every [Payment Order](/api-reference/payment-batches) of the merged Partner, and its [Bank Details](#bank-details) when the kept Partner has none.
+The kept Partner also takes every [Payment Order](/api-reference/payment-batches) and [Expense Claim](/api-reference/expense-claims) of the merged Partner, and its [Bank Details](#bank-details) when the kept Partner has none.
 
 The merge also clears every [Follow-up](/api-reference/follow-ups) that names the merged Partner. A Partner merged earlier into the merged Partner now points at the kept Partner.
 
