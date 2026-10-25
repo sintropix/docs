@@ -10,7 +10,7 @@ A Bank Account is a real-world account an Entity holds at a financial institutio
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/banks/{bankAccountId}"
-  note="That page is the reconciliation view for the account. Account settings are at /{entityId}/settings/bank-accounts."
+  note="That page is the reconciliation view for the account. Account settings are at /{entityId}/settings/bank-accounts, and ?open={bankAccountId} there opens the account's edit."
 />
 
 ## Base path
@@ -65,6 +65,7 @@ Each Bank Account in the list carries:
 | `ledgerAccountId` | UUID | Mapped Ledger Account |
 | `currency` | string | ISO 4217 currency code |
 | `accountNumber` | string \| null | The number the bank knows the account by. `null` when not set. To be the **Cuenta de cargo** of a [Payment Batch](/api-reference/payment-batches#download-the-bank-file)'s BCI bank file, an account in `CLP` needs it. |
+| `bankCode` | string \| null | The bank that holds the account, as its CMF code from [`GET /banks`](/api-reference/reference-data#get-banks), for example `016` for BCI. `null` when not set. The app draws the account's logo from it, and only an account with `bankCode` `016` can be the **Cuenta de cargo** of a BCI bank file. |
 | `feed` | object \| null | Active feed, if any (see below) |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
@@ -93,6 +94,8 @@ The `feed` object, when present, contains:
     "kind": "bank",
     "ledgerAccountId": "0190d000-0000-7000-8000-000000000001",
     "currency": "CLP",
+    "accountNumber": "12345678",
+    "bankCode": "001",
     "feed": {
       "integrationId": "0192a8b4-0000-7000-8000-000000000001",
       "integrationKind": "fintoc",
@@ -138,6 +141,7 @@ Creates a new Bank Account.
 | `ledgerAccountId` | UUID | Yes | Ledger Account to map; type must match kind |
 | `currency` | string | Yes | ISO 4217 currency code |
 | `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. Omit or send `null` to leave it unset. |
+| `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. Omit or send `null` to leave it unset. |
 
 ### Response
 
@@ -148,7 +152,7 @@ Returns `201 Created` with the created Bank Account, including the `balance` and
 | Status | Meaning |
 | --- | --- |
 | 201 | Created |
-| 400 | Validation error or kind/type mismatch |
+| 400 | Validation error, kind/type mismatch, or an unknown `bankCode` (`BANK_ACCOUNT_BANK_UNKNOWN_ERROR`, with `params.bankCode`) |
 | 404 | Entity or Ledger Account not found |
 | 409 | `id` already exists |
 
@@ -165,7 +169,8 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
     "name": "Primary Checking",
     "kind": "bank",
     "ledgerAccountId": "0190d000-0000-7000-8000-000000000001",
-    "currency": "CLP"
+    "currency": "CLP",
+    "bankCode": "016"
   }'
 ```
 
@@ -175,7 +180,7 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
 PATCH /api/entities/:entityId/bank-accounts/:bankAccountId
 ```
 
-Updates the name and the account number of an existing Bank Account. Only `name` and `accountNumber` are editable through this endpoint.
+Updates the name, the account number, and the bank of an existing Bank Account. Only `name`, `accountNumber`, and `bankCode` are editable through this endpoint.
 
 ### Body parameters
 
@@ -183,6 +188,7 @@ Updates the name and the account number of an existing Bank Account. Only `name`
 | --- | --- | --- | --- |
 | `name` | string | Yes | New display name (non-empty) |
 | `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. `null` clears it. Omit to keep the current number. |
+| `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. `null` clears it and keeps the account number. Omit to keep the current bank. |
 
 ### Response
 
@@ -193,7 +199,7 @@ Returns `200 OK` with the updated Bank Account, in the same shape as the list re
 | Status | Meaning |
 | --- | --- |
 | 200 | Updated |
-| 400 | Validation error |
+| 400 | Validation error, or an unknown `bankCode` (`BANK_ACCOUNT_BANK_UNKNOWN_ERROR`) |
 | 404 | Bank Account not found |
 
 ### Example
@@ -294,7 +300,7 @@ Returns `201 Created` with:
 | 201 | Sync completed, whether or not it tied out. Read `feed.tieOut` on the Bank Account for the verdict |
 | 404 | Bank Account not found or not fed |
 | 409 | The Provider restated a Movement the feed already landed (`BANK_FEED_SYNC_RESTATEMENT_ERROR`). Nothing landed. See [Restatement](#restatement) |
-| 502 | Provider read or landing failed |
+| 424 | The Provider refused the read or the landing (`BANK_FEED_PROVIDER_FAILURE_ERROR` and the other codes in [Provider refusals](/api-reference/overview#provider-refusals)) |
 
 ### Example
 
