@@ -282,7 +282,7 @@ POST /api/entities/:entityId/bank-accounts/:bankAccountId/feed/sync
 
 Triggers a manual sync of the Bank Account's feed. The server reads the latest window from the Provider, lands new Movements, and records the outcome. Sintropix also syncs every feed on its own every four hours, with the same rules.
 
-A sync lands its Movements even when they don't add up to the balance the Provider reports. It then flags the feed as out of tie-out. See [Tie-out](#tie-out). The only sync that lands nothing is one that finds a [restatement](#restatement).
+A sync lands its Movements even when they don't add up to the balance the Provider reports. It then flags the feed as out of tie-out. See [Tie-out](#tie-out). The only sync that lands nothing is one that finds a [restatement](#restatement) it can't take by itself.
 
 ### Response
 
@@ -299,7 +299,8 @@ Returns `201 Created` with:
 | --- | --- |
 | 201 | Sync completed, whether or not it tied out. Read `feed.tieOut` on the Bank Account for the verdict |
 | 404 | Bank Account not found or not fed |
-| 409 | The Provider restated a Movement the feed already landed (`BANK_FEED_SYNC_RESTATEMENT_ERROR`). Nothing landed. See [Restatement](#restatement) |
+| 409 | The Provider restated a Movement the feed already landed, and a person must accept the Provider's version (`BANK_FEED_SYNC_RESTATEMENT_ERROR`). Nothing landed. See [Restatement](#restatement) |
+| 409 | The sync found a restatement, but another sync landed after it read the Provider (`BANK_FEED_SYNC_RACED_ERROR`). Nothing landed. Sync again |
 | 424 | The Provider refused the read or the landing (`BANK_FEED_PROVIDER_FAILURE_ERROR` and the other codes in [Provider refusals](/api-reference/overview#provider-refusals)) |
 
 ### Example
@@ -327,7 +328,7 @@ The other side of the check is the Bank Account's `balance`, the sum of its Move
 | --- | --- |
 | `tied_out` | The Movements add up to the reported balance. |
 | `out_of_tie_out` | The sync landed its Movements, but they don't add up to the reported balance. It's usually a movement the bank already counts and hasn't served yet. The next sync that lands it ties out again, with a new `since`. |
-| `restated` | The sync found a [restatement](#restatement) and landed nothing. |
+| `restated` | The sync found a [restatement](#restatement) that a person must accept, and landed nothing. |
 
 Nothing blocks on `out_of_tie_out`: Movements keep landing, and you can book and reconcile them as usual. Use `since` to tell a short lag from a lasting difference. Most differences clear on their own within two days. If one lasts longer, contact Sintropix support.
 
@@ -352,7 +353,16 @@ In the app, the movement queue of the Bank Account shows the verdict on every lo
 
 A restatement is a Movement the feed already landed that the Provider no longer serves: it dropped it, or serves it again under another reference. Only Movements dated inside the window the Provider still serves count, from the feed start date on. A Provider whose history simply stops reaching its oldest days isn't restating anything.
 
-Landing that window would write the Movement twice, so the sync refuses it, lands nothing, and sets `feed.tieOut.status` to `restated`. It refuses even when the balance ties out, because restated Movements can cancel each other out. The sync answers `409`:
+Landing that window as it is would write the Movement twice. Instead, the restated Movements give way to the Provider's version: Sintropix deletes them and lands what the Provider serves now. That happens in one of two ways.
+
+**The sync takes it by itself** when both of these hold:
+
+- No restated Movement is booked or excluded.
+- Each restated day still adds up: the restated Movements of the day sum to what the Provider now serves for that day that the feed hasn't landed.
+
+The sync then replaces the restated Movements and lands the window as usual, with no `409`.
+
+**Otherwise, a person accepts it.** The sync lands nothing, sets `feed.tieOut.status` to `restated`, and answers `409`:
 
 ```json
 {
@@ -361,9 +371,71 @@ Landing that window would write the Movement twice, so the sync refuses it, land
 }
 ```
 
-`restatedExternalRefs` lists the Provider references of the landed Movements the Provider no longer serves. In the app, the movement queue shows **Sincronización detenida desde …**.
+`restatedExternalRefs` lists the Provider references of the landed Movements the Provider no longer serves. Every later sync is refused the same way until someone accepts the Provider's version. The first refused sync also opens a [Task](/api-reference/tasks) in the Organization's **Tareas** that names the Bank Account.
 
-A restatement doesn't clear on its own, and every later sync of the feed is refused the same way. Contact Sintropix support to repair it.
+To accept it in the app:
+
+1. Open the Bank Account. Its movement queue shows **Sincronización detenida desde …**.
+2. Click **Revisar cambios del banco**. The dialog lists each restated day, with the Movements in the books (**En los libros**) beside what the bank lists now (**El banco informa ahora**), and the total of each side.
+3. If a restated Movement is marked **Contabilizado** or **Excluido**, unbook it or include it again first.
+4. Click **Aceptar la versión del banco**.
+
+Accepting takes the Provider's version whatever each day adds up to. It refuses while a restated Movement is booked or excluded, because replacing it would undo a person's decision. The comments and files of a replaced Movement are deleted with it.
+
+#### GET `/feed/restatement`
+
+```http
+GET /api/entities/:entityId/bank-accounts/:bankAccountId/feed/restatement
+```
+
+Read the restatement day by day. Sintropix reads it live from the Provider each time and stores nothing. `days` is empty when the Provider restates nothing.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `days` | array | One item per restated day. See below |
+| `fingerprint` | string | Names the rows this review shows. Send it back to accept this exact version |
+
+Each item of `days`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `date` | date (`YYYY-MM-DD`) | The day |
+| `landedMovements` | array | The restated Movements of the day: `{ id, movementDate, amount, side, description, externalRef, ledgerEntryId, excludedAt }`. A `ledgerEntryId` means the Movement is booked, and an `excludedAt` that it's excluded |
+| `servedMovements` | array | What the Provider serves for the day that the feed hasn't landed: `{ providerMovementId, amount, description }`, with a signed `amount` in minor units, a debit positive |
+| `landedNet` | integer | The sum of `landedMovements`, signed, in minor units |
+| `servedNet` | integer | The sum of `servedMovements`, signed, in minor units. It differs from `landedNet` when the Provider changed what the day adds up to |
+
+#### POST `/feed/restatement/acceptance`
+
+```http
+POST /api/entities/:entityId/bank-accounts/:bankAccountId/feed/restatement/acceptance
+```
+
+Accept the Provider's version of the restatement you reviewed. Sintropix deletes the restated Movements and lands the window, as a sync does. It needs the `books` write permission, so a `viewer` can't accept.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `fingerprint` | string | Yes | The `fingerprint` of the review you read with `GET /feed/restatement` |
+
+Returns `201 Created` with the [sync result](#sync-a-bank-account-feed): `landedCount` and `skippedCount`. The feed's tie-out is judged again, as on any sync.
+
+| Status | Meaning |
+| --- | --- |
+| 201 | Accepted. The window landed |
+| 404 | Bank Account not found or not fed |
+| 409 | A restated Movement is booked or excluded (`BANK_FEED_RESTATEMENT_HELD_ERROR`). `params.bankMovementIds` names them. Unbook or include them, then accept again |
+| 409 | The Provider's version changed since you read it, or another sync landed meanwhile (`BANK_FEED_SYNC_RACED_ERROR`). Read the restatement again and review it |
+| 424 | The Provider refused the read (see [Provider refusals](/api-reference/overview#provider-refusals)) |
+
+```bash
+curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/feed/restatement/acceptance \
+  -X POST \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Accept the bank's rewrite of 19 September" \
+  -H "Content-Type: application/json" \
+  -d '{"fingerprint": "'"$FINGERPRINT"'"}'
+```
 
 ## Rate limits
 
