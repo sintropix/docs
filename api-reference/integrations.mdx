@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, search and read the email of a Gmail or Outlook account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -16,7 +16,7 @@ What an Integration can feed depends on its kind:
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
 | `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `mercadolibre` | Nothing yet |
-| `gmail`, `outlook` | Nothing. You search and read their email on demand instead. See [Gmail and Outlook](#gmail-and-outlook) |
+| `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 
 An Organization can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account can be connected only once.
@@ -27,7 +27,9 @@ The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Pla
 
 The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
-The `gmail` and `outlook` kinds connect an email account: a Gmail account or a Microsoft Outlook account. You connect it from the app. Sintropix only reads: it never sends, changes, or deletes email. An Organization can connect several email accounts, but each account can be connected only once. You can [search and read](#gmail-and-outlook) the email of a connected account through the API.
+The `gmail` and `outlook` kinds connect an email account: a Gmail account or a Microsoft Outlook account. You connect it from the app. Sintropix only reads: it never sends, changes, or deletes email. An Organization can connect several email accounts, but each account can be connected only once. You can [search and read](#read-email) the email of a connected account through the API.
+
+The `mailbox` kind is an email address that Sintropix holds for the Organization, such as `facturas@acme.sintropix.com`. You create it in Sintropix: there's no outside account to connect. An Organization can hold several Mailboxes, all at its own email domain. See [Mailbox](#mailbox).
 
 The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of the current year of every Entity of the Organization to that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
 
@@ -53,13 +55,13 @@ An Integration belongs to the [Organization](/api-reference/organizations), not 
 
 The routes follow the same split:
 
-- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the purpose, the SII legal representative's Clave, the discovered accounts, the General Ledger Export, the email of a Gmail or Outlook account, and disconnect.
+- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the purpose, the SII legal representative's Clave, the discovered accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, and disconnect.
 - Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. So does the copy of an [email attachment](#post-api-entities-entityid-email-attachments) into an Entity. They take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
 
-Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail or Outlook account. An API key confined to one Entity:
+Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account. An API key confined to one Entity:
 
 - Lists every Integration of its Organization, but sees only the Sources and Bank Accounts of its own Entity.
-- Can't connect, reconnect, renew, or disconnect an Integration, run a General Ledger Export, or read or copy the email of a Gmail or Outlook account. It gets `403` with `PERMISSION_DENIED_ERROR`.
+- Can't connect, reconnect, renew, or disconnect an Integration, run a General Ledger Export, or read or copy the email of a Gmail, Outlook, or Mailbox account. It gets `403` with `PERMISSION_DENIED_ERROR`.
 - Adds and removes only the feeds that land in its own Entity.
 
 An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-api-entities-entityid-organization).
@@ -72,8 +74,8 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `polar` \| `google_sheets` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds and the OAuth authorizations. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
@@ -85,7 +87,7 @@ The access token is stored encrypted and is never returned on any read.
 | `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads for the Entity that keeps it. `null` for every other kind, and when no Book was picked. |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
 | `purpose` | string \| null | What the account is for, in your own words, such as "Facturas de proveedores de Acme". It helps a person or an agent pick the right account when the Organization holds several. Up to 500 characters. `null` until you [set it](#put-integrations-integrationid-purpose). |
-| `grantHealth` | `working` \| `failed` \| `unknown` \| null | For `gmail` and `outlook`, whether the account's access still works, checked on each list. `failed` means the access expired or was revoked: disconnect the Integration and connect the account again. `unknown` means Sintropix couldn't check it right now. `null` for every other kind. |
+| `grantHealth` | `working` \| `failed` \| `unknown` \| null | For `gmail` and `outlook`, whether the account's access still works, checked on each list. `failed` means the access expired or was revoked: disconnect the Integration and connect the account again. `unknown` means Sintropix couldn't check it right now. For `mailbox`, `working` when Sintropix reaches its inbox and `unknown` otherwise; a Mailbox holds no access that can expire, so it's never `failed`. `null` for every other kind. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## POST `/integrations`
@@ -94,14 +96,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, and Google Sheets use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint.
+This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, and Google Sheets use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-integrations-mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `polar`, and `google_sheets` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, and `google_sheets` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -285,7 +287,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `GET /api/organizations/:organizationId/integrations`
 
-List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, or Google Sheets authorization connected from the app. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
+List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, or Google Sheets authorization connected from the app, and every Mailbox. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
 
 An API key confined to one Entity gets every Integration of the Organization, with only the Source Feeds and Bank Accounts of its own Entity. `routedEntities` still names every Entity a feed reaches.
 
@@ -320,11 +322,12 @@ curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integr
 
 `DELETE /api/organizations/:organizationId/integrations/:integrationId`
 
-Remove an Integration. Every feed of the Integration is removed as part of the same operation, in every Entity: its Source Feeds and the feed of each Bank Account it fed. The Sources, the Bank Accounts, and the documents and Movements already landed stay.
+Remove an Integration. A [Mailbox](#a-mailbox-stays) can't be removed. Every feed of the Integration is removed as part of the same operation, in every Entity: its Source Feeds and the feed of each Bank Account it fed. The Sources, the Bank Accounts, and the documents and Movements already landed stay.
 
 - For a `fintoc` Integration, Sintropix also deletes the Link at Fintoc, so the bank stops being read.
 - For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `424` or `503` and the Integration stays. Retry later.
 - For a `sii_mirror` Integration, the SII mirror first deletes the company Clave and the legal representative's Clave, and stops reading that RUT. If the mirror is busy with that RUT or can't be reached, the disconnect answers `503` with `SII_UNAVAILABLE_ERROR`, and the Integration and both Claves stay. Retry in a few minutes.
+- A `mailbox` Integration is refused with `409` (`MAILBOX_NOT_REMOVABLE_ERROR`), because removing it would delete its email. See [A Mailbox stays](#a-mailbox-stays).
 - For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked. For `google_sheets`, the Sheet keeps the last General Ledger written to it.
 
 **Response**
@@ -436,7 +439,7 @@ An Integration that isn't `sii_mirror` answers `422` with `INTEGRATION_REPRESENT
 
 ## Gmail and Outlook
 
-A `gmail` or `outlook` Integration connects one email account of the Organization. Sintropix keeps no copy of the account's email. You search and read it on demand, and you can copy an attachment into an Entity, for example to attach a supplier's PDF to its Invoice. Sintropix only reads: it never sends, changes, or deletes email.
+A `gmail` or `outlook` Integration connects one email account of the Organization. Sintropix keeps no copy of the account's email. You [search and read it](#read-email) on demand, and you can copy an attachment into an Entity, for example to attach a supplier's PDF to its Invoice. Sintropix only reads: it never sends, changes, or deletes email.
 
 ### Connect an email account
 
@@ -446,6 +449,183 @@ You connect an email account from the app, because Google and Microsoft ask for 
 2. Continue on Composio, which holds the account's access for Sintropix, and allow access on Google or Microsoft with the account you want to connect.
 
 Google asks for full access to the mailbox, but Sintropix only reads it. Outlook asks for read access to the mail only.
+
+## Mailbox
+
+A `mailbox` Integration is an email address that Sintropix holds for the Organization, such as `facturas@acme.sintropix.com`. Your clients and suppliers send or forward invoices and other documents to it, and you read them in Sintropix. There's no outside account to connect: Sintropix creates the address and receives its email. Sintropix doesn't turn that email into documents.
+
+- A **Conversation** is a chain of emails on one subject, like a thread in an email client.
+- An **email** is one message in a Conversation, received by the Mailbox or sent from it.
+
+An Organization can hold as many Mailboxes as it needs, for example `facturas@` for supplier invoices and `rendiciones@` for expense receipts. Give each one a [purpose](#put-integrations-integrationid-purpose) so a colleague or Erwin can tell them apart.
+
+### The email domain
+
+Every Mailbox of an Organization takes its address at the Organization's **email domain**: a subdomain of `sintropix.com` that belongs to that Organization alone, such as `acme.sintropix.com`. Sintropix sets it for you. A Superadmin picks it for the Organization in the staff panel, with [`PATCH /organizations/:organizationId/email-domain`](/api-reference/organizations#patch-organizations-organizationid-email-domain). The Organization's `emailDomain` is `null` until then, and the Organization can't create a Mailbox. Ask Sintropix to set it.
+
+Once a Mailbox lives at the domain, the domain can't change.
+
+### Create a Mailbox
+
+1. Open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Casilla de correo**, under the **Correo** tag.
+2. Enter the **Nombre de la casilla**: the part of the address before `@`.
+3. Click **Crear casilla**.
+
+The Mailbox's panel opens with its address, its purpose, and **Abrir correo**. When the Organization has no email domain yet, the form says *Esta empresa aún no tiene dominio de correo. Pídelo a Sintropix.*
+
+Choose the name carefully: you can't rename a Mailbox, and you can't remove it.
+
+### POST `/integrations/mailbox`
+
+`POST /api/organizations/:organizationId/integrations/mailbox`
+
+Create a Mailbox at the Organization's email domain. It needs the `books` write permission in the Organization, which a `client` or `staff` caller holds. An API key confined to one Entity gets `403` with `PERMISSION_DENIED_ERROR`.
+
+**Body.** Unknown keys are refused with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id of the new Integration. An id already in use is refused with `409` (`INTEGRATION_ALREADY_EXISTS_ERROR`). |
+| `name` | string | Yes | The part of the address before `@`. Up to 64 characters: lowercase letters and digits, in groups joined by a single `.` or `-`, such as `facturas` or `compras.chile`. Anything else is refused with `400`. |
+
+- An Organization with no email domain is refused with `409` (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`).
+- An address that already exists is refused with `409` (`MAILBOX_ALREADY_EXISTS_ERROR`). `params.address` names it. Choose another name.
+
+**Response** `201`: the Integration object, with `kind: "mailbox"` and the new address as `providerRef`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/mailbox" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Mailbox for Acme's supplier invoices" \
+  -H "Content-Type: application/json" \
+  -d '{ "id": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f", "name": "facturas" }'
+```
+
+### Read a Mailbox's Conversations
+
+In the app, click **Abrir correo** in the Mailbox's panel. Its Conversations open newest first. Click one to read its emails and download the attachments of the emails it received.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/mailboxes/{integrationId}"
+  note="Add ?open={conversationId} to open a Conversation in its side panel."
+/>
+
+Through the API, list the Conversations and read each one with the two routes below. They answer each email's HTML and a download link for each received attachment, as an email client shows them. To search a Mailbox, or to read its email as plain text, use the [email routes](#read-email) instead.
+
+Reading Conversations follows the same rule as [reading email](#who-can-read-email): `staff` and `client` can, a `viewer` or an API key confined to one Entity can't. An Integration of the Organization that isn't a Mailbox answers `404` (`MAILBOX_NOT_FOUND_ERROR`).
+
+#### GET `/integrations/:integrationId/conversations`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/conversations`
+
+List the Conversations in the Mailbox's inbox, newest first, 50 per page.
+
+**Query**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `after` | uuid | No | The `nextCursor` of the previous page. Omit it for the first page. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `address` | string | The Mailbox's address. |
+| `conversations` | array | The Conversations on this page, newest first. See below. |
+| `nextCursor` | string \| null | Pass it back as `after` to read the next, older page. `null` on the last page. |
+
+Each element of `conversations`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Conversation id. Use it with `GET /integrations/:integrationId/conversations/:conversationId`. |
+| `subject` | string \| null | Subject line. |
+| `from` | string \| null | Sender. |
+| `to` | string[] | Recipients. |
+| `emailCount` | integer | Number of emails in the Conversation, at least 1. |
+| `hasAttachment` | boolean | Whether any email in the Conversation has an attachment. |
+| `read` | boolean | Whether the Conversation has been read. |
+| `lastActivityAt` | ISO 8601 timestamp | When the Conversation last received an email. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/conversations" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "address": "facturas@acme.sintropix.com",
+  "conversations": [
+    {
+      "id": "4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b",
+      "subject": "Factura 45210",
+      "from": "facturacion@proveedor.cl",
+      "to": ["facturas@acme.sintropix.com"],
+      "emailCount": 1,
+      "hasAttachment": true,
+      "read": false,
+      "lastActivityAt": "2026-10-12T13:05:41.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+#### GET `/integrations/:integrationId/conversations/:conversationId`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/conversations/:conversationId`
+
+Read one Conversation with every email in it, oldest first. `conversationId` must be a UUID. A Conversation that isn't in the Mailbox answers `404` (`CONVERSATION_NOT_FOUND_ERROR`).
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Conversation id. |
+| `subject` | string \| null | Subject line. |
+| `emails` | array | The Conversation's emails, oldest first. See below. |
+
+Each element of `emails`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Email id. |
+| `direction` | `inbound` \| `outbound` | `inbound` for an email the Mailbox received, `outbound` for one it sent. |
+| `from` | string | Sender. |
+| `to` | string[] | To recipients. |
+| `cc` | string[] | Cc recipients. |
+| `subject` | string \| null | Subject line. |
+| `text` | string \| null | Plain-text body. |
+| `html` | string \| null | HTML body. Render it in a sandbox: it can load remote images. |
+| `sentAt` | ISO 8601 timestamp | When the email was sent or received. |
+| `attachments` | array | `{ id, filename, size, downloadUrl }` for each attachment. `filename` can be `null`; `size` is in bytes. `downloadUrl` is set only on the attachments of an `inbound` email, and is `null` otherwise. It expires shortly after the read, so read the Conversation again for a fresh link. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/conversations/$CONVERSATION_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+### A Mailbox stays
+
+You can't disconnect a Mailbox, because removing it would delete its email. [`DELETE /integrations/:integrationId`](#delete-integrations-integrationid) on a Mailbox answers `409` (`MAILBOX_NOT_REMOVABLE_ERROR`), and the app shows no disconnect option in its panel. As a result, an Organization that holds a Mailbox can't be [deleted](/api-reference/organizations#delete-organizations-organizationid).
+
+### Mailbox errors
+
+| Status | Code | When it happens |
+| --- | --- | --- |
+| `403` | `PERMISSION_DENIED_ERROR` | A `viewer` reads Conversations, or an API key confined to one Entity creates a Mailbox or reads its Conversations |
+| `404` | `MAILBOX_NOT_FOUND_ERROR` | The Organization holds no Mailbox with this id. `params.integrationId` |
+| `404` | `CONVERSATION_NOT_FOUND_ERROR` | The Mailbox holds no Conversation with this id. `params.conversationId` |
+| `409` | `INTEGRATION_ALREADY_EXISTS_ERROR` | The `id` of the new Mailbox is already in use |
+| `409` | `MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR` | The Organization has no email domain yet. Ask Sintropix to set it. `params.organizationId` |
+| `409` | `MAILBOX_ALREADY_EXISTS_ERROR` | The address already exists. `params.address` |
+| `409` | `MAILBOX_NOT_REMOVABLE_ERROR` | A disconnect names a Mailbox. `params.integrationId` |
+| `503` | `MAILBOX_UNAVAILABLE_ERROR` | The Mailbox can't be created or read right now. Retry later |
+
+## Read email
+
+You read the email of a `gmail`, `outlook`, or `mailbox` Integration with the same routes: search it, read an email or its whole Conversation as plain text, and copy an attachment into an Entity. Erwin can read all of them too, so you can ask him to find a supplier's invoice in any of the Organization's email accounts. A Mailbox reads with a few differences, listed in [Read a Mailbox's email](#read-a-mailboxs-email).
 
 ### Who can read email
 
@@ -465,7 +645,7 @@ Sintropix logs each email whose content it hands out and each attachment it copi
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | The email's id at Google or Microsoft. Use it to read the email or copy an attachment. |
+| `id` | string | The email's id at Google or Microsoft, or a [Mailbox email's id](#read-a-mailboxs-email). Use it to read the email or copy an attachment. |
 | `conversationId` | string | The id of the email's Conversation: the thread it belongs to. |
 | `receivedAt` | ISO 8601 timestamp | When the email arrived. |
 | `from` | object \| null | `{ name, address }` of the sender. `name` can be `null`. |
@@ -479,7 +659,7 @@ Sintropix logs each email whose content it hands out and each attachment it copi
 
 `GET /api/organizations/:organizationId/integrations/:integrationId/emails`
 
-Search the email of a Gmail or Outlook account, newest first. The search covers received and sent email. It leaves out drafts, spam, and deleted email.
+Search the email of a Gmail, Outlook, or Mailbox account, newest first. The search covers received and sent email. It leaves out drafts, spam, and deleted email.
 
 **Query parameters.** Send at least one criterion. The criteria combine with AND, and each text criterion matches whole words, as the mailbox's own search does. Sintropix keeps only the letters, digits, and `@._-` of each term, so a term can't carry Gmail or Outlook search syntax.
 
@@ -493,7 +673,7 @@ Search the email of a Gmail or Outlook account, newest first. The search covers 
 | `before` | date (`YYYY-MM-DD`) | No | Only email received before this day, in Santiago (Chile) time. Must be later than `after`. |
 | `hasAttachment` | boolean | No | `true` for only email with attachments, `false` for only email without. |
 | `attachmentType` | `pdf` \| `xml` \| `image` \| `spreadsheet` \| `any` | No | Only email with an attachment of this type. Can't be combined with `hasAttachment=false`. |
-| `limit` | integer | No | Page size, 1 to 50. Default `10`. |
+| `limit` | integer | No | Page size, 1 to 50. Default `10`. A Mailbox page holds at most 10. |
 | `cursor` | string | No | The `nextCursor` of the previous page. Send the same criteria with it. |
 
 A search with no criterion, an `after` that isn't before `before`, or an `attachmentType` with `hasAttachment=false` answers `400`.
@@ -567,7 +747,7 @@ The route lives under the Entity because it writes to that Entity, so it needs t
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `integrationId` | uuid | Yes | The Gmail or Outlook Integration. |
+| `integrationId` | uuid | Yes | The Gmail, Outlook, or Mailbox Integration. |
 | `emailId` | string | Yes | The `id` of the email. |
 | `attachmentId` | string | Yes | The `id` of the attachment, from the email's `attachments`. |
 
@@ -598,6 +778,18 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/email-attachment
 
 An attachment the email doesn't hold answers `404` with `INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`.
 
+### Read a Mailbox's email
+
+The routes above read a Mailbox with the same contract, with these differences:
+
+- **Ids.** A Mailbox email's `id` joins two UUIDs with `+`, such as `4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b+9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d`. Use it as you receive it. Its `conversationId` is the id the [Conversation routes](#read-a-mailboxs-conversations) take.
+- **Page size.** A search page holds at most 10 emails. A larger `limit` still reads 10. Each Conversation appears at most once on a page: the email of it that matched.
+- **What a search covers.** Received, archived, and sent email. Spam and deleted email are left out. A new email can take about a minute to show up in a search. When more than 10,000 Conversations match, the search covers the 10,000 with the newest match, so narrow the criteria.
+- **Recipients.** The `to` of a received email lists the addresses the email was delivered to, not its full To line.
+- **Attachment types.** `contentType` comes from the file name's extension. It's empty when Sintropix doesn't accept that type.
+- **Copy.** Only the attachments of a received email can be copied. An attachment of an email the Mailbox sent answers `404` (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`).
+- **Refusals.** A Mailbox holds no access that can expire, so it never answers `INTEGRATION_GRANT_FAILED_ERROR`. When the Mailbox can't be read, the routes answer `424` (`INTEGRATION_PROVIDER_FAILURE_ERROR`) or `503` (`INTEGRATION_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_NOT_CONFIGURED_ERROR`). Retry later.
+
 ### Email errors
 
 | Status | Code | When it happens |
@@ -606,10 +798,11 @@ An attachment the email doesn't hold answers `404` with `INTEGRATION_EMAIL_ATTAC
 | `404` | `INTEGRATION_NOT_FOUND_ERROR` | The Integration doesn't exist in the Organization, or, on a copy, in the Entity's Organization |
 | `404` | `INTEGRATION_EMAIL_NOT_FOUND_ERROR` | The account holds no email with that id. `params.integrationId` and `params.emailId` |
 | `404` | `INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR` | The email holds no attachment with that id. `params.integrationId`, `params.emailId`, and `params.attachmentId` |
-| `422` | `INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR` | The Integration isn't `gmail` or `outlook`. `params.kind` names its kind |
+| `422` | `INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR` | The Integration isn't `gmail`, `outlook`, or `mailbox`. `params.kind` names its kind |
 | `424` | `INTEGRATION_GRANT_FAILED_ERROR` | The account's access expired or was revoked, as `grantHealth: "failed"` shows in the list. Disconnect the Integration and connect the account again |
-| `424` | `INTEGRATION_PROVIDER_FAILURE_ERROR` | Google or Microsoft refused the request |
-| `503` | `INTEGRATION_PROVIDER_UNREACHABLE_ERROR` | Google or Microsoft can't be reached. Retry later |
+| `424` | `INTEGRATION_PROVIDER_FAILURE_ERROR` | Google or Microsoft refused the request, or the Mailbox can't be read right now |
+| `503` | `INTEGRATION_PROVIDER_UNREACHABLE_ERROR` | Google, Microsoft, or the Mailbox can't be reached. Retry later |
+| `503` | `INTEGRATION_NOT_CONFIGURED_ERROR` | Sintropix can't read Mailboxes right now. Retry later |
 
 ## Google Sheets
 
@@ -966,12 +1159,12 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET`, `PUT`, `DELETE`, and a General Ledger Export, including one Google refused. |
-| `201` | Integration or Portal Login created, or an email attachment copied into an Entity. |
+| `201` | Integration, Mailbox, or Portal Login created, or an email attachment copied into an Entity. |
 | `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while an Entity other than the one of the picked Book keeps Books (`BOOK_REQUIRED_ERROR`). |
-| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email (`PERMISSION_DENIED_ERROR`). |
-| `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), or email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
+| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email or reads a Mailbox's Conversations, or an API key confined to one Entity creates a Mailbox (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), or email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`) not found. |
+| `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), or an email route names an Integration that isn't `gmail` or `outlook` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), or an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`). |
 | `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), or the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
-| `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), or the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`). Retry later. |
+| `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`), or a Mailbox can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |

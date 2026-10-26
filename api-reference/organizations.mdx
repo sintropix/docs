@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Organizations API: Group Entities for Access"
 sidebarTitle: "Organizations"
-description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website, read its logo, list its members, and read your own Role in it."
+description: "Create, rename, list, and delete Organizations, the groups of Entities that Organization Memberships grant access to. Set an Organization's website and email domain, read its logo, list its members, and read your own Role in it."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -37,6 +37,7 @@ List the Organizations where you do Sintropix work, each with the Entities it ho
 | --- | --- | --- |
 | `id` | UUID | Organization id |
 | `name` | string | Organization name |
+| `emailDomain` | string or null | The Organization's [email domain](#patch-organizations-organizationid-email-domain), such as `acme.sintropix.com`. `null` until a Superadmin sets it. |
 | `entities` | array | `{ id, name, parentEntityId }` of each Entity in the Organization. `parentEntityId` is the Entity's parent Entity, always in the same Organization, or `null` for a root Entity. Build the group tree from it. |
 
 ```bash
@@ -49,6 +50,7 @@ curl https://api.sintropix.com/api/organizations \
   {
     "id": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
     "name": "Grupo Acme",
+    "emailDomain": "acme.sintropix.com",
     "entities": [
       { "id": "11111111-1111-4111-8111-111111111111", "name": "Acme SpA", "parentEntityId": null },
       {
@@ -78,6 +80,7 @@ Create an empty Organization. Add Entities to it by creating them with its `orga
 | `id` | UUID | Organization id |
 | `name` | string | Organization name, trimmed |
 | `website` | string or null | The Organization's website, stored as a bare lowercase domain (`acme.cl`). `null` until staff [set it](#patch-organizations-organizationid-website). |
+| `emailDomain` | string or null | The Organization's [email domain](#patch-organizations-organizationid-email-domain). `null` until a Superadmin sets it. |
 | `createdAt` | ISO datetime | Creation timestamp |
 
 ```bash
@@ -92,6 +95,7 @@ curl -X POST https://api.sintropix.com/api/organizations \
   "id": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
   "name": "Grupo Acme",
   "website": null,
+  "emailDomain": null,
   "createdAt": "2026-09-26T12:00:00.000Z"
 }
 ```
@@ -111,7 +115,7 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
 
 Rename an Organization. The body and validation rules match `POST /organizations`.
 
-**Response** `200`: the renamed Organization (`id`, `name`, `website`, `createdAt`).
+**Response** `200`: the renamed Organization (`id`, `name`, `website`, `emailDomain`, `createdAt`).
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID \
@@ -133,7 +137,7 @@ Set or clear the website Sintropix reads the Organization's logo from. The app s
 | --- | --- | --- | --- |
 | `website` | string or null | Yes | A domain or a URL. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `WEBSITE_INVALID_ERROR`. Send `null` to clear the website. |
 
-**Response** `200`: the Organization (`id`, `name`, `website`, `createdAt`).
+**Response** `200`: the Organization (`id`, `name`, `website`, `emailDomain`, `createdAt`).
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/website \
@@ -147,8 +151,50 @@ curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/websi
   "id": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
   "name": "Grupo Acme",
   "website": "acme.cl",
+  "emailDomain": "acme.sintropix.com",
   "createdAt": "2026-09-26T12:00:00.000Z"
 }
+```
+
+## GET `/email-domains/open`
+
+`GET /api/email-domains/open`
+
+List the **open email domains**: the subdomains of `sintropix.com` that are set up to receive email and that no Organization holds yet. Give an Organization one of them with [`PATCH /organizations/:organizationId/email-domain`](#patch-organizations-organizationid-email-domain). When the list is empty, no domain is ready yet.
+
+**Response** `200`: `{ "emailDomains": [...] }`, the open domains in alphabetical order.
+
+```bash
+curl https://api.sintropix.com/api/email-domains/open \
+  --cookie cookies.txt
+```
+
+```json
+{ "emailDomains": ["acme.sintropix.com", "magnar.sintropix.com"] }
+```
+
+## PATCH `/organizations/:organizationId/email-domain`
+
+Set the Organization's email domain: the domain where its people create [Mailboxes](/api-reference/integrations#mailbox), such as `facturas@acme.sintropix.com`. Each domain belongs to one Organization alone.
+
+In the staff panel, open the Organization and pick the domain among the open ones.
+
+**Body.** Unknown keys are refused with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `emailDomain` | string | Yes | One label of up to 63 characters followed by `.sintropix.com`, such as `acme.sintropix.com`. The label holds lowercase letters, digits, and `-`, and starts and ends with a letter or digit. Anything else is refused with `400`. |
+
+- A domain that isn't open is refused with `409` (`EMAIL_DOMAIN_NOT_OPEN_ERROR`): it isn't set up to receive email, or another Organization holds it. `params.emailDomain` names it. The domain the Organization already holds is accepted.
+- Once a Mailbox lives at the Organization's domain, the domain can't change. A change is refused with `409` (`EMAIL_DOMAIN_IN_USE_ERROR`).
+
+**Response** `200`: the Organization (`id`, `name`, `website`, `emailDomain`, `createdAt`).
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/email-domain \
+  --cookie cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"emailDomain": "acme.sintropix.com"}'
 ```
 
 ## GET `/organizations/:organizationId/logo`
@@ -195,7 +241,7 @@ Delete an empty Organization. Deleting an Organization also removes every Member
 
 An Organization that still holds data, such as an Entity, a [Group Account](/api-reference/chart-of-accounts#the-group-chart), or a [Dimension](/api-reference/dimensions), can't be deleted. The request returns `409` with `ORGANIZATION_NOT_EMPTY_ERROR`. Move its Entities to another Organization, or delete that data, first. Release its [Agent Channels](/api-reference/agent-channels) first, too.
 
-An Organization that holds an [Inbox](/api-reference/inbox) can't be deleted either. The request returns `409` with `ORGANIZATION_HAS_INBOX_ERROR`.
+An Organization that holds an [Integration](/api-reference/integrations) can't be deleted either. The request returns `409` with `ORGANIZATION_HAS_INTEGRATIONS_ERROR`. Disconnect its Integrations first. A [Mailbox](/api-reference/integrations#a-mailbox-stays) can't be disconnected, so an Organization that holds one stays.
 
 - **Status:** `204`.
 
@@ -242,7 +288,9 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | `PERMISSION_DENIED_ERROR` | `403` | On the website route: the caller is not `staff` in the Organization, or uses an API key confined to one Entity. On the role route: the caller uses an API key confined to one Entity. |
 | `ORGANIZATION_NAME_ALREADY_EXISTS_ERROR` | `409` | Another Organization already uses this name, ignoring case. |
 | `ORGANIZATION_NOT_EMPTY_ERROR` | `409` | The Organization still holds data, such as an Entity, a Group Account, or a Dimension. |
-| `ORGANIZATION_HAS_INBOX_ERROR` | `409` | The Organization holds an [Inbox](/api-reference/inbox). |
+| `ORGANIZATION_HAS_INTEGRATIONS_ERROR` | `409` | The Organization holds an [Integration](/api-reference/integrations), a Mailbox included. |
+| `EMAIL_DOMAIN_NOT_OPEN_ERROR` | `409` | The email domain in `params.emailDomain` isn't set up to receive email, or another Organization holds it. |
+| `EMAIL_DOMAIN_IN_USE_ERROR` | `409` | A Mailbox lives at the Organization's email domain, so the domain can't change. |
 | `SUPERADMIN_SESSION_REQUIRED` | `403` | The request carries an API key or an OAuth access token. Superadmin routes accept only a signed-in session. |
 | `SUPERADMIN_REQUIRED` | `403` | The signed-in User is not a Superadmin. |
 
@@ -256,4 +304,4 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
 | `400` | Validation error, including a blank or too-long name, an invalid website (`WEBSITE_INVALID_ERROR`), or an `:organizationId` that is not a UUID. |
 | `403` | Caller is not a Superadmin (`SUPERADMIN_REQUIRED`), the request carries an API key or token (`SUPERADMIN_SESSION_REQUIRED`), or the caller can't set the website (`PERMISSION_DENIED_ERROR`). |
 | `404` | Organization not found, or the Organization has no logo (`ORGANIZATION_LOGO_NOT_FOUND_ERROR`). |
-| `409` | Duplicate name, or the Organization still holds data or an Inbox. |
+| `409` | Duplicate name, the Organization still holds data or an Integration, or the email domain isn't open or can't change. |

@@ -79,7 +79,6 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/inbox",
                   "api-reference/sii",
                   "api-reference/agent-channels"
                 ]
@@ -169,7 +168,6 @@
                   "api-reference/sources",
                   "api-reference/source-feeds",
                   "api-reference/integrations",
-                  "api-reference/inbox",
                   "api-reference/sii",
                   "api-reference/agent-channels"
                 ]
@@ -226,6 +224,10 @@
     {
       "source": "/api-reference/todos",
       "destination": "/api-reference/tasks"
+    },
+    {
+      "source": "/api-reference/inbox",
+      "destination": "/api-reference/integrations#mailbox"
     }
   ]
 }
