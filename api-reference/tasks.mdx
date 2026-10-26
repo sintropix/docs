@@ -1,14 +1,14 @@
 ---
 title: "Tasks API: Track Pending Work across an Organization"
 sidebarTitle: "Tasks"
-description: "Staff-only endpoints to create, list, assign, schedule, describe, move through states, and delete the Tasks of an Organization, and to relate them to Invoices, Bank Movements, or Ledger Entries."
+description: "Endpoints for staff and client Members to create, list, assign, schedule, describe, move through states, and delete the Tasks of an Organization, and to relate them to Invoices, Bank Movements, or Ledger Entries."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Task (**Tarea** in the app) is a piece of pending work that staff tracks for an Organization. A Task stands alone or relates to one or several records: Invoices, Bank Movements, or Ledger Entries. Use Tasks to leave yourself or your team a reminder, such as "Ask the client for the signed contract", on the record it concerns.
+A Task (**Tarea** in the app) is a piece of pending work that the people of an Organization track. A Task stands alone or relates to one or several records: Invoices, Bank Movements, or Ledger Entries. Use Tasks to leave yourself or your team a reminder, such as "Ask the client for the signed contract", on the record it concerns.
 
-Tasks belong to the Organization, not to one Entity. A Task names an Entity only through the records it relates to, so one Task can relate to records of several Entities, and one list holds the Tasks of every Entity of the Organization. A Task moves through three states, can be assigned to a staff Member, and can carry a due date and a description.
+Tasks belong to the Organization, not to one Entity. A Task names an Entity only through the records it relates to, so one Task can relate to records of several Entities, and one list holds the Tasks of every Entity of the Organization. A Task moves through three states, can be assigned to a `staff` or `client` Member, and can carry a due date and a description.
 
 Tasks are independent of a record's [Follow-up](/api-reference/follow-ups) and of Comments. Setting or clearing one never changes the others.
 
@@ -17,7 +17,7 @@ Tasks are independent of a record's [Follow-up](/api-reference/follow-ups) and o
 </Note>
 
 <Warning>
-  Staff-only. Every route below requires the `staff` Role in the Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key confined to one Entity also receives `403`, because these routes act on the whole Organization. See [Access and roles](/api-reference/overview#access-and-roles).
+  Every route below requires the `staff` or `client` Role in the Organization. Both Roles get the same access: they see every Task of the Organization, and can create, edit, assign, date, and delete any of them. A `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key confined to one Entity also receives `403`, because these routes act on the whole Organization. See [Access and roles](/api-reference/overview#access-and-roles).
 </Warning>
 
 <AppLink
@@ -37,7 +37,7 @@ Sintropix sets `completedAt` for you. It stamps the moment a Task first becomes 
 
 ## Assignee and due date
 
-A Task can be assigned to one staff Member of its Organization. List the staff a Task can take with [`GET /tasks/assignees`](#get-api-organizations-organizationid-tasks-assignees). Assigning a User who isn't a staff Member of the Organization is refused with `422` and `TASK_ASSIGNEE_NOT_STAFF_ERROR`. When a Member leaves the Organization, their Tasks stay and become unassigned.
+A Task can be assigned to one Member of its Organization whose Role is `staff` or `client`. List the Members a Task can take with [`GET /tasks/assignees`](#get-api-organizations-organizationid-tasks-assignees). Assigning a `viewer`, or a User with no Membership in the Organization, is refused with `422` and `TASK_ASSIGNEE_NOT_ASSIGNABLE_ERROR`. When a Member leaves the Organization, their Tasks stay and become unassigned.
 
 `dueDate` is a calendar day, `YYYY-MM-DD`. Lists show the nearest due date first and the Tasks with no due date last.
 
@@ -74,7 +74,7 @@ Task Links don't change who the Task is assigned to or when it is due.
 | `description` | string | Free-text detail of the Task, up to 10,000 characters. An empty string when it has none. |
 | `status` | string | `todo`, `in_progress`, or `completed`. See [States](#states). |
 | `completedAt` | ISO datetime or null | When the Task first became `completed`. `null` while it is in another state. |
-| `assigneeUserId` | UUID or null | The staff Member the Task is assigned to. `null` when unassigned. |
+| `assigneeUserId` | UUID or null | The `staff` or `client` Member the Task is assigned to. `null` when unassigned. |
 | `assignee` | object or null | The assignee as the app shows them: `userId`, `name`, and `image` (a photo URL or `null`). `null` when unassigned. |
 | `dueDate` | string or null | Due date, `YYYY-MM-DD`. `null` when the Task has none. |
 | `links` | array | The Task Links, oldest first. An empty array for a stand-alone Task. See below. |
@@ -162,7 +162,7 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/tasks?assigne
 
 ## GET `/api/organizations/:organizationId/tasks/assignees`
 
-List the staff Members of the Organization, the Users a Task can be assigned to.
+List the `staff` and `client` Members of the Organization, the Users a Task can be assigned to. A `viewer` is never listed.
 
 **Response** `200`: an array of `{ userId, name, image }`, where `image` is a photo URL or `null`.
 
@@ -223,7 +223,7 @@ Edit the text or description of a Task, move it to another state, assign or unas
 | `text` | string | No | New text, 1 to 500 characters after trimming. |
 | `description` | string | No | New description, up to 10,000 characters. `""` clears it. |
 | `status` | string | No | `todo`, `in_progress`, or `completed`. |
-| `assigneeUserId` | UUID or null | No | A staff Member of the Organization. `null` unassigns the Task. |
+| `assigneeUserId` | UUID or null | No | A `staff` or `client` Member of the Organization. `null` unassigns the Task. |
 | `dueDate` | string or null | No | `YYYY-MM-DD`. `null` clears the due date. |
 
 **Response** `200`: the updated Task object.
@@ -289,13 +289,13 @@ Task domain errors carry a `code` and a `params` object in the body.
 | `404` | `TASK_LINKED_RECORD_NOT_FOUND_ERROR` | `{ linkKind, recordId }` | The related record does not exist, belongs to an Entity other than its `entityId` or outside the Organization, or is an Unbooked or cancelled Ledger Entry. `linkKind` is `invoice`, `bank_movement`, or `ledger_entry`. |
 | `404` | `TASK_LINK_NOT_FOUND_ERROR` | `{ taskId, taskLinkId }` | The Task has no Task Link with that id. |
 | `409` | `TASK_ALREADY_EXISTS_ERROR` | `{ taskId }` | A Task with the supplied `id` already exists. |
-| `422` | `TASK_ASSIGNEE_NOT_STAFF_ERROR` | `{ userId }` | `assigneeUserId` is not a staff Member of the Organization. |
+| `422` | `TASK_ASSIGNEE_NOT_ASSIGNABLE_ERROR` | `{ userId }` | `assigneeUserId` is not a `staff` or `client` Member of the Organization. |
 
 ```json
 {
   "requestId": "b6f0c1d2-3e4a-5b6c-7d8e-9f0a1b2c3d4e",
   "statusCode": 422,
-  "code": "TASK_ASSIGNEE_NOT_STAFF_ERROR",
+  "code": "TASK_ASSIGNEE_NOT_ASSIGNABLE_ERROR",
   "params": {
     "userId": "2a7c9e1b-4d3f-4b8a-9c6e-1f0d5b8a3e72"
   }
@@ -310,8 +310,8 @@ Task domain errors carry a `code` and a `params` object in the body.
 | `201` | Task created, or a record related to it. |
 | `400` | Validation error: blank or too-long `text`, a `description` over 10,000 characters, an unknown `status`, a malformed `dueDate`, a Task Link item without exactly one record id or without `entityId`, the same record twice in `links`, more than one record filter, or an empty PATCH body. |
 | `401` | Unauthenticated. |
-| `403` | Caller does not hold the `staff` Role in the Organization, or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
+| `403` | Caller holds the `viewer` Role in the Organization, or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
 | `404` | Task, Task Link, or related record not found. |
 | `409` | A Task with that `id` already exists. |
-| `422` | The assignee is not a staff Member of the Organization. |
+| `422` | The assignee is not a `staff` or `client` Member of the Organization. |
 | `429` | Rate limit exceeded (25,000 requests per hour per API key). |
