@@ -15,7 +15,7 @@ While a claim waits, it is no Invoice. It isn't listed among the Expense Renditi
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/expense-renditions?expenseClaimStatus=submitted"
-  note="Rendiciones, under Datos. Por aprobar (expenseClaimStatus=submitted) lists the claims that wait, with the Approve and Reject actions, and Rechazadas (expenseClaimStatus=rejected) lists the rejected ones. Drop the parameter for the Expense Renditions. Nueva rendición submits a claim."
+  note="Rendiciones, under Datos. Por aprobar (expenseClaimStatus=submitted) lists the claims that wait, with the Approve and Reject actions, and Rechazadas (expenseClaimStatus=rejected) lists the rejected ones. Both show each claim's Número. Drop the parameter for the Expense Renditions. Nueva rendición submits a claim."
 />
 
 ## Concepts
@@ -23,7 +23,8 @@ While a claim waits, it is no Invoice. It isn't listed among the Expense Renditi
 - **Person.** The Partner who paid the expense and is paid back, never the merchant.
 - **Receipt Kind.** What the person holds as proof: a `boleta` or a `factura` issued to the Entity. It decides what the approval debits. See [What approving books](#what-approving-books).
 - **Proposed expense account.** The expense account the submitter suggests. It must be an account of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`. The Approver can pick another one on approval.
-- **Approver.** The one User of the Organization who approves and rejects the claims of all its Entities. It must be a member with the `staff` or `client` Role, because approving writes the books. The Approver role ends when the User's Membership ends.
+- **Number.** Each claim takes the next number of its Entity when you submit it: 1, 2, 3, and so on. Numbers never repeat within an Entity. The Expense Rendition of an approved claim carries it as its Document Number, `R-<number>`, so a claim reads the same before and after approval.
+- **Approver.** The one User of the Organization who approves and rejects the claims of all its Entities. It must be a member with the `client` Role: someone of the client's own team, never Sintropix staff or a `viewer`. The Approver role ends when the User's Membership ends.
 - **Status.** Sintropix derives it, and never stores it:
   - `submitted`: the claim waits for the Approver.
   - `approved`: the claim has its Expense Rendition, in `invoiceId`.
@@ -56,7 +57,7 @@ Approving creates one `payable` Invoice and books it in the same request:
 | `partnerId` | The claim's person |
 | `sourceId` | The Source of the Entity's setting |
 | `documentKind` | `invoice` |
-| `documentNumber` | The claim's `id` |
+| `documentNumber` | `R-<number>`, from the claim's `number`, for example `R-12` |
 | `currency`, `total` | The Entity's functional currency, and the claim's `amount` |
 | `issueDate` | The claim's `expenseDate` |
 | `memo` | The claim's `memo` |
@@ -77,7 +78,7 @@ If you unbook the Expense Rendition and [delete](/api-reference/invoices#delete-
 | Route | Who can call it |
 | --- | --- |
 | Read claims, the setting, or the Approver | Any member of the Organization |
-| Submit a claim, set the Approver, or set the setting | A member with the `staff` or `client` Role |
+| Submit a claim, set the Approver, or set the setting | A member with the `staff` or `client` Role. The Approver they set must be a `client` member. |
 | Approve or reject a claim | The Approver alone, from a session or their own API key |
 
 A `viewer` who writes receives `403` with `PERMISSION_DENIED_ERROR`. Anyone but the Approver who approves or rejects receives `403` with `EXPENSE_CLAIM_NOT_APPROVER_ERROR`, even a `staff` member. See [Access and roles](/api-reference/overview#access-and-roles).
@@ -87,6 +88,7 @@ A `viewer` who writes receives `403` with `PERMISSION_DENIED_ERROR`. Anyone but 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | uuid | Expense Claim id. You choose it on create. |
+| `number` | integer | The claim's number in its Entity, from 1. See [Concepts](#concepts). |
 | `entityId` | uuid | Owning Entity. |
 | `partnerId` | uuid | The person who paid the expense. |
 | `partnerName` | string | The person's name. |
@@ -104,7 +106,7 @@ A `viewer` who writes receives `403` with `PERMISSION_DENIED_ERROR`. Anyone but 
 
 ## POST `/expense-claims`
 
-Submit an Expense Claim. It starts as `submitted`.
+Submit an Expense Claim. It starts as `submitted`, with the next `number` of its Entity.
 
 **Body**
 
@@ -263,7 +265,7 @@ Read the Organization's Approver, and the members offered as one.
 | Field | Type | Description |
 | --- | --- | --- |
 | `approver` | object or null | The Approver, or `null` when the Organization has none. |
-| `candidates` | array | The members with the `client` Role. Sintropix staff are not offered, though a `staff` member set as Approver through `PUT` stays valid and shows as `approver`. |
+| `candidates` | array | The members with the `client` Role, the only members who can be the Approver. |
 
 `approver` and each element of `candidates` carry `userId` (uuid), `name` (string), and `email` (string).
 
@@ -280,7 +282,7 @@ Set or change the Organization's Approver. The new Approver decides every claim 
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `userId` | uuid | Yes | A member of the Organization with the `staff` or `client` Role. A `viewer`, or a User outside the Organization, receives `400` with `EXPENSE_CLAIM_APPROVER_INELIGIBLE_ERROR`. |
+| `userId` | uuid | Yes | A member of the Organization with the `client` Role. A `staff` or `viewer` member, or a User outside the Organization, receives `400` with `EXPENSE_CLAIM_APPROVER_INELIGIBLE_ERROR`. |
 
 **Response:** the same shape as `GET /organizations/:organizationId/expense-claim-approver`.
 
@@ -314,7 +316,7 @@ curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/expens
 | `EXPENSE_CLAIM_ALREADY_DECIDED_ERROR` | `409` | The claim isn't `submitted` anymore. `params.status` is `approved` or `rejected`. |
 | `EXPENSE_CLAIM_APPROVER_NOT_SET_ERROR` | `409` | The Organization has no Approver. Set one first. `params.organizationId`. |
 | `EXPENSE_CLAIM_NOT_APPROVER_ERROR` | `403` | You aren't the Approver. `params.approverUserId` names who is. |
-| `EXPENSE_CLAIM_APPROVER_INELIGIBLE_ERROR` | `400` | The User isn't a `staff` or `client` member of the Organization. `params.userId`. |
+| `EXPENSE_CLAIM_APPROVER_INELIGIBLE_ERROR` | `400` | The User isn't a `client` member of the Organization. `params.userId`. |
 | `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` | `409` | The Entity has no booking setting, so the claim can't be approved. `params.entityId`. |
 | `EXPENSE_CLAIM_SETTING_ACCOUNT_INELIGIBLE_ERROR` | `400` | An account of the setting lacks its sub-type. `params.ledgerAccountId` and `params.role`. |
 | `EXPENSE_CLAIM_SETTING_SOURCE_INELIGIBLE_ERROR` | `400` | The Source isn't a Source of the Entity that holds Expense Renditions. `params.sourceId`. |
