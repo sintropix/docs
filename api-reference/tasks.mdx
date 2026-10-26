@@ -1,14 +1,14 @@
 ---
 title: "Tasks API: Track Pending Work across an Organization"
 sidebarTitle: "Tasks"
-description: "Staff-only endpoints to create, list, assign, schedule, describe, move through states, and delete the Tasks of an Organization, and to relate them to Invoices, Bank Movements, or Ledger Entries."
+description: "Staff-only endpoints to create, list, assign, schedule, describe, move through states, and delete the Tasks of an Organization, split them into subtasks, and relate them to Invoices, Bank Movements, or Ledger Entries."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
 A Task (**Tarea** in the app) is a piece of pending work that staff tracks for an Organization. A Task stands alone or relates to one or several records: Invoices, Bank Movements, or Ledger Entries. Use Tasks to leave yourself or your team a reminder, such as "Ask the client for the signed contract", on the record it concerns.
 
-Tasks belong to the Organization, not to one Entity. A Task names an Entity only through the records it relates to, so one Task can relate to records of several Entities, and one list holds the Tasks of every Entity of the Organization. A Task moves through three states, can be assigned to a staff Member, and can carry a due date and a description.
+Tasks belong to the Organization, not to one Entity. A Task names an Entity only through the records it relates to, so one Task can relate to records of several Entities, and one list holds the Tasks of every Entity of the Organization. A Task moves through three states, can be assigned to a staff Member, can carry a due date and a description, and can hold subtasks.
 
 Tasks are independent of a record's [Follow-up](/api-reference/follow-ups) and of Comments. Setting or clearing one never changes the others.
 
@@ -40,6 +40,23 @@ Sintropix sets `completedAt` for you. It stamps the moment a Task first becomes 
 A Task can be assigned to one staff Member of its Organization. List the staff a Task can take with [`GET /tasks/assignees`](#get-api-organizations-organizationid-tasks-assignees). Assigning a User who isn't a staff Member of the Organization is refused with `422` and `TASK_ASSIGNEE_NOT_STAFF_ERROR`. When a Member leaves the Organization, their Tasks stay and become unassigned.
 
 `dueDate` is a calendar day, `YYYY-MM-DD`. Lists show the nearest due date first and the Tasks with no due date last.
+
+The assignee hears about their Tasks in the [Bandeja](/api-reference/notifications):
+
+- Assigning a Task to another staff Member sends them a `task_assigned` Notification that names who assigned it. Assigning a Task to yourself, saving the same assignee again, or unassigning a Task notifies nobody.
+- When the due date of an assigned Task passes and the Task isn't `completed`, the assignee gets one `task_overdue` Notification. Sintropix checks just after midnight in Santiago (Chile) time, so the Notification arrives on the day after the due date. If you move the due date and the new one passes too, the assignee is notified again.
+
+## Subtasks
+
+A Task can hold subtasks (**subtareas** in the app), one level deep. Use them to split a piece of work into steps, such as one subtask per document you ask the client for. A subtask is an ordinary Task with a parent: it keeps its own state, assignee, due date, description, Task Links, and Notifications.
+
+- Create a subtask by sending `parentTaskId` when you [create the Task](#post-api-organizations-organizationid-tasks). A Task can't move under another parent later.
+- A subtask can't hold subtasks. Naming a subtask as the parent is refused with `422` and `TASK_PARENT_IS_SUBTASK_ERROR`.
+- The parent must be a Task of the same Organization. Otherwise the create is refused with `404` and `TASK_PARENT_NOT_FOUND_ERROR`.
+- Deleting a Task deletes its subtasks too.
+- A parent and its subtasks change state independently. Completing a parent leaves its open subtasks as they are, and completing every subtask leaves the parent as it is. Read `subtaskCount` and `completedSubtaskCount` to show progress, such as "1/3".
+
+In the app, open a Task and type in **Agregar subtarea** to add one. In **Todas**, a parent shows its progress after its title, and clicking it unfolds its subtasks. In **Mías**, your subtasks are listed with their parent's name. Completing a parent with open subtasks asks you to confirm, and deleting a parent tells you how many subtasks go with it.
 
 ## Related records
 
@@ -78,6 +95,10 @@ Task Links don't change who the Task is assigned to or when it is due.
 | `assignee` | object or null | The assignee as the app shows them: `userId`, `name`, and `image` (a photo URL or `null`). `null` when unassigned. |
 | `dueDate` | string or null | Due date, `YYYY-MM-DD`. `null` when the Task has none. |
 | `links` | array | The Task Links, oldest first. An empty array for a stand-alone Task. See below. |
+| `parentTaskId` | UUID or null | The parent Task when this Task is a [subtask](#subtasks). `null` otherwise. |
+| `parentTask` | object or null | The parent as `{ id, text }`. `null` when the Task isn't a subtask. |
+| `subtaskCount` | integer | How many subtasks the Task holds. `0` for a subtask. |
+| `completedSubtaskCount` | integer | How many of those subtasks are `completed`. |
 | `createdAt` | ISO datetime | When the Task was created. |
 | `updatedAt` | ISO datetime | When the Task was last updated. |
 
@@ -118,6 +139,10 @@ Each kind adds its own fields:
     "image": null
   },
   "dueDate": "2026-10-30",
+  "parentTaskId": null,
+  "parentTask": null,
+  "subtaskCount": 2,
+  "completedSubtaskCount": 1,
   "links": [
     {
       "taskLinkId": "c41d7e2a-8b3f-4a9c-9e1d-6f2b0a7c3e58",
@@ -138,7 +163,7 @@ Each kind adds its own fields:
 
 ## GET `/api/organizations/:organizationId/tasks`
 
-List the Tasks of the Organization, in every state and across every Entity. Pass one record filter to list only the Tasks related to that record. Pass `assignee=me` to keep only the Tasks assigned to you, the User of the session or of the API key.
+List the Tasks of the Organization, in every state and across every Entity. Subtasks are listed like any other Task, each with its `parentTask`. Pass one record filter to list only the Tasks related to that record. Pass `assignee=me` to keep only the Tasks assigned to you, the User of the session or of the API key.
 
 Tasks come ordered by `dueDate`, nearest first, with the Tasks that have no due date last. Ties go to the oldest Task first.
 
@@ -181,6 +206,7 @@ Create a Task. It starts in `todo`, unassigned, with no due date and an empty de
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied idempotency id. |
 | `text` | string | Yes | 1 to 500 characters after trimming. |
+| `parentTaskId` | UUID or null | No | Create the Task as a [subtask](#subtasks) of this Task. Omit it, or send `null`, for a top-level Task. |
 | `links` | array | No | The records to relate the Task to. Omit it, or send `[]`, for a stand-alone Task. |
 
 Each item of `links` names one record:
@@ -270,7 +296,7 @@ curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/tas
 
 ## DELETE `/api/organizations/:organizationId/tasks/:taskId`
 
-Delete a Task permanently.
+Delete a Task permanently, with its subtasks and its Notifications.
 
 **Response** `200`: the deleted Task object.
 
@@ -288,7 +314,9 @@ Task domain errors carry a `code` and a `params` object in the body.
 | `404` | `TASK_NOT_FOUND_ERROR` | `{ taskId }` | No Task with that id exists in the Organization. |
 | `404` | `TASK_LINKED_RECORD_NOT_FOUND_ERROR` | `{ linkKind, recordId }` | The related record does not exist, belongs to an Entity other than its `entityId` or outside the Organization, or is an Unbooked or cancelled Ledger Entry. `linkKind` is `invoice`, `bank_movement`, or `ledger_entry`. |
 | `404` | `TASK_LINK_NOT_FOUND_ERROR` | `{ taskId, taskLinkId }` | The Task has no Task Link with that id. |
+| `404` | `TASK_PARENT_NOT_FOUND_ERROR` | `{ parentTaskId }` | `parentTaskId` names no Task of the Organization, or names the Task being created. |
 | `409` | `TASK_ALREADY_EXISTS_ERROR` | `{ taskId }` | A Task with the supplied `id` already exists. |
+| `422` | `TASK_PARENT_IS_SUBTASK_ERROR` | `{ parentTaskId }` | `parentTaskId` names a subtask. Subtasks are one level deep. |
 | `422` | `TASK_ASSIGNEE_NOT_STAFF_ERROR` | `{ userId }` | `assigneeUserId` is not a staff Member of the Organization. |
 
 ```json
@@ -311,7 +339,7 @@ Task domain errors carry a `code` and a `params` object in the body.
 | `400` | Validation error: blank or too-long `text`, a `description` over 10,000 characters, an unknown `status`, a malformed `dueDate`, a Task Link item without exactly one record id or without `entityId`, the same record twice in `links`, more than one record filter, or an empty PATCH body. |
 | `401` | Unauthenticated. |
 | `403` | Caller does not hold the `staff` Role in the Organization, or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
-| `404` | Task, Task Link, or related record not found. |
+| `404` | Task, Task Link, parent Task, or related record not found. |
 | `409` | A Task with that `id` already exists. |
-| `422` | The assignee is not a staff Member of the Organization. |
+| `422` | The assignee is not a staff Member of the Organization, or the parent Task is a subtask. |
 | `429` | Rate limit exceeded (25,000 requests per hour per API key). |

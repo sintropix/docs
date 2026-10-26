@@ -126,6 +126,16 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - He can't create scheduled tasks from the app. Ask for those in a Slack channel bound through an [Agent Channel](/api-reference/agent-channels).
     - Each change he makes appears in the [audit trail](/api-reference/audit-trail) with you as the actor and `erwin` as the declared actor.
 
+    **What Erwin can change.** In the app and in Slack, Erwin can write to the books of every company of your Organization and to the Organization's shared work, such as [Tasks](/api-reference/tasks), the Chat, Partners, and Dimensions. A few settings stay with people. He refuses, and tells you why, when you ask him to:
+
+    - Bind, change, or remove an [Agent Channel](/api-reference/agent-channels), because it decides which Organization a place speaks for.
+    - Change Memberships or Roles.
+    - Connect, renew, or disconnect an [Integration](/api-reference/integrations), or change its purpose.
+    - Set the [Expense Claim Approver](/api-reference/expense-claims), so he never chooses who approves expense claims.
+    - Rename or delete the Organization, or reach another Organization.
+
+    A person with the right Role does these in the app.
+
     **Erwin works for your Organization.** He serves every company of your Organization from the same place, so a holding can talk about all its subsidiaries in one channel or one app thread. He works on the company you mean. When a request fits more than one and the records don't settle it, he asks which one. His wiki, his conversations, and his scheduled tasks belong to the Organization.
 
     **Work with Erwin in Slack.** In a Slack channel bound to the Organization, you can stop Erwin or interrupt him with a new message, answer his questions by replying in the thread, and ask him for scheduled tasks. See [Work with Erwin in a Slack channel](/api-reference/agent-channels#work-with-erwin-in-a-slack-channel). In Slack and in the app, Erwin can also read the Organization's bound Slack channels for context.
