@@ -6,7 +6,7 @@ description: "Mention Members in the Organization Chat, follow the ERP Threads y
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Notification tells one User that something in an Organization needs their attention. Each User has their own Notifications in each Organization they belong to. The app shows them in the **Bandeja**, below **Chat** in the sidebar, with a badge that counts the unread ones.
+A Notification tells one User that something in an Organization needs their attention. Each User has their own Notifications in each Organization they belong to. The app shows them in the **Bandeja**, a page of the Organization below **Chat** in the sidebar, with a badge that counts the unread ones. The sidebar offers **Chat** and **Bandeja** both in an Entity and in **Grupo**.
 
 A Notification has one of four kinds:
 
@@ -22,8 +22,8 @@ More kinds may come later, so read `kind` before you read the rest of a Notifica
 Every Role can use the routes on this page, `viewer` included. Only `staff` Members are assigned Tasks, so only they get the two Task kinds. Each route reads or marks only the caller's own Notifications: the User of the session or of the API key.
 
 <AppLink
-  url="https://app.sintropix.com/{entityId}/notifications"
-  note="It shows the signed-in User's Notifications in the Entity's Organization. Opening a Notification marks it read and opens the Chat on that message's ERP Thread."
+  url="https://app.sintropix.com/organizations/{organizationId}/notifications"
+  note="It shows the signed-in User's Notifications in the Organization. Opening a Notification marks it read and opens its target: the Chat on that message's ERP Thread, or the Task in Tareas. The old /{entityId}/notifications and /{entityId}/chat URLs no longer open."
 />
 
 ## Mention a Member

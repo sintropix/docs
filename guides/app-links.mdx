@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<page>[?<params>]
 
 Two areas live outside an Entity:
 
-- **Configuración de empresa** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio, and Log. Take `organizationId` from the Entity or the record. The Organization's Tasks live under `https://app.sintropix.com/organizations/{organizationId}/tasks`.
+- **Configuración de empresa** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio, and Log. Take `organizationId` from the Entity or the record. The Organization's pages live beside them, under `https://app.sintropix.com/organizations/{organizationId}`: **Chat** at `/chat`, **Bandeja** at `/notifications`, **Tareas** at `/tasks`, and **Intercompañía** at `/intercompany-entries`.
 - **Tu cuenta**, the signed-in User's own settings, lives under `https://app.sintropix.com/account`.
 
 Deep links survive login. If the user is signed out, the app shows the login form and then lands on the exact URL requested. A user without access to the Entity sees a "no access" screen rather than a redirect.
@@ -52,7 +52,9 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Expense Claim | `/{entityId}/expense-renditions?expenseClaimStatus=submitted` | **Rendiciones**, on its **Por aprobar** view. Use `expenseClaimStatus=rejected` for **Rechazadas**. An approved claim is its Expense Rendition, at `/{entityId}/expense-renditions?open={invoiceId}`. The Approver and the booking setting are at `/{entityId}/settings/expense-claims`. |
 | Attachment | `/{entityId}/invoices?open={invoiceId}` or `/{entityId}/bills?open={invoiceId}` | Attachments are shown inside the invoice panel. |
 | Task | `/organizations/{organizationId}/tasks` | Staff only. Every Task of the Organization, across its Entities. Add `assignee=me` for the caller's own Tasks (**Mías**), or `task={taskId}` to open one Task in its detail panel. A related Task also shows in the panel of each Invoice, Bank Movement, or Ledger Entry it relates to. |
-| Notification | `/{entityId}/notifications` | The signed-in User's [Notifications](/api-reference/notifications) (**Bandeja**) in the Entity's Organization. |
+| Chat message | `/organizations/{organizationId}/chat?open={messageId}` | The Organization's **Chat**, with the message's ERP Thread open beside it. Drop `open` for the main Chat. Every Member can open it. |
+| Notification | `/organizations/{organizationId}/notifications` | The signed-in User's [Notifications](/api-reference/notifications) (**Bandeja**) in the Organization. |
+| Intercompany Entries | `/organizations/{organizationId}/intercompany-entries` | **Intercompañía**, the Organization's list of intercompany entries. The sidebar offers it only in **Grupo**, so an Organization with one Entity doesn't show it. |
 | Inbox Conversation | `/{entityId}/inbox?open={conversationId}` | Staff only. Opens the Conversation in its side panel. Drop `open` for the Organization's Inbox. |
 | Bank Account | `/{entityId}/banks/{bankAccountId}` | The reconciliation view for that account. `/{entityId}/banks` lists all accounts. `/{entityId}/settings/bank-accounts?open={bankAccountId}` opens the account's settings to edit its name, bank, and number. |
 | Bank Movement | `/{entityId}/banks/{bankAccountId}?open={movementId}` | Use the `bankAccountId` field on the Movement. Replace `open` with `reconcile` to start reconciling it. |
