@@ -47,6 +47,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Entidad | `/{entityId}/home` | El panel de la Entidad. Sus ajustes están en su fila de la página Empresa de la Organización. |
 | Organización | `/organizations/{organizationId}/settings` | La página Empresa: el logo y el nombre de la Organización, y una fila por Entidad (**Entidades legales**) con sus ajustes. |
 | Asiento contable | `/{entityId}/entries/{entryId}` | Detalle a página completa. El listado es `/{entityId}/entries`. |
+| Operación intercompañía (Intercompany Entry) | `/organizations/{organizationId}/intercompany-entries/{intercompanyEntryId}` | Los dos asientos de la operación lado a lado, con sus pares. El listado es `/organizations/{organizationId}/intercompany-entries`. |
 | Factura, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | Documentos por cobrar. Elige la página según el campo `direction`. |
 | Factura, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | Documentos por pagar. |
 | Rendición (Expense Claim) | `/{entityId}/expense-renditions?expenseClaimStatus=submitted` | **Rendiciones**, en la vista **Por aprobar**. Usa `expenseClaimStatus=rejected` para **Rechazadas**. Una rendición aprobada es su Expense Rendition, en `/{entityId}/expense-renditions?open={invoiceId}`. El aprobador y la configuración contable están en `/{entityId}/settings/expense-claims`. |

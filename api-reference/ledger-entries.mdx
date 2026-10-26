@@ -46,7 +46,7 @@ List Ledger Entries with pagination, filtering, and sorting. Defaults to live en
 | `entries` | array | Ledger Entries on this page, each with the fields below |
 | `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
 
-Each item in `entries` carries the Ledger Entry fields plus three line-derived totals:
+Each item in `entries` carries the Ledger Entry fields, three line-derived totals, the attachment count, and the other Entity of its Intercompany Entry:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -57,14 +57,16 @@ Each item in `entries` carries the Ledger Entry fields plus three line-derived t
 | `notes` | string or null | Longer notes |
 | `status` | enum | `active`, `deleted`, `reversed`, `scheduled`, or `cancelled` |
 | `reversalOfEntryId` | UUID or null | The entry this one reverses; `null` for ordinary entries |
+| `intercompanyEntryId` | UUID or null | The [Intercompany Entry](/api-reference/intercompany-entries) this entry belongs to; `null` for other entries |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 | `total` | integer | Sum of the entry's debit lines |
 | `lineCount` | integer | Number of lines |
 | `accountNames` | string[] | Distinct names of the accounts the entry touches, debit-side accounts first |
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the entry |
+| `otherEntityOfIntercompanyEntry` | object or null | For an entry of an [Intercompany Entry](/api-reference/intercompany-entries), the other Entity of the act as `{ id, name }`; `null` for other entries |
 
-The first nine fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
+The first ten fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
@@ -102,6 +104,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | `allocations` | array | Allocations that settle one of this entry's lines, each with the allocation fields below |
 | `deferralRelease` | object or null | Set when this entry is a [Release](/api-reference/invoices#deferrals) of a Deferral: `{ deferralId, invoiceId, invoiceDocumentNumber }`. `null` for other entries, and once the Invoice booking that holds the deferred line is unbooked or reversed |
 | `deferrals` | array | The [Deferrals](/api-reference/invoices#reading-a-deferral) whose deferred line this entry books; empty for other entries. Unbooking or reversing this entry also undoes their Releases |
+| `otherEntityOfIntercompanyEntry` | object or null | For an entry of an [Intercompany Entry](/api-reference/intercompany-entries), the other Entity of the act as `{ id, name }`; `null` for other entries |
 
 Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which other endpoints return on their own) plus the names the detail view shows:
 
@@ -125,6 +128,7 @@ Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which 
 | `partnerName` | string or null | Name of the partner |
 | `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it |
 | `lineDimensionValues` | array | Tags on the line: `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }` |
+| `intercompanyPairId` | UUID or null | The [Intercompany Pair](/api-reference/intercompany-entries) the line belongs to; `null` for an unpaired line |
 
 Each item in `relatedInvoices`:
 
@@ -713,6 +717,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `LEDGER_ENTRY_LOCKED_ERROR` | Ledger is locked |
 | `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | Cannot unbook a frozen entry |
 | `LEDGER_ENTRY_NOT_ACTIVE_ERROR` | Entry is not active |
+| `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR` | The entry belongs to an [Intercompany Entry](/api-reference/intercompany-entries) and changes only with it. Edit, Unbook, reverse, account change, and Partner change are refused; Dimension tags are allowed. `params`: `{ ledgerEntryId, intercompanyEntryId }` |
 | `LEDGER_ENTRY_OVER_CORRECTED_ERROR` | Entry already has a reversal |
 | `LEDGER_REVERSAL_NETTING_BLOCKED_ERROR` | Reversal would net an existing allocation |
 | `LEDGER_REVERSAL_DATE_BEFORE_ORIGINAL_ERROR` | Reversal date is before the original |

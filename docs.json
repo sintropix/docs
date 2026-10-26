@@ -41,6 +41,7 @@
                   "api-reference/books",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
+                  "api-reference/intercompany-entries",
                   "api-reference/allocations",
                   "api-reference/dimensions"
                 ]
@@ -131,6 +132,7 @@
                   "api-reference/books",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
+                  "api-reference/intercompany-entries",
                   "api-reference/allocations",
                   "api-reference/dimensions"
                 ]

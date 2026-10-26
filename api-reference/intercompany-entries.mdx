@@ -1,0 +1,228 @@
+---
+title: "Sintropix Intercompany Entries API: Book Between Two Entities"
+sidebarTitle: "Intercompany Entries"
+description: "Write one Ledger Entry in each of two Entities of an Organization as one act, pair the lines that mirror each other, and list, read, or Unbook the act."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+An Intercompany Entry (**Operación intercompañía** in the app) records one transaction between two Entities of the same Organization, such as a loan from a holding to a subsidiary. From the Organization, one request writes a Ledger Entry in each Entity and stores the act's **Intercompany Pairs**.
+
+An Intercompany Pair joins two lines that mirror each other: one line in each Entity, on opposite sides, for the same amount in the same currency. For a loan, the lender's due-from line pairs with the borrower's due-to line. The Pairs are the balances that cancel out between the two Entities.
+
+The act changes only as a whole. You can't edit, Unbook, or reverse one of its Ledger Entries on its own. To correct an act, Unbook it, which Unbooks both entries, and write it again.
+
+All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/intercompany-entries/{intercompanyEntryId}"
+  note="The list is at /organizations/{organizationId}/intercompany-entries, and /organizations/{organizationId}/intercompany-entries/new opens the form. Each Ledger Entry of the act is also at /{entityId}/entries/{entryId}."
+/>
+
+## Access
+
+The routes live under the Organization and need the `books` permission in it. `GET` needs `books` read, so `staff`, `client`, and `viewer` Members can list and read acts. `POST` and `DELETE` need `books` write, so `staff` and `client` Members can write and Unbook acts.
+
+An API key [confined to one Entity](/guides/api-keys) receives `403` with `PERMISSION_DENIED_ERROR` on every route, reads included, because an act holds the books of two Entities. Mutations with an API key also require `x-audit-actor`. See [Get an API Key](/guides/api-keys).
+
+## The Intercompany Entry object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Act id |
+| `organizationId` | UUID | The Organization of both Entities |
+| `status` | enum | `active`, or `deleted` once the act is Unbooked. `deleted` is final. |
+| `memo` | string or null | Short description, shared by both Ledger Entries |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+The act has no date of its own. Its two Ledger Entries carry the one date, served as `entryDate`.
+
+## GET `/api/organizations/:organizationId/intercompany-entries`
+
+List the acts of the Organization, newest date first.
+
+**Query parameters**
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `cursor` | UUID | No | — | The id of the last act of the previous page. An id that isn't an act of the Organization returns `404` with `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR`. |
+| `limit` | integer | No | 50 | Page size, 1 to 100 |
+
+**Response** `200`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `intercompanyEntries` | array | The acts on this page. Each has the fields of [the Intercompany Entry object](#the-intercompany-entry-object), plus `entryDate` and `ledgerEntries`. |
+| `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page. `null` on the last page. |
+
+Each act's `ledgerEntries` holds its two Ledger Entries as `{ id, entityId, entityName }`.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries?limit=20" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId`
+
+Read one act with both of its Ledger Entries and its Pairs.
+
+**Response** `200`: the fields of [the Intercompany Entry object](#the-intercompany-entry-object), plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entryDate` | ISO date | The date of both Ledger Entries |
+| `ledgerEntries` | array | The two Ledger Entries, each with the Ledger Entry fields, `entityName`, and `lines`. Each item of `lines` has the fields of a line in the [entry detail](/api-reference/ledger-entries#get-api-entities-entityid-ledger-entries-entryid), including `intercompanyPairId`. |
+| `pairs` | array | The act's Pairs, each as `{ id, lines }`. `lines` holds two items, `{ lineId, entityId }`, one for each Entity. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries/$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST `/api/organizations/:organizationId/intercompany-entries`
+
+Write an act: one Ledger Entry in each of two Entities of the Organization, and at least one Pair. Everything is written in one transaction, so if one check fails, nothing is written. You supply every id: the act's, each Ledger Entry's, and each line's. A Pair names its lines by those ids.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id for the act. A retried request with the same id returns `409` with `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`. |
+| `entryDate` | ISO date | Yes | The date of both Ledger Entries |
+| `memo` | string or null | Yes | The memo of both Ledger Entries |
+| `newLedgerEntries` | array | Yes | Exactly two Ledger Entries, one for each Entity. The two must be different Entities of the Organization. |
+| `newIntercompanyPairs` | array | Yes | At least one Pair, at most 5,000 |
+
+Each item of `newLedgerEntries`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied id for the Ledger Entry |
+| `entityId` | UUID | Yes | The Entity that books it. An Entity outside the Organization returns `409` with `INTERCOMPANY_ENTRY_ENTITY_IN_ANOTHER_ORGANIZATION_ERROR`, whether it exists or not. |
+| `newLedgerEntryLines` | array | Yes | 2 to 5,000 balanced lines, with the same fields as the lines of [`POST /ledger/entries`](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries) |
+
+Each item of `newIntercompanyPairs`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lineIds` | UUID[] | Yes | Exactly two line ids, in the order of `newLedgerEntries`: the first names a line of the first entry, and the second a line of the second entry |
+
+### Pair rules
+
+- **One line in one Pair.** A line can be in at most one Pair. Lines that aren't in any Pair are fine.
+- **Opposite sides.** One line is a debit and the other a credit. Otherwise the act returns `422` with `INTERCOMPANY_PAIR_SAME_SIDE_ERROR`.
+- **Same currency and amount.** Both lines carry the same amount in the same currency. A line with a transaction currency is read from its `transactionCurrency` and `transactionAmount`. A line without one is read from its `functionalAmount`, in its Entity's functional currency. Two amounts that differ return `422` with `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR`.
+- **One currency per act.** The act's currency is the currency of its first Pair. A Pair in another currency returns `422` with `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR`.
+- **One rate per Entity.** When an Entity books the act's currency as a foreign currency, all its paired lines use one `transactionFxRate`. Different rates return `422` with `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR`, and `params.entityId` names the Entity.
+- **No Partner on a paired line.** Leave `partnerId` empty on a paired line. Sintropix sets it to the [representing Partner](/api-reference/partners#representing-partners) of the other Entity, so each Entity names the other as its counterparty.
+
+Each Ledger Entry also passes every check of an ordinary [Ledger Entry](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries), including the Entity's ledger lock date. A line id that already exists, or that appears twice in the act, returns `409` with `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+
+**Response** `201`: the act, in the same shape as [`GET …/intercompany-entries/:intercompanyEntryId`](#get-api-organizations-organizationid-intercompany-entries-intercompanyentryid).
+
+### Example: a USD loan between two Entities
+
+Andes US, whose functional currency is `USD`, lends USD 10,000.00 to Andes Chile, whose functional currency is `CLP`, at a rate of 942.15. Each side balances on its own. The lender's due-from line pairs with the borrower's due-to line, both for USD 10,000.00 (`1000000` cents).
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "5a0c3e2f-1b4d-4e6a-8c7f-9d0e1f2a3b4c",
+    "entryDate": "2026-10-26",
+    "memo": "Préstamo Andes US a Andes Chile",
+    "newLedgerEntries": [
+      {
+        "id": "6b1d4f3a-2c5e-4f7b-9d8a-0e1f2a3b4c5d",
+        "entityId": "'"$ANDES_US_ID"'",
+        "newLedgerEntryLines": [
+          { "id": "7c2e5a4b-3d6f-4a8c-8e9b-1f2a3b4c5d6e", "accountId": "'"$US_DUE_FROM_ACCOUNT_ID"'", "functionalAmount": 1000000, "side": "debit" },
+          { "id": "8d3f6b5c-4e7a-4b9d-9f0c-2a3b4c5d6e7f", "accountId": "'"$US_BANK_ACCOUNT_ID"'", "functionalAmount": 1000000, "side": "credit" }
+        ]
+      },
+      {
+        "id": "9e4a7c6d-5f8b-4c0e-8a1d-3b4c5d6e7f8a",
+        "entityId": "'"$ANDES_CHILE_ID"'",
+        "newLedgerEntryLines": [
+          { "id": "0f5b8d7e-6a9c-4d1f-9b2e-4c5d6e7f8a9b", "accountId": "'"$CL_BANK_ACCOUNT_ID"'", "functionalAmount": 9421500, "side": "debit", "transactionCurrency": "USD", "transactionAmount": 1000000, "transactionFxRate": "942.15" },
+          { "id": "1a6c9e8f-7b0d-4e2a-8c3f-5d6e7f8a9b0c", "accountId": "'"$CL_DUE_TO_ACCOUNT_ID"'", "functionalAmount": 9421500, "side": "credit", "transactionCurrency": "USD", "transactionAmount": 1000000, "transactionFxRate": "942.15" }
+        ]
+      }
+    ],
+    "newIntercompanyPairs": [
+      { "lineIds": ["7c2e5a4b-3d6f-4a8c-8e9b-1f2a3b4c5d6e", "1a6c9e8f-7b0d-4e2a-8c3f-5d6e7f8a9b0c"] }
+    ]
+  }'
+```
+
+## DELETE `/api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId`
+
+Unbook the act. Both Ledger Entries are Unbooked as with [`DELETE /ledger/entries/:entryId`](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid), and the act's `status` becomes `deleted`. An act that is already Unbooked returns `409` with `INTERCOMPANY_ENTRY_NOT_ACTIVE_ERROR`.
+
+The Unbook is refused when either entry is dated on or before its Entity's ledger lock date. It then returns `409` with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR`, and nothing is Unbooked. `params` names the entry (`ledgerEntryId`), its `entryDate`, and the `ledgerLockDate` that holds it.
+
+**Response** `200`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `unbookedIntercompanyEntry` | object | [The Intercompany Entry object](#the-intercompany-entry-object), with `status` set to `deleted` |
+| `ledgerEntryUnbookResults` | array | Two items, one for each Ledger Entry, in the shape of the [Unbook response](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid) of a Ledger Entry |
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries/$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## The act's Ledger Entries
+
+Each Ledger Entry of an act is an ordinary entry of its Entity, so it shows in reports, the General Ledger, and [`GET /ledger/entries`](/api-reference/ledger-entries#get-api-entities-entityid-ledger-entries). It carries `intercompanyEntryId`, the id of its act, and `otherEntityOfIntercompanyEntry`, the `{ id, name }` of the other Entity. Each of its lines carries `intercompanyPairId`, the id of its Pair, or `null` when the line isn't paired.
+
+An edit, Unbook, reversal, account change, or Partner change on one of these entries or its lines returns `409` with `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR`. You can still tag its lines with [Dimension](/api-reference/dimensions) values.
+
+## Activity
+
+Read the history of an act through the [Audit Trail](/api-reference/audit-trail) of either of its Entities, with `tableName=intercompany_entry` and the act's id as `rowId`:
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=intercompany_entry&rowId=$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+In the Organization's Log, an act's write and its Unbook show under both Entities.
+
+## In the app
+
+**Intercompañía** in the sidebar lists the Organization's acts. **Nueva operación** opens a form with one block of lines for each Entity, and **Agregar par** pairs a line of each. The act's page shows both entries side by side, the Pairs, and the act's **Actividad**. Each entry of the act shows a chip that names the other Entity and opens the act, and offers only **Eliminar operación**, which Unbooks the whole act.
+
+## Errors
+
+| Status | `code` | `params` | When |
+| --- | --- | --- | --- |
+| `403` | `PERMISSION_DENIED_ERROR` | `{}` | Your Role lacks `books` write for a `POST` or `DELETE`, or the API key is confined to one Entity. |
+| `404` | `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR` | `{ intercompanyEntryId }` | No act with that id in the Organization, including an unknown `cursor`. |
+| `409` | `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR` | `{ intercompanyEntryId }` | An act with the supplied `id` already exists. |
+| `409` | `INTERCOMPANY_ENTRY_NOT_ACTIVE_ERROR` | `{ intercompanyEntryId }` | The act is already Unbooked. |
+| `409` | `INTERCOMPANY_ENTRY_ENTITY_IN_ANOTHER_ORGANIZATION_ERROR` | `{ entityId }` | An entry names an Entity that isn't one of the Organization's. |
+| `409` | `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` | `{ lineIds }` | A line id already exists, or appears twice in the act. |
+| `409` | `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | `{ ledgerEntryId, entryDate, ledgerLockDate }` | Unbook only: an entry of the act is on or before its Entity's ledger lock date. |
+| `422` | `INTERCOMPANY_PAIR_SAME_SIDE_ERROR` | `{ lineIds }` | Both lines of the Pair are on the same side. |
+| `422` | `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR` | `{ lineIds }` | The lines of the Pair carry different amounts. |
+| `422` | `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR` | `{ lineIds }` | The Pair's currency differs from the act's first Pair. |
+| `422` | `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR` | `{ entityId }` | The paired lines of that Entity use more than one rate. |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success (GET, DELETE) |
+| `201` | Act written |
+| `400` | Validation error: not exactly two entries, the same Entity twice, an unbalanced entry, fewer than 2 or more than 5,000 lines in an entry, no Pair, a Pair whose lines aren't one of each entry in order, a line in two Pairs, or a `partnerId` on a paired line |
+| `401` | Unauthenticated |
+| `403` | Permission denied (`PERMISSION_DENIED_ERROR`) |
+| `404` | Organization or act not found |
+| `409` | Domain rule violation |
+| `422` | A Pair breaks a [pair rule](#pair-rules) |
