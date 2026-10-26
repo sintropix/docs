@@ -60,6 +60,7 @@ Access to an Entity comes from an **Organization Membership**. An [Organization]
 
 - **Read** covers `GET` requests on Entity routes and on the data the Organization shares, including the Organization's [Audit Trail](/api-reference/audit-trail). **Write** covers `POST`, `PUT`, `PATCH`, and `DELETE`.
 - **Sintropix work** covers routes reserved for the accounting team: credentials (except [Portal Logins](/api-reference/integrations#portal-logins), the bank, Getnet, SII, and Clay logins a `client` can store too), [connecting or reconnecting a bank through Fintoc](/api-reference/integrations#post-integrations-fintoc-link-intents), automations, [Agent Channels](/api-reference/agent-channels), [Tasks](/api-reference/tasks), the [Inbox](/api-reference/inbox), and [FX rate sync](/api-reference/fx-rates).
+- Reading the email of the Organization's [Gmail and Outlook](/api-reference/integrations#gmail-and-outlook) accounts takes more than reading the books: `staff` and `client` can, `viewer` can't.
 - An Entity outside your Organizations returns `404`. An action your Role doesn't allow returns `403` with `PERMISSION_DENIED_ERROR`.
 - No Role is global. A User with no Membership in an Organization can't reach its Entities, whatever Role they hold elsewhere.
 
@@ -175,7 +176,7 @@ Domain-level errors carry a stable string `code` in the body, for example `API_K
 When an outside system refuses a request, the API answers `424 Failed Dependency` with a coded body. These codes answer `424`:
 
 - `BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, and `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`
-- `INTEGRATION_PROVIDER_FAILURE_ERROR`
+- `INTEGRATION_PROVIDER_FAILURE_ERROR` and `INTEGRATION_GRANT_FAILED_ERROR`
 - `SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`
 - `AUTOMATION_PROVIDER_FAILURE_ERROR` and `AUTOMATION_PROVIDER_UNAUTHORIZED_ERROR`
 

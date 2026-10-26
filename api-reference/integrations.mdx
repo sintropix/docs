@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Connect the SII with the company Clave, export the General Ledger to a Google Sheet, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, search and read the email of a Gmail or Outlook account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -15,7 +15,8 @@ What an Integration can feed depends on its kind:
 | `sii_mirror` | Up to two [Sources](/api-reference/sources), through [Source Feeds](/api-reference/source-feeds): one for DTEs (`dte`) and one for boletas de honorarios (`honorarium`) |
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
 | `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
-| `mercadolibre`, `gmail` | Nothing yet |
+| `mercadolibre` | Nothing yet |
+| `gmail`, `outlook` | Nothing. You search and read their email on demand instead. See [Gmail and Outlook](#gmail-and-outlook) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 
 An Organization can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account can be connected only once.
@@ -26,7 +27,7 @@ The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Pla
 
 The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
-The `gmail` kind connects a Gmail mailbox through Google OAuth. You grant Sintropix read-only Gmail access (the `gmail.readonly` scope). If you clear the Gmail permission on Google's consent screen, Sintropix refuses the connection and stores nothing. An Organization can connect several mailboxes, but each mailbox can be connected only once. Sintropix does not read any email through this Integration yet: you can connect, renew, and disconnect the mailbox only.
+The `gmail` and `outlook` kinds connect an email account: a Gmail account or a Microsoft Outlook account. You connect it from the app. Sintropix only reads: it never sends, changes, or deletes email. An Organization can connect several email accounts, but each account can be connected only once. You can [search and read](#gmail-and-outlook) the email of a connected account through the API.
 
 The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of the current year of every Entity of the Organization to that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
 
@@ -52,13 +53,13 @@ An Integration belongs to the [Organization](/api-reference/organizations), not 
 
 The routes follow the same split:
 
-- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the SII legal representative's Clave, the discovered accounts, the General Ledger Export, and disconnect.
-- Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. It takes an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
+- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the purpose, the SII legal representative's Clave, the discovered accounts, the General Ledger Export, the email of a Gmail or Outlook account, and disconnect.
+- Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. So does the copy of an [email attachment](#post-api-entities-entityid-email-attachments) into an Entity. They take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
 
-Connecting, reconnecting, and disconnecting an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations. An API key confined to one Entity:
+Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail or Outlook account. An API key confined to one Entity:
 
 - Lists every Integration of its Organization, but sees only the Sources and Bank Accounts of its own Entity.
-- Can't connect, reconnect, renew, or disconnect an Integration, or run a General Ledger Export. It gets `403` with `PERMISSION_DENIED_ERROR`.
+- Can't connect, reconnect, renew, or disconnect an Integration, run a General Ledger Export, or read or copy the email of a Gmail or Outlook account. It gets `403` with `PERMISSION_DENIED_ERROR`.
 - Adds and removes only the feeds that land in its own Entity.
 
 An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-api-entities-entityid-organization).
@@ -71,8 +72,8 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `polar` \| `google_sheets` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail`, the mailbox email address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `polar` \| `google_sheets` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds and the OAuth authorizations. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
@@ -83,6 +84,8 @@ The access token is stored encrypted and is never returned on any read.
 | `routedEntities` | array | `{ id, name }` of each Entity the Integration's feeds reach, in name order. Empty while no feed routes it. |
 | `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads for the Entity that keeps it. `null` for every other kind, and when no Book was picked. |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
+| `purpose` | string \| null | What the account is for, in your own words, such as "Facturas de proveedores de Acme". It helps a person or an agent pick the right account when the Organization holds several. Up to 500 characters. `null` until you [set it](#put-integrations-integrationid-purpose). |
+| `grantHealth` | `working` \| `failed` \| `unknown` \| null | For `gmail` and `outlook`, whether the account's access still works, checked on each list. `failed` means the access expired or was revoked: disconnect the Integration and connect the account again. `unknown` means Sintropix couldn't check it right now. `null` for every other kind. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## POST `/integrations`
@@ -91,14 +94,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, Polar, and Google Sheets use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint.
+This route connects the document Providers and the bank Providers. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, and Google Sheets use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint.
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `polar`, and `google_sheets` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `polar`, and `google_sheets` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -282,11 +285,36 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `GET /api/organizations/:organizationId/integrations`
 
-List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Polar, or Google Sheets authorization connected from the app. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
+List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, or Google Sheets authorization connected from the app. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
 
 An API key confined to one Entity gets every Integration of the Organization, with only the Source Feeds and Bank Accounts of its own Entity. `routedEntities` still names every Entity a feed reaches.
 
 - **Response:** array of Integration objects.
+
+## PUT `/integrations/:integrationId/purpose`
+
+`PUT /api/organizations/:organizationId/integrations/:integrationId/purpose`
+
+Set or clear the purpose of an Integration: what the account is for, in your own words. Write it so a colleague or an agent can tell your accounts apart, for example "Casilla de facturas de proveedores" for one Gmail account and "Correo personal de la gerenta" for another. Any kind of Integration takes a purpose.
+
+In the app, open the Integration's panel. **Propósito** is the first row of its details, and you edit it in place.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `purpose` | string \| null | Yes | 1 to 500 characters after trimming. `null` clears it. A blank string is refused with `400`. Unknown keys are refused with `400`. |
+
+- **Response:** the Integration object, with its new `purpose`.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/purpose" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Name the supplier invoice mailbox" \
+  -H "Content-Type: application/json" \
+  -d '{ "purpose": "Casilla de facturas de proveedores" }'
+```
 
 ## DELETE `/integrations/:integrationId`
 
@@ -405,6 +433,183 @@ Read whether the SII mirror holds a Clave or a certificate of the company's lega
 ```
 
 An Integration that isn't `sii_mirror` answers `422` with `INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`. When the SII mirror refuses the read, it answers `424`. When the SII mirror can't be reached, it answers `503`.
+
+## Gmail and Outlook
+
+A `gmail` or `outlook` Integration connects one email account of the Organization. Sintropix keeps no copy of the account's email. You search and read it on demand, and you can copy an attachment into an Entity, for example to attach a supplier's PDF to its Invoice. Sintropix only reads: it never sends, changes, or deletes email.
+
+### Connect an email account
+
+You connect an email account from the app, because Google and Microsoft ask for consent in a browser:
+
+1. Open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Gmail** or **Outlook**, under the **Correo** tag.
+2. Continue on Composio, which holds the account's access for Sintropix, and allow access on Google or Microsoft with the account you want to connect.
+
+Google asks for full access to the mailbox, but Sintropix only reads it. Outlook asks for read access to the mail only.
+
+### Who can read email
+
+Reading the email of the Organization's accounts is more than reading its books, so it has its own rule:
+
+| Caller | Search and read email | Copy an attachment into an Entity |
+| --- | --- | --- |
+| `staff` or `client` | Yes | Yes |
+| `viewer` | No | No |
+| An API key confined to one Entity | No | No |
+
+A refused caller gets `403` with `PERMISSION_DENIED_ERROR`.
+
+Sintropix logs each email whose content it hands out and each attachment it copies, under the request's [Audit Envelope](/api-reference/audit-trail). A search isn't logged, because it returns only headers and a short snippet. Reading an email with an API key needs `x-audit-actor` and `x-audit-reason`, as a write does.
+
+### The Email object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The email's id at Google or Microsoft. Use it to read the email or copy an attachment. |
+| `conversationId` | string | The id of the email's Conversation: the thread it belongs to. |
+| `receivedAt` | ISO 8601 timestamp | When the email arrived. |
+| `from` | object \| null | `{ name, address }` of the sender. `name` can be `null`. |
+| `to`, `cc` | array | `{ name, address }` of each recipient. |
+| `subject` | string | The subject. |
+| `attachments` | array | `{ id, filename, contentType, byteSize }` of each attachment. Use `id` to [copy it](#post-api-entities-entityid-email-attachments). |
+| `snippet` | string | On a search only: the first words of the body. |
+| `body` | string | On a read only: the body as plain text. HTML is removed. A body over 20,000 characters is cut and ends with `[The body goes on; it was cut here.]`. |
+
+### GET `/integrations/:integrationId/emails`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/emails`
+
+Search the email of a Gmail or Outlook account, newest first. The search covers received and sent email. It leaves out drafts, spam, and deleted email.
+
+**Query parameters.** Send at least one criterion. The criteria combine with AND, and each text criterion matches whole words, as the mailbox's own search does. Sintropix keeps only the letters, digits, and `@._-` of each term, so a term can't carry Gmail or Outlook search syntax.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `from` | string | No | Words of the sender's name or address. 1 to 200 characters. |
+| `to` | string | No | Words of a recipient's name or address, in To or Cc. 1 to 200 characters. |
+| `subject` | string | No | Words of the subject. 1 to 200 characters. |
+| `text` | string | No | Words anywhere in the subject or body. 1 to 200 characters. |
+| `after` | date (`YYYY-MM-DD`) | No | Only email received on or after this day, in Santiago (Chile) time. |
+| `before` | date (`YYYY-MM-DD`) | No | Only email received before this day, in Santiago (Chile) time. Must be later than `after`. |
+| `hasAttachment` | boolean | No | `true` for only email with attachments, `false` for only email without. |
+| `attachmentType` | `pdf` \| `xml` \| `image` \| `spreadsheet` \| `any` | No | Only email with an attachment of this type. Can't be combined with `hasAttachment=false`. |
+| `limit` | integer | No | Page size, 1 to 50. Default `10`. |
+| `cursor` | string | No | The `nextCursor` of the previous page. Send the same criteria with it. |
+
+A search with no criterion, an `after` that isn't before `before`, or an `attachmentType` with `hasAttachment=false` answers `400`.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `emails` | array | Email objects with `snippet` and no `body`, newest first. |
+| `nextCursor` | string \| null | Pass it as `cursor` for the next, older page. `null` on the last page. A page can hold fewer emails than `limit` and still have a next page. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/emails?from=proveedora&attachmentType=pdf&after=2026-10-01" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "emails": [
+    {
+      "id": "18f2a7c3d4e5b6a1",
+      "conversationId": "18f2a7c3d4e5b6a1",
+      "receivedAt": "2026-10-21T13:04:00.000Z",
+      "from": { "name": "Proveedora Andina SpA", "address": "facturas@proveedora.cl" },
+      "to": [{ "name": null, "address": "pagos@acme.cl" }],
+      "cc": [],
+      "subject": "Factura 10452",
+      "attachments": [
+        { "id": "1.2", "filename": "factura-10452.pdf", "contentType": "application/pdf", "byteSize": 84211 }
+      ],
+      "snippet": "Adjuntamos la factura 10452 por el despacho de octubre."
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+### GET `/integrations/:integrationId/emails/:emailId`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/emails/:emailId`
+
+Read one email as plain text, or its whole Conversation.
+
+**Query parameters**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `conversation` | boolean | No | `true` to read every email of the email's Conversation. Default `false`. |
+
+**Response:** `{ "emails": [...] }`, Email objects with `body` and no `snippet`, oldest first. Without `conversation`, it holds the one email.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/emails/$EMAIL_ID?conversation=true" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Read the supplier's reply about invoice 10452"
+```
+
+An email the account doesn't hold answers `404` with `INTEGRATION_EMAIL_NOT_FOUND_ERROR`.
+
+### POST `/api/entities/:entityId/email-attachments`
+
+Copy one attachment of an email into an Entity, then attach it to a record of that Entity. The copy lands where an [upload](/api-reference/attachments#two-phase-upload-flow) lands before it is confirmed:
+
+1. Copy the attachment with this route. It answers an `attachmentId`.
+2. Attach it to an Invoice, a Bank Movement, or a Ledger Entry of the same Entity with that host's [confirm route](/api-reference/attachments#confirm-an-upload), sending `attachmentId` and `filename`.
+
+The route lives under the Entity because it writes to that Entity, so it needs the `books` write permission as well as the right to [read email](#who-can-read-email). The Integration must belong to the Entity's Organization.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `integrationId` | uuid | Yes | The Gmail or Outlook Integration. |
+| `emailId` | string | Yes | The `id` of the email. |
+| `attachmentId` | string | Yes | The `id` of the attachment, from the email's `attachments`. |
+
+The file must be one of the [accepted content types](/api-reference/attachments#two-phase-upload-flow), up to 25 MB. When the email sends it as a generic binary file, Sintropix takes its type from the file name's extension, such as `.pdf` or `.xml`.
+
+**Response** (`201`)
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `attachmentId` | uuid | Pass it to the confirm route of the record. |
+| `filename` | string | The attachment's file name. Pass it to the confirm route too. |
+| `contentType` | string | The stored content type. |
+| `byteSize` | integer | The file size in bytes. |
+| `url` | string | A link that opens the copy for a few minutes. |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/email-attachments" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Attach the supplier's PDF to invoice 10452" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "integrationId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+    "emailId": "18f2a7c3d4e5b6a1",
+    "attachmentId": "1.2"
+  }'
+```
+
+An attachment the email doesn't hold answers `404` with `INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`.
+
+### Email errors
+
+| Status | Code | When it happens |
+| --- | --- | --- |
+| `403` | `PERMISSION_DENIED_ERROR` | A `viewer`, or an API key confined to one Entity, reads or copies email |
+| `404` | `INTEGRATION_NOT_FOUND_ERROR` | The Integration doesn't exist in the Organization, or, on a copy, in the Entity's Organization |
+| `404` | `INTEGRATION_EMAIL_NOT_FOUND_ERROR` | The account holds no email with that id. `params.integrationId` and `params.emailId` |
+| `404` | `INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR` | The email holds no attachment with that id. `params.integrationId`, `params.emailId`, and `params.attachmentId` |
+| `422` | `INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR` | The Integration isn't `gmail` or `outlook`. `params.kind` names its kind |
+| `424` | `INTEGRATION_GRANT_FAILED_ERROR` | The account's access expired or was revoked, as `grantHealth: "failed"` shows in the list. Disconnect the Integration and connect the account again |
+| `424` | `INTEGRATION_PROVIDER_FAILURE_ERROR` | Google or Microsoft refused the request |
+| `503` | `INTEGRATION_PROVIDER_UNREACHABLE_ERROR` | Google or Microsoft can't be reached. Retry later |
 
 ## Google Sheets
 
@@ -761,12 +966,12 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET`, `PUT`, `DELETE`, and a General Ledger Export, including one Google refused. |
-| `201` | Integration or Portal Login created. |
+| `201` | Integration or Portal Login created, or an email attachment copied into an Entity. |
 | `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while an Entity other than the one of the picked Book keeps Books (`BOOK_REQUIRED_ERROR`). |
-| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export (`PERMISSION_DENIED_ERROR`). |
-| `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), or Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`) not found. |
+| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), or email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`) not found. |
 | `409` | Integration id already exists, the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), or the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`). |
-| `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
-| `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), or the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`). Retry later. |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), or an email route names an Integration that isn't `gmail` or `outlook` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`). |
+| `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), or the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
+| `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), or the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`). Retry later. |
