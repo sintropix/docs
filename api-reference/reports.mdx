@@ -787,6 +787,66 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger
   -H "Cookie: <session-cookie>"
 ```
 
+### General ledger of every account
+
+`GET /api/entities/:entityId/ledger/reports/general-ledger`
+
+Returns the whole General Ledger of a window in one response: every account, with its opening balance, its lines, its totals, and its closing balance. Use it to export or archive the complete Libro mayor. To browse one account page by page, use the [general ledger](#general-ledger) instead.
+
+It reads the same live lines as the general ledger (`active` and `reversed` entries), so the balances of both always agree. The response is not paginated, so a long window over a busy Entity can be large.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `from` | ISO date | No | Window start. Without it, the window starts at inception and no account carries a balance in |
+| `to` | ISO date | No | Window end (must be on or after `from`). Without it, the window runs to the last line |
+| `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
+
+A `from` later than `to` returns `400`.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `accounts` | array | One item per account, sorted by code, with the fields below |
+
+An account appears when it has a line in the window or carries a nonzero balance into it. An account with no line in the window and no balance doesn't appear.
+
+Each item in `accounts`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `code` | string | Ledger Account code |
+| `name` | string | Ledger Account name |
+| `openingBalance` | integer | Balance before `from`, signed by the account's normal side; `0` when the window has no start |
+| `debitTotal` | integer | Sum of the debit lines in the window; nonnegative |
+| `creditTotal` | integer | Sum of the credit lines in the window; nonnegative |
+| `closingBalance` | integer | Balance after the account's last line in the window, or `openingBalance` when it has no line |
+| `lines` | array | Lines in the window, sorted by entry date, each with the fields below |
+
+Each item in `lines`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entryId` | UUID | Parent entry |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `partnerName` | string or null | Name of the partner on the line |
+| `partnerTaxId` | string or null | Tax id of the partner on the line |
+| `side` | enum | `debit` or `credit` |
+| `functionalAmount` | integer | Nonnegative magnitude |
+| `runningBalance` | integer | Balance after this line, counted from inception and signed by the account's normal side |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/general-ledger?from=2026-01-01&to=2026-10-31" \
+  -H "Cookie: <session-cookie>"
+```
+
+<Tip>
+  **Download it from the app.** On the **Libro mayor** page, click **Exportar a Excel** to download this report for the window on screen as `libro-mayor-{from}-{to}.xlsx`. The sheet opens with the Entity, the window, and the currency. Each account is a block: a **Saldo inicial** row, one row per line (**Fecha**, **Asiento**, **Glosa**, **Contacto**, **RUT**, **Débito**, **Crédito**, **Saldo**), and a **Total** row with the debit total, the credit total, and the closing balance. Every row repeats the account's **Código** and **Cuenta**, so filtering on either column keeps an account's block whole. **Asiento** holds the Ledger Entry id. Amounts are in currency units, not minor units.
+</Tip>
+
 ### Partner ledger
 
 `GET /api/entities/:entityId/ledger/partner-ledger`
