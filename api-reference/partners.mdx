@@ -102,7 +102,7 @@ Paginated listing of the Partners the Entity uses, for UI use. Merged Partners a
 | `defaultPurchaseAccountId` | uuid | No | Keep only vendors with this default purchase account. Requires `role=vendor`. |
 | `defaultPurchaseAccountClassification` | string | No | `expense`, `fixed_asset`, or `missing`. Requires `role=vendor`. |
 | `groupBy` | string | No | `none`, `country`, `defaultPurchaseAccount`, or `defaultPurchaseAccountClassification`. Default `none`. The last two require `role=vendor`. |
-| `sort` | string | No | `name`, `legalName`, `taxId`, `country`, `openReceivable`, `openPayable`, or `defaultPurchaseAccount`. Default `name`. |
+| `sort` | string | No | `name`, `legalName`, `taxId`, `country`, `openReceivable`, `openPayable`, or `defaultPurchaseAccount`. Default `name`. `taxId` compares each run of digits as a number, so `9.876.543-2` comes before `76.123.456-7`. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `asc`. |
 | `bookId` | uuid | Conditional | Required when the Entity has at least one Book; must be omitted otherwise. |
 

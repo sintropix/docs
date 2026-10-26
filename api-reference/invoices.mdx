@@ -231,7 +231,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
 | `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. A search that reads as an amount also matches `total` and the Open Amount; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
 | `comments` | string | No | `with` keeps only documents that have at least one Comment; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
-| `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
+| `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. `documentNumber` sorts the way a number reads: each run of digits compares as a number, so `F-2` comes before `F-10`. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
 **Response**

@@ -70,7 +70,7 @@ The response always lists every matching account with its open totals. Pass `exp
 | `status` | enum | No | `unsettled` (default), `settled`, or `all` |
 | `partnerId` | UUID | No | Restrict lines and account totals to one partner |
 | `expandedAccountId` | UUID | No | Load lines for this one account; omit to return account totals only |
-| `sort` | enum | No | `date` (default), `reference`, `partner`, `debit`, `credit`, `openAmount`, or `status` |
+| `sort` | enum | No | `date` (default), `reference`, `partner`, `debit`, `credit`, `openAmount`, or `status`. `reference` is the Invoice's document number, or the entry memo when the line books no Invoice. It compares each run of digits as a number, so `2` comes before `10` |
 | `direction` | enum | No | `asc` (default) or `desc` |
 | `cursor` | UUID | No | Id of the last line from the previous page |
 | `limit` | integer | No | Page size for the expanded account's lines (default 50, max 100) |
