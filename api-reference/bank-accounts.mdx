@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Accounts API: Manage Accounts and Feeds"
 sidebarTitle: "Bank Accounts"
-description: "Create, update, list, and delete Bank Accounts for an Entity. Manage bank data feeds and trigger manual syncs via the Sintropix ERP HTTP API."
+description: "Create, update, list, and delete Bank Accounts for an Entity, and list them across an Organization. Manage bank data feeds and trigger manual syncs via the Sintropix ERP HTTP API."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -122,6 +122,95 @@ The `feed` object, when present, contains:
 curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
+
+## List the bank accounts of every Entity
+
+```http
+GET /api/organizations/:organizationId/bank-accounts
+```
+
+Returns the Bank Accounts of every Entity of the Organization in one call, with each Entity's subtotal and the Organization's total valued in one currency. Use it for a group view of cash, such as the total a holding and its subsidiaries hold in `CLP`.
+
+Each account keeps its `balance` in its own currency. Only the subtotals and the total are converted, at the newest published [FX rate](/api-reference/fx-rates) of each currency pair, on or before today. A pair with no direct rate converts through a currency both sides are quoted in, such as `USD` to `MXN` through `CLP`. This is a display conversion, not a consolidation: a currency with no published rate stays out of the total, and the response names it.
+
+The route needs `books` read in the Organization, so `staff`, `client`, and `viewer` Members can call it. An API key [confined to one Entity](/guides/api-keys) reads its own Entity by default. Asking it for another Entity in `entityIds` answers `404` with `ENTITY_NOT_FOUND_ERROR`.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `currency` | string | Yes | ISO 4217 code to value the subtotals and the total in, for example `CLP`. An unknown code is refused with `400` and `UNKNOWN_CURRENCY_ERROR`. |
+| `entityIds` | UUID | No | Keep the accounts of this Entity. Repeat the param for several Entities, up to 100. Omit it for every Entity of the Organization. An id that isn't one of the Organization's Entities returns nothing. |
+
+### Response schema
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `currency` | string | The `currency` you asked for |
+| `bankAccounts` | array | The Bank Accounts of the Entities read, each with the fields of [List bank accounts](#list-bank-accounts), summary included. `entityId` tells you which Entity holds each one. |
+| `entitySubtotals` | array | One item per Entity read, in the Organization's order: `{ entityId, total, unconvertedCurrencies }` |
+| `total` | integer | The sum of the subtotals, in minor units of `currency` |
+| `unconvertedCurrencies` | string[] | Currencies left out of the total because they have no published rate to `currency`. Empty when every balance converted. |
+| `rates` | array | The [FX Rate objects](/api-reference/fx-rates#the-fx-rate-object) used for the conversion |
+| `rateDate` | ISO date \| null | Date of the oldest rate used. `null` when no rate was needed. |
+
+In each item of `entitySubtotals`, `total` is that Entity's balances valued in `currency`, in minor units, and `unconvertedCurrencies` lists the currencies of that Entity left out of it.
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Success |
+| `400` | `currency` is missing or unknown (`UNKNOWN_CURRENCY_ERROR`), or `entityIds` is malformed |
+| `401` | Unauthenticated |
+| `404` | The Organization is not found or outside your Organizations, or the API key is confined to another Entity (`ENTITY_NOT_FOUND_ERROR`) |
+
+### Example
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/bank-accounts?currency=CLP" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "currency": "CLP",
+  "bankAccounts": [
+    {
+      "id": "0190e000-0000-7000-8000-000000000001",
+      "entityId": "0190a000-0000-7000-8000-000000000001",
+      "name": "Primary Checking",
+      "kind": "bank",
+      "currency": "CLP",
+      "balance": 1250000,
+      "unreconciledCount": 3
+    },
+    {
+      "id": "0190e000-0000-7000-8000-000000000002",
+      "entityId": "0190a000-0000-7000-8000-000000000002",
+      "name": "USD Operating",
+      "kind": "bank",
+      "currency": "USD",
+      "balance": 150000,
+      "unreconciledCount": 0
+    }
+  ],
+  "entitySubtotals": [
+    { "entityId": "0190a000-0000-7000-8000-000000000001", "total": 1250000, "unconvertedCurrencies": [] },
+    { "entityId": "0190a000-0000-7000-8000-000000000002", "total": 1413225, "unconvertedCurrencies": [] }
+  ],
+  "total": 2663225,
+  "unconvertedCurrencies": [],
+  "rates": [
+    { "baseCurrency": "USD", "quoteCurrency": "CLP", "rateDate": "2026-10-26", "rate": "942.15", "source": "dolar_observado", "createdAt": "2026-10-26T12:00:00.000Z" }
+  ],
+  "rateDate": "2026-10-26"
+}
+```
+
+The example trims each Bank Account to a few fields. The real response carries every field of the account.
+
+In the app, an Organization with two or more Entities offers **Grupo** in the company menu. Pick it to open **Bancos** for every Entity of the Organization, grouped by Entity. The **Moneda** picker sets `currency`, and **Filtros › Entidad** sets `entityIds`. The total row reads **Total · al TC del** followed by `rateDate`, and its tooltip shows the rates. Accounts are managed in their own Entity, so in **Grupo** a card opens its account in that Entity.
 
 ## Create a bank account
 
