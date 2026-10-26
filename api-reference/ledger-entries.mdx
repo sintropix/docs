@@ -205,7 +205,7 @@ Create a new Ledger Entry. The entry must have at least two lines and total debi
 | `memo` | string or null | Yes | Short description |
 | `notes` | string or null | No | Longer notes; trimmed, blank becomes null |
 | `bookId` | UUID or null | Conditional | Book the Entry counts in; `null` marks the Entry common. Must be sent (as an id or as `null`) when the Entity has at least one Book; must be omitted otherwise. |
-| `newLedgerEntryLines` | array | Yes | At least 2 lines, max 2,000, balanced |
+| `newLedgerEntryLines` | array | Yes | At least 2 lines, max 10,000, balanced |
 
 Each line in `newLedgerEntryLines`:
 
