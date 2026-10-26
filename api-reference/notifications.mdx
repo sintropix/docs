@@ -1,23 +1,25 @@
 ---
-title: "Notifications API: Mentions, Thread Replies, and the Signed-in User's Inbox"
+title: "Notifications API: Mentions, Thread Replies, Tasks, and the Signed-in User's Inbox"
 sidebarTitle: "Notifications"
-description: "Mention Members in the Organization Chat, follow the ERP Threads you take part in, then list, count, and mark read the Notifications of the signed-in User in one Organization."
+description: "Mention Members in the Organization Chat, follow the ERP Threads you take part in, hear about the Tasks assigned to you, then list, count, and mark read the Notifications of the signed-in User in one Organization."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
 A Notification tells one User that something in an Organization needs their attention. Each User has their own Notifications in each Organization they belong to. The app shows them in the **Bandeja**, below **Chat** in the sidebar, with a badge that counts the unread ones.
 
-A Notification has one of two kinds:
+A Notification has one of four kinds:
 
 | `kind` | When you get it | In the **Bandeja** |
 | --- | --- | --- |
 | `mention` | Another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. | The message that mentions you. |
 | `thread_reply` | Someone replied in an ERP Thread you [take part in](#follow-the-erp-threads-you-take-part-in), without mentioning you. | "*Autor* respondió en un hilo en el que participas", naming the reply's author. |
+| `task_assigned` | Another Member assigned you a [Task](/api-reference/tasks). | "*Autor* te asignó una tarea", or "Te asignaron una tarea" when that Member's account no longer exists. |
+| `task_overdue` | The due date of a Task assigned to you passed and the Task isn't completed. See [Task Notifications](#task-notifications). | "Tarea vencida el *fecha*". |
 
 More kinds may come later, so read `kind` before you read the rest of a Notification.
 
-Every Role can use the routes on this page, `viewer` included. Each route reads or marks only the caller's own Notifications: the User of the session or of the API key.
+Every Role can use the routes on this page, `viewer` included. Only `staff` Members are assigned Tasks, so only they get the two Task kinds. Each route reads or marks only the caller's own Notifications: the User of the session or of the API key.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/notifications"
@@ -76,15 +78,27 @@ Only current Members of the Organization count. These rules apply when a reply i
 - Each User gets at most one Notification per message.
 - Erwin is never a Participant. His answer in an ERP Thread notifies its Participants once, when his text arrives, not while he shows his progress. A later edit of his answer doesn't notify again.
 
+## Task Notifications
+
+[Tasks](/api-reference/tasks) notify their assignee:
+
+- **Assigned.** Assigning a Task to another staff Member sends them a `task_assigned` Notification that names who assigned it. Assigning yourself, saving the same assignee again, or unassigning notifies nobody.
+- **Overdue.** Just after midnight in Santiago (Chile) time, Sintropix sends a `task_overdue` Notification for each assigned Task whose due date has passed and that isn't `completed`. Each Task notifies once per due date. If you move the due date and the new one passes too, the assignee is notified again. A change of assignee doesn't send a new overdue Notification.
+
+Opening a Task Notification in the app marks it read and opens the Task in **Tareas**. Deleting the Task deletes its Notifications.
+
 ## The Notification object
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | UUID | Notification id. |
-| `kind` | string | `mention` or `thread_reply`. |
+| `kind` | string | `mention`, `thread_reply`, `task_assigned`, or `task_overdue`. |
 | `readAt` | ISO datetime or null | When the User first read it. `null` while unread. |
 | `createdAt` | ISO datetime | When the Notification was written. |
-| `message` | object | On a `mention`, the message that mentioned the User. On a `thread_reply`, the reply. See below. |
+| `message` | object | On a `mention`, the message that mentioned the User. On a `thread_reply`, the reply. See below. Absent on the Task kinds. |
+| `task` | object | On a `task_assigned` or `task_overdue`, the Task as `{ id, text }`. Absent on the message kinds. |
+| `actorName` | string or null | On a `task_assigned` only: the name of the Member who assigned the Task. `null` when their account no longer exists. |
+| `dueDate` | string | On a `task_overdue` only: the due date that passed, `YYYY-MM-DD`. It keeps that date when the Task's due date later moves. |
 
 The `message` object carries:
 
@@ -115,6 +129,22 @@ The `message` object carries:
     "mentionedUserNames": ["Camila Rojas"],
     "createdAt": "2026-10-24T15:20:04.498Z"
   }
+}
+```
+
+A Task Notification carries the Task instead of a message:
+
+```json
+{
+  "id": "e2b9c4a1-7d3f-4e6a-9b8c-1f0d2a5e7c36",
+  "kind": "task_overdue",
+  "readAt": null,
+  "createdAt": "2026-10-31T03:05:12.204Z",
+  "task": {
+    "id": "7c1e4b2a-9d3f-4a6e-8b0c-5f2d1e7a9c34",
+    "text": "Ask the supplier for the credit note"
+  },
+  "dueDate": "2026-10-30"
 }
 ```
 
