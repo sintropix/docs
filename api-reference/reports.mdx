@@ -13,8 +13,33 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 </Note>
 
 <Tip>
-  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, `customers`, and `fixed-assets`. Pass the period as `from` and `to`, or as `exerciseStart` and `cutoffDate` for the balances and the cash flow statement. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
+  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, `customers`, and `fixed-assets`. Pass the period as `from` and `to`, as `cutoffDate` alone for the balance sheet, or as `exerciseStart` and `cutoffDate` for the eight-column balance and the cash flow statement. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
 </Tip>
+
+## The Fiscal Year in reports
+
+Each Entity has a Fiscal Year: the twelve months over which it measures its result. It starts on day 1 of the Entity's `fiscalYearStartMonth`, January unless you [set another month](/api-reference/entities#patch-api-entities-entityid-fiscal-year-start). For example, with a start month of `7`, the Fiscal Year that holds 2026-03-15 runs from 2025-07-01 to 2026-06-30.
+
+Every balance a report reads before a date follows one carry rule:
+
+- **Result accounts** (`income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense`) carry only their lines of the current Fiscal Year. They open at `0` on the first day of each Fiscal Year.
+- **The retained earnings account** carries its own lines plus the result of every closed Fiscal Year. Mark one equity account of the Entity with the `retained_earnings` [sub-type](/api-reference/chart-of-accounts#the-retained-earnings-account).
+- **Any other account** carries every line before the date.
+
+Sintropix posts no closing entry. Every report derives the close when it reads, so a change to a line of a closed year shows on the next read.
+
+Until the Entity has a retained earnings account, no account carries the result of the closed years. The balance sheet shows it as `equity.priorPeriodResult`, and the eight-column balance shows it as `unclosedPriorResult`. The app labels it **Resultados anteriores pendientes de cierre**. Both are `0` once you mark the account.
+
+A report that walks a running balance reads one Fiscal Year: the [eight-column balance](#eight-column-balance), the [general ledger](#general-ledger), the [general ledger of every account](#general-ledger-of-every-account), and the [partner ledger](#partner-ledger) of a result account. A window that crosses a Fiscal Year start returns `400` with `LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR`. `params.fiscalYearStart` is the start of the Fiscal Year that holds the window's start, so you can pick dates inside it:
+
+```json
+{
+  "code": "LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR",
+  "params": { "from": "2025-12-01", "to": "2026-01-31", "fiscalYearStart": "2025-01-01" }
+}
+```
+
+The income statement, the journal, the cash flow statement, and the other reports that sum the lines between two dates take any window.
 
 ## Entity reports
 
@@ -192,14 +217,13 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/payables-to-p
 
 `GET /api/entities/:entityId/reports/balance-sheet`
 
-Returns the balance sheet for the requested exercise period.
+Returns the balance sheet on one date. The report reads the [Fiscal Year](#the-fiscal-year-in-reports) that holds `cutoffDate`, from its first day to `cutoffDate`.
 
 **Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
-| `exerciseStart` | ISO date | Yes | Start of the exercise period |
-| `cutoffDate` | ISO date | Yes | End of the exercise period (must be on or after `exerciseStart`) |
+| `cutoffDate` | ISO date | Yes | Date of the balance sheet |
 | `presentationCurrency` | string | No | Currency to present amounts in |
 | `presentationRate` | decimal string | No | Rate used for conversion; required together with `presentationCurrency` |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -208,15 +232,15 @@ Returns the balance sheet for the requested exercise period.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `exerciseStart` | ISO date | As requested |
 | `cutoffDate` | ISO date | As requested |
+| `fiscalYearStart` | ISO date | First day of the Fiscal Year that holds `cutoffDate` |
 | `functionalCurrency` | string | The entity's functional currency |
 | `presentationCurrency` | string | Currency the amounts are in |
 | `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
 | `accountGroups` | array | Account Groups in code-prefix order, each `{ id, parentGroupId, codePrefix, name }` |
 | `assets` | object | `{ accounts, total }` |
 | `liabilities` | object | `{ accounts, total }` |
-| `equity` | object | `{ accounts, total, priorPeriodResult, currentPeriodResult, conversionRounding }` |
+| `equity` | object | `{ accounts, total, priorPeriodResult, currentPeriodResult, conversionRounding }`. `currentPeriodResult` is the result from `fiscalYearStart` to `cutoffDate`. `priorPeriodResult` is the result of the closed Fiscal Years that no account carries; it is `0` once the Entity has a retained earnings account, which then carries it in its `balance` |
 | `totalLiabilitiesAndEquity` | integer | Sum of the liabilities and equity totals |
 
 Each item in an `accounts` array, in code order:
@@ -230,7 +254,7 @@ Each item in an `accounts` array, in code order:
 | `balance` | integer | Balance at `cutoffDate` |
 
 ```bash
-curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet?cutoffDate=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -689,12 +713,14 @@ Base path: `GET /api/entities/:entityId/ledger`
 
 Returns the classic eight-column trial balance: debit, credit, debtor balance, creditor balance, asset, liability, loss, and profit per account.
 
+The window must sit inside one [Fiscal Year](#the-fiscal-year-in-reports); one that crosses a Fiscal Year start returns `400` with `LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR`. Each account's `debit` or `credit` adds what the account carries into `exerciseStart`, on its own side, as an opening entry would. So a bank account shows its whole balance, and the trial balance agrees with the balance sheet and the general ledger. In the app, the page opens on the start of the Fiscal Year that holds the cutoff date when you give no start.
+
 **Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
-| `exerciseStart` | ISO date | Yes | Start of the exercise |
-| `cutoffDate` | ISO date | Yes | End of the exercise (must be on or after `exerciseStart`) |
+| `exerciseStart` | ISO date | Yes | Start of the window |
+| `cutoffDate` | ISO date | Yes | End of the window (must be on or after `exerciseStart`, in the same Fiscal Year) |
 | `presentationCurrency` | string | No | Presentation currency |
 | `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -709,7 +735,8 @@ Returns the classic eight-column trial balance: debit, credit, debtor balance, c
 | `presentationCurrency` | string | Currency the amounts are in |
 | `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
 | `rows` | array | One item per account: `{ accountId, code, name, type }` plus the eight column fields below |
-| `subtotal` | object | The eight column fields, summed over `rows` |
+| `unclosedPriorResult` | object | The eight column fields of an equity row for the result of the closed Fiscal Years that no account carries (**Resultados anteriores pendientes de cierre**). All `0` once the Entity has a retained earnings account |
+| `subtotal` | object | The eight column fields, summed over `rows` and `unclosedPriorResult` |
 | `conversionRounding` | object | The eight column fields; rounding difference introduced by currency conversion |
 | `result` | object | `{ kind, amount, adjustment }`; `kind` is `profit`, `loss`, or `break_even`, and `adjustment` carries the eight column fields |
 | `totals` | object | The eight column fields after the result adjustment |
@@ -718,8 +745,8 @@ Returns the classic eight-column trial balance: debit, credit, debtor balance, c
 
 | Field | Description |
 | --- | --- |
-| `debit` | Total debits |
-| `credit` | Total credits |
+| `debit` | Total debits, including a debit balance carried in |
+| `credit` | Total credits, including a credit balance carried in |
 | `debtorBalance` | Debit balance |
 | `creditorBalance` | Credit balance |
 | `asset` | Balance classified as asset |
@@ -728,7 +755,7 @@ Returns the classic eight-column trial balance: debit, credit, debtor balance, c
 | `profit` | Balance classified as profit |
 
 ```bash
-curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/eight-column-balance?exerciseStart=2024-01-01&cutoffDate=2024-12-31" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/eight-column-balance?exerciseStart=2026-01-01&cutoffDate=2026-09-30" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -736,15 +763,17 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/eight-
 
 `GET /api/entities/:entityId/ledger/general-ledger`
 
-Returns a paginated walk of one ledger account in ledger order, with a running balance from inception.
+Returns a paginated walk of one ledger account in ledger order, with a running balance that starts from what the account carries into the window.
+
+The window must sit inside one [Fiscal Year](#the-fiscal-year-in-reports); one that crosses a Fiscal Year start returns `400` with `LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR`. In the app, the **Libro mayor** page opens on the current Fiscal Year.
 
 **Query params**
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `accountId` | UUID | Yes | Ledger account to read |
-| `from` | ISO date | No | Window start |
-| `to` | ISO date | No | Window end (must be on or after `from`) |
+| `from` | ISO date | Yes | Window start |
+| `to` | ISO date | Yes | Window end (must be on or after `from`, in the same Fiscal Year) |
 | `cursor` | UUID | No | Id of the last line from the previous page |
 | `limit` | integer | No | Page size (default 50, max 100) |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -755,8 +784,8 @@ Returns a paginated walk of one ledger account in ledger order, with a running b
 | --- | --- | --- |
 | `lines` | array | Lines on this page, each with the fields below |
 | `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
-| `openingBalance` | integer | Balance before `from`; `0` when the window has no start |
-| `closingBalance` | integer | Balance at `to`, or the whole balance when the window has no end |
+| `openingBalance` | integer | What the account carries into `from`, under the [carry rule](#the-fiscal-year-in-reports) |
+| `closingBalance` | integer | What the account carries out of `to` |
 | `lineCount` | integer | Lines inside the window, across every page |
 
 Each item in `lines`:
@@ -778,12 +807,12 @@ Each item in `lines`:
 | `entryMemo` | string or null | Memo of the parent entry |
 | `entryStatus` | enum | `active` or `reversed` (only live entries appear) |
 | `reversalOfEntryId` | UUID or null | Entry the parent entry reverses; `null` otherwise |
-| `runningBalance` | integer | Balance after this line, counted from inception and signed by the account's normal side |
+| `runningBalance` | integer | Balance after this line, counted from `openingBalance` and signed by the account's normal side |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
-curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger?accountId=<uuid>&limit=50" \
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger?accountId=<uuid>&from=2026-01-01&to=2026-10-31&limit=50" \
   -H "Cookie: <session-cookie>"
 ```
 
@@ -799,11 +828,11 @@ It reads the same live lines as the general ledger (`active` and `reversed` entr
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
-| `from` | ISO date | No | Window start. Without it, the window starts at inception and no account carries a balance in |
-| `to` | ISO date | No | Window end (must be on or after `from`). Without it, the window runs to the last line |
+| `from` | ISO date | Yes | Window start |
+| `to` | ISO date | Yes | Window end (must be on or after `from`, in the same Fiscal Year) |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
 
-A `from` later than `to` returns `400`.
+A `from` later than `to` returns `400`. A window that crosses a [Fiscal Year](#the-fiscal-year-in-reports) start returns `400` with `LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR`.
 
 **Response**
 
@@ -819,7 +848,7 @@ Each item in `accounts`:
 | --- | --- | --- |
 | `code` | string | Ledger Account code |
 | `name` | string | Ledger Account name |
-| `openingBalance` | integer | Balance before `from`, signed by the account's normal side; `0` when the window has no start |
+| `openingBalance` | integer | What the account carries into `from` under the [carry rule](#the-fiscal-year-in-reports), signed by the account's normal side |
 | `debitTotal` | integer | Sum of the debit lines in the window; nonnegative |
 | `creditTotal` | integer | Sum of the credit lines in the window; nonnegative |
 | `closingBalance` | integer | Balance after the account's last line in the window, or `openingBalance` when it has no line |
@@ -836,7 +865,7 @@ Each item in `lines`:
 | `partnerTaxId` | string or null | Tax id of the partner on the line |
 | `side` | enum | `debit` or `credit` |
 | `functionalAmount` | integer | Nonnegative magnitude |
-| `runningBalance` | integer | Balance after this line, counted from inception and signed by the account's normal side |
+| `runningBalance` | integer | Balance after this line, counted from `openingBalance` and signed by the account's normal side |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/general-ledger?from=2026-01-01&to=2026-10-31" \
@@ -859,7 +888,7 @@ Returns the partner ledger for an open-item account, grouped by partner with ope
 | --- | --- | --- | --- |
 | `accountId` | UUID | Yes | Ledger account (must be open-item tracking) |
 | `from` | ISO date | Yes | Start date |
-| `to` | ISO date | Yes | End date (must be on or after `from`) |
+| `to` | ISO date | Yes | End date (must be on or after `from`). For a result account, the window must sit inside one [Fiscal Year](#the-fiscal-year-in-reports), or the request returns `400` with `LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR` |
 | `partnerIds` | UUID[] | No | Filter to specific partners (max 100); repeat the param for each id |
 | `includeUnassigned` | boolean | No | Include lines with no partner (default false) |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
@@ -882,7 +911,7 @@ Each item in `groups`:
 | `partnerName` | string or null | Name of the partner |
 | `partnerTaxId` | string or null | Tax id of the partner |
 | `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none |
-| `openingBalance` | integer | Balance before `from` |
+| `openingBalance` | integer | What the partner's lines carry into `from`, under the [carry rule](#the-fiscal-year-in-reports) |
 | `totalDebit` | integer | Debits in the period |
 | `totalCredit` | integer | Credits in the period |
 | `closingBalance` | integer | Balance at `to` |

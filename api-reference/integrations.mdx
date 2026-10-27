@@ -32,7 +32,7 @@ The `gmail` and `outlook` kinds connect an email account: a Gmail account or a M
 
 The `mailbox` kind is an email address that Sintropix holds for the Organization, such as `facturas@acme.sintropix.com`. You create it in Sintropix: there's no outside account to connect. An Organization can hold several Mailboxes, all at its own email domain. See [Mailbox](#mailbox).
 
-The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of the current year of every Entity of the Organization to that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
+The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of the current Fiscal Year of every Entity of the Organization to that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
 
 The `xpendit` kind connects the enterprise of an Xpendit account, the expense tool, with its API key. You can read the expenses and funds of each of its Subsidiaries, and route each Subsidiary to a Source of Expense Renditions. See [Xpendit](#xpendit).
 
@@ -849,7 +849,7 @@ The export reads the Book you picked for the Entity that keeps it. It reads ever
 
 #### Libro mayor
 
-**Libro mayor** holds the General Ledger of the current calendar year, on the calendar of Santiago (Chile). It reads the live Ledger Entries (`active` and `reversed`), the same lines as the [general ledger report](/api-reference/reports#general-ledger). Each Entity's rows have one row per line, sorted by account code, then by date:
+**Libro mayor** holds the General Ledger of each Entity's current [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports), on the calendar of Santiago (Chile). It reads the live Ledger Entries (`active` and `reversed`), the same lines as the [general ledger report](/api-reference/reports#general-ledger). Each Entity's rows have one row per line, sorted by account code, then by date:
 
 | Column | Content |
 | --- | --- |
@@ -875,7 +875,7 @@ The export reads the Book you picked for the Entity that keeps it. It reads ever
 
 Amounts and rates are numbers in currency units, not minor units, so Sheets formulas work on them.
 
-Each account of each Entity opens with a **Saldo inicial** row dated January 1. It holds the balance the account carries in from before the year, in **Saldo** and as its own transaction at a rate of `1`. It has no entry, creation date, Partner, Dimension Value, debit, or credit. An account with no line this year shows that row alone when its balance isn't zero, and doesn't show at all when its balance is zero.
+Each account of each Entity opens with a **Saldo inicial** row dated the first day of the Entity's Fiscal Year. It holds what the account carries into the Fiscal Year, in **Saldo** and as its own transaction at a rate of `1`: `0` on an income or expense account, the result of the closed years on the retained earnings account, and the balance before the year on any other account. It has no entry, creation date, Partner, Dimension Value, debit, or credit. An account with no line this Fiscal Year shows that row alone when its balance isn't zero, and doesn't show at all when its balance is zero.
 
 #### Plan de cuentas
 

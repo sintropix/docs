@@ -44,14 +44,14 @@ A batch starts as a Draft and becomes Ready only through [`POST /mark-ready`](#p
 
 A batch can carry a **name** and a **label** to tell it apart from the others. Both are optional free text:
 
-- **Name** (**Nombre**): up to 120 characters, such as *Proveedores segunda quincena*. In the app, it's the batch's title. A batch with no name is titled **Nómina del** followed by its payment date.
+- **Name** (**Nombre**): up to 120 characters, such as *Proveedores segunda quincena*. In the app, it names the batch in the breadcrumb at the top of its page. A batch with no name is named **Nómina del** followed by its payment date.
 - **Label** (**Etiqueta**): up to 60 characters, such as *Proveedores* or *Remuneraciones*. Use it to group batches of the same kind. You choose the labels; Sintropix has no fixed list.
 
 Sintropix trims both. A blank name or label is refused with `400`; send `null` to clear it. Neither is part of the payment: no bank file carries them, and you can change them on a Ready batch.
 
 In the app:
 
-- **Nueva nómina** asks for the name, the payment date, and the label. Click the title of a batch to rename it, and click its label, or **Agregar etiqueta**, to change it.
+- **Nueva nómina** asks for the name, the payment date, and the label. Click the batch's name in the breadcrumb to rename it, and click its label, or **Agregar etiqueta**, to change it.
 - You pick a label like a tag. The picker lists the labels already used on the Entity's batches, and **Buscar o crear etiqueta…** filters them as you type. To make a new label, type it and choose **Crear «…»**. The app doesn't offer to create a label that already exists with different capitalization, so one label isn't spelled two ways. Choose **Sin etiqueta** to clear the label.
 - The **Pagos** list shows each batch's **Nombre** and **Etiqueta**. **Buscar nóminas** matches the name and the label. It ignores case and accents, and every word you type must match. Under **Filtros**, **Etiqueta** keeps only the batches with that exact label.
 
@@ -83,10 +83,7 @@ A manual order shows **—** under **Monto total** and **Saldo pendiente**. Lowe
 
 **Agregar cuentas por pagar** shows the same **Monto total** and **Saldo pendiente** for each invoice. When orders in other batches already plan part of the balance, a line such as *$150.000 ya en nóminas* shows how much. Picking the invoice adds an order for what is left, its [Amount to Plan](#amount-to-plan).
 
-To narrow the list, use the same controls as **Compras**:
-
-- **Fuente** keeps the invoices of one [Source](/api-reference/sources).
-- **Filtros** filters by **Documento tributario**, **Contacto**, **Moneda**, **Estado de pago**, **Estado SII**, **Seguimiento**, issue and due dates, **Período tributario**, **Monto**, and **Comentarios**. Each active filter shows as a chip you can remove.
+To narrow the list, use **Filtros**, as on **Compras**. It filters by **Fuente** (the invoices of one [Source](/api-reference/sources)), **Documento tributario**, **Contacto**, **Moneda**, **Estado de pago**, **Estado SII**, **Seguimiento**, issue and due dates, **Período tributario**, **Monto**, and **Comentarios**. Each active filter shows as a chip you can remove.
 
 A due-date filter keeps the invoices with no due date. The API takes the same filters on [Payables to Plan](/api-reference/reports#payables-to-plan).
 
