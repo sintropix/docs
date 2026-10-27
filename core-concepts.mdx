@@ -154,6 +154,8 @@ Loading data from its source, such as the movements of a bank account, isn't a d
     - **Load movements** (once a day, late in the day): load the new movements of each bank account and card that the wiki says he loads.
     - **Dream** (once a day, late in the day): see **Company wiki** below.
 
+    **Your email as a source.** At the start of each conversation, Erwin learns which email accounts your Organization has connected: each [Gmail, Outlook, or Mailbox Integration](/api-reference/integrations#read-email), with its address and its [purpose](/api-reference/integrations#put-integrations-integrationid-purpose). He treats them as evidence. When he reviews a record, leaves a Follow-up, or moves your pending work forward, he searches them by counterparty, amount, and dates for the record's receipt, invoice, or the conversation behind it. A clear purpose helps him pick the right account. If you connect an account during a conversation, Erwin can read it when you ask, and he lists it among his sources from your next conversation.
+
     **Company wiki.** Erwin keeps one wiki for each Organization, covering all its companies. It records what your team has taught him that the ERP doesn't hold: who approves what, why you follow a rule, how you book a recurring supplier, quirks of a bank account, and how people want their reports. Erwin checks the wiki before he works on a subject it covers, so he doesn't ask you the same question twice.
 
     Erwin reads the wiki on every conversation but only writes to it when you ask. Ask in plain language:
