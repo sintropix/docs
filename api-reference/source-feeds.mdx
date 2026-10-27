@@ -6,7 +6,7 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed of tax documents on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync). [Expense Feeds](#expense-feeds) don't sync yet.
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync). An [expense Feed](#expense-feeds) lands the expenses its tool approved as approved Expense Claims.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/sources"
@@ -60,7 +60,7 @@ Every route on this page returns Feeds in this shape.
 | `awaitingCount` | integer | Documents the provider counts but does not list yet, so a later sync lands them. Today only `sii_mirror` boletas; see [SII Mirror boletas](#sii-mirror-boletas). |
 | `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
 | `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
-| `report` | object | `{ tieOutLines, rejected, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`). `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (today, `sii_mirror`); see [File attachments](#file-attachments). |
+| `report` | object | `{ tieOutLines, rejected, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef, month? }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `range.month` (`YYYY-MM`) is present on the tie-out lines of an [expense Feed](#sync-an-expense-feed), one per month of creation. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`, `currency_mismatch`, `expense_category_unassigned`, or `person_unknown`). An expense Feed's rejections have `dteTypeCode: null` and the expense number as `folio`. `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `expenseDivergences[]` is present only on an expense Feed's run and lists landed expenses that changed in the tool; see [Changed expenses](#changed-expenses). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (`sii_mirror` and `xpendit`); see [File attachments](#file-attachments). |
 | `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
@@ -113,7 +113,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
 
 ## POST `/source-feeds/:sourceFeedId/sync`
 
-Trigger an on-demand sync of a Source Feed. The response reports how many documents were landed, updated, or skipped. An `expense` Feed doesn't sync yet: it answers `422` with `INTEGRATION_DOCUMENTS_NOT_SUPPORTED_ERROR`.
+Trigger an on-demand sync of a Source Feed. The response reports how many documents were landed, updated, or skipped. For an `expense` Feed, see [Sync an expense Feed](#sync-an-expense-feed).
 
 **Body**
 
@@ -319,6 +319,7 @@ The providers that carry files today:
 | `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. The SII serves these files only to the legal representative, so add the [legal representative's Clave](/api-reference/integrations#the-legal-representatives-clave) to the Integration. A [Honorarium Feed](#honorarium-feeds) attaches the PDF of each BHE and BTE. |
 | `bsale` | Sales documents. Purchases keep their PDF and XML as evidence lines on the Source Feed, because the Bsale purchase `urlPdf` answers HTML rather than a PDF. |
 | `wasabil` | Issued and received documents. |
+| `xpendit` | Each expense's receipt and its additional file, when it has one. See [Expense files](#expense-files). |
 
 Other Integration kinds (for example `mercadopago`, `mercadolibre`) report no files and this section does not apply.
 
@@ -349,9 +350,9 @@ Each entry in `failed[]`:
 | Field | Type | Description |
 | --- | --- | --- |
 | `externalRef` | string | The document's provider-side id. |
-| `dteTypeCode` | string | SII document type code. |
-| `folio` | integer | Document folio. |
-| `kind` | `pdf` \| `xml` | Which file failed. |
+| `dteTypeCode` | string \| null | SII document type code. `null` for an expense file. |
+| `folio` | integer \| null | Document folio, or the expense number for an expense file. |
+| `kind` | `pdf` \| `xml` \| `receipt` \| `additional_receipt` | Which file failed. `receipt` and `additional_receipt` are the files of an expense. |
 | `reason` | enum | One of `not_found`, `unavailable`, `integrity_failure`, `too_large`, `attach_failed`. |
 | `detail` | string | Operator-facing error code. |
 
@@ -386,10 +387,6 @@ Each entry in `failed[]`:
 
 An `expense` Feed routes one **Provider Account** of an expense tool to a Source of an Entity that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions). A Provider Account is one account inside the external account of an Integration. Today only [Xpendit](/api-reference/integrations#xpendit) feeds expenses, and its Provider Accounts are the Subsidiaries of the enterprise.
 
-<Note>
-  An `expense` Feed doesn't sync yet, so it lands no expenses. Sintropix's scheduled syncs skip it, and an [on-demand sync](#post-source-feeds-sourcefeedid-sync) answers `422` with `INTEGRATION_DOCUMENTS_NOT_SUPPORTED_ERROR`. Route your Subsidiaries now, and their Link Dates are already set when syncing arrives.
-</Note>
-
 The routing rules:
 
 - **One Provider Account feeds one Entity.** A Subsidiary that another Feed already reads answers `409` with `SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR`.
@@ -397,7 +394,7 @@ The routing rules:
 - **The Source holds Expense Renditions.** An existing Source without the mark answers `422` with `SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR`. A Source the Feed creates holds them. While the Feed lives, you can't unmark its Source: Sintropix refuses with `409` and `SOURCE_PINNED_ERROR`.
 - **The Provider lists the account.** List the Provider Accounts with [`GET /integrations/:integrationId/provider-accounts`](/api-reference/integrations#get-integrations-integrationid-provider-accounts). An id the Provider doesn't list answers `422` with `SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`.
 
-In the app, open the Xpendit Integration's panel. Its feed step shows one row per Subsidiary that no Feed reads yet. For each one, pick a Source that holds Expense Renditions, or create one, and its Link Date. A routed Subsidiary shows **Rendiciones**, the **Cuenta del proveedor**, the Source, and the Link Date, with no sync controls.
+In the app, open the Xpendit Integration's panel. Its feed step shows one row per Subsidiary that no Feed reads yet. For each one, pick a Source that holds Expense Renditions, or create one, and its Link Date. A routed Subsidiary shows **Rendiciones**, the **Cuenta del proveedor**, the Source, and the Link Date, with **Sincronizar** and **Vista previa**.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
@@ -414,6 +411,83 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
     "source": { "sourceName": "Rendiciones Xpendit" }
   }'
 ```
+
+### Sync an expense Feed
+
+A sync of an `expense` Feed lands each expense the tool approved as an [Expense Claim](/api-reference/expense-claims) that the Feed approves in the same act. Approving books it as an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions) in the Feed's Source. Sintropix syncs it every 4 hours with the other Feeds, and you can [sync it on demand](#post-source-feeds-sourcefeedid-sync). In the app, click **Sincronizar** or **Vista previa** on the Subsidiary's line in the Integration's panel.
+
+Before the first sync, set the Entity's [booking setting](/api-reference/expense-claims#before-you-submit-claims). The Feed books with its **Rendición por pagar** account and its supplier payable account. Without the setting, the sync fails with `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` and lands nothing. The Feed doesn't need the Approver: Xpendit already approved the expense.
+
+**What a sync reads.** It reads the expenses created in each month from the Link Date to today, one month at a time. Each month is a tie-out line with `range.month` set, and its `count` is the number of expenses Xpendit states for that month.
+
+**What lands.** An expense lands when Xpendit's `state` is `approved`, `accounted`, or `paid`, and its `expenseType` is `reimbursement`, `one_time_fund`, or `recurrent_fund`. Every other expense counts as `ignored`, including `corporate_card` and `other` expenses, and expenses Xpendit hasn't approved. An expense whose claim already exists counts as `skipped`.
+
+Each landed claim gets these values:
+
+| Claim field | Value |
+| --- | --- |
+| `id` | The expense's id at Xpendit, so a later sync finds it. |
+| `partnerId` | The person who reported the expense. Sintropix finds or creates the Partner by the person's RUT, in any format. A person with no valid RUT is found or created by name. |
+| `expenseDate` | The expense's date. |
+| `amount` | The amount the Subsidiary reimburses, in its own currency. |
+| `memo` | The merchant and the description, such as `COPEC · Combustible visita cliente`. Without either, the category's name. |
+| `receiptKind` | `factura` when the Entity holds a DTE of type `33` or `34` with the merchant's RUT and folio, or when Xpendit names the document a factura and states a valid merchant RUT and a numeric folio. `boleta` otherwise. |
+| `expenseCategoryId` | The Entity's category for the expense's Xpendit category. See [Categories](#expense-categories-from-xpendit). |
+
+The Expense Rendition is booked like any [approved claim](/api-reference/expense-claims#what-approving-books), but it lands in the Feed's Source. It carries what Xpendit states of the expense as Additional Information: the expense number, the merchant and its RUT, the folio, the document type, the amount paid, the fund, the cost center, and the category.
+
+**What a sync refuses.** An expense that can't land counts as `rejected` and is listed in `report.rejected` with one of these reasons:
+
+| `reason` | Meaning | `detail` |
+| --- | --- | --- |
+| `currency_mismatch` | The expense isn't in the Entity's functional currency. | The expense's currency |
+| `total_off_scale` | The amount is zero, negative, or doesn't fit the currency. | The amount |
+| `person_unknown` | The expense names no person. | The person's name, when present |
+| `expense_category_unassigned` | The expense's category has no expense account yet. | The category's name |
+| `document_invalid` | Booking the claim failed. | The error code |
+
+A rejected expense isn't stored, so a later sync tries it again.
+
+#### Expense categories from Xpendit
+
+The sync gives each Xpendit category an [Expense Category](/api-reference/expense-claims#expense-categories) of the Entity:
+
+1. The category the Feed created for it on an earlier sync, even if you renamed it.
+2. Else the Entity's own category with the same name. The Feed takes it over, so it still finds it once you rename it.
+3. Else a new category with that name and no expense account. Its `sourceFeedId` is the Feed, and its `providerCategoryId` is Xpendit's category id.
+
+An expense whose category has no expense account is rejected with `expense_category_unassigned`. Assign the account in **Configuración → Rendiciones** or with [`PATCH /expense-categories/:expenseCategoryId`](/api-reference/expense-claims#patch-expense-categories-expensecategoryid). The next sync lands the expense.
+
+#### Changed expenses
+
+A sync never rewrites a claim it already landed. When the `amount` or the `expenseDate` of a landed expense changes in Xpendit, the expense counts as `skipped` and appears in `report.expenseDivergences`:
+
+```json
+{
+  "expenseDivergences": [
+    {
+      "expenseClaimId": "3f2a1b0c-9d8e-4f7a-8b6c-5d4e3f2a1b0c",
+      "externalRef": "3f2a1b0c-9d8e-4f7a-8b6c-5d4e3f2a1b0c",
+      "folio": 1042,
+      "fields": [
+        { "field": "amount", "landed": "25000", "provider": "27500" }
+      ]
+    }
+  ]
+}
+```
+
+`folio` is the expense number. `landed` and `provider` are text: the amount in minor units of the Entity's functional currency, or the date as `YYYY-MM-DD`. Review each change and correct the Expense Rendition yourself when it no longer matches the expense.
+
+#### Expense files
+
+An Xpendit expense carries a receipt and, at times, an additional file. A sync attaches each one to the Expense Rendition as an [Attachment](/api-reference/attachments), once per slot: `receipt` and `additional_receipt`. It attaches them for the expenses it lands and for the ones it skips, so a file that failed on one sync is tried again on the next. The counts appear in `report.files`, and a failed file appears in `failed[]` with its `kind`.
+
+#### Preview
+
+A sync with `preview: true` reads and lands every expense, then rolls everything back. It reports what a real sync would land, skip, ignore, and reject, and writes no claim, category, Partner, or file.
+
+The run detail in the app lists the month ranges, the rejected expenses, the changed expenses, and the files that failed.
 
 ## DTE references
 
@@ -435,5 +509,5 @@ A reference is linked only when its target is already in the Entity's books: a D
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity, Source Feed, or Integration (`INTEGRATION_NOT_FOUND_ERROR`) not found. |
 | `409` | The Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), the Source already has a Feed, or another Feed already reads the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR`). |
-| `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`), the Provider doesn't list the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`), an `expense` Feed names a Source that doesn't hold Expense Renditions (`SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR`), or a sync names an `expense` Feed (`INTEGRATION_DOCUMENTS_NOT_SUPPORTED_ERROR`). |
+| `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`), the Provider doesn't list the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`), or an `expense` Feed names a Source that doesn't hold Expense Renditions (`SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR`). |
 | `424` | The provider refused the sync (`SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |

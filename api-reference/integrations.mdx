@@ -15,7 +15,7 @@ What an Integration can feed depends on its kind:
 | `sii_mirror` | Up to two [Sources](/api-reference/sources), through [Source Feeds](/api-reference/source-feeds): one for DTEs (`dte`) and one for boletas de honorarios (`honorarium`) |
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
 | `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
-| `xpendit` | A [Source](/api-reference/sources) that holds Expense Renditions for each of its Subsidiaries, through a [Source Feed](/api-reference/source-feeds#expense-feeds) of expenses (`expense`). These Feeds don't sync yet. You can [read its expenses](#read-what-xpendit-holds) on demand |
+| `xpendit` | A [Source](/api-reference/sources) that holds Expense Renditions for each of its Subsidiaries, through a [Source Feed](/api-reference/source-feeds#expense-feeds) of expenses (`expense`). Each sync lands the expenses Xpendit approved as approved [Expense Claims](/api-reference/expense-claims). You can also [read its expenses](#read-what-xpendit-holds) on demand |
 | `mercadolibre`, `stripe` | Nothing yet |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
@@ -975,7 +975,7 @@ An `xpendit` Integration connects one Xpendit enterprise with its API key. Sintr
 With an Xpendit Integration you can:
 
 - [Read what Xpendit holds](#read-what-xpendit-holds): each Subsidiary's recent expenses and its open funds.
-- Route each Subsidiary to a Source of [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions) of an Entity, with an [expense Feed](/api-reference/source-feeds#expense-feeds). These Feeds don't sync yet, so no expense lands in the books yet.
+- Route each Subsidiary to a Source of [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions) of an Entity, with an [expense Feed](/api-reference/source-feeds#expense-feeds). Each [sync](/api-reference/source-feeds#sync-an-expense-feed) lands the expenses Xpendit approved as approved Expense Claims, booked as Expense Renditions with their receipts attached.
 
 ### Connect Xpendit
 
