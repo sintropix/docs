@@ -504,7 +504,7 @@ While a [Payment Order](/api-reference/payment-batches) names the Invoice, a cha
 
 ## DELETE `/invoices/:invoiceId`
 
-Delete the Invoice. Booked Invoices are refused; unbook first. Deleting an Invoice also deletes the DTE behind it, unless another DTE still references that DTE (`409`).
+Delete the Invoice. Booked Invoices are refused; unbook first. In the app, open the unbooked or excluded document and click the trash icon in its panel's footer, then confirm. A booked document's panel offers no delete. Deleting an Invoice also deletes the DTE behind it, unless another DTE still references that DTE (`409`).
 
 **Response:** `{ "deletedInvoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 
