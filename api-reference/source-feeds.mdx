@@ -456,6 +456,8 @@ The sync gives each Xpendit category an [Expense Category](/api-reference/expens
 2. Else the Entity's own category with the same name. The Feed takes it over, so it still finds it once you rename it.
 3. Else a new category with that name and no expense account. Its `sourceFeedId` is the Feed, and its `providerCategoryId` is Xpendit's category id.
 
+If you [delete](/api-reference/expense-claims#delete-expense-categories-expensecategoryid) a category the Feed brought, the next sync that reads an expense of it creates the category again, with no expense account.
+
 An expense whose category has no expense account is rejected with `expense_category_unassigned`. Assign the account in **Configuración → Rendiciones** or with [`PATCH /expense-categories/:expenseCategoryId`](/api-reference/expense-claims#patch-expense-categories-expensecategoryid). The next sync lands the expense.
 
 #### Changed expenses
