@@ -116,6 +116,7 @@ Each **envelope**:
 | `connectedAppName` | string or `null` | The name the connected app declared for itself, as it read at the time of the write, for `oauth` requests. |
 | `declaredActor` | string or `null` | Value of the `x-audit-actor` header on API-key mutations. |
 | `declaredReason` | string or `null` | Value of the `x-audit-reason` header (trimmed) explaining why the change was made. Required on API-key and OAuth-token mutations; optional on browser sessions. `null` on rows written before the header existed. |
+| `declaredTrigger` | `slack` \| `app` \| `chat` \| `schedule` \| `terminal` \| `null` | Value of the `x-audit-trigger` header: what started the agent turn behind the write. `schedule` means a schedule started it. The other values name where a person's message started it. `null` when the request sent no trigger, on changes made by Sintropix itself, and on rows written before the header existed. |
 | `route` | string | The endpoint pattern that produced the mutation. For a change made by a scheduled job, the job's name. See [Scheduled jobs](#scheduled-jobs). |
 | `method` | string | HTTP method, for example `POST`. `CRON` for a change made by a scheduled job. |
 | `params` | object | Path parameters of the request. |
@@ -166,6 +167,7 @@ A resource that no longer exists is absent from these lists; treat an id you can
       "connectedAppName": null,
       "declaredActor": "my-agent",
       "declaredReason": "Rename Acme Ltd to its legal name after the vendor update email",
+      "declaredTrigger": null,
       "route": "/entities/:entityId/partners/:partnerId",
       "method": "PATCH",
       "params": { "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57", "partnerId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e" },
@@ -205,6 +207,7 @@ The audit trail is row-level and automatic: every write is recorded by the datab
 - **Credential type:** `session` for browser sessions, `api_key` for API key requests, `system` for changes made by Sintropix itself
 - **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor. A [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync that writes the Standing or Tax Period of a landed DTE carries `source-feed`, credited to the system.
 - **Declared reason:** the value of the `x-audit-reason` header (trimmed, up to 500 characters) explaining why the change was made; required on API-key mutations, optional on browser sessions
+- **Declared trigger:** the value of the optional `x-audit-trigger` header (stored as a claim), naming what started the agent turn behind the write. Every write Erwin makes carries the trigger of his turn: `schedule` when a schedule started it, or `slack`, `app`, `chat`, or `terminal` when a person's message there started it. An envelope whose `declaredActor` starts with `erwin` and whose `declaredTrigger` is `schedule` is a change Erwin made on his own
 - **Request id:** a server-generated unique id grouping all changes in one request
 - **Route and HTTP method:** the endpoint that produced the mutation, or the scheduled job that made it
 - **Entity id:** the entity scope the change occurred within
