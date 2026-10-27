@@ -336,7 +336,10 @@ A Plaid Integration reads a US bank login through [Plaid](https://plaid.com). Co
 - Only posted transactions land. A pending transaction never lands. When it posts, it lands as a new Movement on the next sync.
 - The Movement date is the day the transaction posted, and the description is the transaction name the bank reports. Plaid's categories are not used.
 - Money that leaves the account lands as a negative amount, and money that comes in lands as a positive amount.
-- Each sync checks the landed Movements against the account's current balance at Plaid.
+- Each sync checks the landed Movements against the account's current balance at Plaid, less the pending transactions that balance counts. A pending transaction doesn't put the account [out of tie-out](/api-reference/bank-accounts#tie-out), and `feed.tieOut.reportedBalance` is the balance after that subtraction.
+- When you create a Bank Account from a Plaid account, the opening balance leaves out the pending transactions in the same way. Each one lands once, when it posts.
+
+Some banks count pending transactions in the current balance, and others don't. Sintropix treats the current balance as counting them when Plaid reports the same current and available balance for the account, and then subtracts the sum of every pending transaction, whatever its date. Otherwise it reads the current balance as posted transactions only and subtracts nothing. At a bank that counts pending transactions, a hold that no transaction explains makes the two balances differ. While the hold lasts, the pending transactions aren't subtracted, and the account can show out of tie-out by their sum.
 
 US banks write a wire's reference numbers into the transaction name. Sintropix shortens the description of a wire to its direction and its counterparty: the sender of a wire in, or the beneficiary of a wire out. The references and the wire's note (OBI) move to the Movement's Additional Information. A name that isn't a wire, or a wire Sintropix can't read field by field, lands whole, so no text is lost.
 
