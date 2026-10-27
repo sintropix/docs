@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect Xpendit with an API key and read its expenses, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect Xpendit with an API key and read its expenses, connect Buk with its address and an API key, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -16,7 +16,7 @@ What an Integration can feed depends on its kind:
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
 | `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `xpendit` | A [Source](/api-reference/sources) that holds Expense Renditions for each of its Subsidiaries, through a [Source Feed](/api-reference/source-feeds#expense-feeds) of expenses (`expense`). Each sync lands the expenses Xpendit approved as approved [Expense Claims](/api-reference/expense-claims). You can also [read its expenses](#read-what-xpendit-holds) on demand |
-| `mercadolibre`, `stripe` | Nothing yet |
+| `mercadolibre`, `stripe`, `buk` | Nothing yet |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 
@@ -36,6 +36,8 @@ The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintrop
 
 The `xpendit` kind connects the enterprise of an Xpendit account, the expense tool, with its API key. You can read the expenses and funds of each of its Subsidiaries, and route each Subsidiary to a Source of Expense Renditions. See [Xpendit](#xpendit).
 
+The `buk` kind connects a [Buk](https://www.buk.cl) account, the payroll and HR system, with the address of your Buk and an API key. It lists the Empresas the key reaches, with their RUT, and feeds nothing yet. See [Buk](#buk).
+
 The `stripe` kind connects a [Stripe](https://stripe.com) account through OAuth, by installing the Sintropix Stripe App in that account with read-only access. It feeds nothing yet. See [Stripe](#stripe).
 
 The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sign in to Polar as a user with the owner, admin, or finance role in the organization: Polar shows an organization's money to those roles only. It can feed a USD Bank Account with each organization's Polar balance. Sintropix only reads: it never charges, refunds, or withdraws money. See [Bank Feeds](/api-reference/bank-feeds#polar).
@@ -44,7 +46,7 @@ To connect a bank that no Provider reads, such as a credit card Fintoc can't fet
 
 The `sii_mirror` kind connects the SII, the Chilean tax authority, and is the only SII document Provider. You connect it with the company's RUT and its SII password (Clave), and the SII checks them at once. It then reads the RCV registers of that RUT from Sintropix's Chilean SII mirror. The mirror reads the SII registers every 4 hours, so a document reaches it a few hours after the SII records it. See [SII](#sii).
 
-In the app, open **Configuración de empresa → Integraciones** and click **Conectar integración**. The catalog lists every option with its logo, and you can search it or filter it by tag: **Banco**, **Pagos**, **Ventas**, **Facturador**, **Impuestos**, **Rendiciones**, **Correo**, or **ERP**. Each Chilean bank is its own option, and you can find it by its short name too, such as "bci". Pick an option and fill in its form. For a Provider that uses OAuth, such as Google or Mercado Pago, you continue on the Provider's page and return to Sintropix afterwards.
+In the app, open **Configuración de empresa → Integraciones** and click **Conectar integración**. The catalog lists every option with its logo, and you can search it or filter it by tag: **Banco**, **Pagos**, **Ventas**, **Facturador**, **Impuestos**, **Rendiciones**, **Remuneraciones**, **Correo**, or **ERP**. Each Chilean bank is its own option, and you can find it by its short name too, such as "bci". Pick an option and fill in its form. For a Provider that uses OAuth, such as Google or Mercado Pago, you continue on the Provider's page and return to Sintropix afterwards.
 
 Connecting asks for no Entity. When the connection is stored, its panel opens on the step it still lacks, where you route it to the Entities (**Entidades legales**) of the Organization. For a document Provider, pick the Source each Document Family lands in, from the Sources of every Entity grouped by Entity, and the date to read from. You can also create a Source in any Entity. For a bank Provider, link each of its accounts to a Bank Account of any Entity, or create one in the Entity you pick. Until you finish that step, the list shows the connection as **Falta elegir fuentes** or **Falta elegir cuentas**.
 
@@ -79,8 +81,8 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `xpendit` \| `stripe` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `xpendit` \| `buk` \| `stripe` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `buk`, the tenant, the subdomain of your Buk, such as `acme` for `acme.buk.cl`; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds and the OAuth authorizations. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
@@ -104,20 +106,21 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers, the bank Providers, and Xpendit. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, and Stripe use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-integrations-mailbox).
+This route connects the document Providers, the bank Providers, Xpendit, and Buk. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, and Stripe use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-integrations-mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, and `stripe` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, and `stripe` are not accepted here. |
 
 Each kind adds its own fields:
 
 | Kind | Fields | Description |
 | --- | --- | --- |
 | `bsale`, `wasabil`, `xpendit` | `accessToken` (string) | The provider's API access token. For `xpendit`, the API key of the enterprise. Whitespace is trimmed and must be non-empty. |
+| `buk` | `tenant` (string), `accessToken` (string) | The address of your Buk and its API key. See [Connect Buk](#connect-buk). |
 | `sii_mirror` | `rut` (string), `clave` (string) | The company's RUT and its SII password (Clave). The RUT takes the same format and check-digit rule as a [Portal Login](#post-portal-logins) `rut`. The Clave must be non-empty. See [SII](#sii). |
 | `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-integrations-fintoc-link-intents) and the user completes the widget. |
 | `plaid` | `publicToken` (string) | The public token Plaid Link mints after you [create a Link token](#post-integrations-plaid-link-tokens) and the user signs in to the bank. Connecting the same Plaid Item twice is refused with `409`. |
@@ -127,7 +130,7 @@ Each kind adds its own fields:
 
 For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the Integration, so the request can take up to about a minute. A Clave the SII refuses answers `422` with `SII_CLAVE_REFUSED_ERROR`. When the SII gives no answer in time, the request answers `503` with `SII_UNAVAILABLE_ERROR` and creates nothing. Retry in a few minutes.
 
-Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit refuses answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
+Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit or Buk refuses answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
 
 - **Response** (`201`): the Integration object (its `sourceFeeds` and `fedBankAccounts` are empty on creation).
 
@@ -271,7 +274,7 @@ The response is the Integration object, with the bank's name in `institutionName
 
 Restore a Fintoc Integration whose bank stopped trusting the stored grant. You know it needs this when [its discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) answer `status: "login_required"`. Run the Fintoc widget again and send the fresh exchange token. The Integration keeps its id and every feed it holds.
 
-Only `fintoc` Integrations reconnect, and only a `staff` caller can reconnect one. Any other caller gets `403` (`PERMISSION_DENIED_ERROR`). To repair a Global66, Cardda, dLocal Go, or Plaid Integration whose credentials stopped working, disconnect it and connect again. For Plaid, this includes a bank login that expired. For Xpendit, [replace its API key](#put-integrations-integrationid-access-token) instead.
+Only `fintoc` Integrations reconnect, and only a `staff` caller can reconnect one. Any other caller gets `403` (`PERMISSION_DENIED_ERROR`). To repair a Global66, Cardda, dLocal Go, or Plaid Integration whose credentials stopped working, disconnect it and connect again. For Plaid, this includes a bank login that expired. For Xpendit or Buk, [replace its API key](#put-integrations-integrationid-access-token) instead.
 
 **Body**
 
@@ -499,6 +502,8 @@ Create a Mailbox at the Organization's email domain. It needs the `books` write 
 
 - An Organization with no email domain is refused with `409` (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`).
 - An address that already exists is refused with `409` (`MAILBOX_ALREADY_EXISTS_ERROR`). `params.address` names it. Choose another name.
+- An email domain that no longer receives email is refused with `409` (`EMAIL_DOMAIN_NOT_OPEN_ERROR`). `params.emailDomain` names it. Ask Sintropix to check it.
+- When the Organization's email plan already holds every Mailbox it includes, the create is refused with `424` (`MAILBOX_LIMIT_REACHED_ERROR`). It answers the same until an administrator raises the plan, so don't retry it. The app says *El plan de correo llegó a su límite de casillas. Un administrador debe ampliarlo.*
 
 **Response** `201`: the Integration object, with `kind: "mailbox"` and the new address as `providerRef`.
 
@@ -630,6 +635,8 @@ You can't disconnect a Mailbox, because removing it would delete its email. [`DE
 | `409` | `MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR` | The Organization has no email domain yet. Ask Sintropix to set it. `params.organizationId` |
 | `409` | `MAILBOX_ALREADY_EXISTS_ERROR` | The address already exists. `params.address` |
 | `409` | `MAILBOX_NOT_REMOVABLE_ERROR` | A disconnect names a Mailbox. `params.integrationId` |
+| `409` | `EMAIL_DOMAIN_NOT_OPEN_ERROR` | A create names an email domain that no longer receives email. `params.emailDomain` |
+| `424` | `MAILBOX_LIMIT_REACHED_ERROR` | The Organization's email plan holds every Mailbox it includes. An administrator must raise it before another create succeeds |
 | `503` | `MAILBOX_UNAVAILABLE_ERROR` | The Mailbox can't be created or read right now. Retry later |
 
 ## Read email
@@ -1006,7 +1013,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `PUT /api/organizations/:organizationId/integrations/:integrationId/access-token`
 
-Replace the API key of an Xpendit Integration, for example after you rotate the key in Xpendit. The new key must open the same enterprise. The Integration keeps its id and its Feeds. In the app, open the Integration's panel and click **Reemplazar clave de API**.
+Replace the API key of an Xpendit or Buk Integration, for example after you rotate the key in the Provider. For Xpendit, the new key must open the same enterprise. For Buk, Sintropix checks the new key at the tenant the Integration already names. The Integration keeps its id and its Feeds. In the app, open the Integration's panel and click **Reemplazar clave de API**.
 
 **Body**
 
@@ -1014,13 +1021,14 @@ Replace the API key of an Xpendit Integration, for example after you rotate the 
 | --- | --- | --- | --- |
 | `accessToken` | string | Yes | The new API key. Whitespace is trimmed and must be non-empty. Unknown keys are refused with `400`. |
 
-Sintropix checks the new key with Xpendit first. If it fails any check, the stored key stays:
+Sintropix checks the new key with the Provider first. If it fails any check, the stored key stays:
 
 | Status | Code | When it happens |
 | --- | --- | --- |
 | `409` | `INTEGRATION_GRANT_MISMATCH_ERROR` | The key opens another enterprise. `params.integrationId` |
-| `422` | `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR` | Xpendit refuses the key |
-| `422` | `INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR` | The Integration isn't `xpendit`. `params.integrationId` and `params.kind` |
+| `422` | `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR` | Xpendit or Buk refuses the key |
+| `422` | `INTEGRATION_CONNECT_REJECTED_ERROR` | For Buk, the key reaches no Empresa of the tenant |
+| `422` | `INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR` | The Integration isn't `xpendit` or `buk`. `params.integrationId` and `params.kind` |
 
 - **Response** (`200`): the Integration object.
 
@@ -1142,9 +1150,15 @@ A key that Xpendit no longer accepts answers `422` with `INTEGRATION_PROVIDER_UN
 
 `GET /api/organizations/:organizationId/integrations/:integrationId/provider-accounts`
 
-List the Provider Accounts of an Integration: for Xpendit, the Subsidiaries of the enterprise. Sintropix reads them from Xpendit on every request. Use an `id` as the `providerAccountId` of an [expense Feed](/api-reference/source-feeds#expense-feeds). Any member of the Organization can list them.
+List the Provider Accounts of an Integration: for Xpendit, the Subsidiaries of the enterprise; for Buk, the [Empresas the key reaches](#buk). Sintropix reads them from the Provider on every request. Use an Xpendit `id` as the `providerAccountId` of an [expense Feed](/api-reference/source-feeds#expense-feeds). Any member of the Organization can list them.
 
-**Response:** an array of `{ id, name }`, where `id` is the Subsidiary's id at Xpendit, as a string.
+**Response:** an array of `{ id, name, taxId }`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The account's id at the Provider: the Subsidiary's id at Xpendit, or the Empresa's id at Buk. |
+| `name` | string | The account's name at the Provider. |
+| `taxId` | string \| null | For Buk, the Empresa's RUT as Buk states it, such as `76.123.456-0`, or `null` when Buk states none. Always `null` for Xpendit. |
 
 An Integration that has no Provider Accounts to list answers `422` with `INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`.
 
@@ -1155,14 +1169,86 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
 
 ```json
 [
-  { "id": "4821", "name": "Acme Chile" },
-  { "id": "4822", "name": "Acme México" }
+  { "id": "4821", "name": "Acme Chile", "taxId": null },
+  { "id": "4822", "name": "Acme México", "taxId": null }
 ]
 ```
 
 ### Disconnect Xpendit
 
 [`DELETE /integrations/:integrationId`](#delete-integrations-integrationid) removes the stored key and every expense Feed of the Integration. The Sources stay. Xpendit holds nothing of Sintropix to revoke.
+
+## Buk
+
+A `buk` Integration connects your [Buk](https://www.buk.cl), the payroll and HR system, with an API key. Sintropix only reads Buk and never writes to it. Your Buk lives at its own address, such as `acme.buk.cl`: Sintropix calls the subdomain, `acme`, the **tenant**. A tenant holds one or more **Empresas**, and each Empresa the key reaches is a **Provider Account**.
+
+A Buk Integration lists the Empresas the key reaches, each with its RUT. It doesn't read payroll and feeds nothing yet.
+
+### Create the API key in Buk
+
+The Buk API comes with the **Plataforma Pro** plan. If **Configuración → Accesos API** is greyed out in Buk, your plan doesn't include it: ask your Buk account manager. A Buk administrator creates the key:
+
+1. In Buk, open **Configuración → Accesos API** and click **Crear nueva API Key**.
+2. Name it for what it's for, such as "Sintropix". Create a key for Sintropix alone, and don't share it with another system.
+3. Pick these permissions:
+   - **Nivel:** Lectura. Sintropix only reads.
+   - **Permisos de empleados:** Lectura.
+   - **Permisos de contabilidad:** Lectura.
+   - **Datos sensibles:** Sí.
+   - **Empresas:** the Empresas Sintropix keeps the books of. Leave out any Empresa that isn't yours.
+4. Click **Actualizar API Key**, then **Guardar**.
+5. In the list of keys, click the eye icon of the new key and copy the token.
+
+If your Buk restricts access by IP in **Whitelist de acceso**, contact Sintropix before you connect.
+
+### Connect Buk
+
+In the app, open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Buk**, under the **Remuneraciones** tag. Type the address of your Buk in **Dirección de Buk**, such as `tuempresa.buk.cl`, paste the token in **Clave de API**, and click **Conectar**. The panel then lists the Empresas the key reaches under **Empresas en Buk**, each with its RUT.
+
+Through the API, send [`POST /integrations`](#post-integrations) with `kind: "buk"`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `tenant` | string | Yes | The address of your Buk. You can send the tenant alone (`acme`), the host (`acme.buk.cl`), or a pasted address (`https://acme.buk.cl/apidocs`): Sintropix keeps the tenant, in lowercase. The tenant must be one subdomain of `buk.cl`: letters, digits, and inner hyphens, up to 63 characters. Any other address, such as `acme_corp` or `acme.buk.cl.example.com`, is refused with `400` before the key is sent anywhere. |
+| `accessToken` | string | Yes | The token of the Buk API key. Whitespace is trimmed and must be non-empty. |
+
+Sintropix sends the key only to `https://<tenant>.buk.cl`, and checks it there before it stores it:
+
+| Outcome | Answer |
+| --- | --- |
+| Buk accepts the key, and it reaches at least one Empresa | `201` with the Integration. `providerRef` is the tenant |
+| Buk refuses the key | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
+| No Buk lives at that address, or the key reaches no Empresa | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is stored. The app says *Buk no tiene esa dirección, o la clave no llega a ninguna empresa.* Check the address and the Empresas of the key in Buk |
+| Another Integration already connects that tenant | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. `params.providerRef` names the tenant |
+| Buk can't be reached, or the address sends Sintropix elsewhere | `503` with `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`. Nothing is stored, and the key goes nowhere else |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Connect the client's Buk" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "2e3f4a5b-6c7d-4e8f-9a0b-1c2d3e4f5a6b",
+    "kind": "buk",
+    "tenant": "acme.buk.cl",
+    "accessToken": "buk-api-key"
+  }'
+```
+
+To list the Empresas, call [`GET /integrations/:integrationId/provider-accounts`](#get-integrations-integrationid-provider-accounts):
+
+```json
+[
+  { "id": "101", "name": "Comercial Andes SpA", "taxId": "76.123.456-0" },
+  { "id": "102", "name": "Servicios Andes Ltda.", "taxId": "77.234.567-4" }
+]
+```
+
+### Replace or remove the Buk key
+
+- **Replace it.** Create a new key in Buk. Then, in the Integration's panel, click **Reemplazar clave de API**, or call [`PUT /integrations/:integrationId/access-token`](#put-integrations-integrationid-access-token). Sintropix checks the new key at the same tenant, and the panel lists the Empresas of the new key. Then delete the old key in Buk.
+- **Remove it.** [`DELETE /integrations/:integrationId`](#delete-integrations-integrationid), or **Desconectar** in the panel, removes the key Sintropix stores. Buk keeps the key working until you delete it too, in **Configuración → Accesos API**.
 
 ## Stripe
 
@@ -1387,8 +1473,8 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while an Entity other than the one of the picked Book keeps Books (`BOOK_REQUIRED_ERROR`). |
 | `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email, reads a Mailbox's Conversations, or reads the expenses of an Xpendit account, or an API key confined to one Entity creates a Mailbox (`PERMISSION_DENIED_ERROR`). |
 | `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), or email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
+| `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Mailbox create names an email domain that no longer receives email (`EMAIL_DOMAIN_NOT_OPEN_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), or an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`). |
-| `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), or the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit or Buk refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit` or `buk` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), or an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`). |
+| `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`), or the email plan holds every Mailbox it includes (`MAILBOX_LIMIT_REACHED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`), or a Mailbox can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |
