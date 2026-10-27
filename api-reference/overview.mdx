@@ -91,6 +91,8 @@ x-audit-reason: <why you are making this change>
 
 A mutating request made with an OAuth access token must send `x-audit-reason` too. It doesn't need `x-audit-actor`: the Audit Trail names the approved app instead.
 
+A mutating request can also send `x-audit-trigger`, the Declared Trigger: what started the agent turn behind the write. Send `schedule` when a schedule started it, or `slack`, `app`, `chat`, or `terminal` when a person's message in that place started it. The header is optional, and a request without it stores no trigger. Any other value returns `400` with code `AUDIT_TRIGGER_UNKNOWN_ERROR` and writes nothing. Its `params` carry `header` and the accepted `triggers`.
+
 ## Request Format
 
 Requests are plain JSON. Include `Content-Type: application/json` on any request with a body.

@@ -29,6 +29,8 @@ In the app, turn on **Fuente de rendiciones** for the Source in **Configuración
 
 While an Entity's [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) names the Source, you can't unmark it or delete it: Sintropix refuses both with `409` and `SOURCE_PINNED_ERROR`, with `params.sourceId`. Pick another Source in **Configuración → Rendiciones** first.
 
+The same holds while an [expense Feed](/api-reference/source-feeds#expense-feeds) fills the Source: unmarking it answers `409` with `SOURCE_PINNED_ERROR`.
+
 ## GET `/sources`
 
 List every Source for the Entity, each annotated with the count of Invoices it has produced.
@@ -97,7 +99,7 @@ Rename a Source, mark or unmark it as one that holds Expense Renditions, or both
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | No | New name. Trimmed, non-empty, unique within the Entity. |
-| `holdsExpenseRenditions` | boolean | No | `true` marks the Source as one that holds [Expense Renditions](#sources-that-hold-expense-renditions); `false` unmarks it. A Source the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) names can't be unmarked (`409`, `SOURCE_PINNED_ERROR`). |
+| `holdsExpenseRenditions` | boolean | No | `true` marks the Source as one that holds [Expense Renditions](#sources-that-hold-expense-renditions); `false` unmarks it. A Source the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) names, or that an [expense Feed](/api-reference/source-feeds#expense-feeds) fills, can't be unmarked (`409`, `SOURCE_PINNED_ERROR`). |
 
 **Response:** the updated Source object.
 

@@ -91,6 +91,8 @@ x-audit-reason: <por qué realizas este cambio>
 
 Una solicitud que modifica datos hecha con un token de acceso OAuth también debe enviar `x-audit-reason`. No necesita `x-audit-actor`: el registro de auditoría nombra la app aprobada.
 
+Una solicitud que modifica datos también puede enviar `x-audit-trigger`, el Disparador Declarado: qué inició el turno del agente detrás de la escritura. Envía `schedule` cuando lo inició una programación, o `slack`, `app`, `chat` o `terminal` cuando lo inició el mensaje de una persona en ese lugar. El encabezado es opcional, y una solicitud sin él no guarda disparador. Cualquier otro valor devuelve `400` con el código `AUDIT_TRIGGER_UNKNOWN_ERROR` y no escribe nada. Sus `params` traen `header` y los `triggers` aceptados.
+
 ## Formato de las solicitudes
 
 Las solicitudes son JSON plano. Incluye `Content-Type: application/json` en cualquier solicitud con cuerpo.

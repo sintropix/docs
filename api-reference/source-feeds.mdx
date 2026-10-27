@@ -6,7 +6,7 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync).
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed of tax documents on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync). [Expense Feeds](#expense-feeds) don't sync yet.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/sources"
@@ -21,6 +21,7 @@ Every Feed lands one **Document Family**:
 | --- | --- | --- |
 | `dte` | DTEs: facturas, notas de crédito, boletas, and the other documents of the RCV. | `sii_mirror`, `bsale`, `wasabil` |
 | `honorarium` | Boletas de honorarios: the BHE the Entity receives and the BTE it issues. See [Honorarium Feeds](#honorarium-feeds). | `sii_mirror` |
+| `expense` | Expense Renditions: the expenses people of the Entity report in an expense tool. See [Expense Feeds](#expense-feeds). | `xpendit` |
 
 An Entity holds at most one Feed of each family, and a Source holds at most one Feed. Two providers of one family describe the same documents, so a second Feed of a family would land them twice. An [Integration](/api-reference/integrations) lists the families its provider can feed in `feedableFamilies`.
 
@@ -36,7 +37,8 @@ Every route on this page returns Feeds in this shape.
 | `entityId` | uuid | Owning Entity. |
 | `sourceId` | uuid | The Source the Feed fills. |
 | `integrationId` | uuid | The Integration the Feed reads through. |
-| `family` | `dte` \| `honorarium` | The [Document Family](#document-families) the Feed lands. |
+| `family` | `dte` \| `honorarium` \| `expense` | The [Document Family](#document-families) the Feed lands. |
+| `providerAccountId` | string \| null | For an `expense` Feed, the [Provider Account](#expense-feeds) it reads, such as an Xpendit Subsidiary. `null` for every other family. |
 | `feedStartDate` | string (`YYYY-MM-DD`) | The link date: the earliest emission date the Feed imports, on the provider's calendar. |
 | `lastSyncedAt` | ISO 8601 timestamp \| null | When the Feed last completed a successful sync. `null` until the first success. |
 | `sourceName` | string | Name of the parent Source. |
@@ -77,9 +79,10 @@ Create a Source Feed. The body names the Source to fill, either an existing one 
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
 | `integrationId` | uuid | Yes | The Integration to read through: any Integration of the Entity's Organization. Another Organization's answers `404` with `INTEGRATION_NOT_FOUND_ERROR`. |
-| `family` | `dte` \| `honorarium` | Yes | The [Document Family](#document-families) to land. It must be one of the Integration's `feedableFamilies`. |
+| `family` | `dte` \| `honorarium` \| `expense` | Yes | The [Document Family](#document-families) to land. It must be one of the Integration's `feedableFamilies`. |
+| `providerAccountId` | string | For `expense` only | The id of the [Provider Account](#expense-feeds) to read, from [`GET /integrations/:integrationId/provider-accounts`](/api-reference/integrations#get-integrations-integrationid-provider-accounts). Required when `family` is `expense`: without it, the request answers `400`. Other families read the whole external account and take none. |
 | `feedStartDate` | string (`YYYY-MM-DD`) | Yes | The link date: the earliest emission date to import. |
-| `source` | object | Yes | Exactly one of `{ "sourceId": "<uuid>" }` (an existing Source) or `{ "sourceName": "<name>" }` (create a Source with that name). A body carrying both keys is rejected. |
+| `source` | object | Yes | Exactly one of `{ "sourceId": "<uuid>" }` (an existing Source) or `{ "sourceName": "<name>" }` (create a Source with that name). A body carrying both keys is rejected. For an `expense` Feed, an existing Source must hold Expense Renditions, and a Source you create holds them. |
 
 **Response:** `{ feed, source }`, where `feed` is the Source Feed object and `source` is the Source it fills: `{ id, entityId, name, invoiceCount, createdAt, updatedAt }`.
 
@@ -90,6 +93,9 @@ Create a Source Feed. The body names the Source to fill, either an existing one 
 | `SOURCE_FEED_FAMILY_NOT_FED_ERROR` | `422` | The Integration's provider doesn't feed this `family`, for example `honorarium` through a `bsale` Integration. `params: { integrationId, family }`. |
 | `SOURCE_FEED_FAMILY_ALREADY_FED_ERROR` | `409` | The Entity already has a Feed of this `family`. Delete it first. `params: { entityId, family }`. |
 | `SOURCE_FEED_SOURCE_ALREADY_FED_ERROR` | `409` | The Source already has a Feed. |
+| `SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR` | `422` | The Provider doesn't list this `providerAccountId`. `params: { integrationId, providerAccountId }`. |
+| `SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR` | `409` | Another Feed already reads this Provider Account, in this Entity or another one. `params: { integrationId, providerAccountId }`. |
+| `SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR` | `422` | An `expense` Feed names a Source that doesn't hold Expense Renditions. `params: { sourceId }`. |
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
@@ -107,7 +113,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
 
 ## POST `/source-feeds/:sourceFeedId/sync`
 
-Trigger an on-demand sync of a Source Feed. The response reports how many documents were landed, updated, or skipped.
+Trigger an on-demand sync of a Source Feed. The response reports how many documents were landed, updated, or skipped. An `expense` Feed doesn't sync yet: it answers `422` with `INTEGRATION_DOCUMENTS_NOT_SUPPORTED_ERROR`.
 
 **Body**
 
@@ -376,6 +382,39 @@ Each entry in `failed[]`:
 }
 ```
 
+## Expense Feeds
+
+An `expense` Feed routes one **Provider Account** of an expense tool to a Source of an Entity that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions). A Provider Account is one account inside the external account of an Integration. Today only [Xpendit](/api-reference/integrations#xpendit) feeds expenses, and its Provider Accounts are the Subsidiaries of the enterprise.
+
+<Note>
+  An `expense` Feed doesn't sync yet, so it lands no expenses. Sintropix's scheduled syncs skip it, and an [on-demand sync](#post-source-feeds-sourcefeedid-sync) answers `422` with `INTEGRATION_DOCUMENTS_NOT_SUPPORTED_ERROR`. Route your Subsidiaries now, and their Link Dates are already set when syncing arrives.
+</Note>
+
+The routing rules:
+
+- **One Provider Account feeds one Entity.** A Subsidiary that another Feed already reads answers `409` with `SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR`.
+- **An Entity holds one `expense` Feed**, like every other family. A second one answers `409` with `SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`.
+- **The Source holds Expense Renditions.** An existing Source without the mark answers `422` with `SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR`. A Source the Feed creates holds them. While the Feed lives, you can't unmark its Source: Sintropix refuses with `409` and `SOURCE_PINNED_ERROR`.
+- **The Provider lists the account.** List the Provider Accounts with [`GET /integrations/:integrationId/provider-accounts`](/api-reference/integrations#get-integrations-integrationid-provider-accounts). An id the Provider doesn't list answers `422` with `SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`.
+
+In the app, open the Xpendit Integration's panel. Its feed step shows one row per Subsidiary that no Feed reads yet. For each one, pick a Source that holds Expense Renditions, or create one, and its Link Date. A routed Subsidiary shows **Rendiciones**, the **Cuenta del proveedor**, the Source, and the Link Date, with no sync controls.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Route the Acme Chile subsidiary to the renditions Source" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+    "integrationId": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+    "family": "expense",
+    "providerAccountId": "4821",
+    "feedStartDate": "2026-10-01",
+    "source": { "sourceName": "Rendiciones Xpendit" }
+  }'
+```
+
 ## DTE references
 
 A sync also links each DTE to the DTEs it references, for example a nota de crédito to the factura it credits. The links appear in `statedDteReferences` and `receivedDteReferences` on [`GET /sii/dte/:dteId`](/api-reference/sii), with the SII `referenceCode` (`1` voids, `2` corrects text, `3` corrects amounts) when the document states one.
@@ -395,6 +434,6 @@ A reference is linked only when its target is already in the Entity's books: a D
 | `201` | Source Feed created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `404` | Entity, Source Feed, or Integration (`INTEGRATION_NOT_FOUND_ERROR`) not found. |
-| `409` | The Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), or the Source already has a Feed. |
-| `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`). |
+| `409` | The Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), the Source already has a Feed, or another Feed already reads the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR`). |
+| `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`), the Provider doesn't list the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`), an `expense` Feed names a Source that doesn't hold Expense Renditions (`SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR`), or a sync names an `expense` Feed (`INTEGRATION_DOCUMENTS_NOT_SUPPORTED_ERROR`). |
 | `424` | The provider refused the sync (`SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
