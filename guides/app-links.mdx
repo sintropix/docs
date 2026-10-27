@@ -77,11 +77,11 @@ The `open` parameter is the universal convention: whichever list page you are on
 
 ## Reports
 
-Reports are pages with the period in the query string. Omit a parameter to get the app's default, which is the current year to date.
+Reports are pages with the period in the query string. Omit a parameter to get the app's default, which is the current year to date. The Balance Sheet, the Eight-column Balance, and the General Ledger read the Entity's [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports) instead: a window must stay inside one Fiscal Year, and an omitted start or end falls on its bounds.
 
 | Report | App URL | Parameters |
 | --- | --- | --- |
-| Balance Sheet | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
+| Balance Sheet | `/{entityId}/balance` | `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Eight-column Balance | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Income Statement | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`, or `none` for one column; the statement opens by `month` when you omit it), `dimension` (a Dimension id, to open accounts by its values). Add `drillDown={accountId}:{columnKey}` to open one cell, or `drillDown={accountId}:{columnKey}:{dimensionValueId}` to open one value's cell (`unassigned` for the lines with no value). |
 | Income Statement by Dimension | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |

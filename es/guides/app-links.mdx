@@ -77,11 +77,11 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 
 ## Informes
 
-Los informes son páginas con el período en la cadena de consulta. Omite un parámetro para obtener el valor por defecto de la aplicación, que es el año en curso hasta hoy.
+Los informes son páginas con el período en la cadena de consulta. Omite un parámetro para obtener el valor por defecto de la aplicación, que es el año en curso hasta hoy. El balance general, el balance de ocho columnas y el libro mayor leen el [año fiscal](/api-reference/reports#the-fiscal-year-in-reports) de la empresa: un período debe quedar dentro de un año fiscal, y un inicio o fin omitido cae en sus límites.
 
 | Informe | URL en la aplicación | Parámetros |
 | --- | --- | --- |
-| Balance general | `/{entityId}/balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
+| Balance general | `/{entityId}/balance` | `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Balance de ocho columnas | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`, o `none` para una sola columna; el estado se abre por `month` si lo omites), `dimension` (el id de una dimensión, para abrir las cuentas por sus valores). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda, o `drillDown={accountId}:{columnKey}:{dimensionValueId}` para abrir la celda de un valor (`unassigned` para las líneas sin valor). |
 | Estado de resultados por dimensión | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |

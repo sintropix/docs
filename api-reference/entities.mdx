@@ -6,7 +6,7 @@ description: "List, create, and configure the legal companies (Entities) that ow
 
 import AppLink from "/snippets/app-link.mdx"
 
-An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. Every Entity belongs to exactly one [Organization](/api-reference/organizations), and Users reach it through their Membership in that Organization. This page covers the Entity CRUD, ledger-lock date, parent Entity, and Organization move endpoints.
+An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. Every Entity belongs to exactly one [Organization](/api-reference/organizations), and Users reach it through their Membership in that Organization. This page covers the Entity CRUD, ledger-lock date, Fiscal Year start, parent Entity, and Organization move endpoints.
 
 An Entity can have a parent Entity that controls it, and the Entities it controls are its subsidiaries. A parent Entity and its subsidiaries form a group, and a group stays inside one Organization: the parent is always an Entity of the same Organization. A Superadmin sets the structure from the Organization in the staff panel.
 
@@ -135,6 +135,44 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger-lock-date
   -d '{"ledgerLockDate": "2026-01-31"}'
 ```
 
+## PATCH /api/entities/:entityId/fiscal-year-start
+
+Set the month the Entity's Fiscal Year starts in. The Fiscal Year is the twelve months over which the Entity measures its result. It starts on day 1 of the start month, and every Entity starts in January until you change it.
+
+The Fiscal Year decides where income and expense accounts restart at zero, and which account carries the result of earlier years. See [The Fiscal Year in reports](/api-reference/reports#the-fiscal-year-in-reports). Sintropix posts no closing entry: every report derives the close when it reads the balances.
+
+- **Path param:** `entityId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `fiscalYearStartMonth` | integer | Yes | Month the Fiscal Year starts in, from `1` (January) to `12` (December) |
+
+- **Success response:** the updated Entity (see [Response shape](#response-shape))
+- **Status:** 200
+- A month outside `1` to `12` returns `400`. [`PATCH /api/entities/:entityId`](#patch-api-entities-entityid) doesn't take `fiscalYearStartMonth`: it returns `400` when the body carries it.
+- While the Entity has a [ledger lock date](#patch-api-entities-entityid-ledger-lock-date), the start can't change. The request returns `409` with `ENTITY_FISCAL_YEAR_START_LOCKED_ERROR`, and `params.ledgerLockDate` names the lock date. Clear the lock date, set the start, and set the lock date again.
+- A new start re-cuts every past Fiscal Year, so every report reads the earlier years with the new start too.
+
+In the app, set it in the Entity's row on the **Empresa** page of its Organization, under **Inicio del año fiscal**.
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/fiscal-year-start \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"fiscalYearStartMonth": 7}'
+```
+
+A refusal while a lock date is set:
+
+```json
+{
+  "code": "ENTITY_FISCAL_YEAR_START_LOCKED_ERROR",
+  "params": { "ledgerLockDate": "2025-12-31" }
+}
+```
+
 ## PATCH /api/entities/:entityId/parent
 
 Set, change, or clear the parent Entity that controls this one. An id names the controlling Entity; `null` makes it a root. The parent must exist, must be in the same Organization, must not be the Entity itself, and must not create a cycle.
@@ -206,6 +244,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `taxId` | string | Canonical tax registration |
 | `currency` | string | Functional currency |
 | `ledgerLockDate` | ISO date or null | Ledger freeze date |
+| `fiscalYearStartMonth` | integer | Month the Fiscal Year starts in, from `1` to `12`. `1` (January) unless set with [`PATCH /api/entities/:entityId/fiscal-year-start`](#patch-api-entities-entityid-fiscal-year-start) |
 | `parentEntityId` | UUID or null | Parent Entity that controls this one, always in the same Organization. `null` for a root Entity. |
 | `organizationId` | UUID | Organization the Entity belongs to |
 | `organizationName` | string | Name of that Organization. Returned by `GET /api/entities` and `POST /api/entities` only. |
@@ -221,6 +260,7 @@ Every endpoint on this page that returns an Entity uses this shape:
   "taxId": "76123456-0",
   "currency": "CLP",
   "ledgerLockDate": "2026-01-31",
+  "fiscalYearStartMonth": 1,
   "parentEntityId": null,
   "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
   "createdAt": "2026-02-01T12:00:00.000Z",
@@ -233,6 +273,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | Code | Meaning |
 | --- | --- |
 | `ENTITY_LOCK_DATE_OVER_SCHEDULED_ENTRY_ERROR` | Lock date would cover a Scheduled Entry |
+| `ENTITY_FISCAL_YEAR_START_LOCKED_ERROR` | The Fiscal Year start can't change while a lock date is set. `params.ledgerLockDate` names it |
 | `ENTITY_CREATION_PARENT_NOT_FOUND_ERROR` | The `parentEntityId` of a new Entity does not exist |
 | `ENTITY_CREATION_PARENT_IN_ANOTHER_ORGANIZATION_ERROR` | The `parentEntityId` of a new Entity is in another Organization |
 | `ENTITY_PARENT_NOT_FOUND_ERROR` | Named parent Entity does not exist |

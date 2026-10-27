@@ -188,7 +188,7 @@ Each account in `accounts` carries:
 | `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
-| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable` |
+| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
 | `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, `booking_template`, or null when deletable |
@@ -318,7 +318,7 @@ Create a new Ledger Account.
 | `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`; null or omitted means none |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`; null or omitted means none |
 | `groupAccountId` | UUID | Yes | [Group Account](#the-group-chart) of the Entity's Organization, of the same `type` |
 | `groupId` | UUID | No | Parent group |
 
@@ -386,7 +386,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, or null to clear |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, or null to clear |
 | `groupAccountId` | UUID | No | Map the account to another Group Account of its type. Required with a `type` change: a Group Account of the new type |
 | `groupId` | UUID | No | Parent group |
 
@@ -429,6 +429,27 @@ The sub-type `expense_rendition_payable` (**Rendición por pagar**) marks the ac
 
 Create the account, or `PATCH` an existing one, with `type: "liability"`, `tracking: "open_item"`, and the sub-type. A `payable` Invoice accepts it as its control account, as it accepts a `payable` account. Its open lines appear in the payables [open positions](/api-reference/reports#open-positions-receivables-and-payables) (**Por pagar**) and in the payable total of the home dashboard. In the cash flow statement, it counts by default under `employee_payments`.
 
+### The retained earnings account
+
+The sub-type `retained_earnings` (**Resultados acumulados**) marks the account that carries the result of every closed [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports). Income and expense accounts open each Fiscal Year at `0`, and every report adds the result of the earlier years to this account's balance. Sintropix posts no closing entry: the account keeps its own lines, such as a dividend, and the closed results add to them when a report reads it.
+
+Create the account, or `PATCH` an existing one, with `type: "equity"`, `tracking: "balance"`, and `subtype: "retained_earnings"`. These rules apply:
+
+- Only an `equity` account with `balance` tracking can take the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `open_item` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`.
+- An Entity has at most one retained earnings account. A second one is refused with `409` and `LEDGER_ACCOUNT_RETAINED_EARNINGS_ALREADY_EXISTS_ERROR`.
+- An account that already has lines can take the sub-type.
+- In the cash flow statement, it counts by default under `equity_contributions`.
+
+Until the Entity has one, the balance sheet and the eight-column balance show the result of the closed years on its own line, **Resultados anteriores pendientes de cierre**.
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"subtype": "retained_earnings"}'
+```
+
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 
 Delete a Ledger Account. The account must not be referenced by any Ledger Entry Line, Bank Account, Partner default purchase account, or vendor [Booking Template](/api-reference/partners#booking-templates) line; the `deleteBlockedBy` field of the Chart of Accounts tells you in advance which reference would block the delete.
@@ -461,6 +482,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
 | `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR` | The Entity already has a Suspense Account |
+| `LEDGER_ACCOUNT_RETAINED_EARNINGS_ALREADY_EXISTS_ERROR` | The Entity already has a retained earnings account |
 | `LEDGER_ACCOUNT_SUSPENSE_REQUIRES_NO_LINES_ERROR` | Only an account with no lines can become the Suspense Account |
 | `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | The Suspense Account cannot be used here. Only bank Match, Assign, and Unassign post to it |
 | `LEDGER_ACCOUNT_GROUP_NOT_FOUND_ERROR` | Referenced group does not exist |
