@@ -11,6 +11,8 @@ An **Expense Claim** (rendición) is one expense that a person paid with their o
 - **Approved:** Sintropix creates the person's payable Invoice in a Source that holds [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions), and books it in the same request. From then on it's an Expense Rendition like any other, and you pay it from a [Payment Batch](/api-reference/payment-batches).
 - **Rejected:** the claim keeps the reason, and the decision is final. To try again, submit a new claim.
 
+An [Xpendit expense Feed](/api-reference/source-feeds#sync-an-expense-feed) also creates claims: each expense Xpendit approved lands as a claim that is already `approved`, with no wait for the Approver.
+
 While a claim waits, it is no Invoice. It isn't listed among the Expense Renditions or in **Compras**, isn't a payable to plan in a Payment Batch, and doesn't count on the home dashboard.
 
 <AppLink
@@ -246,7 +248,7 @@ In the app, open **Configuración → Rendiciones**. The **Categorías** card li
 | `name` | string | The category's name. |
 | `expenseAccountId` | uuid or null | The expense account a claim of the category proposes. `null` until you assign one. |
 | `expenseAccountCode`, `expenseAccountName` | string or null | The code and name of that account. `null` until you assign one. |
-| `sourceFeedId`, `providerCategoryId` | uuid or null, string or null | Reserved for categories that an external expense tool sends. `null` for every category you create. |
+| `sourceFeedId`, `providerCategoryId` | uuid or null, string or null | The [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) that brought the category and the category's id in the expense tool. A Feed also sets them on a category of yours with the same name. `null` for every other category you create. |
 | `createdAt`, `updatedAt` | ISO datetime | Row timestamps. |
 
 ### GET `/expense-categories`

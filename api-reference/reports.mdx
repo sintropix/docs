@@ -42,8 +42,8 @@ Returns the home dashboard snapshot: cash position, daily balances for the last 
 | `dailyBalances` | array | Exactly 60 items of `{ date, total }`, one per calendar day |
 | `monthlyIncome` | array | Exactly 6 items of `{ monthKey, total }`; `monthKey` is `YYYY-MM` |
 | `priorMonthToDateIncomeTotal` | integer | Income in the prior month up to the same day of the month |
-| `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines |
-| `payable` | object | `{ total, count }`: open payable amount and the number of open lines. It includes what is owed on [Rendición por pagar](/api-reference/chart-of-accounts#expense-rendition-payable) accounts |
+| `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines. It counts only debit lines, the normal side of a receivable |
+| `payable` | object | `{ total, count }`: open payable amount and the number of open lines. It counts only credit lines, the normal side of a payable. It includes what is owed on [Rendición por pagar](/api-reference/chart-of-accounts#expense-rendition-payable) accounts |
 | `salesToBook` | integer | Unbooked sales invoices. Invoices [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books) don't count. |
 | `purchasesToBook` | integer | Unbooked purchase invoices, the ones **Compras** lists. Excluded invoices and [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions) don't count. |
 | `expenseRenditionsToBook` | integer | Unbooked [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions), the ones **Rendiciones** lists. Excluded invoices don't count. |

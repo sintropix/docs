@@ -591,6 +591,8 @@ Each item in `lines` is a Ledger Entry Line object (see the entry detail endpoin
 | `partnerName` | string or null | Name of the partner |
 | `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it |
 | `settlementStatus` | enum | `open` (nothing settled), `partial`, or `settled` (nothing left open) |
+| `invoiceId` | UUID or null | The Invoice whose Control Line this line is; `null` for any other line, even on the same account |
+| `invoiceDocumentNumber` | string or null | Document number of that Invoice. In the app, **Partidas abiertas** prefixes the line with `Doc.` and this number |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/open-item-lines?accountId=$ACCOUNT_ID&limit=20" \
