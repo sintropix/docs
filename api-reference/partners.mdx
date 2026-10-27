@@ -71,10 +71,12 @@ List every Partner the Entity uses, each row enriched with this Entity's Open It
 | `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-partners-partnerid-logo) from it. |
 | `aliases` | string[] | Other names that find this Partner, in name order. See [Aliases](#aliases). |
 | `mergedIntoPartnerId` | uuid or null | The Partner this one was [merged](#merge-partners) into. Null for an active Partner. |
-| `openReceivable` | integer | Unsettled amount this Partner owes the Entity. |
-| `openPayable` | integer | Unsettled amount the Entity owes this Partner. |
+| `openReceivable` | integer | Unsettled amount this Partner owes the Entity: the Open Amount of its debit lines on receivable (`asset`) accounts. |
+| `openPayable` | integer | Unsettled amount the Entity owes this Partner: the Open Amount of its credit lines on payable (`liability`) accounts. |
 | `createdAt` | timestamp | Creation time. |
 | `updatedAt` | timestamp | Last update time. |
+
+An open line on the other side of the account, such as a payment on account or an open credit note, is never netted against these totals. It stays open until an [Allocation](/api-reference/allocations) applies it.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
@@ -460,7 +462,7 @@ Each Entity keeps its own template and switch for a Partner, so a template saved
 | `accountId` | uuid | Ledger Account of the Entity the line posts to. |
 | `side` | string | `debit` or `credit`. |
 
-A template needs at least 2 and at most 10,000 lines. Exactly one line uses `invoice_total`: the **Control Line**. It must follow the control line rules of [Book invoice](/api-reference/invoices) for a payable invoice: a `credit` on an open-item payable liability account. No other line may post to the Control Line's account.
+A template needs at least 2 and at most 10,000 lines. Exactly one line uses `invoice_total`: the **Control Line**. It must follow the control line rules of [Book invoice](/api-reference/invoices#post-invoices-invoiceid-book) for a payable invoice: a `credit` on an open-item payable liability account. Other lines may post to the Control Line's account too. They book as ordinary open items of the Partner. Only the `invoice_total` line becomes the Invoice's Control Line.
 
 While a template uses an account as its Control Line, that account's type, subtype, and tracking cannot change (`LEDGER_ACCOUNT_FACT_PINNED_ERROR`). An account any template line uses cannot be deleted.
 
@@ -538,7 +540,6 @@ Remove the template. This also turns `booksAutomatically` off.
 | Code | Status | Meaning |
 | --- | --- | --- |
 | `PARTNER_BOOKS_AUTOMATICALLY_REQUIRES_BOOKING_TEMPLATE_ERROR` | `409` | `booksAutomatically: true` was sent for a Partner without a template. |
-| `CONTROL_ACCOUNT_IN_ENTRY_LINES_MORE_THAN_ONCE_ERROR` | `400` | Another line posts to the Control Line's account. |
 
 A Control Line on the wrong side or on an account Book invoice refuses as a payable control account is answered with the same error Book invoice returns.
 

@@ -205,12 +205,13 @@ Read the Follow-up of a record with every record in its Plan named, so you can s
 | --- | --- |
 | `bookMovement` | `movement`, `entry` (`id`, `entryDate`, `memo`), `newLines` |
 | `match` | `movement`, `target`, `entry`, `newLines` |
-| `bookInvoice` | `invoice`, `controlAccount`, `entry`, `newLines` |
+| `bookInvoice` | `invoice`, `controlLineId`, `entry`, `newLines` |
 | `matchLines` | `targets` |
 | `assign` | `movement`, `target`, `newLines` |
 
 - `movement` names the Movement with its date, amount, side, description, and Bank Account.
 - `invoice` names the Invoice with its document kind, number, direction, issue date, total, currency, and Partner.
+- `controlLineId` is the `id` of the line in `newLines` that the booking makes the Invoice's Control Line. Another line in `newLines` can post to the same account. In the app, the Plan marks the Control Line as **línea del documento**.
 - Each item in `newLines` is a line the act creates: its `id`, `side`, `functionalAmount`, `transactionCurrency`, and `transactionAmount`, with its `account` (`{ id, code, name }`) and `partner` (`{ id, name }`) named, and its `deferral`.
 - `deferral` is `null` unless the line carries [`deferral`](/api-reference/invoices#defer-a-line-when-you-book) in a `bookInvoice` act. Then it holds the terms the booking will defer the line by: `startMonth` (`YYYY-MM`), `monthCount` (integer), and `recognitionAccount` (`{ id, code, name }`), the account each Release will land in.
 - Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`. The `target` of an `assign` is `null` when its `lineId` is `null`.
@@ -223,7 +224,7 @@ A `bookInvoice` act whose Plan defers a line reads, for example:
 {
   "act": "bookInvoice",
   "invoice": { "id": "6f1c2b1e-0d1a-4c7b-9a3e-2b8f5d0e1a11", "documentKind": "invoice", "documentNumber": "369", "direction": "receivable", "issueDate": "2026-10-01", "total": 1249500, "currency": "CLP", "partner": { "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88", "name": "Cliente Ejemplo SpA" } },
-  "controlAccount": { "id": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "code": "1.01.05.01", "name": "Clientes" },
+  "controlLineId": "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d",
   "entry": { "id": "9c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f", "entryDate": "2026-10-01", "memo": "Factura 369" },
   "newLines": [
     {
@@ -244,7 +245,7 @@ A `bookInvoice` act whose Plan defers a line reads, for example:
 }
 ```
 
-The example shows only the deferred line. The other lines of the booking carry `"deferral": null`.
+The example shows only the deferred line. The other lines of the booking, including the Control Line, carry `"deferral": null`.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/follow-up" \

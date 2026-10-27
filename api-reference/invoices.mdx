@@ -588,7 +588,7 @@ Book an existing Invoice to a Ledger Entry using the supplied booking instructio
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `controlAccountId` | uuid | Yes | The receivable or payable Ledger Account that will carry the claim. Exactly one line of `entry.newLedgerEntryLines` must post to it. |
+| `controlLineId` | uuid | Yes | The `id` of the line in `entry.newLedgerEntryLines` that carries the claim: the Invoice's **Control Line**. Compared without regard to case. |
 | `entry` | object | Yes | The Ledger Entry to post (fields below). |
 | `expectedBookingVersion` | string | No | Opaque `bookingVersion` you read earlier from `GET /invoices/:invoiceId`. When sent, the server acquires the Invoice lock, compares it to the current version, and refuses the booking with `409` and code `INVOICE_BOOKING_CHANGED_ERROR` if the Invoice or its DTE changed in between. No Ledger Entry is written on a mismatch. Omit to skip the check. |
 
@@ -618,13 +618,15 @@ Each element of `newLedgerEntryLines`:
 | `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. |
 | `deferral` | object | No | Spread this line's whole amount over whole months instead of recognizing it on the entry date: `{ recognitionAccountId, startMonth, monthCount }`. See [Deferrals](#deferrals). |
 
-The control line (the one on `controlAccountId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side.
+The Control Line (the line whose `id` is `controlLineId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side. Its account becomes the Invoice's `controlAccountId`.
+
+Other lines of the entry can post to the same account as the Control Line. For example, net an advance or a retention of the same Partner in the Invoice's own entry, or split a receivable into one line per due date. Only the Control Line is the Invoice's: the payment status derives from it alone. Any other line on that account is an ordinary open item of the Partner until an [Allocation](/api-reference/allocations) settles it.
 
 Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT):
 
 ```json
 {
-  "controlAccountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c",
+  "controlLineId": "6f7a8b9c-0d1e-4f2a-8b3c-4d5e6f7a8b9c",
   "entry": {
     "id": "9c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f",
     "entryDate": "2026-08-14",
@@ -652,6 +654,7 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | Code | Status | Meaning |
 | --- | --- | --- |
 | `INVOICE_BOOKING_CHANGED_ERROR` | `409` | The Invoice or its DTE was edited, replaced, or removed since the `expectedBookingVersion` you sent was read. No Ledger Entry was written. The response carries `params: { invoiceId }`. Re-read the Invoice detail to check whether the change still makes the booking correct, then retry with the new `bookingVersion`. |
+| `CONTROL_LINE_NOT_IN_ENTRY_LINES_ERROR` | `400` | No line of `entry.newLedgerEntryLines` has the `id` sent as `controlLineId`. The response carries `params: { controlLineId }`. |
 | `INVOICE_EXCLUDED_ERROR` | `409` | The Invoice is [excluded from the books](#exclude-an-invoice-from-the-books). Include it first. The bulk `POST /invoices/book` refuses an excluded element the same way. The response carries `params: { invoiceId }`. |
 | `DEFERRAL_CREDIT_NOTE_NOT_SUPPORTED_ERROR` | `400` | A line of a credit note carries `deferral`. Credit notes cannot be deferred. The response carries `params: { invoiceId }`. |
 | `DEFERRAL_ACCOUNT_SUBTYPE_MISMATCH_ERROR` | `400` | The deferred line's account does not have the sub-type the Invoice's direction needs: `prepaid_expense` for `payable`, `deferred_revenue` for `receivable`. The response carries `params: { ledgerEntryLineId, ledgerAccountId, expectedSubtype }`. |
@@ -719,7 +722,7 @@ Example: a bill of CLP 1,428,000 (1,200,000 net plus 19% VAT) for a 12-month sof
 
 ```json
 {
-  "controlAccountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c",
+  "controlLineId": "0e1f2a3b-4c5d-4e6f-8a7b-8c9d0e1f2a3b",
   "entry": {
     "id": "7b8c9d0e-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
     "entryDate": "2026-07-01",
