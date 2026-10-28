@@ -19,10 +19,10 @@ A Dimension and its Values belong to the [Organization](/api-reference/organizat
 
 - A Dimension name is unique in the Organization. A Value code is unique in its Dimension.
 - A rename, a recode, or a move in the hierarchy applies to every Entity of the Organization, whichever Entity you make it from.
-- Each Entity keeps its own lines and tags. When you book or [retag](/api-reference/ledger-entries#put-api-entities-entityid-ledger-lines-lineid-dimension-values) a line, `dimensionValueIds` must name Values of the Entity's Organization.
+- Each Entity keeps its own lines and tags. When you book or [retag](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values) a line, `dimensionValueIds` must name Values of the Entity's Organization.
 - You can't delete a Value while a line of any Entity of the Organization carries it.
 - The [Income Statement by Dimension](/api-reference/reports#income-statement-by-dimension) stays per Entity: it lists the Organization's Values and adds up that Entity's lines.
-- An Entity whose lines carry a Value can't [move to another Organization](/api-reference/entities#patch-api-entities-entityid-organization).
+- An Entity whose lines carry a Value can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization).
 
 The routes on this page live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). The routes need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization. Any other Organization, or one where you hold no Membership, answers `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 

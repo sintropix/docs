@@ -24,7 +24,7 @@ An Organization can hold more than one Integration at a time (for example, a Bsa
 
 The `fintoc` kind connects a bank login through the [Fintoc](https://fintoc.com) widget. Only `staff` can connect or reconnect a bank through Fintoc. A `client` connects a bank by storing its [Bank Login](#portal-logins). The `global66` kind connects Global66 with a client id, a client secret, and the accounts you name. The `cardda` kind connects a Cardda company with its API key, and the `dlocal` kind connects a dLocal Go merchant with its API key and secret key. Sintropix reads the Provider before it stores the credentials, so credentials that cannot read are refused at connect.
 
-The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Plaid Link shows US banks only, in English, and asks for access to the bank's transactions, with up to 730 days of history. Your bank password goes to Plaid and never reaches Sintropix. It can feed Bank Accounts with the bank's posted transactions. See [`POST /integrations/plaid/link-tokens`](#post-integrations-plaid-link-tokens) and [Bank Feeds](/api-reference/bank-feeds#plaid).
+The `plaid` kind connects a US bank through [Plaid](https://plaid.com) Link. Plaid Link shows US banks only, in English, and asks for access to the bank's transactions, with up to 730 days of history. Your bank password goes to Plaid and never reaches Sintropix. It can feed Bank Accounts with the bank's posted transactions. See [`POST /integrations/plaid/link-tokens`](#post-/integrations/plaid/link-tokens) and [Bank Feeds](/api-reference/bank-feeds#plaid).
 
 The `mercadopago` kind connects a Mercado Pago account through OAuth. It can feed a Bank Account with the account's available money. See [Bank Feeds](/api-reference/bank-feeds#mercado-pago).
 
@@ -61,7 +61,7 @@ An Integration belongs to the [Organization](/api-reference/organizations), not 
 The routes follow the same split:
 
 - Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the replacement of an API key, the purpose, the SII legal representative's Clave, the discovered accounts, the Provider Accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, and disconnect.
-- Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. So does the copy of an [email attachment](#post-api-entities-entityid-email-attachments) into an Entity. They take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
+- Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. So does the copy of an [email attachment](#post-/api/entities/entityid/email-attachments) into an Entity. They take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
 
 Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account or the expenses of an Xpendit account. An API key confined to one Entity:
 
@@ -69,7 +69,7 @@ Connecting, reconnecting, disconnecting, and setting the purpose of an Integrati
 - Can't connect, reconnect, renew, or disconnect an Integration, replace its API key, run a General Ledger Export, read or copy the email of a Gmail, Outlook, or Mailbox account, or read the expenses of an Xpendit account. It gets `403` with `PERMISSION_DENIED_ERROR`.
 - Adds and removes only the feeds that land in its own Entity.
 
-An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-api-entities-entityid-organization).
+An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-/api/entities/entityid/organization).
 
 ## The Integration object
 
@@ -94,7 +94,7 @@ The access token is stored encrypted and is never returned on any read.
 | `routedEntities` | array | `{ id, name }` of each Entity the Integration's feeds reach, in name order. Empty while no feed routes it. |
 | `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads for the Entity that keeps it. `null` for every other kind, and when no Book was picked. |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
-| `purpose` | string \| null | What the account is for, in your own words, such as "Facturas de proveedores de Acme". It helps a person or an agent pick the right account when the Organization holds several. Up to 500 characters. `null` until you [set it](#put-integrations-integrationid-purpose). |
+| `purpose` | string \| null | What the account is for, in your own words, such as "Facturas de proveedores de Acme". It helps a person or an agent pick the right account when the Organization holds several. Up to 500 characters. `null` until you [set it](#put-/integrations/integrationid/purpose). |
 | `grantHealth` | `working` \| `failed` \| `unknown` \| null | For `gmail` and `outlook`, whether the account's access still works, checked on each list. `failed` means the access expired or was revoked: disconnect the Integration and connect the account again. `unknown` means Sintropix couldn't check it right now. For `mailbox`, `working` when Sintropix reaches its inbox and `unknown` otherwise; a Mailbox holds no access that can expire, so it's never `failed`. `null` for every other kind. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
@@ -104,7 +104,7 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers, the bank Providers, and Xpendit. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, and Stripe use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-integrations-mailbox).
+This route connects the document Providers, the bank Providers, and Xpendit. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, and Stripe use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
@@ -118,9 +118,9 @@ Each kind adds its own fields:
 | Kind | Fields | Description |
 | --- | --- | --- |
 | `bsale`, `wasabil`, `xpendit` | `accessToken` (string) | The provider's API access token. For `xpendit`, the API key of the enterprise. Whitespace is trimmed and must be non-empty. |
-| `sii_mirror` | `rut` (string), `clave` (string) | The company's RUT and its SII password (Clave). The RUT takes the same format and check-digit rule as a [Portal Login](#post-portal-logins) `rut`. The Clave must be non-empty. See [SII](#sii). |
-| `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-integrations-fintoc-link-intents) and the user completes the widget. |
-| `plaid` | `publicToken` (string) | The public token Plaid Link mints after you [create a Link token](#post-integrations-plaid-link-tokens) and the user signs in to the bank. Connecting the same Plaid Item twice is refused with `409`. |
+| `sii_mirror` | `rut` (string), `clave` (string) | The company's RUT and its SII password (Clave). The RUT takes the same format and check-digit rule as a [Portal Login](#post-/portal-logins) `rut`. The Clave must be non-empty. See [SII](#sii). |
+| `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-/integrations/fintoc/link-intents) and the user completes the widget. |
+| `plaid` | `publicToken` (string) | The public token Plaid Link mints after you [create a Link token](#post-/integrations/plaid/link-tokens) and the user signs in to the bank. Connecting the same Plaid Item twice is refused with `409`. |
 | `global66` | `clientId` (string), `clientSecret` (string), `accounts` (array) | Your Global66 client credentials and at least one account to read. Each account is `{ accountId, currency }`, where `currency` is an ISO 4217 code of three uppercase letters. A currency Sintropix does not know is refused with `INTEGRATION_CURRENCY_UNKNOWN_ERROR` before Global66 is called. |
 | `cardda` | `apiKey` (string) | The Cardda API key. It selects the company, and the Integration discovers that company's one CLP wallet. |
 | `dlocal` | `apiKey` (string), `secretKey` (string) | The dLocal Go API key and its paired secret key. They name the merchant, and the Integration discovers its one balance. |
@@ -194,13 +194,13 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
   }'
 ```
 
-After you connect a bank Provider, list its accounts and feed them into Bank Accounts of any Entity. See [Bank Feeds](/api-reference/bank-feeds). After you connect a document Provider, feed a Source of any Entity with it. See [Source Feeds](/api-reference/source-feeds#post-source-feeds).
+After you connect a bank Provider, list its accounts and feed them into Bank Accounts of any Entity. See [Bank Feeds](/api-reference/bank-feeds). After you connect a document Provider, feed a Source of any Entity with it. See [Source Feeds](/api-reference/source-feeds#post-/source-feeds).
 
 ## POST `/integrations/fintoc/link-intents`
 
 `POST /api/organizations/:organizationId/integrations/fintoc/link-intents`
 
-Start the Fintoc connect flow. Sintropix creates a Link Intent at Fintoc and answers what the frontend needs to open the Fintoc widget. When the user completes the widget, it mints an exchange token. Send that token to [`POST /integrations`](#post-integrations) with `kind: "fintoc"`.
+Start the Fintoc connect flow. Sintropix creates a Link Intent at Fintoc and answers what the frontend needs to open the Fintoc widget. When the user completes the widget, it mints an exchange token. Send that token to [`POST /integrations`](#post-/integrations) with `kind: "fintoc"`.
 
 The widget needs a browser, so you can't complete a Fintoc connect from the API alone.
 
@@ -233,7 +233,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `POST /api/organizations/:organizationId/integrations/plaid/link-tokens`
 
-Start the Plaid connect flow. Sintropix creates a Link token at Plaid and answers it. Open Plaid Link with it. When the user signs in to the bank, Plaid Link mints a public token. Send that token to [`POST /integrations`](#post-integrations) with `kind: "plaid"`.
+Start the Plaid connect flow. Sintropix creates a Link token at Plaid and answers it. Open Plaid Link with it. When the user signs in to the bank, Plaid Link mints a public token. Send that token to [`POST /integrations`](#post-/integrations) with `kind: "plaid"`.
 
 Plaid Link needs a browser, so you can't complete a Plaid connect from the API alone. No request body.
 
@@ -271,7 +271,7 @@ The response is the Integration object, with the bank's name in `institutionName
 
 Restore a Fintoc Integration whose bank stopped trusting the stored grant. You know it needs this when [its discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) answer `status: "login_required"`. Run the Fintoc widget again and send the fresh exchange token. The Integration keeps its id and every feed it holds.
 
-Only `fintoc` Integrations reconnect, and only a `staff` caller can reconnect one. Any other caller gets `403` (`PERMISSION_DENIED_ERROR`). To repair a Global66, Cardda, dLocal Go, or Plaid Integration whose credentials stopped working, disconnect it and connect again. For Plaid, this includes a bank login that expired. For Xpendit, [replace its API key](#put-integrations-integrationid-access-token) instead.
+Only `fintoc` Integrations reconnect, and only a `staff` caller can reconnect one. Any other caller gets `403` (`PERMISSION_DENIED_ERROR`). To repair a Global66, Cardda, dLocal Go, or Plaid Integration whose credentials stopped working, disconnect it and connect again. For Plaid, this includes a bank login that expired. For Xpendit, [replace its API key](#put-/integrations/integrationid/access-token) instead.
 
 **Body**
 
@@ -367,7 +367,7 @@ The SII Integration (`sii_mirror`) reads the company's DTEs and boletas de honor
 
 In the app, open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **SII**. Type the company's **RUT** and its **Clave del SII**, then click **Conectar**. While the SII checks the Clave, the form shows **Verificando la Clave con el SII…**. A refused Clave shows **Clave incorrecta** under the field.
 
-Through the API, send `kind: "sii_mirror"` with `rut` and `clave` to [`POST /integrations`](#post-integrations). The SII checks the Clave before the Integration exists:
+Through the API, send `kind: "sii_mirror"` with `rut` and `clave` to [`POST /integrations`](#post-/integrations). The SII checks the Clave before the Integration exists:
 
 | Outcome | Answer |
 | --- | --- |
@@ -398,7 +398,7 @@ Add the legal representative's Clave to an SII Integration. The SII checks it at
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `rut` | string | Yes | The legal representative's own RUT, as a person. Same format and check-digit rule as a [Portal Login](#post-portal-logins) `rut`. The company's RUT is refused. |
+| `rut` | string | Yes | The legal representative's own RUT, as a person. Same format and check-digit rule as a [Portal Login](#post-/portal-logins) `rut`. The company's RUT is refused. |
 | `clave` | string | Yes | The legal representative's SII password (Clave). Must be non-empty. |
 
 **Response:** the Integration object.
@@ -468,11 +468,11 @@ A `mailbox` Integration is an email address that Sintropix holds for the Organiz
 - A **Conversation** is a chain of emails on one subject, like a thread in an email client.
 - An **email** is one message in a Conversation, received by the Mailbox or sent from it.
 
-An Organization can hold as many Mailboxes as it needs, for example `facturas@` for supplier invoices and `rendiciones@` for expense receipts. Give each one a [purpose](#put-integrations-integrationid-purpose) so a colleague or Erwin can tell them apart.
+An Organization can hold as many Mailboxes as it needs, for example `facturas@` for supplier invoices and `rendiciones@` for expense receipts. Give each one a [purpose](#put-/integrations/integrationid/purpose) so a colleague or Erwin can tell them apart.
 
 ### The email domain
 
-Every Mailbox of an Organization takes its address at the Organization's **email domain**: a subdomain of `sintropix.com` that belongs to that Organization alone, such as `acme.sintropix.com`. Sintropix sets it for you. A Superadmin picks it for the Organization in the staff panel, with [`PATCH /organizations/:organizationId/email-domain`](/api-reference/organizations#patch-organizations-organizationid-email-domain). The Organization's `emailDomain` is `null` until then, and the Organization can't create a Mailbox. Ask Sintropix to set it.
+Every Mailbox of an Organization takes its address at the Organization's **email domain**: a subdomain of `sintropix.com` that belongs to that Organization alone, such as `acme.sintropix.com`. Sintropix sets it for you. A Superadmin picks it for the Organization in the staff panel, with [`PATCH /organizations/:organizationId/email-domain`](/api-reference/organizations#patch-/organizations/organizationid/email-domain). The Organization's `emailDomain` is `null` until then, and the Organization can't create a Mailbox. Ask Sintropix to set it.
 
 Once a Mailbox lives at the domain, the domain can't change.
 
@@ -621,7 +621,7 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
 
 ### A Mailbox stays
 
-You can't disconnect a Mailbox, because removing it would delete its email. [`DELETE /integrations/:integrationId`](#delete-integrations-integrationid) on a Mailbox answers `409` (`MAILBOX_NOT_REMOVABLE_ERROR`), and the app shows no disconnect option in its panel. As a result, an Organization that holds a Mailbox can't be [deleted](/api-reference/organizations#delete-organizations-organizationid).
+You can't disconnect a Mailbox, because removing it would delete its email. [`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid) on a Mailbox answers `409` (`MAILBOX_NOT_REMOVABLE_ERROR`), and the app shows no disconnect option in its panel. As a result, an Organization that holds a Mailbox can't be [deleted](/api-reference/organizations#delete-/organizations/organizationid).
 
 ### Mailbox errors
 
@@ -638,7 +638,7 @@ You can't disconnect a Mailbox, because removing it would delete its email. [`DE
 
 ## Read email
 
-You read the email of a `gmail`, `outlook`, or `mailbox` Integration with the same routes: search it, read an email or its whole Conversation as plain text, and copy an attachment into an Entity. Erwin can read all of them too, so you can ask him to find a supplier's invoice in any of the Organization's email accounts. He also searches them on his own as evidence when he reviews a record or leaves a Follow-up, and their [purpose](#put-integrations-integrationid-purpose) tells him which account to look in. See [Erwin](/core-concepts). A Mailbox reads with a few differences, listed in [Read a Mailbox's email](#read-a-mailboxs-email).
+You read the email of a `gmail`, `outlook`, or `mailbox` Integration with the same routes: search it, read an email or its whole Conversation as plain text, and copy an attachment into an Entity. Erwin can read all of them too, so you can ask him to find a supplier's invoice in any of the Organization's email accounts. He also searches them on his own as evidence when he reviews a record or leaves a Follow-up, and their [purpose](#put-/integrations/integrationid/purpose) tells him which account to look in. See [Erwin](/core-concepts). A Mailbox reads with a few differences, listed in [Read a Mailbox's email](#read-a-mailbox’s-email).
 
 ### Who can read email
 
@@ -658,13 +658,13 @@ Sintropix logs each email whose content it hands out and each attachment it copi
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | The email's id at Google or Microsoft, or a [Mailbox email's id](#read-a-mailboxs-email). Use it to read the email or copy an attachment. |
+| `id` | string | The email's id at Google or Microsoft, or a [Mailbox email's id](#read-a-mailbox’s-email). Use it to read the email or copy an attachment. |
 | `conversationId` | string | The id of the email's Conversation: the thread it belongs to. |
 | `receivedAt` | ISO 8601 timestamp | When the email arrived. |
 | `from` | object \| null | `{ name, address }` of the sender. `name` can be `null`. |
 | `to`, `cc` | array | `{ name, address }` of each recipient. |
 | `subject` | string | The subject. |
-| `attachments` | array | `{ id, filename, contentType, byteSize }` of each attachment. Use `id` to [copy it](#post-api-entities-entityid-email-attachments). |
+| `attachments` | array | `{ id, filename, contentType, byteSize }` of each attachment. Use `id` to [copy it](#post-/api/entities/entityid/email-attachments). |
 | `snippet` | string | On a search only: the first words of the body. |
 | `body` | string | On a read only: the body as plain text. HTML is removed. A body over 20,000 characters is cut and ends with `[The body goes on; it was cut here.]`. |
 
@@ -795,7 +795,7 @@ An attachment the email doesn't hold answers `404` with `INTEGRATION_EMAIL_ATTAC
 
 The routes above read a Mailbox with the same contract, with these differences:
 
-- **Ids.** A Mailbox email's `id` joins two UUIDs with `+`, such as `4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b+9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d`. Use it as you receive it. Its `conversationId` is the id the [Conversation routes](#read-a-mailboxs-conversations) take.
+- **Ids.** A Mailbox email's `id` joins two UUIDs with `+`, such as `4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b+9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d`. Use it as you receive it. Its `conversationId` is the id the [Conversation routes](#read-a-mailbox’s-conversations) take.
 - **Page size.** A search page holds at most 10 emails. A larger `limit` still reads 10. Each Conversation appears at most once on a page: the email of it that matched.
 - **What a search covers.** Received, archived, and sent email. Spam and deleted email are left out. A new email can take about a minute to show up in a search. When more than 10,000 Conversations match, the search covers the 10,000 with the newest match, so narrow the criteria.
 - **Recipients.** The `to` of a received email lists the addresses the email was delivered to, not its full To line.
@@ -909,7 +909,7 @@ Because every export rewrites the whole tabs, running it again is safe: an entry
 
 ### When the export runs
 
-Sintropix exports every Google Sheets Integration every four hours. To export right away, click **Sincronizar ahora** on the Integration's panel, or call [`POST /integrations/:integrationId/general-ledger-exports`](#post-integrations-integrationid-general-ledger-exports). The panel shows when the last export ran and how many lines it wrote, or why it failed.
+Sintropix exports every Google Sheets Integration every four hours. To export right away, click **Sincronizar ahora** on the Integration's panel, or call [`POST /integrations/:integrationId/general-ledger-exports`](#post-/integrations/integrationid/general-ledger-exports). The panel shows when the last export ran and how many lines it wrote, or why it failed.
 
 ### The General Ledger Export object
 
@@ -983,7 +983,7 @@ With an Xpendit Integration you can:
 
 ### Connect Xpendit
 
-In the app, open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Xpendit**, under the **Rendiciones** tag. Paste the API key of your Xpendit enterprise. Through the API, send it to [`POST /integrations`](#post-integrations) with `kind: "xpendit"` and `accessToken`.
+In the app, open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Xpendit**, under the **Rendiciones** tag. Paste the API key of your Xpendit enterprise. Through the API, send it to [`POST /integrations`](#post-/integrations) with `kind: "xpendit"` and `accessToken`.
 
 Sintropix checks the key with Xpendit before it stores it:
 
@@ -1140,7 +1140,7 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
 }
 ```
 
-A key that Xpendit no longer accepts answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`: [replace the key](#put-integrations-integrationid-access-token). An Integration that isn't `xpendit` answers `422` with `INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`, with `params.integrationId` and `params.kind`.
+A key that Xpendit no longer accepts answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`: [replace the key](#put-/integrations/integrationid/access-token). An Integration that isn't `xpendit` answers `422` with `INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`, with `params.integrationId` and `params.kind`.
 
 ### GET `/integrations/:integrationId/provider-accounts`
 
@@ -1166,7 +1166,7 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
 
 ### Disconnect Xpendit
 
-[`DELETE /integrations/:integrationId`](#delete-integrations-integrationid) removes the stored key and every expense Feed of the Integration. The Sources stay. Xpendit holds nothing of Sintropix to revoke.
+[`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid) removes the stored key and every expense Feed of the Integration. The Sources stay. Xpendit holds nothing of Sintropix to revoke.
 
 ## Stripe
 
@@ -1185,7 +1185,7 @@ If you cancel on Stripe, nothing is connected. Each Stripe account can be connec
 
 ### Disconnect Stripe
 
-Disconnecting uninstalls the Sintropix Stripe App from the account, then removes the Integration. See [`DELETE /integrations/:integrationId`](#delete-integrations-integrationid).
+Disconnecting uninstalls the Sintropix Stripe App from the account, then removes the Integration. See [`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid).
 
 ## Portal Logins
 
@@ -1193,7 +1193,7 @@ A Portal Login is the login of a portal that no Provider reads. Unlike an Integr
 
 | Kind | Portal | What you store |
 | --- | --- | --- |
-| `bank_login` | A bank's portal | The bank, picked from the [Banks catalog](/api-reference/reference-data#get-banks), plus the RUT and the password you sign in with |
+| `bank_login` | A bank's portal | The bank, picked from the [Banks catalog](/api-reference/reference-data#get-/banks), plus the RUT and the password you sign in with |
 | `getnet_login` | The Getnet merchant portal | The username or email, and the password you sign in with |
 | `sii_login` | The SII, as a company or as a person. To connect the SII, use the [SII Integration](#sii) instead | The taxpayer type, plus the RUT and the SII password (clave) you sign in with |
 | `clay_login` | Clay, the Chilean ERP you migrate your books from, so the Sintropix team can migrate them | A name you choose, plus either an API key or the username and password you sign in with |
@@ -1213,7 +1213,7 @@ In the app, connect one from **Configuración de empresa → Integraciones**: pi
 | `id` | uuid | Portal Login id. |
 | `entityId` | uuid | Owning Entity. |
 | `kind` | `bank_login` \| `getnet_login` \| `sii_login` \| `clay_login` | The kind of portal. |
-| `label` | string | The portal's name. For a `bank_login`, the bank's name in the [Banks catalog](/api-reference/reference-data#get-banks). For a `getnet_login`, always `Getnet`. For a `sii_login`, `SII Empresa` or `SII Persona`, by its `holderType`. For a `clay_login`, the name you gave it. |
+| `label` | string | The portal's name. For a `bank_login`, the bank's name in the [Banks catalog](/api-reference/reference-data#get-/banks). For a `getnet_login`, always `Getnet`. For a `sii_login`, `SII Empresa` or `SII Persona`, by its `holderType`. For a `clay_login`, the name you gave it. |
 | `bankCode` | string \| null | For a `bank_login`, the bank's three-digit CMF code. `null` for every other kind. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | When the Portal Login was stored and last changed. |
 
@@ -1232,7 +1232,7 @@ Each kind adds its own fields:
 
 | Kind | Field | Type | Description |
 | --- | --- | --- | --- |
-| `bank_login` | `bankCode` | string | The bank's three-digit CMF code, from [`GET /banks`](/api-reference/reference-data#get-banks), for example `001` for Banco de Chile. A code the catalog doesn't hold is refused with `400` (`CREDENTIAL_BANK_UNKNOWN_ERROR`). |
+| `bank_login` | `bankCode` | string | The bank's three-digit CMF code, from [`GET /banks`](/api-reference/reference-data#get-/banks), for example `001` for Banco de Chile. A code the catalog doesn't hold is refused with `400` (`CREDENTIAL_BANK_UNKNOWN_ERROR`). |
 | `bank_login` | `rut` | string | The RUT you sign in to the bank with. Dots, spaces, and the hyphen are optional, and a lowercase `k` is accepted. A RUT whose check digit doesn't match is refused with `400` (`RUT_INVALID_ERROR`). |
 | `bank_login` | `password` | string | The bank password. Must be non-empty. |
 | `getnet_login` | `username` | string | The username or email you sign in to the Getnet portal with. Must be non-empty. |

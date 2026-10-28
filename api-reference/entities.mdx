@@ -21,7 +21,7 @@ Create a new Entity in an Organization. The client supplies the idempotency id, 
 
 Sintropix sets up your Entities for you: you can't create one from the client app. A Superadmin creates it from the Organization in the staff panel.
 
-- **Superadmin only, from a signed-in session.** A request with an API key or an OAuth access token returns `403` with `SUPERADMIN_SESSION_REQUIRED`, and any other User, `staff` included, gets `403` with `SUPERADMIN_REQUIRED`. A Superadmin can create an Entity in any Organization without holding a Membership in it. List every Organization with [`GET /api/onboarding/organizations`](/api-reference/onboarding#get-onboarding-organizations).
+- **Superadmin only, from a signed-in session.** A request with an API key or an OAuth access token returns `403` with `SUPERADMIN_SESSION_REQUIRED`, and any other User, `staff` included, gets `403` with `SUPERADMIN_REQUIRED`. A Superadmin can create an Entity in any Organization without holding a Membership in it. List every Organization with [`GET /api/onboarding/organizations`](/api-reference/onboarding#get-/onboarding/organizations).
 - Creating an Entity opens none of its books to the Superadmin. Users reach it through a Membership of its Organization.
 - Creating an Entity also gives it its [representing Partner](/api-reference/partners#representing-partners): the Organization's Partner with the Entity's tax identity, which the other Entities use to name it as their counterparty. When the Organization already has a Partner with that tax identity, that Partner becomes the representing one.
 - An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
@@ -150,8 +150,8 @@ The Fiscal Year decides where income and expense accounts restart at zero, and w
 
 - **Success response:** the updated Entity (see [Response shape](#response-shape))
 - **Status:** 200
-- A month outside `1` to `12` returns `400`. [`PATCH /api/entities/:entityId`](#patch-api-entities-entityid) doesn't take `fiscalYearStartMonth`: it returns `400` when the body carries it.
-- While the Entity has a [ledger lock date](#patch-api-entities-entityid-ledger-lock-date), the start can't change. The request returns `409` with `ENTITY_FISCAL_YEAR_START_LOCKED_ERROR`, and `params.ledgerLockDate` names the lock date. Clear the lock date, set the start, and set the lock date again.
+- A month outside `1` to `12` returns `400`. [`PATCH /api/entities/:entityId`](#patch-/api/entities/entityid) doesn't take `fiscalYearStartMonth`: it returns `400` when the body carries it.
+- While the Entity has a [ledger lock date](#patch-/api/entities/entityid/ledger-lock-date), the start can't change. The request returns `409` with `ENTITY_FISCAL_YEAR_START_LOCKED_ERROR`, and `params.ledgerLockDate` names the lock date. Clear the lock date, set the start, and set the lock date again.
 - A new start re-cuts every past Fiscal Year, so every report reads the earlier years with the new start too.
 
 In the app, set it in the Entity's row on the **Empresa** page of its Organization, under **Inicio del año fiscal**.
@@ -214,7 +214,7 @@ Move an Entity to another Organization. Members of the old Organization lose acc
 
 - **Status:** 204
 - An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
-- An Entity in a group can't move: an Entity with a parent Entity or any subsidiary returns `409` with `ENTITY_MOVE_IN_GROUP_ERROR`. Clear those links with [`PATCH /api/entities/:entityId/parent`](#patch-api-entities-entityid-parent) first, then move it.
+- An Entity in a group can't move: an Entity with a parent Entity or any subsidiary returns `409` with `ENTITY_MOVE_IN_GROUP_ERROR`. Clear those links with [`PATCH /api/entities/:entityId/parent`](#patch-/api/entities/entityid/parent) first, then move it.
 - An Entity that shares its Organization's data can't move, because [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization), and [Integrations](/api-reference/integrations#integrations-belong-to-the-organization) belong to the Organization:
   - The move returns `409` with `ENTITY_MOVE_USES_ORGANIZATION_DATA_ERROR` when the Entity:
     - Uses Partners of its Organization.
@@ -244,11 +244,11 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `taxId` | string | Canonical tax registration |
 | `currency` | string | Functional currency |
 | `ledgerLockDate` | ISO date or null | Ledger freeze date |
-| `fiscalYearStartMonth` | integer | Month the Fiscal Year starts in, from `1` to `12`. `1` (January) unless set with [`PATCH /api/entities/:entityId/fiscal-year-start`](#patch-api-entities-entityid-fiscal-year-start) |
+| `fiscalYearStartMonth` | integer | Month the Fiscal Year starts in, from `1` to `12`. `1` (January) unless set with [`PATCH /api/entities/:entityId/fiscal-year-start`](#patch-/api/entities/entityid/fiscal-year-start) |
 | `parentEntityId` | UUID or null | Parent Entity that controls this one, always in the same Organization. `null` for a root Entity. |
 | `organizationId` | UUID | Organization the Entity belongs to |
 | `organizationName` | string | Name of that Organization. Returned by `GET /api/entities` and `POST /api/entities` only. |
-| `organizationWebsite` | string or null | Website of that Organization, as a bare domain. Read the Organization's logo from [`GET /api/organizations/:organizationId/logo`](/api-reference/organizations#get-organizations-organizationid-logo). Returned by `GET /api/entities` and `POST /api/entities` only. |
+| `organizationWebsite` | string or null | Website of that Organization, as a bare domain. Read the Organization's logo from [`GET /api/organizations/:organizationId/logo`](/api-reference/organizations#get-/organizations/organizationid/logo). Returned by `GET /api/entities` and `POST /api/entities` only. |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 

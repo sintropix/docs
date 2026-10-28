@@ -39,8 +39,8 @@ Who approved or rejected a claim, and when, is in the [Audit Trail](/api-referen
 
 Approving needs two settings. Set them in **Configuración → Rendiciones**, at `/{entityId}/settings/expense-claims`, or through the API:
 
-1. **The Approver of the Organization.** Use [`PUT /organizations/:organizationId/expense-claim-approver`](#put-organizations-organizationid-expense-claim-approver).
-2. **The booking setting of each Entity.** Use [`PUT /expense-claim-setting`](#put-expense-claim-setting). It names three things:
+1. **The Approver of the Organization.** Use [`PUT /organizations/:organizationId/expense-claim-approver`](#put-/organizations/organizationid/expense-claim-approver).
+2. **The booking setting of each Entity.** Use [`PUT /expense-claim-setting`](#put-/expense-claim-setting). It names three things:
    - The Source the Expense Renditions land in. It must be a Source that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions).
    - The **Rendición por pagar** account, which the approval credits with the person as Partner. It must be a `liability` account with the sub-type [`expense_rendition_payable`](/api-reference/chart-of-accounts#expense-rendition-payable).
    - The supplier payable account, which a `factura` claim debits. It must have the sub-type `payable`, and it must be the account the Entity's SII invoices credit, so that you can [match](/api-reference/allocations) the two lines later.
@@ -74,9 +74,9 @@ The booking entry is dated on the expense date. Its Control Line credits the **R
 | `boleta` | The expense account: the proposed one, or the one the Approver picks | The expense exists only in the claim. |
 | `factura` | The supplier payable account of the setting | The factura was issued to the Entity, so its expense and IVA reach the books with the SII invoice. Debiting an expense account would book it twice. |
 
-For a `factura`, the claim keeps the expense account as the suggestion for booking the SII invoice. The debit to the supplier payable stays open until you settle it against the Control Line of the SII invoice with [`POST /ledger/allocations/match`](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match). The SII invoice then reads as paid.
+For a `factura`, the claim keeps the expense account as the suggestion for booking the SII invoice. The debit to the supplier payable stays open until you settle it against the Control Line of the SII invoice with [`POST /ledger/allocations/match`](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations/match). The SII invoice then reads as paid.
 
-If you unbook the Expense Rendition and [delete](/api-reference/invoices#delete-invoices-invoiceid) it, the claim loses its `invoiceId` and is `submitted` again.
+If you unbook the Expense Rendition and [delete](/api-reference/invoices#delete-/invoices/invoiceid) it, the claim loses its `invoiceId` and is `submitted` again.
 
 ## Access
 
@@ -196,7 +196,7 @@ Approve a `submitted` claim. Sintropix creates its Expense Rendition and books i
 | Field | Type | Description |
 | --- | --- | --- |
 | `expenseClaim` | object | The Expense Claim object, now `approved`. |
-| `invoice` | object | The created Invoice, in the shape of the [`POST /invoices`](/api-reference/invoices#post-invoices) response, with its `bookingEntry`. |
+| `invoice` | object | The created Invoice, in the shape of the [`POST /invoices`](/api-reference/invoices#post-/invoices) response, with its `bookingEntry`. |
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claims/$EXPENSE_CLAIM_ID/approve" \

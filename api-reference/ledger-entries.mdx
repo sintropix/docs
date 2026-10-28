@@ -6,7 +6,7 @@ description: "Create Ledger Entries one at a time or up to 100 per request, and 
 
 import AppLink from "/snippets/app-link.mdx"
 
-Ledger Entries are the core double-entry transactions in Sintropix. Each entry has a header (date, memo, notes) and at least two balanced lines. This page covers creating entries (one at a time or [in bulk](#post-api-entities-entityid-ledger-entries-bulk)), listing, reversing, and unbooking them, plus Scheduled Entries and line-level updates.
+Ledger Entries are the core double-entry transactions in Sintropix. Each entry has a header (date, memo, notes) and at least two balanced lines. This page covers creating entries (one at a time or [in bulk](#post-/api/entities/entityid/ledger/entries/bulk)), listing, reversing, and unbooking them, plus Scheduled Entries and line-level updates.
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings; timestamps are ISO 8601 datetimes.
 
@@ -75,7 +75,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&
 
 ### Reading several entries by id
 
-When you pass `ids`, the response is an array of Ledger Entry detail objects instead of a `{ entries, nextCursor }` page. Each element has the same shape as the response of [`GET /api/entities/:entityId/ledger/entries/:entryId`](#get-api-entities-entityid-ledger-entries-entryid), including `lines`, `relatedInvoices`, `relatedMovements`, and `allocations`. Use this when you already hold a set of entry ids and need their full detail without one request per entry.
+When you pass `ids`, the response is an array of Ledger Entry detail objects instead of a `{ entries, nextCursor }` page. Each element has the same shape as the response of [`GET /api/entities/:entityId/ledger/entries/:entryId`](#get-/api/entities/entityid/ledger/entries/entryid), including `lines`, `relatedInvoices`, `relatedMovements`, and `allocations`. Use this when you already hold a set of entry ids and need their full detail without one request per entry.
 
 - Results follow the order of `ids`. A repeated id is returned once, at its first position.
 - Ids the Entity does not hold are left out of the array rather than refused. Compare the returned `id` values against the ids you sent.
@@ -126,7 +126,7 @@ Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which 
 | `accountName` | string | Name of the account |
 | `accountType` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
 | `partnerName` | string or null | Name of the partner |
-| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-/partners/partnerid/logo) is read from it |
 | `lineDimensionValues` | array | Tags on the line: `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }` |
 | `intercompanyPairId` | UUID or null | The [Intercompany Pair](/api-reference/intercompany-entries#get-/api/organizations/organizationid/intercompany-entries/intercompanyentryid) the line belongs to; `null` for an unpaired line |
 
@@ -299,7 +299,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries \
 
 ## POST /api/entities/:entityId/ledger/entries/bulk
 
-Create up to 100 Ledger Entries in a single request and transaction. Each element is a full entry with the same fields as [`POST /api/entities/:entityId/ledger/entries`](#post-api-entities-entityid-ledger-entries), and follows the same rules.
+Create up to 100 Ledger Entries in a single request and transaction. Each element is a full entry with the same fields as [`POST /api/entities/:entityId/ledger/entries`](#post-/api/entities/entityid/ledger/entries), and follows the same rules.
 
 - **Path param:** `entityId` (UUID)
 - **Body:**
@@ -395,7 +395,7 @@ Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be
 
 If the entry books a [deferred](/api-reference/invoices#deferrals) Invoice line, its booked Releases are reversed on the same date and its Scheduled ones are cancelled. A booked Release on or before the ledger lock date refuses the whole reversal with `LEDGER_ENTRY_FROZEN_ERROR`.
 
-An Entry that still holds a line on the Suspense Account is refused with `LEDGER_REVERSAL_ENTRY_HAS_SUSPENSE_LINE_ERROR`. Unbook the Bank Movement instead, or [assign](/api-reference/bank-movements#post-movements-movementid-assign) the rest first.
+An Entry that still holds a line on the Suspense Account is refused with `LEDGER_REVERSAL_ENTRY_HAS_SUSPENSE_LINE_ERROR`. Unbook the Bank Movement instead, or [assign](/api-reference/bank-movements#post-/movements/movementid/assign) the rest first.
 
 - **Success response:** every row the reversal changed
 - **Status:** 201
@@ -617,7 +617,7 @@ Each item in `lines` is a Ledger Entry Line object (see the entry detail endpoin
 | `entryDate` | ISO date | Date of the parent entry |
 | `entryMemo` | string or null | Memo of the parent entry |
 | `partnerName` | string or null | Name of the partner |
-| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-/partners/partnerid/logo) is read from it |
 | `settlementStatus` | enum | `open` (nothing settled), `partial`, or `settled` (nothing left open) |
 | `invoiceId` | UUID or null | The Invoice whose Control Line this line is; `null` for any other line, even on the same account |
 | `invoiceDocumentNumber` | string or null | Document number of that Invoice. In the app, **Partidas abiertas** prefixes the line with `Doc.` and this number |

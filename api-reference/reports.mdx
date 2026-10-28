@@ -18,7 +18,7 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 
 ## The Fiscal Year in reports
 
-Each Entity has a Fiscal Year: the twelve months over which it measures its result. It starts on day 1 of the Entity's `fiscalYearStartMonth`, January unless you [set another month](/api-reference/entities#patch-api-entities-entityid-fiscal-year-start). For example, with a start month of `7`, the Fiscal Year that holds 2026-03-15 runs from 2025-07-01 to 2026-06-30.
+Each Entity has a Fiscal Year: the twelve months over which it measures its result. It starts on day 1 of the Entity's `fiscalYearStartMonth`, January unless you [set another month](/api-reference/entities#patch-/api/entities/entityid/fiscal-year-start). For example, with a start month of `7`, the Fiscal Year that holds 2026-03-15 runs from 2025-07-01 to 2026-06-30.
 
 Every balance a report reads before a date follows one carry rule:
 
@@ -159,7 +159,7 @@ Returns the purchase invoices the Entity still has to plan a payment for: every 
 
 **Query params**
 
-The report takes the same filters as the purchases listing, [`GET /invoices/pages`](/api-reference/invoices#get-invoices-pages), except the booking status. Every filter is optional, and every bound is inclusive. Any other param is refused with `400`.
+The report takes the same filters as the purchases listing, [`GET /invoices/pages`](/api-reference/invoices#get-/invoices/pages), except the booking status. Every filter is optional, and every bound is inclusive. Any other param is refused with `400`.
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |

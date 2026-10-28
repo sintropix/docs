@@ -70,7 +70,7 @@ Each load reads from 3 days before the newest issue date among the Partner of On
    - A `PAYMENT` of the wallet pairs with the Ontop payment made from the wallet, with the same amount and a date at most 3 days away.
    - A card charge whose description names Ontop pairs with the Ontop payment made by card, or with an `OMF`, with the same amount and a date at most 3 days away.
 
-   He matches the Movement to the first invoice, [assigns](/api-reference/bank-movements#post-movements-movementid-assign) the others from the Suspense Account, and books what's left to the exchange difference account on the last invoice. If an invoice of the payment isn't booked yet, the Movement waits unbooked with a `waiting` Follow-up that names the invoices. If two payments fit, he pairs none and leaves a `question` Follow-up.
+   He matches the Movement to the first invoice, [assigns](/api-reference/bank-movements#post-/movements/movementid/assign) the others from the Suspense Account, and books what's left to the exchange difference account on the last invoice. If an invoice of the payment isn't booked yet, the Movement waits unbooked with a `waiting` Follow-up that names the invoices. If two payments fit, he pairs none and leaves a `question` Follow-up.
 
 The other wallet movements get their own treatment:
 
@@ -140,7 +140,7 @@ The Entity needs a control account for renditions, such as *Rendiciones por paga
 - **Other currency.** An Invoice of a Rindegastos load is already in the functional currency, so Erwin books its `total` as it is. For a rendition reported in Slack in another currency, he uses the [FX rate](/api-reference/fx-rates) for the issue date, or for the last earlier date with a rate.
 - **Not reimbursable, or a fund.** When the expense is marked `Reembolsable: No` or spends a `Fondo`, Erwin leaves it unbooked with a `question` Follow-up that asks how to book it.
 
-The debit to a supplier's payable is an advance until the supplier's factura is booked. On each run, Erwin [matches](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match) each open advance to the Control Line of a booked factura of the same supplier, with the same total, within 10 days of the expense. When two facturas fit, he matches neither and reports both. When the amounts differ, the smaller one settles and the rest stays open. He reports each advance still without a factura 30 days after the expense.
+The debit to a supplier's payable is an advance until the supplier's factura is booked. On each run, Erwin [matches](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations/match) each open advance to the Control Line of a booked factura of the same supplier, with the same total, within 10 days of the expense. When two facturas fit, he matches neither and reports both. When the amounts differ, the smaller one settles and the rest stays open. He reports each advance still without a factura 30 days after the expense.
 
 Erwin never changes or books again an Invoice that was already booked. He reports how many renditions he booked to an expense account and how many against a factura, the advances he matched and any rest that stayed open, the advances without a factura after 30 days, and each Follow-up he left.
 
@@ -188,7 +188,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices?direction=recei
 
 ### Reading several Invoices by id
 
-When you pass `ids`, the response is an array of Invoice detail objects instead of plain Invoice objects. Each element has the same shape as the response of [`GET /invoices/:invoiceId`](#get-invoices-invoiceid), including `dte`, `attachmentCount`, and `bookingEntry`. Use this when you already hold a set of Invoice ids and need their full detail without one request per Invoice.
+When you pass `ids`, the response is an array of Invoice detail objects instead of plain Invoice objects. Each element has the same shape as the response of [`GET /invoices/:invoiceId`](#get-/invoices/invoiceid), including `dte`, `attachmentCount`, and `bookingEntry`. Use this when you already hold a set of Invoice ids and need their full detail without one request per Invoice.
 
 - Results follow the order of `ids`. A repeated id is returned once, at its first position.
 - Ids the Entity does not hold are left out of the array rather than refused. Compare the returned `id` values against the ids you sent.
@@ -250,7 +250,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | --- | --- | --- |
 | `dte` | object or null | The DTE behind the document (fields listed under `PUT /invoices/:invoiceId/dte`). Null when none. |
 | `partnerName` | string | Name of the Partner. |
-| `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it. |
+| `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-/partners/partnerid/logo) is read from it. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `isExpenseRendition` | boolean | Whether the document is an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions): a `payable` Invoice whose Source holds Expense Renditions. Read from the Source, so marking or unmarking the Source changes it on every row at once. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
@@ -607,7 +607,7 @@ Each element of `newLedgerEntryLines`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | uuid | Yes | Caller-generated line id. Must not already exist. See [Ledger Entries](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries). |
+| `id` | uuid | Yes | Caller-generated line id. Must not already exist. See [Ledger Entries](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries). |
 | `accountId` | uuid | Yes | Ledger Account of the Entity. |
 | `functionalAmount` | integer | Yes | Magnitude in the functional currency, minor units, zero or more. |
 | `side` | string | Yes | `debit` or `credit`. |
@@ -685,7 +685,7 @@ Create the two accounts in the [Chart of Accounts](/api-reference/chart-of-accou
 
 ### Defer a line when you book
 
-You defer at booking time only. Add `deferral` to the line in `entry.newLedgerEntryLines` on [`POST /invoices/:invoiceId/book`](#post-invoices-invoiceid-book). The same field works in `POST /invoices/book` and in `bookingEntryWithLines` on `POST /invoices`. There is no separate endpoint to defer an Invoice that is already booked; unbook it and book it again with the terms.
+You defer at booking time only. Add `deferral` to the line in `entry.newLedgerEntryLines` on [`POST /invoices/:invoiceId/book`](#post-/invoices/invoiceid/book). The same field works in `POST /invoices/book` and in `bookingEntryWithLines` on `POST /invoices`. There is no separate endpoint to defer an Invoice that is already booked; unbook it and book it again with the terms.
 
 Fields of `deferral`:
 
@@ -746,7 +746,7 @@ Example: a bill of CLP 1,428,000 (1,200,000 net plus 19% VAT) for a 12-month sof
 }
 ```
 
-The booking response doesn't list the Releases. Read them from `deferrals` on [`GET /invoices/:invoiceId`](#get-invoices-invoiceid).
+The booking response doesn't list the Releases. Read them from `deferrals` on [`GET /invoices/:invoiceId`](#get-/invoices/invoiceid).
 
 ### Reading a Deferral
 
@@ -779,8 +779,8 @@ A Deferral has no status of its own. Read its state from its Releases.
 
 A Deferral follows its booking:
 
-- **Unbook** the booking entry ([`DELETE /ledger/entries/:entryId`](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid)): the `active` Releases are unbooked and the `scheduled` ones are cancelled.
-- **Reverse** the booking entry ([`POST /ledger/entries/:entryId/reverse`](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries-entryid-reverse)): the `active` Releases are reversed on the same reversal date and the `scheduled` ones are cancelled.
+- **Unbook** the booking entry ([`DELETE /ledger/entries/:entryId`](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid)): the `active` Releases are unbooked and the `scheduled` ones are cancelled.
+- **Reverse** the booking entry ([`POST /ledger/entries/:entryId/reverse`](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse)): the `active` Releases are reversed on the same reversal date and the `scheduled` ones are cancelled.
 - If an `active` Release sits on or before the ledger lock date, the whole Unbook is refused with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` and the whole Reverse with `LEDGER_ENTRY_FROZEN_ERROR`.
 
 In the app, the Unbook and Reverse dialogs on the Invoice and on the entry page list these effects before you confirm.

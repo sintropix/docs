@@ -109,7 +109,7 @@ Each **envelope**:
 | `occurredAt` | ISO datetime | When the request was processed. |
 | `requestId` | string | Server-generated unique id for the request. |
 | `actorUserId` | UUID or `null` | The authenticated user, when there was one. |
-| `actor` | object or `null` | `{ id, name, role, deleted }` of the authenticated user, as they were at the write. `role` is the user's Membership Role in the Organization of the write (`staff`, `client`, or `viewer`), or `null` when they held no Membership there. `deleted` is `true` when a Superadmin has [deleted the user](/api-reference/onboarding#delete-onboarding-users-userid) since. |
+| `actor` | object or `null` | `{ id, name, role, deleted }` of the authenticated user, as they were at the write. `role` is the user's Membership Role in the Organization of the write (`staff`, `client`, or `viewer`), or `null` when they held no Membership there. `deleted` is `true` when a Superadmin has [deleted the user](/api-reference/onboarding#delete-/onboarding/users/userid) since. |
 | `credentialType` | enum | `session`, `api_key`, `oauth`, or `system`. `oauth` marks a write made by a [connected app](/guides/connected-apps) with an OAuth access token. |
 | `apiKeyId` | UUID or `null` | The API key used, for `api_key` requests. |
 | `connectedAppClientId` | string or `null` | The OAuth `client_id` of the connected app, for `oauth` requests. |
@@ -223,7 +223,7 @@ Some changes are made by Sintropix on a schedule, with no request behind them. T
 | --- | --- | --- | --- |
 | Scheduled [Source Feed](/api-reference/source-feeds) sync | `CRON` | `source-feed-sync-sweep` | The [Standing and Tax Period](/api-reference/source-feeds#standing-and-tax-period) of landed DTEs, and the booking of new Invoices from the vendor's [Booking Template](/api-reference/partners#booking-templates). |
 
-A sync you [start on demand](/api-reference/source-feeds#post-source-feeds-sourcefeedid-sync) keeps the route and method of that request.
+A sync you [start on demand](/api-reference/source-feeds#post-/source-feeds/sourcefeedid/sync) keeps the route and method of that request.
 
 ## Status codes
 

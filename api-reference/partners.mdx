@@ -21,7 +21,7 @@ Amounts are integers in the minor units of the Entity's functional currency. Tim
 
 ## Partners belong to the Organization
 
-A Partner belongs to the [Organization](/api-reference/organizations), not to one Entity. One real-world party is one Partner, whichever Entities of the Organization deal with it. An Entity starts **using** a Partner when something names it in that Entity: a create, an Invoice, a Ledger Line, a Bank Movement, a Payment Order, or a sync. You can also [use an existing Partner](#put-partners-partnerid) explicitly.
+A Partner belongs to the [Organization](/api-reference/organizations), not to one Entity. One real-world party is one Partner, whichever Entities of the Organization deal with it. An Entity starts **using** a Partner when something names it in that Entity: a create, an Invoice, a Ledger Line, a Bank Movement, a Payment Order, or a sync. You can also [use an existing Partner](#put-/partners/partnerid) explicitly.
 
 The routes under `/api/entities/:entityId/partners` serve the Partners that Entity uses. A Partner the Entity doesn't use answers `404`. What a change reaches depends on the field:
 
@@ -48,7 +48,7 @@ Each Entity is represented by one Partner of its Organization. That Partner carr
 
 - An Entity never uses the Partner that represents it. A write that names it in that Entity is refused with `422` and `PARTNER_REPRESENTS_ENTITY_ERROR`, with `params.partnerId` and `params.entityId`. This applies to creating or using the Partner, and to naming it on a Ledger Line, an Invoice, a Bank Movement, or a Payment Order.
 - A bank feed lands a Movement whose counterparty is the Entity itself with no Partner. A [Source Feed](/api-reference/source-feeds) document addressed to the Entity itself is rejected alone, with `PARTNER_REPRESENTS_ENTITY_ERROR`, and the rest of the sync lands.
-- Its `country` and `taxId` are the Entity's. Correct them on the [Entity](/api-reference/entities#patch-api-entities-entityid). Changing them on the Partner is refused with `422` and `PARTNER_REPRESENTS_ENTITY_TAX_IDENTITY_ERROR`.
+- Its `country` and `taxId` are the Entity's. Correct them on the [Entity](/api-reference/entities#patch-/api/entities/entityid). Changing them on the Partner is refused with `422` and `PARTNER_REPRESENTS_ENTITY_TAX_IDENTITY_ERROR`.
 
 ## GET `/partners`
 
@@ -68,7 +68,7 @@ List every Partner the Entity uses, each row enriched with this Entity's Open It
 | `legalName` | string or null | Registered legal name. |
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
-| `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-partners-partnerid-logo) from it. |
+| `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-/partners/partnerid/logo) from it. |
 | `aliases` | string[] | Other names that find this Partner, in name order. See [Aliases](#aliases). |
 | `mergedIntoPartnerId` | uuid or null | The Partner this one was [merged](#merge-partners) into. Null for an active Partner. |
 | `openReceivable` | integer | Unsettled amount this Partner owes the Entity: the Open Amount of its debit lines on receivable (`asset`) accounts. |
@@ -160,7 +160,7 @@ Create a Partner in the Organization and start using it in this Entity.
 
 A `country` and `taxId` pair belongs to one Partner of the Organization:
 
-- When another Partner of the Organization already holds it, the create is refused with `409` and `PARTNER_TAX_IDENTITY_ALREADY_EXISTS_ERROR`. `params.partnerId` names that Partner. [Use it](#put-partners-partnerid) in this Entity instead. In the app, the refusal offers **Usar** with the existing Partner's name.
+- When another Partner of the Organization already holds it, the create is refused with `409` and `PARTNER_TAX_IDENTITY_ALREADY_EXISTS_ERROR`. `params.partnerId` names that Partner. [Use it](#put-/partners/partnerid) in this Entity instead. In the app, the refusal offers **Usar** with the existing Partner's name.
 - The Entity's own tax identity belongs to its [representing Partner](#representing-partners), so it is refused with `422` and `PARTNER_REPRESENTS_ENTITY_ERROR`.
 
 **Response** (`201`): the created Partner row, as `GET /partners/pages` would list it.
@@ -347,7 +347,7 @@ The route needs the `books` write permission in the Organization. An API key con
 | --- | --- | --- | --- |
 | `targetPartnerId` | uuid | Yes | The Partner that stays. Must belong to the same Organization. |
 
-**Response** (`200`): `{ "partner": <Organization Partner row>, "mergedPartner": <Organization Partner row> }`, in the shape [`GET /api/organizations/:organizationId/partners`](#get-api-organizations-organizationid-partners) lists. `partner` is the kept Partner after the merge. `mergedPartner` is the merged one, with `mergedIntoPartnerId` set. The moved lines, Invoices, and Bank Movements are not included; read them back through their own endpoints.
+**Response** (`200`): `{ "partner": <Organization Partner row>, "mergedPartner": <Organization Partner row> }`, in the shape [`GET /api/organizations/:organizationId/partners`](#get-/api/organizations/organizationid/partners) lists. `partner` is the kept Partner after the merge. `mergedPartner` is the merged one, with `mergedIntoPartnerId` set. The moved lines, Invoices, and Bank Movements are not included; read them back through their own endpoints.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partners/$DUPLICATE_PARTNER_ID/merge" \
@@ -404,7 +404,7 @@ Bank Details state where a Partner receives a bank transfer. A [Payment Batch](/
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `bankCode` | string | CMF code of the bank, from [`GET /banks`](/api-reference/reference-data#get-banks). This can also be a savings cooperative or a prepaid card issuer, such as Mercado Pago. |
+| `bankCode` | string | CMF code of the bank, from [`GET /banks`](/api-reference/reference-data#get-/banks). This can also be a savings cooperative or a prepaid card issuer, such as Mercado Pago. |
 | `bankName` | string | Name of that bank. |
 | `accountKind` | string | `checking` (cuenta corriente), `sight` (cuenta vista), or `savings` (cuenta de ahorro). |
 | `accountNumber` | string | The account number at that bank. |
@@ -462,7 +462,7 @@ Each Entity keeps its own template and switch for a Partner, so a template saved
 | `accountId` | uuid | Ledger Account of the Entity the line posts to. |
 | `side` | string | `debit` or `credit`. |
 
-A template needs at least 2 and at most 10,000 lines. Exactly one line uses `invoice_total`: the **Control Line**. It must follow the control line rules of [Book invoice](/api-reference/invoices#post-invoices-invoiceid-book) for a payable invoice: a `credit` on an open-item payable liability account. Other lines may post to the Control Line's account too. They book as ordinary open items of the Partner. Only the `invoice_total` line becomes the Invoice's Control Line.
+A template needs at least 2 and at most 10,000 lines. Exactly one line uses `invoice_total`: the **Control Line**. It must follow the control line rules of [Book invoice](/api-reference/invoices#post-/invoices/invoiceid/book) for a payable invoice: a `credit` on an open-item payable liability account. Other lines may post to the Control Line's account too. They book as ordinary open items of the Partner. Only the `invoice_total` line becomes the Invoice's Control Line.
 
 While a template uses an account as its Control Line, that account's type, subtype, and tracking cannot change (`LEDGER_ACCOUNT_FACT_PINNED_ERROR`). An account any template line uses cannot be deleted.
 
