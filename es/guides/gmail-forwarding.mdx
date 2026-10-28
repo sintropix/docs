@@ -1,0 +1,213 @@
+---
+title: "Reenviar facturas y boletas desde Gmail a Sintropix"
+sidebarTitle: "Reenviar facturas desde Gmail"
+description: "Cómo enviar automáticamente tus facturas, boletas y recibos de Gmail o Google Workspace a tu casilla Sintropix: agregar la dirección de reenvío, confirmarla, crear un filtro solo para facturas y resolver problemas."
+keywords: ["reenviar facturas", "reenvío Gmail", "boletas", "casilla Sintropix", "filtro Gmail", "Google Workspace", "DTE", "XML"]
+---
+
+Con esta guía, Gmail envía solo, a tu casilla Sintropix, una copia de cada correo con facturas o boletas que te llegue. Sintropix los recibe y los usa en tu contabilidad, sin que tengas que reenviar nada a mano.
+
+<Info>
+**Tu casilla Sintropix.** En esta guía usamos `facturas@cliente.sintropix.com` como ejemplo. Usa la dirección de tu casilla. La encuentras en Sintropix: abre el menú de tu usuario, entra a **Configuración → Integraciones** y abre tu **Casilla de correo**. Si no tienes una, pídesela a tu contacto en Sintropix.
+</Info>
+
+**Antes de empezar**
+
+- Hazlo desde un computador, en Gmail web ([mail.google.com](https://mail.google.com)). La app del celular no tiene estas opciones.
+- Toma unos 10 minutos.
+- Si Gmail no te deja seguir en algún paso, revisa [Si algo no funciona](#si-algo-no-funciona).
+
+## Configura el reenvío
+
+<Steps>
+  <Step title="Abre la configuración de Gmail">
+    1. Arriba a la derecha, haz clic en el engranaje (**Configuración**).
+    2. Haz clic en **Ver toda la configuración**.
+
+    <Frame>
+      <img src="/images/guides/gmail/01-configuracion.png" alt="Gmail con el engranaje de Configuración y el botón Ver toda la configuración marcados" />
+    </Frame>
+  </Step>
+
+  <Step title="Agrega tu casilla Sintropix como dirección de reenvío">
+    1. Entra a la pestaña **Reenvío y correo POP/IMAP**.
+    2. En "Reenvío", haz clic en **Agregar una dirección de reenvío**.
+
+    <Frame>
+      <img src="/images/guides/gmail/02-pestana-reenvio.png" alt="Pestaña Reenvío y correo POP/IMAP con el botón Agregar una dirección de reenvío" />
+    </Frame>
+
+    3. Escribe la dirección de tu casilla, por ejemplo `facturas@cliente.sintropix.com`, y haz clic en **Siguiente**.
+
+    <Frame>
+      <img src="/images/guides/gmail/03-agregar-direccion.png" alt="Cuadro Agregar una dirección de reenvío con la dirección de la casilla escrita" />
+    </Frame>
+
+    4. Google puede pedirte que confirmes que eres tú, con tu contraseña o con el código de tu teléfono. Hazlo y sigue.
+
+    <Frame>
+      <img src="/images/guides/gmail/04-verifica-que-eres-tu.png" alt="Google pide verificar que eres tú antes de agregar la dirección" />
+    </Frame>
+
+    5. En la ventana que se abre, haz clic en **Continuar** y después en **Aceptar**.
+
+    Google envía ahora un correo de confirmación a tu casilla Sintropix. Mientras no se confirme, no se reenvía nada.
+  </Step>
+
+  <Step title="Confirma la dirección">
+    El correo de confirmación no llega a tu Gmail: llega a tu casilla Sintropix. Lo envía Google (`forwarding-noreply@google.com`), su asunto dice **Confirmación de reenvío de Gmail** y trae un vínculo de confirmación.
+
+    Consigue el vínculo de una de estas dos formas:
+
+    - **Pídeselo a Sintropix.** Escríbele a tu contacto en Sintropix. Ellos ven el correo y te mandan el vínculo.
+    - **Búscalo tú en Sintropix.** Abre el menú de tu usuario y ve a **Configuración → Integraciones**. Abre tu casilla y haz clic en **Abrir correo**. Abre el correo de Google y copia el vínculo que trae.
+
+    <Warning>
+    En **Correo**, el vínculo no se abre con un clic. Selecciónalo, cópialo y pégalo tú en una pestaña nueva.
+    </Warning>
+
+    Con el vínculo en la mano:
+
+    1. Pégalo en una pestaña nueva del navegador.
+    2. Haz clic en **Confirmar**.
+    3. Vuelve a Gmail, a **Reenvío y correo POP/IMAP**, y actualiza la página. Tu casilla Sintropix ya aparece confirmada.
+
+    El asunto del correo también trae un código entre paréntesis, por ejemplo **(#123456789)**. Si Gmail te muestra un cuadro para escribir un código de confirmación, puedes usar ese número en vez del vínculo.
+
+    <Warning>
+    **No elijas "Reenviar una copia del correo entrante a"** en esa pantalla, salvo que quieras reenviar todo tu correo (ver [Alternativa: reenviar todo](#alternativa-reenviar-todo)). El filtro del paso siguiente decide qué se reenvía.
+    </Warning>
+  </Step>
+
+  <Step title="Crea el filtro que elige qué correos se reenvían">
+    1. En el cuadro de búsqueda de arriba, haz clic en **Mostrar opciones de búsqueda** (el ícono de la derecha).
+
+    <Frame>
+      <img src="/images/guides/gmail/05-opciones-busqueda-icono.png" alt="Ícono Mostrar opciones de búsqueda a la derecha del cuadro de búsqueda de Gmail" />
+    </Frame>
+
+    2. En **Incluye las palabras**, pega exactamente esto:
+
+    ```text
+    {subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml}
+    ```
+
+    3. Si quieres ver qué correos van a pasar, haz clic en **Buscar** y después vuelve a abrir las opciones de búsqueda.
+    4. Haz clic en **Crear filtro**.
+
+    <Frame>
+      <img src="/images/guides/gmail/06-opciones-busqueda.png" alt="Opciones de búsqueda de Gmail con el criterio pegado en Incluye las palabras y el botón Crear filtro" />
+    </Frame>
+
+    **Qué hace ese criterio.** Elige un correo si su asunto tiene una de esas palabras, o si trae un archivo XML. Las facturas electrónicas chilenas llegan con su XML, y muchas boletas y recibos de servicios (por ejemplo, de apps o de proveedores del extranjero) traen la palabra en el asunto aunque no traigan archivo. Para ajustarlo, mira [Ajusta el filtro](#ajusta-el-filtro).
+  </Step>
+
+  <Step title="Elige Reenviar a tu casilla Sintropix">
+    1. En la lista de acciones, marca **Reenviar**.
+    2. En el desplegable, elige tu casilla Sintropix.
+    3. No marques ninguna otra acción.
+    4. Haz clic en **Crear filtro**.
+
+    <Frame>
+      <img src="/images/guides/gmail/07-reenviar.png" alt="Lista de acciones del filtro con la opción Reenviar marcada" />
+    </Frame>
+
+    Si junto a **Reenviar** ves el vínculo **Agregar dirección de reenvío** en vez de tu casilla, la dirección todavía no está confirmada: vuelve al paso 3.
+
+    Durante una semana, Gmail te muestra un aviso que recuerda que el reenvío está activo. Es normal.
+  </Step>
+</Steps>
+
+## Los correos que ya tenías
+
+Antes de crear el filtro verás la casilla **También aplicar el filtro a las conversaciones que coincidan con los criterios**. Marcarla aplica las demás acciones a los correos antiguos, pero no los reenvía.
+
+<Warning>
+Según Google, un filtro que reenvía solo actúa sobre los correos nuevos. Las facturas que ya están en tu Gmail no llegan a Sintropix por crear el filtro. Puedes dejar la casilla sin marcar.
+</Warning>
+
+<Frame>
+  <img src="/images/guides/gmail/08-aplicar-existentes.png" alt="Casilla También aplicar el filtro a las conversaciones que coincidan" />
+</Frame>
+
+Si necesitas mandar facturas antiguas:
+
+- **Unas pocas:** ábrelas una por una, haz clic en **Reenviar** y envíalas a tu casilla Sintropix.
+- **Muchas:** conversa con Sintropix. También puedes [conectar tu Gmail a Sintropix](/es/guides/connect-gmail), solo para leer, para buscar ahí los correos antiguos.
+
+## Ajusta el filtro
+
+El criterio recomendado cubre la mayoría de los casos. Si quieres otro equilibrio, pega uno de estos en **Incluye las palabras**:
+
+| Si quieres… | Pega en "Incluye las palabras" | Lo que pierdes |
+| --- | --- | --- |
+| Lo recomendado | `{subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml}` | Una factura en PDF cuyo asunto no diga ninguna de esas palabras. |
+| No perder ningún PDF | `{subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml filename:pdf}` | Privacidad: también se van contratos, cotizaciones y otros PDF que no son contables. |
+| Solo correos con adjunto | `has:attachment {filename:pdf filename:xml}` | Los recibos que vienen en el cuerpo del correo, sin archivo. |
+
+Si un proveedor siempre te escribe desde la misma dirección, puedes sumarla dentro de las llaves:
+
+```text
+{subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml from:facturacion@proveedor.cl}
+```
+
+## Alternativa: reenviar todo
+
+Si prefieres no pensar en criterios, puedes reenviar todo el correo que te llegue. Es más simple, pero Sintropix recibe también los correos que no son contables. Con esta opción no necesitas el filtro.
+
+<Steps>
+  <Step title="Agrega y confirma tu casilla">
+    Haz los pasos 1, 2 y 3 de [Configura el reenvío](#configura-el-reenvío).
+  </Step>
+  <Step title="Activa el reenvío de todo el correo">
+    1. En **Reenvío y correo POP/IMAP**, elige **Reenviar una copia del correo entrante a** y tu casilla Sintropix.
+    2. En el segundo desplegable, elige **conservar la copia de Gmail en Recibidos**.
+    3. Abajo, haz clic en **Guardar cambios**.
+  </Step>
+</Steps>
+
+## Si algo no funciona
+
+<AccordionGroup>
+  <Accordion title="No aparece Agregar una dirección de reenvío, o Gmail dice que el reenvío está inhabilitado">
+    En Google Workspace, el administrador de tu empresa decide si se puede reenviar. Pídele que haga esto, o hazlo tú si eres el administrador:
+
+    1. Entra a la Consola del administrador, en [admin.google.com](https://admin.google.com).
+    2. Ve a **Menú → Apps → Google Workspace → Gmail → Acceso de usuario final**.
+    3. Haz clic en **Reenvío automático**.
+    4. Marca **Permitir que los usuarios reenvíen automáticamente el correo electrónico entrante** y elige que se pueda reenviar a **cualquier dirección**. La opción de reenviar solo a direcciones internas no sirve, porque Sintropix es externo a tu empresa.
+    5. Haz clic en **Guardar**.
+
+    Si tu empresa tiene áreas (unidades organizativas), basta con activarlo para el área de quien va a reenviar. El cambio puede tardar en aplicarse. Si Gmail sigue sin dejarte, vuelve a intentarlo más tarde.
+  </Accordion>
+
+  <Accordion title="No llegó el correo de confirmación">
+    - Revisa en **Reenvío y correo POP/IMAP** que la dirección esté bien escrita. Si no lo está, quítala y vuelve al paso 2.
+    - Espera unos minutos y vuelve a mirar en Sintropix: el correo puede tardar en aparecer.
+    - Si sigue sin aparecer, pide en esa misma pantalla de Gmail que te reenvíe el correo de verificación y avísale a Sintropix.
+  </Accordion>
+
+  <Accordion title="Cómo dejar de reenviar">
+    - **Si usaste el filtro:** ve a **Configuración → Ver toda la configuración → Filtros y direcciones bloqueadas**, marca la casilla del filtro que reenvía a tu casilla Sintropix y haz clic en **Eliminar**.
+    - **Si reenvías todo:** en **Reenvío y correo POP/IMAP**, elige **Inhabilitar el reenvío** y haz clic en **Guardar cambios**.
+
+    <Frame>
+      <img src="/images/guides/gmail/09-filtros.png" alt="Pestaña Filtros y direcciones bloqueadas con el filtro que reenvía y el botón Eliminar" />
+    </Frame>
+  </Accordion>
+
+  <Accordion title="¿Mis correos quedan como leídos o se borran?">
+    No. Gmail envía una copia y tu correo queda igual en tu bandeja: no se marca como leído, no se archiva y no se borra. Sintropix tampoco toca nada en tu Gmail. Lo único nuevo es la copia en tu casilla Sintropix.
+
+    Gmail nunca reenvía lo que cae en Spam. Si una factura llega a Spam, reenvíala a mano.
+  </Accordion>
+</AccordionGroup>
+
+## Fuentes
+
+- Ayuda de Gmail: [Cómo reenviar automáticamente los mensajes de Gmail a otra cuenta](https://support.google.com/mail/answer/10957?hl=es-419)
+- Ayuda de Gmail: [Cómo crear normas para filtrar tus correos electrónicos](https://support.google.com/mail/answer/6579?hl=es-419)
+- Ayuda de Gmail: [Cómo definir mejor las búsquedas en Gmail](https://support.google.com/mail/answer/7190?hl=es-419)
+- Ayuda de Google Workspace: [Permitir que los usuarios reenvíen automáticamente sus propios correos electrónicos de Gmail](https://support.google.com/a/answer/14724207?hl=es-419)
+
+Las capturas son de Gmail web en español (Latinoamérica), de octubre de 2026. Google cambia su diseño de vez en cuando, así que algún botón puede verse un poco distinto.

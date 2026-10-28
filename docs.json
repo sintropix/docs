@@ -94,6 +94,18 @@
                 ]
               }
             ]
+          },
+          {
+            "tab": "Guides",
+            "groups": [
+              {
+                "group": "Gmail",
+                "pages": [
+                  "guides/gmail-forwarding",
+                  "guides/connect-gmail"
+                ]
+              }
+            ]
           }
         ]
       },
@@ -183,6 +195,18 @@
                 ]
               }
             ]
+          },
+          {
+            "tab": "Guías",
+            "groups": [
+              {
+                "group": "Gmail",
+                "pages": [
+                  "es/guides/gmail-forwarding",
+                  "es/guides/connect-gmail"
+                ]
+              }
+            ]
           }
         ]
       }
@@ -194,6 +218,15 @@
       "label": "Get Started",
       "href": "https://sintropix.com"
     }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "mcp"
+    ]
   },
   "background": {
     "color": {
