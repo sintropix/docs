@@ -409,6 +409,52 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
   -d '{"name": "Caja chica"}'
 ```
 
+### Cash Accounts
+
+The sub-type `cash` marks a Cash Account: an account that holds cash, such as a bank current account or petty cash. The [cash flow statement](/api-reference/reports#cash-flow-statement) reads the entries that post to Cash Accounts, and its closing cash equals their balance.
+
+To mark an account as a Cash Account, create it or `PATCH` it with `type: "asset"`, `tracking: "balance"`, and `subtype: "cash"`. These rules apply:
+
+- Only an `asset` account with `balance` tracking can take the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `open_item` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`.
+- A [Bank Account](/api-reference/bank-accounts) of kind `bank` must map to a Cash Account.
+- While a Bank Account of kind `bank` maps the account, removing or changing its sub-type returns `LEDGER_ACCOUNT_FACT_PINNED_ERROR`. Delete the Bank Account first.
+
+### Cash flow categories
+
+Every account can carry a `cashFlowCategory`. It decides where the [cash flow statement](/api-reference/reports#cash-flow-statement) shows the cash that an entry moves on the account. A category never changes a posted amount, so you can set, change, or clear it at any time.
+
+| Activity | Categories |
+| --- | --- |
+| Operating | `customer_receipts`, `supplier_payments`, `employee_payments`, `taxes`, `other_operating` |
+| Investing | `fixed_assets`, `other_investing` |
+| Financing | `borrowings`, `interest`, `dividends`, `equity_contributions` |
+
+While `cashFlowCategory` is `null`, the account uses `defaultCashFlowCategory`, taken from its sub-type first and then from its type:
+
+| Account | Default category |
+| --- | --- |
+| Sub-type `receivable`, `unbilled_receivable`, or `deferred_revenue` | `customer_receipts` |
+| Sub-type `payable` or `prepaid_expense` | `supplier_payments` |
+| Sub-type `expense_rendition_payable` | `employee_payments` |
+| Sub-type `fixed_asset` | `fixed_assets` |
+| Sub-type `retained_earnings` | `equity_contributions` |
+| Sub-type `cash`, `internal_transfer`, `migration_clearing`, or `suspense` | None |
+| Type `income`, with no sub-type | `customer_receipts` |
+| Type `cost_of_goods_sold` or `operating_expense`, with no sub-type | `supplier_payments` |
+| Type `other_income` or `other_expense`, with no sub-type | `other_operating` |
+| Type `equity`, with no sub-type | `equity_contributions` |
+| Type `asset` or `liability`, with no sub-type | None |
+
+The statement reports the cash of an account with no category and no default under `unclassified`. For example, set `borrowings` on a bank loan account to report its drawdowns and repayments as financing:
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"cashFlowCategory": "borrowings"}'
+```
+
 ### The Suspense Account
 
 The sub-type `suspense` marks the Entity's Suspense Account. When a [bank Match](/api-reference/bank-movements#overpayments-and-the-suspense-account) pays more than the target's Open Amount, Sintropix books the rest there until you assign it. Without a Suspense Account, a Match that leaves a rest is refused.
@@ -487,7 +533,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_TYPE_LOCKED_ERROR` | Type change not allowed for an account with entries |
 | `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
 | `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed |
-| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template. A [Budget](/api-reference/budgets) that plans the account pins its type |
+| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template. A [Budget](/api-reference/budgets) that plans the account pins its type, and a Bank Account of kind `bank` pins the `cash` sub-type of its Ledger Account |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
 | `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR` | The Entity already has a Suspense Account |
