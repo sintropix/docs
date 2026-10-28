@@ -57,14 +57,16 @@ Each item in `entries` carries the Ledger Entry fields plus three line-derived t
 | `notes` | string or null | Longer notes |
 | `status` | enum | `active`, `deleted`, `reversed`, `scheduled`, or `cancelled` |
 | `reversalOfEntryId` | UUID or null | The entry this one reverses; `null` for ordinary entries |
+| `intercompanyEntryId` | UUID or null | The [Intercompany Entry](/api-reference/intercompany-entries) this entry is one side of; `null` for ordinary entries. See [Entries of an Intercompany Entry](#entries-of-an-intercompany-entry) |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 | `total` | integer | Sum of the entry's debit lines |
 | `lineCount` | integer | Number of lines |
 | `accountNames` | string[] | Distinct names of the accounts the entry touches, debit-side accounts first |
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the entry |
+| `otherEntityOfIntercompanyEntry` | object or null | `{ id, name }` of the other Entity of the entry's [Intercompany Entry](/api-reference/intercompany-entries); `null` for ordinary entries |
 
-The first nine fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
+The first ten fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
@@ -101,6 +103,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | `relatedMovements` | array | Bank movements this entry books, each with the movement fields below |
 | `allocations` | array | Allocations that settle one of this entry's lines, each with the allocation fields below |
 | `deferralRelease` | object or null | Set when this entry is a [Release](/api-reference/invoices#deferrals) of a Deferral: `{ deferralId, invoiceId, invoiceDocumentNumber }`. `null` for other entries, and once the Invoice booking that holds the deferred line is unbooked or reversed |
+| `otherEntityOfIntercompanyEntry` | object or null | `{ id, name }` of the other Entity of the entry's [Intercompany Entry](/api-reference/intercompany-entries); `null` for ordinary entries |
 | `deferrals` | array | The [Deferrals](/api-reference/invoices#reading-a-deferral) whose deferred line this entry books; empty for other entries. Unbooking or reversing this entry also undoes their Releases |
 
 Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which other endpoints return on their own) plus the names the detail view shows:
@@ -125,6 +128,7 @@ Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which 
 | `partnerName` | string or null | Name of the partner |
 | `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-partners-partnerid-logo) is read from it |
 | `lineDimensionValues` | array | Tags on the line: `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }` |
+| `intercompanyPairId` | UUID or null | The [Intercompany Pair](/api-reference/intercompany-entries#get-/api/organizations/organizationid/intercompany-entries/intercompanyentryid) the line belongs to; `null` for an unpaired line |
 
 Each item in `relatedInvoices`:
 
@@ -436,6 +440,30 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/
   -H "x-audit-actor: my-agent"
 ```
 
+## Entries of an Intercompany Entry
+
+An [Intercompany Entry](/api-reference/intercompany-entries) books one Ledger Entry in each of two Entities. Its Entries carry its id in `intercompanyEntryId`, and change only with the act. The routes on this page refuse to edit, unbook, reverse, reclassify, or change the Partner of such an Entry:
+
+- `PATCH /api/entities/:entityId/ledger/entries/:entryId`
+- `DELETE /api/entities/:entityId/ledger/entries/:entryId`
+- `POST /api/entities/:entityId/ledger/entries/:entryId/reverse`
+- `PATCH /api/entities/:entityId/ledger/lines/:lineId/account`
+- `PATCH /api/entities/:entityId/ledger/lines/:lineId/partner`
+
+Each returns `409` with `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR`. `params.ledgerEntryId` names the Entry and `params.intercompanyEntryId` names its act:
+
+```json
+{
+  "code": "LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR",
+  "params": {
+    "ledgerEntryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+    "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f"
+  }
+}
+```
+
+To correct the Entry, unbook the whole act with `DELETE /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` and create it again. See [Correct an Intercompany Entry](/api-reference/intercompany-entries#correct-an-intercompany-entry). [Tagging its lines with Dimension values](#put-/api/entities/entityid/ledger/lines/lineid/dimension-values) still works.
+
 ## Scheduled Entries
 
 ### POST /api/entities/:entityId/ledger/scheduled-entries
@@ -715,6 +743,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `LEDGER_ENTRY_LOCKED_ERROR` | Ledger is locked |
 | `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | Cannot unbook a frozen entry |
 | `LEDGER_ENTRY_NOT_ACTIVE_ERROR` | Entry is not active |
+| `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR` | The entry belongs to an [Intercompany Entry](/api-reference/intercompany-entries) and changes only with it. Unbook the act and create it again; see [Correct an Intercompany Entry](/api-reference/intercompany-entries#correct-an-intercompany-entry) |
 | `LEDGER_ENTRY_OVER_CORRECTED_ERROR` | Entry already has a reversal |
 | `LEDGER_REVERSAL_NETTING_BLOCKED_ERROR` | Reversal would net an existing allocation |
 | `LEDGER_REVERSAL_DATE_BEFORE_ORIGINAL_ERROR` | Reversal date is before the original |

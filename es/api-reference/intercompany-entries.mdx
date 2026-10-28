@@ -1,0 +1,568 @@
+---
+title: "API de asientos intercompañía de Sintropix: registra y anula asientos entre dos Entidades"
+sidebarTitle: "Asientos intercompañía"
+description: "Lista, lee, crea y anula (Unbook) asientos intercompañía: un asiento contable cuadrado en cada una de dos Entidades de una Organización, unidos por Pares. DELETE es el Unbook. Para corregir un asiento intercompañía, anúlalo y créalo de nuevo."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+Un **asiento intercompañía** (Intercompany Entry) es una operación entre dos Entidades de la misma Organización, como un préstamo de una empresa del grupo a otra. La operación registra un [asiento contable](/api-reference/ledger-entries) (Ledger Entry) cuadrado en cada Entidad, ambos con la misma fecha y la misma glosa. Además guarda **Pares** (Pairs). Cada Par une una línea del primer asiento con una línea del segundo: las dos mitades de una misma posición, como la cuenta por cobrar del prestamista y la cuenta por pagar del deudor. Una vista consolidada elimina las líneas pareadas.
+
+El asiento intercompañía cambia solo como un todo. Lo creas, lo lees y lo anulas. Nada lo edita en su lugar, y sus dos asientos contables rechazan las ediciones normales de un asiento. Para corregir un error, [anúlalo y créalo de nuevo](#corregir-un-asiento-intercompañía).
+
+Las rutas viven bajo la Organización, no bajo una Entidad:
+
+| Método | Ruta | Qué hace |
+| --- | --- | --- |
+| `GET` | `/api/organizations/:organizationId/intercompany-entries` | [Lista los asientos intercompañía](#get-/api/organizations/organizationid/intercompany-entries), de la fecha más reciente a la más antigua |
+| `GET` | `/api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` | [Lee uno](#get-/api/organizations/organizationid/intercompany-entries/intercompanyentryid) con sus dos asientos contables y sus Pares |
+| `POST` | `/api/organizations/:organizationId/intercompany-entries` | [Lo crea](#post-/api/organizations/organizationid/intercompany-entries) y registra ambos asientos contables |
+| `DELETE` | `/api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` | [Lo anula (Unbook)](#delete-/api/organizations/organizationid/intercompany-entries/intercompanyentryid) junto con ambos asientos contables |
+
+<Warning>
+  No existe `PATCH` ni `PUT` sobre un asiento intercompañía, ni subrutas `/reverse` o `/unbook`. Esas solicitudes devuelven `404`. `DELETE` es el Unbook. No es un borrado definitivo: el asiento intercompañía y sus asientos contables siguen siendo legibles, y su historial se conserva.
+</Warning>
+
+Todos los montos son enteros en la unidad mínima de la moneda (por ejemplo, centavos). Las fechas son cadenas `YYYY-MM-DD`. Las marcas de tiempo son fechas y horas ISO 8601.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/intercompany-entries/{intercompanyEntryId}"
+  note="La lista está en /organizations/{organizationId}/intercompany-entries, bajo Intercompañía en la barra lateral de Grupo. En la app, el Unbook es la acción Eliminar operación."
+/>
+
+## Acceso
+
+Un asiento intercompañía contiene los libros de dos Entidades, así que cada ruta pide acceso a la Organización completa:
+
+- **Usa una clave de API de nivel Organización.** Crea la clave con **Todas las empresas** en el selector **Empresa** (consulta [Obtén una clave de API](/es/guides/api-keys)). Una clave acotada a una sola Entidad recibe `403` con `PERMISSION_DENIED_ERROR` en todas las rutas de esta página, también al leer.
+- **Escribir requiere un Rol que escriba.** `POST` y `DELETE` necesitan el Rol `staff` o `client`. Un `viewer` puede listar y leer, y recibe `403` con `PERMISSION_DENIED_ERROR` al escribir. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
+- **Envía los encabezados de auditoría al escribir.** Con una clave de API, `POST` y `DELETE` necesitan `x-audit-actor` y `x-audit-reason`, como toda mutación. Consulta [Autenticación](/es/api-reference/overview#autenticación).
+
+Un asiento intercompañía que la Organización no tiene, incluido uno de otra Organización, devuelve `404` con `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR`.
+
+## El objeto asiento intercompañía
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | UUID | Id del asiento intercompañía, elegido por el cliente al crearlo |
+| `organizationId` | UUID | Organización que lo contiene |
+| `status` | enum | `active`, o `deleted` una vez anulado |
+| `memo` | string o null | Glosa, compartida por ambos asientos contables |
+| `createdAt` | fecha y hora ISO | Marca de tiempo de creación |
+| `updatedAt` | fecha y hora ISO | Marca de tiempo de la última actualización |
+
+El asiento intercompañía no tiene fecha propia. La lista y el detalle agregan `entryDate`, la fecha que llevan sus dos asientos contables.
+
+## GET /api/organizations/:organizationId/intercompany-entries
+
+Lista los asientos intercompañía de la Organización en páginas por cursor (keyset), con el `entryDate` más reciente primero. La lista incluye los anulados, con `status` en `deleted`.
+
+- **Parámetro de ruta:** `organizationId` (UUID)
+- **Parámetros de consulta:**
+
+| Parámetro | Tipo | Obligatorio | Por defecto | Descripción |
+| --- | --- | --- | --- | --- |
+| `cursor` | UUID | No | — | `nextCursor` de la página anterior, el id de su último asiento intercompañía. Un id que la Organización no tiene devuelve `404` con `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR`. |
+| `limit` | integer | No | 50 | Tamaño de página, de 1 a 100 |
+
+No se acepta ningún otro parámetro de consulta. Uno desconocido devuelve `400`.
+
+- **Respuesta exitosa:** una página de asientos intercompañía
+- **Estado:** 200
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `intercompanyEntries` | array | Los asientos intercompañía de esta página, cada uno con los campos de abajo |
+| `nextCursor` | UUID o null | Pásalo como `cursor` para obtener la página siguiente; `null` en la última página |
+
+Cada elemento de `intercompanyEntries` es el objeto asiento intercompañía más:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `entryDate` | fecha ISO | Fecha de sus dos asientos contables |
+| `ledgerEntries` | array | Sus dos asientos contables, ordenados por nombre de Entidad: `{ id, entityId, entityName }` |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries?limit=20" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "intercompanyEntries": [
+    {
+      "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+      "status": "active",
+      "memo": "Préstamo a Operaciones",
+      "createdAt": "2026-10-02T13:15:20.000Z",
+      "updatedAt": "2026-10-02T13:15:20.000Z",
+      "entryDate": "2026-10-01",
+      "ledgerEntries": [
+        {
+          "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "entityName": "Holding SpA"
+        },
+        {
+          "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "entityName": "Operaciones SpA"
+        }
+      ]
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+## GET /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId
+
+Lee un asiento intercompañía con sus dos asientos contables, sus líneas y sus Pares. Uno anulado sigue siendo legible.
+
+- **Parámetros de ruta:** `organizationId` (UUID), `intercompanyEntryId` (UUID)
+- **Respuesta exitosa:** el detalle del asiento intercompañía
+- **Estado:** 200
+
+El detalle es el objeto asiento intercompañía más:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `entryDate` | fecha ISO | Fecha de sus dos asientos contables |
+| `ledgerEntries` | array | Sus dos asientos contables, ordenados por nombre de Entidad, cada uno con los campos de abajo |
+| `pairs` | array | Sus Pares, cada uno con los campos de abajo |
+
+Cada elemento de `ledgerEntries`:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | UUID | Id del asiento contable |
+| `entityId` | UUID | Entidad que contiene el asiento |
+| `entityName` | string | Nombre de esa Entidad |
+| `entryDate` | fecha ISO | La fecha del asiento intercompañía |
+| `memo` | string o null | La glosa del asiento intercompañía |
+| `notes` | string o null | Siempre `null`: el asiento intercompañía no lleva notas |
+| `status` | enum | Estado del asiento contable: `active` mientras el asiento intercompañía está activo, `deleted` una vez anulado |
+| `reversalOfEntryId` | UUID o null | Siempre `null`: un asiento de un asiento intercompañía nunca es una reversa |
+| `bookId` | UUID o null | [Libro](/api-reference/books) en el que cuenta el asiento; `null` cuando es común |
+| `intercompanyEntryId` | UUID | El id del asiento intercompañía |
+| `createdAt` | fecha y hora ISO | Marca de tiempo de creación |
+| `updatedAt` | fecha y hora ISO | Marca de tiempo de la última actualización |
+| `lines` | array | Las líneas del asiento, con los mismos campos que las `lines` de [`GET /api/entities/:entityId/ledger/entries/:entryId`](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid) |
+
+Una línea que está en un Par lleva el id del Par en `intercompanyPairId`. Una línea sin Par lleva `null`.
+
+Cada elemento de `pairs`:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | UUID | Id del Par, elegido por Sintropix |
+| `lines` | array | Exactamente dos elementos, `{ lineId, entityId }`, en el orden de `ledgerEntries` |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries/$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+La respuesta tiene la misma forma que la [respuesta de creación](#post-/api/organizations/organizationid/intercompany-entries).
+
+## POST /api/organizations/:organizationId/intercompany-entries
+
+Crea un asiento intercompañía. En una sola transacción, Sintropix registra un asiento contable en cada una de las dos Entidades, los vincula al asiento intercompañía y guarda los Pares. Si falla cualquier validación, no se escribe nada.
+
+- **Parámetro de ruta:** `organizationId` (UUID)
+- **Cuerpo:**
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID | Sí | Id del asiento intercompañía, elegido por el cliente. Un reintento con el mismo `id` devuelve `409` con `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, así que repetir la solicitud nunca registra dos veces. |
+| `entryDate` | fecha ISO | Sí | Fecha de ambos asientos contables. Debe ser posterior a la Fecha de bloqueo de ambas Entidades. |
+| `memo` | string o null | Sí | Glosa de ambos asientos contables |
+| `newLedgerEntries` | array | Sí | Exactamente dos asientos, uno por Entidad, cada uno con los campos de abajo. Los dos `entityId` deben ser distintos. |
+| `newIntercompanyPairs` | array | Sí | De 1 a 5.000 Pares, cada uno con los campos de abajo |
+
+Cada elemento de `newLedgerEntries`:
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID | Sí | Id del asiento contable, elegido por el cliente |
+| `entityId` | UUID | Sí | Una Entidad de la Organización |
+| `newLedgerEntryLines` | array | Sí | De 2 a 5.000 líneas, cuadradas (el total del debe es igual al del haber) |
+
+Cada línea tiene los campos de una línea de [`POST /api/entities/:entityId/ledger/entries`](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries): `id`, `accountId`, `functionalAmount`, `side` y, de forma opcional, `partnerId`, el trío de transacción (`transactionCurrency`, `transactionAmount`, `transactionFxRate`) y `dimensionValueIds`. Cada id de línea debe ser nuevo y único entre ambos asientos.
+
+Cada elemento de `newIntercompanyPairs`:
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `lineIds` | [UUID, UUID] | Sí | Una línea del primer asiento y luego una línea del segundo, en el orden de `newLedgerEntries` |
+
+Los Pares siguen estas reglas:
+
+- **Un Par por línea.** Una línea está en un Par como máximo. Una línea sin Par es una línea normal de su asiento, como el lado del banco en un préstamo.
+- **Lados opuestos.** Un Par es un debe en una Entidad y un haber en la otra, para que la eliminación lo cancele. Si no: `422` con `INTERCOMPANY_PAIR_SAME_SIDE_ERROR`.
+- **Mismo monto.** Ambas líneas llevan la misma moneda y el mismo monto. Una línea en moneda extranjera lo lleva en su trío de transacción. Cualquier otra lo lleva en su `functionalAmount`, en la moneda funcional de su Entidad. Si no: `422` con `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR`.
+- **Una moneda por asiento intercompañía.** Su moneda es la de su primer Par. Un Par en otra moneda devuelve `422` con `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR`.
+- **Un tipo de cambio por Entidad.** Cuando una Entidad recibe la moneda del asiento intercompañía como moneda extranjera, sus líneas pareadas llevan un solo tipo de cambio. `"0.9"` y `"0.90"` cuentan como el mismo. Si no: `422` con `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR`, que nombra la Entidad.
+- **Sin Partner en una línea pareada.** Omite `partnerId` o envíalo en `null`. Sintropix lo fija en el [Partner que representa](/api-reference/partners#representing-partners) a la otra Entidad.
+
+Cada asiento contable además pasa todas las validaciones de un asiento normal, incluida la Fecha de bloqueo.
+
+- **Respuesta exitosa:** el detalle del asiento intercompañía, con la misma forma que la [lectura](#get-/api/organizations/organizationid/intercompany-entries/intercompanyentryid)
+- **Estado:** 201
+
+Holding le presta 5.000.000 CLP a Operaciones. Ambas Entidades llevan sus libros en CLP, así que cada línea pareada lleva el monto en `functionalAmount`:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Registrar el préstamo de octubre de Holding a Operaciones" \
+  -d '{
+    "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+    "entryDate": "2026-10-01",
+    "memo": "Préstamo a Operaciones",
+    "newLedgerEntries": [
+      {
+        "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+        "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "newLedgerEntryLines": [
+          { "id": "c1000000-0000-4000-8000-000000000001", "accountId": "a1000000-0000-4000-8000-000000000001", "functionalAmount": 5000000, "side": "debit" },
+          { "id": "c1000000-0000-4000-8000-000000000002", "accountId": "a1000000-0000-4000-8000-000000000002", "functionalAmount": 5000000, "side": "credit" }
+        ]
+      },
+      {
+        "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+        "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "newLedgerEntryLines": [
+          { "id": "c2000000-0000-4000-8000-000000000001", "accountId": "b2000000-0000-4000-8000-000000000001", "functionalAmount": 5000000, "side": "debit" },
+          { "id": "c2000000-0000-4000-8000-000000000002", "accountId": "b2000000-0000-4000-8000-000000000002", "functionalAmount": 5000000, "side": "credit" }
+        ]
+      }
+    ],
+    "newIntercompanyPairs": [
+      { "lineIds": ["c1000000-0000-4000-8000-000000000001", "c2000000-0000-4000-8000-000000000002"] }
+    ]
+  }'
+```
+
+El Par une la cuenta por cobrar de Holding (debe) con la cuenta por pagar de Operaciones (haber). Las dos líneas de banco quedan sin Par.
+
+```json
+{
+  "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+  "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+  "status": "active",
+  "memo": "Préstamo a Operaciones",
+  "createdAt": "2026-10-02T13:15:20.000Z",
+  "updatedAt": "2026-10-02T13:15:20.000Z",
+  "entryDate": "2026-10-01",
+  "ledgerEntries": [
+    {
+      "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "entityName": "Holding SpA",
+      "entryDate": "2026-10-01",
+      "memo": "Préstamo a Operaciones",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "createdAt": "2026-10-02T13:15:20.000Z",
+      "updatedAt": "2026-10-02T13:15:20.000Z",
+      "lines": [
+        {
+          "id": "c1000000-0000-4000-8000-000000000001",
+          "entryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "accountId": "a1000000-0000-4000-8000-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "functionalAmount": 5000000,
+          "side": "debit",
+          "partnerId": "d2000000-0000-4000-8000-000000000001",
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "1180",
+          "accountName": "Cuentas por cobrar a empresas relacionadas",
+          "accountType": "asset",
+          "partnerName": "Operaciones SpA",
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": "e0000000-0000-4000-8000-000000000001"
+        },
+        {
+          "id": "c1000000-0000-4000-8000-000000000002",
+          "entryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "accountId": "a1000000-0000-4000-8000-000000000002",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "functionalAmount": 5000000,
+          "side": "credit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "1110",
+          "accountName": "Banco",
+          "accountType": "asset",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": null
+        }
+      ]
+    },
+    {
+      "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+      "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "entityName": "Operaciones SpA",
+      "entryDate": "2026-10-01",
+      "memo": "Préstamo a Operaciones",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "createdAt": "2026-10-02T13:15:20.000Z",
+      "updatedAt": "2026-10-02T13:15:20.000Z",
+      "lines": [
+        {
+          "id": "c2000000-0000-4000-8000-000000000001",
+          "entryId": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "accountId": "b2000000-0000-4000-8000-000000000001",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "functionalAmount": 5000000,
+          "side": "debit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "1110",
+          "accountName": "Banco",
+          "accountType": "asset",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": null
+        },
+        {
+          "id": "c2000000-0000-4000-8000-000000000002",
+          "entryId": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "accountId": "b2000000-0000-4000-8000-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "functionalAmount": 5000000,
+          "side": "credit",
+          "partnerId": "d1000000-0000-4000-8000-000000000001",
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "2180",
+          "accountName": "Cuentas por pagar a empresas relacionadas",
+          "accountType": "liability",
+          "partnerName": "Holding SpA",
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": "e0000000-0000-4000-8000-000000000001"
+        }
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "id": "e0000000-0000-4000-8000-000000000001",
+      "lines": [
+        { "lineId": "c1000000-0000-4000-8000-000000000001", "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        { "lineId": "c2000000-0000-4000-8000-000000000002", "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }
+      ]
+    }
+  ]
+}
+```
+
+Un asiento intercompañía con fecha igual o anterior a la Fecha de bloqueo de cualquiera de las dos Entidades se rechaza y no se escribe nada:
+
+```json
+{
+  "code": "LEDGER_ENTRY_DATE_LOCKED_ERROR",
+  "params": { "entryDate": "2026-09-30", "ledgerLockDate": "2026-09-30" }
+}
+```
+
+## DELETE /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId
+
+Hace el **Unbook** (anulación) del asiento intercompañía. En una sola transacción, Sintropix anula ambos asientos contables y deja el `status` del asiento intercompañía en `deleted`. Cada asiento se anula igual que lo hace [`DELETE /api/entities/:entityId/ledger/entries/:entryId`](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid) con un asiento. Se anulan ambos asientos o ninguno.
+
+No es un borrado definitivo. El asiento intercompañía, sus dos asientos contables, sus líneas y los Pares siguen siendo legibles, con `status` en `deleted`. Su historial se mantiene en el [registro de auditoría](#historial).
+
+- **Parámetros de ruta:** `organizationId` (UUID), `intercompanyEntryId` (UUID)
+- **Respuesta exitosa:** cada fila que cambió el Unbook
+- **Estado:** 200
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `unbookedIntercompanyEntry` | object | El objeto asiento intercompañía, con `status` en `deleted` |
+| `ledgerEntryUnbookResults` | array | Dos elementos, uno por asiento contable, ordenados por nombre de Entidad. Cada uno tiene la forma de la [respuesta del Unbook de un asiento](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid): `unbookedEntry`, `severedInvoices`, `severedMovements` y `settledChainEntries` |
+
+Como un Unbook normal, también corta las [Asignaciones](/api-reference/allocations) y las conciliaciones bancarias (Matches) que saldan las líneas de los asientos.
+
+El Unbook se rechaza cuando:
+
+- **Cualquiera de los asientos tiene fecha igual o anterior a la Fecha de bloqueo de su Entidad.** La solicitud devuelve `409` con `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR`. `params` nombra el asiento, su fecha y la Fecha de bloqueo de su Entidad. El asiento intercompañía y ambos asientos siguen en `active`.
+- **El asiento intercompañía ya está anulado.** La solicitud devuelve `409` con `INTERCOMPANY_ENTRY_NOT_ACTIVE_ERROR`.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries/$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Monto incorrecto en el préstamo de octubre; se vuelve a registrar"
+```
+
+```json
+{
+  "unbookedIntercompanyEntry": {
+    "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+    "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+    "status": "deleted",
+    "memo": "Préstamo a Operaciones",
+    "createdAt": "2026-10-02T13:15:20.000Z",
+    "updatedAt": "2026-10-05T09:40:02.000Z"
+  },
+  "ledgerEntryUnbookResults": [
+    {
+      "unbookedEntry": {
+        "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+        "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "entryDate": "2026-10-01",
+        "memo": "Préstamo a Operaciones",
+        "notes": null,
+        "status": "deleted",
+        "reversalOfEntryId": null,
+        "bookId": null,
+        "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+        "createdAt": "2026-10-02T13:15:20.000Z",
+        "updatedAt": "2026-10-05T09:40:02.000Z"
+      },
+      "severedInvoices": [],
+      "severedMovements": [],
+      "settledChainEntries": []
+    },
+    {
+      "unbookedEntry": {
+        "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+        "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "entryDate": "2026-10-01",
+        "memo": "Préstamo a Operaciones",
+        "notes": null,
+        "status": "deleted",
+        "reversalOfEntryId": null,
+        "bookId": null,
+        "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+        "createdAt": "2026-10-02T13:15:20.000Z",
+        "updatedAt": "2026-10-05T09:40:02.000Z"
+      },
+      "severedInvoices": [],
+      "severedMovements": [],
+      "settledChainEntries": []
+    }
+  ]
+}
+```
+
+Un Unbook rechazado, porque el asiento de Holding cae en su período bloqueado:
+
+```json
+{
+  "code": "LEDGER_ENTRY_UNBOOK_FROZEN_ERROR",
+  "params": {
+    "ledgerEntryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+    "entryDate": "2026-10-01",
+    "ledgerLockDate": "2026-10-31"
+  }
+}
+```
+
+## Corregir un asiento intercompañía
+
+No puedes editar un asiento intercompañía ni ninguno de sus dos asientos contables. Para cambiar su fecha, glosa, montos, cuentas, Entidades o Pares, anúlalo y créalo de nuevo:
+
+<Steps>
+  <Step title="Lee el asiento intercompañía">
+    `GET /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` devuelve lo que necesitas para rehacerlo: la fecha, la glosa, ambos asientos con sus líneas y los Pares.
+  </Step>
+  <Step title="Anúlalo con DELETE">
+    `DELETE /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` anula ambos asientos en una sola transacción. No es un borrado definitivo. El asiento intercompañía y sus asientos siguen siendo legibles con `status` en `deleted`, y el [registro de auditoría](#historial) conserva su historial.
+  </Step>
+  <Step title="Crea el asiento corregido con POST">
+    Envía `POST /api/organizations/:organizationId/intercompany-entries` con el cuerpo corregido. Usa **ids nuevos** para el asiento intercompañía, para ambos asientos y para cada línea. El asiento anulado conserva sus ids, así que reutilizar su `id` devuelve `409` con `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, y reutilizar un id de línea devuelve `409` con `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+  </Step>
+</Steps>
+
+Si cualquiera de los asientos tiene fecha igual o anterior a la Fecha de bloqueo de su Entidad, el Unbook devuelve `409` con `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` y no puedes corregirlo así. Registra un asiento intercompañía de ajuste con fecha en un período abierto, o pide a quien administra los libros que mueva la [Fecha de bloqueo](/api-reference/entities#patch-/api/entities/entityid/ledger-lock-date).
+
+Estas solicitudes no existen y devuelven `404`:
+
+- `PATCH` o `PUT /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId`
+- `POST /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId/reverse`
+- `POST /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId/unbook`
+
+Las [rutas de asientos contables](/api-reference/ledger-entries#entries-of-an-intercompany-entry) rechazan editar, anular, reversar, reclasificar o cambiar el Partner de un asiento de un asiento intercompañía por sí solo. Devuelven `409` con `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR`, y `params.intercompanyEntryId` nombra el asiento intercompañía que debes anular. Todavía puedes etiquetar sus líneas con [valores de Dimensión](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values) sin tocar el asiento intercompañía.
+
+## Encontrar el asiento intercompañía de un asiento contable
+
+Un asiento contable que pertenece a un asiento intercompañía lo indica dondequiera que lo encuentres:
+
+- El objeto asiento contable lleva `intercompanyEntryId`, el id del asiento intercompañía, o `null` en un asiento normal.
+- Las filas de [`GET /api/entities/:entityId/ledger/entries`](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries) y el [detalle del asiento](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid) llevan `otherEntityOfIntercompanyEntry`: `{ id, name }` de la otra Entidad, o `null`.
+- Una línea del [libro mayor](/api-reference/reports#general-ledger) lleva el `intercompanyEntryId` de su asiento.
+
+## Historial
+
+Cada creación y cada Unbook quedan en el [registro de auditoría](/api-reference/audit-trail). Lee el historial de un asiento intercompañía a través de cualquiera de sus dos Entidades:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=intercompany_entry&rowId=$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+Sus cambios también aparecen en el [Log de la Organización](/api-reference/audit-trail#list-the-organization-log). El historial propio de cada asiento contable está bajo `tableName=ledger_entry` y el id del asiento.
+
+## Códigos de error de dominio
+
+| Código | Estado | Significado |
+| --- | --- | --- |
+| `PERMISSION_DENIED_ERROR` | `403` | La clave de API está acotada a una Entidad (todas las rutas), o el Rol de quien llama no puede escribir (`POST`, `DELETE`) |
+| `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR` | `404` | La Organización no tiene un asiento intercompañía con ese id, o el `cursor` de la lista no nombra ninguno. `params.intercompanyEntryId` |
+| `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR` | `409` | Ya existe un asiento intercompañía con ese `id`, activo o anulado. `params.intercompanyEntryId` |
+| `INTERCOMPANY_ENTRY_NOT_ACTIVE_ERROR` | `409` | El asiento intercompañía ya está anulado. `params.intercompanyEntryId` |
+| `INTERCOMPANY_ENTRY_ENTITY_IN_ANOTHER_ORGANIZATION_ERROR` | `409` | Un `entityId` no es una Entidad de la Organización, exista o no. `params.entityId` |
+| `INTERCOMPANY_PAIR_SAME_SIDE_ERROR` | `422` | Las dos líneas de un Par están en el mismo lado. `params.lineIds` |
+| `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR` | `422` | Las dos líneas de un Par difieren en moneda o monto. `params.lineIds` |
+| `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR` | `422` | Un Par está en otra moneda que el primer Par. `params.lineIds` |
+| `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR` | `422` | Las líneas pareadas de una Entidad llevan tipos de cambio distintos. `params.entityId` |
+| `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` | `409` | Un id de línea se usa dos veces en el asiento intercompañía, o ya existe. `params.lineIds` |
+| `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | Al crear: `entryDate` es igual o anterior a la Fecha de bloqueo de cualquiera de las dos Entidades. `params.entryDate`, `params.ledgerLockDate` |
+| `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | `409` | Al anular: un asiento tiene fecha igual o anterior a la Fecha de bloqueo de su Entidad. `params.ledgerEntryId`, `params.entryDate`, `params.ledgerLockDate` |
+
+Al crear, cada asiento contable también puede devolver cualquier [error de asiento contable](/api-reference/ledger-entries#domain-error-codes) de una creación normal, como `LEDGER_ACCOUNT_NOT_FOUND_ERROR`.
+
+## Códigos de estado
+
+| Estado | Significado |
+| --- | --- |
+| 200 | Éxito (GET, DELETE) |
+| 201 | Creado (POST) |
+| 400 | Error de validación: un cuerpo o una consulta mal formados, un asiento descuadrado, dos asientos en la misma Entidad, ningún Par, un Par que no nombra una línea de cada asiento en orden, una línea en dos Pares, una línea pareada con `partnerId`, o falta un encabezado de auditoría |
+| 401 | Sin autenticar |
+| 403 | `PERMISSION_DENIED_ERROR` |
+| 404 | El asiento intercompañía no existe en la Organización, o la ruta no existe (`PATCH`, `PUT`, `/reverse`, `/unbook`) |
+| 409 | Violación de una regla de dominio |
+| 422 | Un Par incumple una regla de los Pares |
