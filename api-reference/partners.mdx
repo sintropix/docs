@@ -6,12 +6,12 @@ description: "List, create, use, edit, merge, and stop using the Partners (custo
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Partner is any counterparty on your books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, [the Organization's Partners](#organization-partners), [Aliases](#aliases), [merging duplicate Partners](#merge-partners), [Bank Details](#bank-details), and Booking Templates.
+A Partner is any counterparty on your books: a customer, a supplier, an employee, or a tax authority. Partners are referenced from Invoices, Ledger Lines with Open Items, and Bank Movement matches. This page covers Partner CRUD, the paginated Partner listing, [Partner options for pickers](#get-/partners/options), [the Organization's Partners](#organization-partners), [Aliases](#aliases), [merging duplicate Partners](#merge-partners), [Bank Details](#bank-details), and Booking Templates.
 
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
 <Note>
-  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /partners/pages` requires a `bookId` query parameter — the `openReceivable` and `openPayable` totals on the page rows are then computed inside that Book. `GET /partners` and the Partner rows returned by create, update, and delete stay outside the rule and surface open totals across every Book.
+  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /partners/pages` requires a `bookId` query parameter — the `openReceivable` and `openPayable` totals on the page rows are then computed inside that Book. `GET /partners` and the Partner rows returned by create, update, and delete stay outside the rule and surface open totals across every Book. `GET /partners/counts`, `GET /partners/options`, and `GET /partners/:partnerId` carry no open totals and take no `bookId`.
 </Note>
 
 <AppLink
@@ -114,8 +114,8 @@ Paginated listing of the Partners the Entity uses, for UI use. Merged Partners a
 | --- | --- | --- |
 | `partners` | array | The Partner rows on this page (see below). |
 | `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page. |
-| `totalCount` | integer | Partners matching the filters, across all pages. |
-| `withoutDefaultPurchaseAccountCount` | integer | Of those, how many have no default purchase account. |
+
+The page carries no counts. Read them from [`GET /partners/counts`](#get-/partners/counts).
 
 Each element of `partners` is a **Partner row**: every field of the Partner object above, plus:
 
@@ -139,6 +139,93 @@ The type of `group.value` depends on `group.by`:
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/pages?role=vendor&defaultPurchaseAccountFilter=missing&limit=25" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/partners/counts`
+
+Count the Partners the Entity uses, for the tabs of a Partner listing. Merged Partners are never counted. The counts don't depend on a search or any filter other than `role`, so read them once per tab, not on every page.
+
+**Query parameters.** Unknown parameters are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `role` | string | No | `vendor` or `customer`. Counts only the Partners that have this [role](#roles) in the Entity. Omit to count every Partner. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `totalCount` | integer | Partners counted. |
+| `withoutDefaultPurchaseAccountCount` | integer | Of those, the vendors with no default purchase account in this Entity. |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/counts?role=vendor" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{ "totalCount": 412, "withoutDefaultPurchaseAccountCount": 37 }
+```
+
+## GET `/partners/options`
+
+Search the Partners the Entity uses, a short page at a time, to fill a Partner picker or filter. Each option carries only what identifies the Partner. Use it instead of `GET /partners` when you need to offer a choice of Partners: it reads no open totals and doesn't return every Partner at once.
+
+It answers in one of two ways:
+
+- **Search.** Without `partnerIds`, it lists Partners in name order, a page at a time. A search never finds a [Merged Partner](#after-a-merge).
+- **By id.** With `partnerIds`, it returns those Partners, in name order, on one page, so a field that already holds Partners can show them. Merged Partners are included. An id the Entity doesn't use is left out. `cursor`, `limit`, and `search` are ignored.
+
+**Query parameters.** Unknown parameters are rejected with `400`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `search` | string | No | Case-insensitive contains-match on `name`, `legalName`, and `taxId`. Also matches [Aliases](#aliases), ignoring case, accents, punctuation, and spacing. At most 100 characters; blank is ignored. |
+| `cursor` | uuid | No | The `nextCursor` of the previous page. Omit for the first page. A cursor that is not a Partner of the search answers `404` with `PARTNER_NOT_FOUND_ERROR`. |
+| `limit` | integer | No | Options per page, 1 to 100. Default `20`. |
+| `partnerIds` | uuid | No | The Partners to return by id. Repeat the parameter for several, up to 100: `?partnerIds=<id>&partnerIds=<id>`. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `partners` | array | The options on this page, each `{ id, name, taxId, website }`. `taxId` and `website` can be null. |
+| `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page, and always null when you pass `partnerIds`. |
+
+Show the Partner's [logo](#get-/api/organizations/organizationid/partners/partnerid/logo) next to an option when its `website` is set.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/options?search=cloud" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "partners": [
+    {
+      "id": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88",
+      "name": "Servicios Cloud SpA",
+      "taxId": "76123456-0",
+      "website": "servicioscloud.cl"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+In the app, the Partner pickers and Partner filters read their options this way. A picker loads more options as you scroll it. When the read fails, the picker shows the error and a button to retry.
+
+## GET `/partners/:partnerId`
+
+Read one Partner the Entity uses, with this Entity's settings for it. Use it, for example, to read the `defaultPurchaseAccountId` a bill booking should propose.
+
+**Response:** the Partner's shared fields (`id`, `organizationId`, `representsEntityId`, `name`, `legalName`, `country`, `taxId`, `website`, `aliases`, `mergedIntoPartnerId`, `createdAt`, and `updatedAt`), plus this Entity's `entityId`, `defaultPurchaseAccountId`, and `booksAutomatically`. It carries no open totals and no roles. Each field is described under [`GET /partners`](#get-/partners).
+
+A Partner the Entity doesn't use answers `404` with `PARTNER_NOT_FOUND_ERROR`.
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -314,7 +401,7 @@ An Alias is another name that finds a Partner. Use Aliases when one counterparty
 - Two names count as the same name when they differ only in case, accents, punctuation, or spacing.
 - Each name belongs to at most one Partner per Organization. An Alias that matches another Partner's display name or Alias is refused with `409` (`PARTNER_ALIAS_TAKEN_ERROR`). The error `params` hold the `alias`, plus the `partnerId` and `partnerName` of the Partner that already has it.
 - An Alias needs at least one letter or digit (`400`).
-- Partner search on `GET /partners/pages` and in the app's Partner pickers matches Aliases.
+- Partner search on `GET /partners/pages`, `GET /partners/options`, and in the app's Partner pickers matches Aliases.
 - An Alias never sets a Partner on a Bank Movement.
 
 Aliases also decide where Source Feed documents from foreign counterparties land. The SII gives every counterparty outside Chile the RUT `55555555-5`, so Sintropix finds a foreign Partner by the name the provider states. It first looks for the Partner that holds that name as an Alias. It then looks for a Partner whose display name is the same name, and takes the oldest if several match. It never picks a Merged Partner. Add a spelling as an Alias to route future documents with that spelling to the right Partner.
@@ -381,7 +468,7 @@ The merge also clears every [Follow-up](/api-reference/follow-ups) that names th
 
 A Merged Partner:
 
-- Does not appear in `GET /partners/pages`, Partner search, or pickers. `GET /partners` still returns it.
+- Does not appear in `GET /partners/pages`, Partner search, or pickers. `GET /partners` still returns it, and so does `GET /partners/options` when you name it in `partnerIds`.
 - Is never matched by a Source Feed.
 - Cannot be edited, deleted, merged, used in another Entity, or given a Booking Template (`409`, `PARTNER_MERGED_ERROR`).
 - Cannot be named on a new or updated Ledger Line, Invoice, or Bank Movement. Those writes return `409` with `LEDGER_ENTRY_LINE_PARTNER_MERGED_ERROR`, `INVOICE_PARTNER_MERGED_ERROR`, or `BANK_MOVEMENT_PARTNER_MERGED_ERROR`. Use the Partner in `mergedIntoPartnerId` instead.
