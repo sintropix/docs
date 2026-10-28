@@ -1,6 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Sintropix",
+  "description": "Sintropix documentation in English and Spanish: step-by-step guides for account owners, such as forwarding invoices from Gmail, and the API, MCP server, and OAuth reference for building agents and integrations on Sintropix.",
   "theme": "luma",
   "colors": {
     "primary": "#3a48b0",
@@ -218,6 +219,14 @@
       "label": "Get Started",
       "href": "https://sintropix.com"
     }
+  },
+  "markdown": {
+    "instructions": [
+      "These docs are in English and Spanish. Spanish pages live under /es/, for example https://docs.sintropix.com/es/guides/gmail-forwarding.md. If the user writes in Spanish, answer from the Spanish page.",
+      "llms.txt links the Spanish index at https://docs.sintropix.com/_llms/es.txt. llms-full.txt holds the English pages only, so fetch Spanish pages by adding .md to their URL.",
+      "With the Sintropix docs MCP server, pass language \"es\" to search_sintropix to get Spanish pages.",
+      "Step-by-step guides for account owners, such as forwarding invoices from Gmail to Sintropix and connecting Gmail, are under /guides/ (English) and /es/guides/ (Spanish)."
+    ]
   },
   "contextual": {
     "options": [
