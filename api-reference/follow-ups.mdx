@@ -28,7 +28,7 @@ An Invoice or Bank Movement [excluded from the books](/api-reference/invoices#ex
 
 A record holds at most one Follow-up. Writing a new one replaces the current one.
 
-Every Bank Movement and Invoice row carries a `followUp` field. It holds the Follow-up as written, or `null` when the record has none. To find records by Follow-up, filter [`GET /movements`](/api-reference/bank-movements#get-movements) or [`GET /invoices/pages`](/api-reference/invoices) with `followUpKind`. It takes `proposal`, `question`, `waiting`, or `none` (records with no Follow-up).
+Every Bank Movement and Invoice row carries a `followUp` field. It holds the Follow-up as written, or `null` when the record has none. To find records by Follow-up, filter [`GET /movements`](/api-reference/bank-movements#get-/movements) or [`GET /invoices/pages`](/api-reference/invoices) with `followUpKind`. It takes `proposal`, `question`, `waiting`, or `none` (records with no Follow-up).
 
 ## Kinds
 
@@ -67,15 +67,15 @@ A Plan is an ordered list of acts that an approval runs. Each act matches one ex
 
 | `act` | Path ids | Body key | Same body as |
 | --- | --- | --- | --- |
-| `bookMovement` | `bankAccountId`, `movementId` | `booking` | [`POST /movements/:movementId/book`](/api-reference/bank-movements#post-movements-movementid-book) |
-| `match` | `bankAccountId`, `movementId` | `match` | [`POST /movements/:movementId/match`](/api-reference/bank-movements#post-movements-movementid-match) |
-| `bookInvoice` | `invoiceId` | `booking` | [`POST /invoices/:invoiceId/book`](/api-reference/invoices#post-invoices-invoiceid-book), without `expectedBookingVersion` |
-| `matchLines` | none | `lineIds` at the top level of the act | [`POST /ledger/allocations/match`](/api-reference/allocations#post-api-entities-entityid-ledger-allocations-match) |
-| `assign` | `bankAccountId`, `movementId` | `assignment` | [`POST /movements/:movementId/assign`](/api-reference/bank-movements#post-movements-movementid-assign) |
+| `bookMovement` | `bankAccountId`, `movementId` | `booking` | [`POST /movements/:movementId/book`](/api-reference/bank-movements#post-/movements/movementid/book) |
+| `match` | `bankAccountId`, `movementId` | `match` | [`POST /movements/:movementId/match`](/api-reference/bank-movements#post-/movements/movementid/match) |
+| `bookInvoice` | `invoiceId` | `booking` | [`POST /invoices/:invoiceId/book`](/api-reference/invoices#post-/invoices/invoiceid/book), without `expectedBookingVersion` |
+| `matchLines` | none | `lineIds` at the top level of the act | [`POST /ledger/allocations/match`](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations/match) |
+| `assign` | `bankAccountId`, `movementId` | `assignment` | [`POST /movements/:movementId/assign`](/api-reference/bank-movements#post-/movements/movementid/assign) |
 
 A Plan needs at least one act. Keep these rules in mind when you build one:
 
-- **You choose every id.** Each entry `id` and each line `id` in the Plan is a UUID you generate. See [Ledger Entry Line ids](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries).
+- **You choose every id.** Each entry `id` and each line `id` in the Plan is a UUID you generate. See [Ledger Entry Line ids](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries).
 - **A later act can name a line an earlier act creates.** Use the line `id` you gave it. For example, one Plan can book an Invoice and then match a Movement to the Invoice's Control Line.
 - **An act can target a record other than the host.** A Plan on one leg of an internal transfer can book both legs and match the bridge lines.
 - **A `bookInvoice` act carries no booking version.** Writing the Follow-up changes the Invoice, so a version read before the write never matches at approval. Sintropix drops `expectedBookingVersion` from the act's `booking` and does not store it. The Follow-up `id` guards the Plan instead: an approval names the Follow-up it read, and a replaced one refuses to run.

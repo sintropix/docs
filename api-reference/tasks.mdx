@@ -37,7 +37,7 @@ Sintropix sets `completedAt` for you. It stamps the moment a Task first becomes 
 
 ## Assignee and due date
 
-A Task can be assigned to one staff Member of its Organization. List the staff a Task can take with [`GET /tasks/assignees`](#get-api-organizations-organizationid-tasks-assignees). Assigning a User who isn't a staff Member of the Organization is refused with `422` and `TASK_ASSIGNEE_NOT_STAFF_ERROR`. When a Member leaves the Organization, their Tasks stay and become unassigned.
+A Task can be assigned to one staff Member of its Organization. List the staff a Task can take with [`GET /tasks/assignees`](#get-/api/organizations/organizationid/tasks/assignees). Assigning a User who isn't a staff Member of the Organization is refused with `422` and `TASK_ASSIGNEE_NOT_STAFF_ERROR`. When a Member leaves the Organization, their Tasks stay and become unassigned.
 
 `dueDate` is a calendar day, `YYYY-MM-DD`. Lists show the nearest due date first and the Tasks with no due date last.
 
@@ -50,7 +50,7 @@ The assignee hears about their Tasks in the [Bandeja](/api-reference/notificatio
 
 A Task can hold subtasks (**subtareas** in the app), one level deep. Use them to split a piece of work into steps, such as one subtask per document you ask the client for. A subtask is an ordinary Task with a parent: it keeps its own state, assignee, due date, description, Task Links, and Notifications.
 
-- Create a subtask by sending `parentTaskId` when you [create the Task](#post-api-organizations-organizationid-tasks). A Task can't move under another parent later.
+- Create a subtask by sending `parentTaskId` when you [create the Task](#post-/api/organizations/organizationid/tasks). A Task can't move under another parent later.
 - A subtask can't hold subtasks. Naming a subtask as the parent is refused with `422` and `TASK_PARENT_IS_SUBTASK_ERROR`.
 - The parent must be a Task of the same Organization. Otherwise the create is refused with `404` and `TASK_PARENT_NOT_FOUND_ERROR`.
 - Deleting a Task deletes its subtasks too.
@@ -65,7 +65,7 @@ A Task Link (**Relación** in the app) relates a Task to one record: an Invoice,
 You relate records in two ways:
 
 - When you create the Task, send them in `links`.
-- Later, add one at a time with [`POST /tasks/:taskId/links`](#post-api-organizations-organizationid-tasks-taskid-links), and remove one with [`DELETE /tasks/:taskId/links/:taskLinkId`](#delete-api-organizations-organizationid-tasks-taskid-links-tasklinkid).
+- Later, add one at a time with [`POST /tasks/:taskId/links`](#post-/api/organizations/organizationid/tasks/taskid/links), and remove one with [`DELETE /tasks/:taskId/links/:taskLinkId`](#delete-/api/organizations/organizationid/tasks/taskid/links/tasklinkid).
 
 When a related record goes away, Sintropix removes that Task Link and keeps the Task with its other links, or stand-alone if it has none left. This happens when you:
 
@@ -267,7 +267,7 @@ curl -X PATCH "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/task
 
 ## POST `/api/organizations/:organizationId/tasks/:taskId/links`
 
-Relate a Task to one more record. The body is one Task Link item, as in the `links` of a [create](#post-api-organizations-organizationid-tasks): the `entityId` of the record's Entity and exactly one of `invoiceId`, `bankMovementId`, or `ledgerEntryId`.
+Relate a Task to one more record. The body is one Task Link item, as in the `links` of a [create](#post-/api/organizations/organizationid/tasks): the `entityId` of the record's Entity and exactly one of `invoiceId`, `bankMovementId`, or `ledgerEntryId`.
 
 Relating a record the Task already relates to changes nothing and returns the Task as it is.
 

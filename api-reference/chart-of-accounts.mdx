@@ -18,11 +18,11 @@ The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for
 The Organization owns one flat group chart. It is a list of Group Accounts (**Cuentas de grupo**), each with a code, a name, and a type. Every Ledger Account of every Entity of the Organization maps to exactly one Group Account of its own type. Because the mapping is total, the group chart adds up the books of every Entity by construction.
 
 - A Group Account code is unique in the Organization.
-- A Ledger Account names its Group Account in `groupAccountId` when you [create](#post-api-entities-entityid-ledger-accounts) it. You can't create one without it.
+- A Ledger Account names its Group Account in `groupAccountId` when you [create](#post-/api/entities/entityid/ledger/accounts) it. You can't create one without it.
 - To map a Ledger Account to another Group Account, `PATCH` it with a new `groupAccountId`.
 - A Ledger Account that changes `type` must name a Group Account of the new type in the same request.
 - You can always change a Group Account's code and name. Its type can't change, and it can't be deleted, while a Ledger Account maps to it.
-- An Entity that has Ledger Accounts can't [move to another Organization](/api-reference/entities#patch-api-entities-entityid-organization).
+- An Entity that has Ledger Accounts can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization).
 
 In the app, **Plan de cuentas** lives in the Organization's settings. It opens on **Grupo**, which lists each Group Account with the Ledger Accounts of each Entity nested under it. Pick an Entity in the switcher to see its own chart, with a **Cuenta de grupo** column.
 

@@ -226,7 +226,7 @@ Fetch one Sales Summary with the Invoices that land it.
 | Status | `code` | `params` | When |
 | --- | --- | --- | --- |
 | `404` | `SALES_SUMMARY_NOT_FOUND_ERROR` | `{ salesSummaryId }` | No Sales Summary with that id exists on the Entity. |
-| `409` | `DTE_HELD_BY_SALES_SUMMARY_ERROR` | `{ dteId }` | A write or delete of the DTE of a Sales Summary Invoice, through [`PUT` or `DELETE /invoices/:invoiceId/dte`](/api-reference/invoices#put-invoices-invoiceid-dte). The SII owns these DTEs, so only a Sync writes them. |
+| `409` | `DTE_HELD_BY_SALES_SUMMARY_ERROR` | `{ dteId }` | A write or delete of the DTE of a Sales Summary Invoice, through [`PUT` or `DELETE /invoices/:invoiceId/dte`](/api-reference/invoices#put-/invoices/invoiceid/dte). The SII owns these DTEs, so only a Sync writes them. |
 
 ## Status codes
 

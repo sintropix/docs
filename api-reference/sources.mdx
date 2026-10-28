@@ -20,7 +20,7 @@ An **Expense Rendition** (rendición) is an expense that a person of the Entity 
 Mark the Source of those documents as one that holds Expense Renditions (`holdsExpenseRenditions: true`). Every `payable` Invoice of a marked Source is an Expense Rendition:
 
 - In the app, it's listed in **Rendiciones** (under **Datos**) instead of **Compras**, with its own totals and counts. **Rendiciones** has the filters and groupings of **Compras** except the ones that read a DTE: no document type or DTE columns, no DTE type, Standing, or Tax Period filter, and no grouping by DTE type or Tax Period. **Nueva rendición** submits an [Expense Claim](/api-reference/expense-claims), which becomes an Expense Rendition when it's approved. The **Por aprobar** and **Rechazadas** views list the claims that wait and the rejected ones.
-- In the API, its Invoice row carries `isExpenseRendition: true`, and [`GET /invoices/pages`](/api-reference/invoices#get-invoices-pages) filters by it with `isExpenseRendition`.
+- In the API, its Invoice row carries `isExpenseRendition: true`, and [`GET /invoices/pages`](/api-reference/invoices#get-/invoices/pages) filters by it with `isExpenseRendition`.
 - The home dashboard counts it in `expenseRenditionsToBook`, not in `purchasesToBook`. See [Home dashboard](/api-reference/reports#home-dashboard).
 
 A `receivable` Invoice is never an Expense Rendition, whatever its Source. Sintropix reads the mark from the Source and never stores it on the Invoice. Unmark the Source and its Invoices go back to **Compras** right away, booked or not.

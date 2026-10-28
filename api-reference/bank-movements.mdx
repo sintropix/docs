@@ -435,7 +435,7 @@ Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | uuid | Yes | Client-generated id of the line. Must not already exist. See [Ledger Entries](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries). |
+| `id` | uuid | Yes | Client-generated id of the line. Must not already exist. See [Ledger Entries](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries). |
 | `accountId` | uuid | Yes | Ledger Account to post to. |
 | `functionalAmount` | integer | Yes | Amount in the functional currency's minor units, `0` or greater. |
 | `side` | `debit` \| `credit` | Yes | Line side. |
@@ -531,7 +531,7 @@ Keep these rules in mind:
 
 - A Match that leaves a rest is refused with `BANK_MOVEMENT_SUSPENSE_ACCOUNT_MISSING_ERROR` when the Entity has no Suspense Account. A Match with no rest works without one.
 - Assign and Unassign edit the Match's Ledger Entry in place. They do not create a new Entry. They work only on an active Entry dated after the Lock Date.
-- To undo the whole Match, unbook the Movement. [Reversing](/api-reference/ledger-entries#post-api-entities-entityid-ledger-entries-entryid-reverse) the Entry is refused while it still has a Suspense line.
+- To undo the whole Match, unbook the Movement. [Reversing](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse) the Entry is refused while it still has a Suspense line.
 - On a foreign-currency Bank Account, the Suspense line is stated in the Bank Account's currency at `bankLineFxRate`.
 - The Suspense Account cannot be a Match or Assign target, and you cannot post to it through manual entries or Reclassify.
 

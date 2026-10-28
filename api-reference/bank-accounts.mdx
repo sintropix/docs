@@ -65,7 +65,7 @@ Each Bank Account in the list carries:
 | `ledgerAccountId` | UUID | Mapped Ledger Account |
 | `currency` | string | ISO 4217 currency code |
 | `accountNumber` | string \| null | The number the bank knows the account by. `null` when not set. To be the **Cuenta de cargo** of a [Payment Batch](/api-reference/payment-batches#download-the-bank-file)'s BCI bank file, an account in `CLP` needs it. |
-| `bankCode` | string \| null | The bank that holds the account, as its CMF code from [`GET /banks`](/api-reference/reference-data#get-banks), for example `016` for BCI. `null` when not set. The app draws the account's logo from it, and only an account with `bankCode` `016` can be the **Cuenta de cargo** of a BCI bank file. |
+| `bankCode` | string \| null | The bank that holds the account, as its CMF code from [`GET /banks`](/api-reference/reference-data#get-/banks), for example `016` for BCI. `null` when not set. The app draws the account's logo from it, and only an account with `bankCode` `016` can be the **Cuenta de cargo** of a BCI bank file. |
 | `feed` | object \| null | Active feed, if any (see below) |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
@@ -141,7 +141,7 @@ Creates a new Bank Account.
 | `ledgerAccountId` | UUID | Yes | Ledger Account to map; type must match kind |
 | `currency` | string | Yes | ISO 4217 currency code |
 | `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. Omit or send `null` to leave it unset. |
-| `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. Omit or send `null` to leave it unset. |
+| `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-/banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. Omit or send `null` to leave it unset. |
 
 ### Response
 
@@ -188,7 +188,7 @@ Updates the name, the account number, and the bank of an existing Bank Account. 
 | --- | --- | --- | --- |
 | `name` | string | Yes | New display name (non-empty) |
 | `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. `null` clears it. Omit to keep the current number. |
-| `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. `null` clears it and keeps the account number. Omit to keep the current bank. |
+| `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-/banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. `null` clears it and keeps the account number. Omit to keep the current bank. |
 
 ### Response
 

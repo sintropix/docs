@@ -44,7 +44,7 @@ An API key confined to one Entity gets its own Entity as the one entry of `entit
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `status` | `active`, `inactive`, or `login_required` | Provider's judgment of the grant. `login_required` means the institution rejected the stored grant and you must [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect) |
+| `status` | `active`, `inactive`, or `login_required` | Provider's judgment of the grant. `login_required` means the institution rejected the stored grant and you must [reconnect](/api-reference/integrations#post-/integrations/integrationid/reconnect) |
 | `accounts` | `array` | Accounts the Provider discovered (see below) |
 | `entities` | `array` | Every Entity of the Organization a discovered account can feed, in name order (see below) |
 | `refreshing` | `boolean \| null` | `true` while the Provider is still refreshing the grant, `false` when every refresh has finished, `null` when the refresh state could not be read |
@@ -161,7 +161,7 @@ The endpoint returns `409 Conflict` with a body of `{ "code": "<code>", "params"
 | --- | --- |
 | `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR` | `providerAccountId` is not on the Integration's grant |
 | `DISCOVERED_ACCOUNT_FED_ERROR` | The account still feeds a Bank Account. Stop the feed on that Bank Account first, then retry |
-| `INTEGRATION_LAST_ACCOUNT_ERROR` | The account is the only one on the grant. [Disconnect](/api-reference/integrations#delete-integrations-integrationid) the whole Integration instead |
+| `INTEGRATION_LAST_ACCOUNT_ERROR` | The account is the only one on the grant. [Disconnect](/api-reference/integrations#delete-/integrations/integrationid) the whole Integration instead |
 | `INTEGRATION_GRANT_MISMATCH_ERROR` | The Integration is not a Global66 Integration |
 | `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` | The narrowed grant equals another existing Global66 Integration |
 
@@ -274,7 +274,7 @@ Mapping a discovered account to an existing Bank Account never answers `shortHis
 
 The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `400` with `BANK_FEED_START_DATE_IN_FUTURE_ERROR` or `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`.
 
-To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To check whether a feed's Movements add up to the Provider's balance, read its [tie-out](/api-reference/bank-accounts#tie-out). To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid).
+To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To check whether a feed's Movements add up to the Provider's balance, read its [tie-out](/api-reference/bank-accounts#tie-out). To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-/integrations/integrationid).
 
 ## What each Provider lands
 
@@ -320,7 +320,7 @@ The Mercado Pago Integration renews its authorization on its own before a sync r
 
 ### Plaid
 
-A Plaid Integration reads a US bank login through [Plaid](https://plaid.com). Connect it with [Plaid Link](/api-reference/integrations#post-integrations-plaid-link-tokens), then map the accounts you want in your books. You don't have to map every account: leave out the ones you don't need, such as a cash sweep account.
+A Plaid Integration reads a US bank login through [Plaid](https://plaid.com). Connect it with [Plaid Link](/api-reference/integrations#post-/integrations/plaid/link-tokens), then map the accounts you want in your books. You don't have to map every account: leave out the ones you don't need, such as a cash sweep account.
 
 **Discovered accounts**
 
@@ -366,7 +366,7 @@ A sync updates the description and these lines on an unbooked Movement. A booked
   Feed dates follow the calendar of Santiago (Chile), not US time. A transaction can post late on a US day that is already the next day in Santiago, or post after you map with a date before the feed start date. Such a transaction never lands, but the account's balance at Plaid counts it, so every later sync leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out) by its amount. To fix it, [remove the feed](/api-reference/bank-accounts#delete-a-bank-account-feed) and map the account again with a feed start date on or before that transaction.
 </Warning>
 
-**Errors.** When the bank login expires at the bank, a sync answers `424` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-integrations-integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-integrations-integrationid-reconnect).
+**Errors.** When the bank login expires at the bank, a sync answers `424` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-/integrations/integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-/integrations/integrationid/reconnect).
 
 ### Polar
 

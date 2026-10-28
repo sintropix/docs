@@ -26,6 +26,7 @@
               {
                 "group": "Get Started",
                 "pages": [
+                  "index",
                   "api-reference/overview",
                   "guides/api-keys",
                   "guides/connected-apps",

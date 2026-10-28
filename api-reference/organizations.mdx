@@ -8,7 +8,7 @@ import AppLink from "/snippets/app-link.mdx"
 
 An Organization groups the Entities that a client runs as one business. Every Entity belongs to exactly one Organization. Users reach Entities through an Organization Membership, which carries one Role and covers every Entity of the Organization, including Entities added later. See [Access and roles](/api-reference/overview#access-and-roles) for what each Role allows.
 
-An Organization also owns the data its Entities share, while each Entity keeps its own books. [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization), and [Integrations](/api-reference/integrations#integrations-belong-to-the-organization) are shared this way. For example, list the Partners with [`GET /api/organizations/:organizationId/partners`](/api-reference/partners#get-api-organizations-organizationid-partners), which asks the `books` read permission like an Entity route.
+An Organization also owns the data its Entities share, while each Entity keeps its own books. [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization), and [Integrations](/api-reference/integrations#integrations-belong-to-the-organization) are shared this way. For example, list the Partners with [`GET /api/organizations/:organizationId/partners`](/api-reference/partners#get-/api/organizations/organizationid/partners), which asks the `books` read permission like an Entity route.
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/settings"
@@ -18,7 +18,7 @@ An Organization also owns the data its Entities share, while each Entity keeps i
 Use this page to manage Organizations themselves. To grant, change, or revoke a User's Membership, use the [Onboarding API](/api-reference/onboarding). To move an Entity to another Organization, use [`PATCH /api/entities/:entityId/organization`](/api-reference/entities).
 
 <Warning>
-  Every route below except `GET /organizations`, [`PATCH /organizations/:organizationId/website`](#patch-organizations-organizationid-website), [`GET /organizations/:organizationId/logo`](#get-organizations-organizationid-logo), and [`GET /organizations/:organizationId/role`](#get-organizations-organizationid-role) is restricted to a Superadmin, and only from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User receives `403` with `SUPERADMIN_REQUIRED`.
+  Every route below except `GET /organizations`, [`PATCH /organizations/:organizationId/website`](#patch-/organizations/organizationid/website), [`GET /organizations/:organizationId/logo`](#get-/organizations/organizationid/logo), and [`GET /organizations/:organizationId/role`](#get-/organizations/organizationid/role) is restricted to a Superadmin, and only from a signed-in browser session. A request that carries an API key or an OAuth access token receives `403` with `SUPERADMIN_SESSION_REQUIRED`, even when a Superadmin owns it. Any other signed-in User receives `403` with `SUPERADMIN_REQUIRED`.
 </Warning>
 
 A Superadmin is a User Sintropix designates to manage access. No API route grants Superadmin. Being a Superadmin does not open any Entity's books: a Superadmin reads and writes an Entity only through a Membership of its Organization, like any other User.
@@ -37,7 +37,7 @@ List the Organizations where you do Sintropix work, each with the Entities it ho
 | --- | --- | --- |
 | `id` | UUID | Organization id |
 | `name` | string | Organization name |
-| `emailDomain` | string or null | The Organization's [email domain](#patch-organizations-organizationid-email-domain), such as `acme.sintropix.com`. `null` until a Superadmin sets it. |
+| `emailDomain` | string or null | The Organization's [email domain](#patch-/organizations/organizationid/email-domain), such as `acme.sintropix.com`. `null` until a Superadmin sets it. |
 | `entities` | array | `{ id, name, parentEntityId }` of each Entity in the Organization. `parentEntityId` is the Entity's parent Entity, always in the same Organization, or `null` for a root Entity. Build the group tree from it. |
 
 ```bash
@@ -79,8 +79,8 @@ Create an empty Organization. Add Entities to it by creating them with its `orga
 | --- | --- | --- |
 | `id` | UUID | Organization id |
 | `name` | string | Organization name, trimmed |
-| `website` | string or null | The Organization's website, stored as a bare lowercase domain (`acme.cl`). `null` until staff [set it](#patch-organizations-organizationid-website). |
-| `emailDomain` | string or null | The Organization's [email domain](#patch-organizations-organizationid-email-domain). `null` until a Superadmin sets it. |
+| `website` | string or null | The Organization's website, stored as a bare lowercase domain (`acme.cl`). `null` until staff [set it](#patch-/organizations/organizationid/website). |
+| `emailDomain` | string or null | The Organization's [email domain](#patch-/organizations/organizationid/email-domain). `null` until a Superadmin sets it. |
 | `createdAt` | ISO datetime | Creation timestamp |
 
 ```bash
@@ -160,7 +160,7 @@ curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/websi
 
 `GET /api/email-domains/open`
 
-List the **open email domains**: the subdomains of `sintropix.com` that are set up to receive email and that no Organization holds yet. Give an Organization one of them with [`PATCH /organizations/:organizationId/email-domain`](#patch-organizations-organizationid-email-domain). When the list is empty, no domain is ready yet.
+List the **open email domains**: the subdomains of `sintropix.com` that are set up to receive email and that no Organization holds yet. Give an Organization one of them with [`PATCH /organizations/:organizationId/email-domain`](#patch-/organizations/organizationid/email-domain). When the list is empty, no domain is ready yet.
 
 **Response** `200`: `{ "emailDomains": [...] }`, the open domains in alphabetical order.
 
@@ -219,7 +219,7 @@ Read who you are in the Organization: your User and the Role your Membership giv
 - A User outside the Organization receives `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 - An API key confined to one Entity receives `403` with `PERMISSION_DENIED_ERROR`.
 
-**Response** `200`: one member, with the same fields as an item of [`GET /organizations/:organizationId/members`](#get-organizations-organizationid-members).
+**Response** `200`: one member, with the same fields as an item of [`GET /organizations/:organizationId/members`](#get-/organizations/organizationid/members).
 
 ```bash
 curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/role \

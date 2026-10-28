@@ -6,7 +6,7 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-source-feeds-sourcefeedid-sync). An [expense Feed](#expense-feeds) lands the expenses its tool approved as approved Expense Claims.
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-/source-feeds/sourcefeedid/sync). An [expense Feed](#expense-feeds) lands the expenses its tool approved as approved Expense Claims.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/sources"
@@ -80,7 +80,7 @@ Create a Source Feed. The body names the Source to fill, either an existing one 
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
 | `integrationId` | uuid | Yes | The Integration to read through: any Integration of the Entity's Organization. Another Organization's answers `404` with `INTEGRATION_NOT_FOUND_ERROR`. |
 | `family` | `dte` \| `honorarium` \| `expense` | Yes | The [Document Family](#document-families) to land. It must be one of the Integration's `feedableFamilies`. |
-| `providerAccountId` | string | For `expense` only | The id of the [Provider Account](#expense-feeds) to read, from [`GET /integrations/:integrationId/provider-accounts`](/api-reference/integrations#get-integrations-integrationid-provider-accounts). Required when `family` is `expense`: without it, the request answers `400`. Other families read the whole external account and take none. |
+| `providerAccountId` | string | For `expense` only | The id of the [Provider Account](#expense-feeds) to read, from [`GET /integrations/:integrationId/provider-accounts`](/api-reference/integrations#get-/integrations/integrationid/provider-accounts). Required when `family` is `expense`: without it, the request answers `400`. Other families read the whole external account and take none. |
 | `feedStartDate` | string (`YYYY-MM-DD`) | Yes | The link date: the earliest emission date to import. |
 | `source` | object | Yes | Exactly one of `{ "sourceId": "<uuid>" }` (an existing Source) or `{ "sourceName": "<name>" }` (create a Source with that name). A body carrying both keys is rejected. For an `expense` Feed, an existing Source must hold Expense Renditions, and a Source you create holds them. |
 
@@ -236,11 +236,11 @@ An Invoice has an **Incompatible Standing** when it's booked and its DTE is `cla
 
 Find these Invoices in three places:
 
-- `GET /invoices/pages?standing=incompatible` lists them. See [Invoices](/api-reference/invoices#get-invoices-pages).
+- `GET /invoices/pages?standing=incompatible` lists them. See [Invoices](/api-reference/invoices#get-/invoices/pages).
 - The home dashboard counts them in `incompatibleStandingCount`. See [Home dashboard](/api-reference/reports#home-dashboard).
 - In the app, the Invoice panel shows a warning. If you're `staff` in the Entity's Organization, **Estados incompatibles** lists every one, and **Home** counts them under **Necesita acción**. Other Roles see neither the view nor the **Home** row, and their **Necesita acción** total leaves these Invoices out. The two endpoints above work the same for every Role.
 
-Review each one and [unbook](/api-reference/ledger-entries#delete-api-entities-entityid-ledger-entries-entryid) the Invoice's entry if it no longer belongs in your books.
+Review each one and [unbook](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid) the Invoice's entry if it no longer belongs in your books.
 
 ### Audit and preview
 
@@ -316,7 +316,7 @@ The providers that carry files today:
 
 | Provider `kind` | Documents with files attached |
 | --- | --- |
-| `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. The SII serves these files only to the legal representative, so add the [legal representative's Clave](/api-reference/integrations#the-legal-representatives-clave) to the Integration. A [Honorarium Feed](#honorarium-feeds) attaches the PDF of each BHE and BTE. |
+| `sii_mirror` | All issued and received DTEs, except boletas (`39`, `41`), which the SII lists with no files. The SII serves these files only to the legal representative, so add the [legal representative's Clave](/api-reference/integrations#the-legal-representative’s-clave) to the Integration. A [Honorarium Feed](#honorarium-feeds) attaches the PDF of each BHE and BTE. |
 | `bsale` | Sales documents. Purchases keep their PDF and XML as evidence lines on the Source Feed, because the Bsale purchase `urlPdf` answers HTML rather than a PDF. |
 | `wasabil` | Issued and received documents. |
 | `xpendit` | Each expense's receipt and its additional file, when it has one. See [Expense files](#expense-files). |
@@ -392,7 +392,7 @@ The routing rules:
 - **One Provider Account feeds one Entity.** A Subsidiary that another Feed already reads answers `409` with `SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR`.
 - **An Entity holds one `expense` Feed**, like every other family. A second one answers `409` with `SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`.
 - **The Source holds Expense Renditions.** An existing Source without the mark answers `422` with `SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR`. A Source the Feed creates holds them. While the Feed lives, you can't unmark its Source: Sintropix refuses with `409` and `SOURCE_PINNED_ERROR`.
-- **The Provider lists the account.** List the Provider Accounts with [`GET /integrations/:integrationId/provider-accounts`](/api-reference/integrations#get-integrations-integrationid-provider-accounts). An id the Provider doesn't list answers `422` with `SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`.
+- **The Provider lists the account.** List the Provider Accounts with [`GET /integrations/:integrationId/provider-accounts`](/api-reference/integrations#get-/integrations/integrationid/provider-accounts). An id the Provider doesn't list answers `422` with `SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`.
 
 In the app, open the Xpendit Integration's panel. Its feed step shows one row per Subsidiary that no Feed reads yet. For each one, pick a Source that holds Expense Renditions, or create one, and its Link Date. A routed Subsidiary shows **Rendiciones**, the **Cuenta del proveedor**, the Source, and the Link Date, with **Sincronizar** and **Vista previa**.
 
@@ -414,7 +414,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
 
 ### Sync an expense Feed
 
-A sync of an `expense` Feed lands each expense the tool approved as an [Expense Claim](/api-reference/expense-claims) that the Feed approves in the same act. Approving books it as an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions) in the Feed's Source. Sintropix syncs it every 4 hours with the other Feeds, and you can [sync it on demand](#post-source-feeds-sourcefeedid-sync). In the app, click **Sincronizar** or **Vista previa** on the Subsidiary's line in the Integration's panel.
+A sync of an `expense` Feed lands each expense the tool approved as an [Expense Claim](/api-reference/expense-claims) that the Feed approves in the same act. Approving books it as an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions) in the Feed's Source. Sintropix syncs it every 4 hours with the other Feeds, and you can [sync it on demand](#post-/source-feeds/sourcefeedid/sync). In the app, click **Sincronizar** or **Vista previa** on the Subsidiary's line in the Integration's panel.
 
 Before the first sync, set the Entity's [booking setting](/api-reference/expense-claims#before-you-submit-claims). The Feed books with its **Rendición por pagar** account and its supplier payable account. Without the setting, the sync fails with `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` and lands nothing. The Feed doesn't need the Approver: Xpendit already approved the expense.
 
@@ -456,7 +456,7 @@ The sync gives each Xpendit category an [Expense Category](/api-reference/expens
 2. Else the Entity's own category with the same name. The Feed takes it over, so it still finds it once you rename it.
 3. Else a new category with that name and no expense account. Its `sourceFeedId` is the Feed, and its `providerCategoryId` is Xpendit's category id.
 
-An expense whose category has no expense account is rejected with `expense_category_unassigned`. Assign the account in **Configuración → Rendiciones** or with [`PATCH /expense-categories/:expenseCategoryId`](/api-reference/expense-claims#patch-expense-categories-expensecategoryid). The next sync lands the expense.
+An expense whose category has no expense account is rejected with `expense_category_unassigned`. Assign the account in **Configuración → Rendiciones** or with [`PATCH /expense-categories/:expenseCategoryId`](/api-reference/expense-claims#patch-/expense-categories/expensecategoryid). The next sync lands the expense.
 
 #### Changed expenses
 

@@ -17,9 +17,9 @@ A Payment Order records what you intend to pay. It posts nothing to the ledger. 
 Use Payment Batches to prepare a supplier payment run:
 
 1. List the [Payables to Plan](/api-reference/reports#payables-to-plan): the purchase invoices the Entity still owes.
-2. [Create a Draft](#post-payment-batches) with the payment date. Optionally give it a [name and a label](#name-and-label).
-3. [Add invoices](#post-payment-batches-paymentbatchid-invoice-payment-orders) and [manual payments](#post-payment-batches-paymentbatchid-payment-orders), and adjust amounts or memos. In the app, **Agregar cuentas por pagar** lists the payables in every currency and lets you search them by payee, document number, or Amount to Plan. Its **Fuente** selector and **Filtros** menu work as in **Compras**; see [Orders in the app](#orders-in-the-app).
-4. [Mark it Ready](#post-payment-batches-paymentbatchid-mark-ready). This freezes the batch.
+2. [Create a Draft](#post-/payment-batches) with the payment date. Optionally give it a [name and a label](#name-and-label).
+3. [Add invoices](#post-/payment-batches/paymentbatchid/invoice-payment-orders) and [manual payments](#post-/payment-batches/paymentbatchid/payment-orders), and adjust amounts or memos. In the app, **Agregar cuentas por pagar** lists the payables in every currency and lets you search them by payee, document number, or Amount to Plan. Its **Fuente** selector and **Filtros** menu work as in **Compras**; see [Orders in the app](#orders-in-the-app).
+4. [Mark it Ready](#post-/payment-batches/paymentbatchid/mark-ready). This freezes the batch.
 5. [Download the bank file](#download-the-bank-file) in the app, choosing the bank and, for BCI, the account to debit. Upload it to your bank's or Global66's portal.
 
 Every route on this page lives under `/api/entities/:entityId/payment-batches`. Amounts are integers in the minor units of their currency.
@@ -36,9 +36,9 @@ A batch has two states:
 | State | `readyAt` | What you can do |
 | --- | --- | --- |
 | Draft | `null` | Add, edit, and remove orders. Change the payment date, the name, or the label. Delete the batch. |
-| Ready | timestamp | Download the bank file. Remove an order the bank rejected. Change the name or the label. [Reopen](#post-payment-batches-paymentbatchid-reopen) it as a Draft. Every other write is refused with `409` and `PAYMENT_BATCH_READY_ERROR`. |
+| Ready | timestamp | Download the bank file. Remove an order the bank rejected. Change the name or the label. [Reopen](#post-/payment-batches/paymentbatchid/reopen) it as a Draft. Every other write is refused with `409` and `PAYMENT_BATCH_READY_ERROR`. |
 
-A batch starts as a Draft and becomes Ready only through [`POST /mark-ready`](#post-payment-batches-paymentbatchid-mark-ready). To fix a mistake in a Ready batch, [reopen it](#post-payment-batches-paymentbatchid-reopen): it becomes a Draft again, and you mark it Ready again when it's fixed. A Ready batch can't be deleted; reopen it first.
+A batch starts as a Draft and becomes Ready only through [`POST /mark-ready`](#post-/payment-batches/paymentbatchid/mark-ready). To fix a mistake in a Ready batch, [reopen it](#post-/payment-batches/paymentbatchid/reopen): it becomes a Draft again, and you mark it Ready again when it's fixed. A Ready batch can't be deleted; reopen it first.
 
 ## Name and label
 
@@ -99,7 +99,7 @@ Every route on this page except the list returns the batch with its orders.
 | `name` | string \| null | The batch's [name](#name-and-label). `null` when it has none. |
 | `label` | string \| null | The batch's [label](#name-and-label). `null` when it has none. |
 | `readyAt` | ISO 8601 timestamp \| null | When the batch was last marked Ready. `null` for a Draft, including a reopened one. |
-| `readyBy` | uuid \| null | The user who marked it Ready. `null` for a Draft, or once that user is [deleted](/api-reference/onboarding#delete-onboarding-users-userid). |
+| `readyBy` | uuid \| null | The user who marked it Ready. `null` for a Draft, or once that user is [deleted](/api-reference/onboarding#delete-/onboarding/users/userid). |
 | `createdBy` | uuid \| null | The user who created the batch. `null` once that user is deleted. |
 | `createdByName` | string \| null | Name of that user. `null` once that user is deleted. |
 | `paymentOrderCount` | integer | Number of orders in the batch. |
@@ -196,7 +196,7 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/payment-batches
 
 ## DELETE `/payment-batches/:paymentBatchId`
 
-Delete a Draft and its orders. A Ready batch can't be deleted: [reopen it](#post-payment-batches-paymentbatchid-reopen) first.
+Delete a Draft and its orders. A Ready batch can't be deleted: [reopen it](#post-/payment-batches/paymentbatchid/reopen) first.
 
 **Response:** the Payment Batch object as it was before deletion, with its orders.
 
@@ -288,7 +288,7 @@ Once Ready, the batch keeps its payment date, takes no new order, and its orders
 
 Return a Ready batch to Draft, to fix a mistake found after it was marked Ready, such as a wrong amount or payment date. No body.
 
-The batch becomes a Draft again: `readyAt` and `readyBy` go back to `null`. You can then add, edit, and remove orders, change the payment date, or delete the batch. To download a bank file again, [mark it Ready](#post-payment-batches-paymentbatchid-mark-ready) again, which checks the payees' RUT and Bank Details anew.
+The batch becomes a Draft again: `readyAt` and `readyBy` go back to `null`. You can then add, edit, and remove orders, change the payment date, or delete the batch. To download a bank file again, [mark it Ready](#post-/payment-batches/paymentbatchid/mark-ready) again, which checks the payees' RUT and Bank Details anew.
 
 Reopening a Draft changes nothing and answers the batch as it is, so a retry is safe.
 
