@@ -106,11 +106,11 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocation
 
 ## POST /api/entities/:entityId/ledger/allocations/bulk
 
-Create up to 100 Allocations in a single request and transaction. Each element is a full `CreateReconciliationAllocationDto` carrying its own client-supplied `id`. The whole batch runs against the same Open-Item Account constraints as the single-create endpoint.
+Create up to 100 Allocations in a single request and transaction. Each element has the body of the [single create](#post-/api/entities/entityid/ledger/allocations), including its own client-supplied `id`. The whole batch runs against the same Open-Item Account constraints as the single-create endpoint.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** `BulkCreateReconciliationAllocationsDto` — `{ allocations: CreateReconciliationAllocation[] }` (1 to 100 elements)
-- **Success response:** array of `reconciliationAllocationSchema`, in input order
+- **Body:** `{ allocations: [...] }`, 1 to 100 elements, each with the fields of the single create
+- **Success response:** an array of the created Allocation objects (same fields as the list response), in input order
 - **Status:** 201
 
 ```bash
@@ -131,7 +131,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocation
 ```
 
 <Info>
-  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`).
+  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex`.
 </Info>
 
 ## DELETE /api/entities/:entityId/ledger/allocations/:allocationId
@@ -188,6 +188,8 @@ Each item in `settledLines`:
 | `entryDate` | ISO date | Date of the parent entry |
 | `entryMemo` | string or null | Memo of the parent entry |
 | `settlementStatus` | enum | `open`, `partial`, or `settled` |
+| `invoiceId` | UUID or null | The Invoice whose Control Line this line is; `null` for any other line |
+| `invoiceDocumentNumber` | string or null | Document number of that Invoice |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 

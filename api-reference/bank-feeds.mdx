@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
 sidebarTitle: "Bank Feeds"
-description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, and Polar Integrations."
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, and Stripe Integrations."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -19,6 +19,7 @@ These Integration kinds can feed a Bank Account:
 | `dlocal` | dLocal Go | The merchant's one balance |
 | `mercadopago` | Mercado Pago | The account's available money |
 | `polar` | Polar | The USD balance of each organization the Polar user can read. See [Polar](#polar) |
+| `stripe` | Stripe | One account per currency of the Stripe account's balance, such as `Stripe USD` |
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
@@ -71,7 +72,7 @@ Each element of `entities` carries:
 | `id` | `uuid` | The Entity |
 | `name` | `string` | The Entity's name |
 | `mappableBankAccounts` | `array` | The Entity's Bank Accounts that can still take a feed. Each carries `id` (`uuid`), `name` (`string`), and `currency` (`string`) |
-| `ledgerAccounts` | `array` | The Entity's asset Ledger Accounts eligible for mapped creation. Each carries `id` (`uuid`), `code` (`string`), and `name` (`string`) |
+| `ledgerAccounts` | `array` | The Entity's Cash Accounts, the asset Ledger Accounts with the Cash sub-type, eligible for mapped creation. Each carries `id` (`uuid`), `code` (`string`), and `name` (`string`) |
 
 ```json
 {
@@ -155,7 +156,7 @@ The updated Integration, in the shape of one item of [`GET /integrations`](/api-
 
 ### Refusals
 
-The endpoint returns `409 Conflict` with a body of `{ "code": "<code>", "params": { ... } }` in these cases:
+The endpoint returns a body of `{ "code": "<code>", "params": { ... } }` in these cases. Each answers `409 Conflict`, except `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR`, which answers `404 Not Found`:
 
 | Code | When it happens |
 | --- | --- |
@@ -210,11 +211,26 @@ The endpoint returns `400 Bad Request` with a body of `{ "code": "<code>", "para
 | `BANK_FEED_START_DATE_IN_FUTURE_ERROR` | `feedStartDate` is after today on the calendar of Santiago (Chile). `params` carries `feedStartDate` and `today`. Retry with a `feedStartDate` on or before `today` |
 | `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR` | `feedStartDate` is after the oldest pending hold at the Provider, such as an open Cardda hold. A feed that starts later would never land the hold once the Provider approves it. `params` carries `feedStartDate` and `earliestPendingDate`. Retry with a `feedStartDate` on or before `earliestPendingDate` |
 
+The map also refuses these cases, each with the same coded body:
+
+| Status | Code | When it happens |
+| --- | --- | --- |
+| `404` | `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR` | `providerAccountId` isn't one of the Integration's discovered accounts |
+| `409` | `BANK_FEED_PROVIDER_REFRESHING_ERROR` | The Provider is still refreshing the account. Retry when `refreshing` is `false` |
+| `409` | `BANK_FEED_PROVIDER_HAS_NO_DATA_ERROR` | The Provider hasn't read the account yet |
+| `409` | `BANK_FEED_CURRENCY_MISMATCH_ERROR` | The Bank Account's currency differs from the discovered account's |
+| `409` | `BANK_FEED_OPENING_BALANCE_MISMATCH_ERROR` | The Bank Account's balance doesn't equal the Provider's balance at the start of `feedStartDate`. The Bank Account must hold every row before that day |
+| `409` | `BANK_ACCOUNT_ALREADY_FED_ERROR` | The Bank Account already has a feed |
+| `409` | `DISCOVERED_ACCOUNT_ALREADY_FED_ERROR` | The discovered account already feeds a Bank Account |
+| `409` | `BANK_FEED_MAP_RACED_ERROR` | The Provider's account changed while the map read it. Retry |
+| `422` | `BANK_ACCOUNT_IS_CARD_ERROR` | The Bank Account is a `card`. Only a `bank` account takes a feed |
+| `422` | `DISCOVERED_ACCOUNT_IS_CARD_ERROR` | The discovered account is a card account |
+
 ## Create a Bank Account from a discovered account
 
 `POST /api/entities/:entityId/integrations/:integrationId/bank-accounts`
 
-Create a new Bank Account in the Entity in the path, and feed it from a discovered account, in one operation. The creation is always kind `bank`, so only an asset Ledger Account is accepted. Like the map, the first sync runs before the server answers.
+Create a new Bank Account in the Entity in the path, and feed it from a discovered account, in one operation. The creation is always kind `bank`, so only a Cash Account (an asset Ledger Account with the Cash sub-type) is accepted. Like the map, the first sync runs before the server answers.
 
 ### Request body
 
@@ -222,7 +238,7 @@ Create a new Bank Account in the Entity in the path, and feed it from a discover
 | --- | --- | --- | --- |
 | `id` | `uuid` | Yes | Client-supplied id for idempotency |
 | `name` | `string` | Yes | Display name |
-| `ledgerAccountId` | `uuid` | Yes | Asset Ledger Account to map |
+| `ledgerAccountId` | `uuid` | Yes | Cash Account to map |
 | `providerAccountId` | `string` | Yes | Provider's opaque handle |
 | `feedStartDate` | `ISO date` | Yes | Day the feed begins. Any past day or today, on the calendar of Santiago (Chile). A future day is refused |
 
@@ -272,7 +288,7 @@ Mapping a discovered account to an existing Bank Account never answers `shortHis
 
 ### Refusals
 
-The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `400` with `BANK_FEED_START_DATE_IN_FUTURE_ERROR` or `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`.
+The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `400` with `BANK_FEED_START_DATE_IN_FUTURE_ERROR` or `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`. It also refuses the map's cases about the discovered account (`DISCOVERED_ACCOUNT_NOT_FOUND_ERROR`, `BANK_FEED_PROVIDER_REFRESHING_ERROR`, `BANK_FEED_PROVIDER_HAS_NO_DATA_ERROR`, `DISCOVERED_ACCOUNT_ALREADY_FED_ERROR`, `BANK_FEED_MAP_RACED_ERROR`, and `DISCOVERED_ACCOUNT_IS_CARD_ERROR`), and the cases of [creating a Bank Account](/api-reference/bank-accounts#create-a-bank-account), such as an `id` that already exists.
 
 To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To check whether a feed's Movements add up to the Provider's balance, read its [tie-out](/api-reference/bank-accounts#tie-out). To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-/integrations/integrationid).
 
@@ -372,7 +388,7 @@ A sync updates the description and these lines on an unbooked Movement. A booked
 
 [Polar](https://polar.sh) is a Merchant of Record: it charges your buyers, holds the money in a USD balance, and pays it out to your bank. A Polar feed mirrors that USD balance, row by row.
 
-**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `424` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Configuración de empresa → Integraciones** with an owner, admin, or finance user.
+**Who can connect.** Polar shows an organization's money only to its owner, admin, and finance roles. Connect Polar with a user who has one of those roles. When the connected user has another role, such as member, the discovered accounts and every sync answer `424` with `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR` and `params.integrationKind` set to `polar`. Sintropix never feeds an empty account in that case. Connect Polar again from **Configuración → Integraciones** with an owner, admin, or finance user.
 
 ```json
 {

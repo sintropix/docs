@@ -230,7 +230,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `totalMax` | integer | No | Maximum `total`, in minor units. |
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
 | `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. A search that reads as an amount also matches `total` and the Open Amount; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
-| `comments` | string | No | `with` keeps only documents that have at least one Comment; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
+| `erpThread` | string | No | `with` keeps only documents that have an ERP Thread, the conversation about the record in its **Thread** tab; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
 | `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
@@ -250,15 +250,16 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | --- | --- | --- |
 | `dte` | object or null | The DTE behind the document (fields listed under `PUT /invoices/:invoiceId/dte`). Null when none. |
 | `partnerName` | string | Name of the Partner. |
-| `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-/partners/partnerid/logo) is read from it. |
+| `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo) is read from it. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `isExpenseRendition` | boolean | Whether the document is an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions): a `payable` Invoice whose Source holds Expense Renditions. Read from the Source, so marking or unmarking the Source changes it on every row at once. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
+| `paymentDate` | string or null | `YYYY-MM-DD`. For a `paid` document, the latest entry date of the entries that settled its Control Line, whatever settled it: a payment, a credit note, or a manual offset. Null while the document is unpaid, partially paid, or not booked. |
 | `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked; `0` once it is fully paid. |
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the Invoice. |
-| `commentCount` | integer | Number of Comments on the Invoice. |
+| `hasErpThread` | boolean | Whether the Invoice has an ERP Thread, the conversation about it. |
 | `group` | object or null | Null unless `groupBy` was requested. Contains `by` (the grouping), `value`, `key` (string), `invoiceCount` (integer, size of the whole group), and `startsGroup` (boolean, true on the first row of each group). |
 
 The type of `group.value` depends on `group.by`:
@@ -290,10 +291,10 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-To find the payable documents that someone has commented on, pass `comments=with`:
+To find the payable documents that someone has written about in their ERP Thread, pass `erpThread=with`:
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&comments=with" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&erpThread=with" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -373,6 +374,9 @@ Example response:
     "sourceId": null,
     "controlLineId": null,
     "controlAccountId": null,
+    "followUp": null,
+    "excludedAt": null,
+    "exclusionReason": null,
     "createdAt": "2026-08-14T15:02:11.482Z",
     "updatedAt": "2026-08-14T15:02:11.482Z",
     "dte": null,
@@ -381,11 +385,12 @@ Example response:
     "sourceName": null,
     "isExpenseRendition": false,
     "paymentStatus": null,
+    "paymentDate": null,
     "openAmount": null,
     "bookingAccountLabel": null,
     "bookingExtraLineCount": 0,
-    "attachmentCount": 0,
-    "commentCount": 0
+    "hasErpThread": false,
+    "attachmentCount": 0
   },
   "bookingEntry": null,
   "partner": null,
@@ -452,7 +457,7 @@ Return the full Invoice detail: the Invoice row (as listed by `GET /invoices/pag
 | `lines` | array | The entry's lines (below). |
 | `relatedInvoices` | array | Invoice objects linked to this entry, each with a `partnerName`. |
 | `relatedMovements` | array | Bank Movements linked to this entry, each with `bankAccountCurrency`, `bankAccountLedgerAccountId`, and `partnerName`. |
-| `allocations` | array | Settlements against this entry's lines. Each carries a `counterpart` with `lineId`, `entryId`, `entryMemo`, `accountId`, `accountCode`, `accountName`, `partnerId`, and `partnerName`. |
+| `allocations` | array | Settlements against this entry's lines. Each carries a `counterpart` with `lineId`, `entryId`, `entryDate`, `entryMemo`, `accountId`, `accountCode`, `accountName`, `partnerId`, and `partnerName`. |
 | `deferralRelease` | object or null | Set when this entry is a [Release](#deferrals): `{ deferralId, invoiceId, invoiceDocumentNumber }`. Null otherwise, and null once the booking that holds the deferred line is unbooked or reversed. |
 | `deferrals` | array | The Deferrals whose deferred line this entry books, in the shape of `deferrals` above. Unbooking or reversing this entry also undoes their Releases. |
 | `createdAt`, `updatedAt` | timestamp | |
@@ -854,51 +859,12 @@ Include an excluded Invoice in the books again. It goes back to `unbooked`.
 
 A blank `reason`, or one longer than 1,000 characters, is refused with `400`.
 
-## POST `/invoices/:invoiceId/comments`
-
-Post a Comment on the Invoice. The author is taken from the session; the Comment appears in the Invoice's [audit trail](/api-reference/audit-trail) alongside every other change to the document, and inside the Invoice panel of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host Invoice.
-
-**Body**
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
-
-**Response** (`201`): the created Comment.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | uuid | Comment id. |
-| `entityId` | uuid | Owning Entity. |
-| `authorUserId` | uuid | User the session belonged to. |
-| `body` | string | The text that was posted. |
-| `invoiceId` | uuid | The Invoice the Comment belongs to. |
-| `ledgerEntryId` | null | Always null on this route. |
-| `bankMovementId` | null | Always null on this route. |
-| `createdAt`, `updatedAt` | timestamp | Row timestamps. |
-
-**Domain errors**
-
-| Code | Status | Meaning |
-| --- | --- | --- |
-| `COMMENT_HOST_NOT_FOUND_ERROR` | `404` | The Invoice in the URL does not exist under this Entity. The response carries `params: { hostKind: "invoice", hostId }`. |
-
-Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before the Comment reaches the database.
-
-```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/comments" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "Content-Type: application/json" \
-  -d '{ "body": "Confirmé con el proveedor: la OC corresponde a este mes." }'
-```
-
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET`, `PATCH`, `PUT`, `DELETE`, `POST /book`, `POST /deferrals/:deferralId/cancel`. `DELETE` answers with the deleted row. |
-| `201` | Invoice or Comment created. |
+| `201` | Invoice created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | The caller's Role can't write, for example a `viewer` excluding an Invoice. |
 | `404` | Entity, Invoice, or Deferral not found. |

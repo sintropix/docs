@@ -188,8 +188,10 @@ Each account in `accounts` carries:
 | `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
-| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings` |
+| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings` |
+| `cashFlowCategory` | enum or null | Line of the [cash flow statement](/api-reference/reports#cash-flow-statement) where a flow against the account appears: `customer_receipts`, `supplier_payments`, `employee_payments`, `taxes`, `other_operating`, `fixed_assets`, `other_investing`, `borrowings`, `interest`, `dividends`, `equity_contributions`. `null` uses `defaultCashFlowCategory` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
+| `defaultCashFlowCategory` | enum or null | Category the account takes while `cashFlowCategory` is `null`, derived from its sub-type or type. `null` leaves the account unclassified |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
 | `deleteBlockedBy` | enum or null | `entries`, `bank_account`, `default_purchase_account`, `booking_template`, or null when deletable |
 | `isDefaultPurchaseAccount` | boolean | Whether a Partner names this account as its Default Purchase Account |
@@ -225,7 +227,9 @@ Each account in `accounts` carries:
       "type": "asset",
       "tracking": "balance",
       "subtype": null,
+      "cashFlowCategory": null,
       "normalSide": "debit",
+      "defaultCashFlowCategory": null,
       "hasEntries": false,
       "deleteBlockedBy": null,
       "isDefaultPurchaseAccount": false,
@@ -296,7 +300,7 @@ List all Ledger Accounts for an Entity.
 - **Success response:** array of Ledger Accounts
 - **Status:** 200
 
-Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `organizationId`, `groupAccountId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `normalSide`, `createdAt`, `updatedAt`) without `groupAccountCode`, `groupAccountName`, and the derived `hasEntries`, `deleteBlockedBy`, and `isDefaultPurchaseAccount` facts.
+Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `organizationId`, `groupAccountId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `cashFlowCategory`, `normalSide`, `createdAt`, `updatedAt`) without `groupAccountCode`, `groupAccountName`, and the derived `hasEntries`, `deleteBlockedBy`, `isDefaultPurchaseAccount`, and `defaultCashFlowCategory` facts.
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
@@ -318,7 +322,8 @@ Create a new Ledger Account.
 | `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`; null or omitted means none |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`; null or omitted means none |
+| `cashFlowCategory` | enum or null | No | Cash flow statement category, one of the values listed in the Chart of Accounts above; null or omitted uses the default of the sub-type or type |
 | `groupAccountId` | UUID | Yes | [Group Account](#the-group-chart) of the Entity's Organization, of the same `type` |
 | `groupId` | UUID | No | Parent group |
 
@@ -347,7 +352,9 @@ An unknown `groupAccountId`, or one of another Organization, returns `404` with 
     "type": "asset",
     "tracking": "balance",
     "subtype": null,
+    "cashFlowCategory": null,
     "normalSide": "debit",
+    "defaultCashFlowCategory": null,
     "hasEntries": false,
     "deleteBlockedBy": null,
     "isDefaultPurchaseAccount": false,
@@ -386,7 +393,8 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, or null to clear |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, or null to clear |
+| `cashFlowCategory` | enum or null | No | Cash flow statement category; null to use the default. It can change while the account has entries |
 | `groupAccountId` | UUID | No | Map the account to another Group Account of its type. Required with a `type` change: a Group Account of the new type |
 | `groupId` | UUID | No | Parent group |
 
@@ -475,6 +483,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | --- | --- |
 | `LEDGER_ACCOUNT_CODE_ALREADY_EXISTS_ERROR` | Account code already in use |
 | `LEDGER_ACCOUNT_IN_USE_ERROR` | Delete blocked by entries, bank account, default purchase account, or Booking Template |
+| `LEDGER_ACCOUNT_DEFAULT_PURCHASE_IN_USE_ERROR` | A Partner names the account as its Default Purchase Account, and the change would make it ineligible for that role |
 | `LEDGER_ACCOUNT_TYPE_LOCKED_ERROR` | Type change not allowed for an account with entries |
 | `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
 | `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed |

@@ -68,7 +68,7 @@ List every Partner the Entity uses, each row enriched with this Entity's Open It
 | `legalName` | string or null | Registered legal name. |
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
-| `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-/partners/partnerid/logo) from it. |
+| `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-/api/organizations/organizationid/partners/partnerid/logo) from it. |
 | `aliases` | string[] | Other names that find this Partner, in name order. See [Aliases](#aliases). |
 | `mergedIntoPartnerId` | uuid or null | The Partner this one was [merged](#merge-partners) into. Null for an active Partner. |
 | `openReceivable` | integer | Unsettled amount this Partner owes the Entity: the Open Amount of its debit lines on receivable (`asset`) accounts. |
@@ -153,10 +153,10 @@ Create a Partner in the Organization and start using it in this Entity.
 | `id` | uuid | Yes | Caller-generated id. Retrying with the same id is answered `409`, so a retried request never creates a second Partner. |
 | `name` | string | Yes | Non-empty display name, at most 200 characters. |
 | `legalName` | string or null | No | Non-empty if sent, at most 200 characters. |
-| `country` | string or null | No | ISO 3166-1 alpha-2 code known to Sintropix. |
+| `country` | string or null | No | ISO 3166-1 alpha-2 code known to Sintropix. An unknown code is refused with `400` and `PARTNER_COUNTRY_UNKNOWN_ERROR`. |
 | `taxId` | string or null | No | Tax registration number, at most 50 characters. When `country` is `CL` the value must be a valid RUT; separators and dots are accepted and it is stored in canonical form (`76.123.456-0` becomes `76123456-0`). |
 | `website` | string or null | No | A domain or a URL, at most 2048 characters. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `WEBSITE_INVALID_ERROR`. |
-| `defaultPurchaseAccountId` | uuid or null | No | The account this Entity proposes for the Partner's purchase invoices. It must be an expense-type Ledger Account or a fixed-asset account. Setting it gives the Partner the `vendor` role here. |
+| `defaultPurchaseAccountId` | uuid or null | No | The account this Entity proposes for the Partner's purchase invoices. It must be an expense-type Ledger Account or a fixed-asset account; any other account is refused with `400` and `PARTNER_DEFAULT_PURCHASE_ACCOUNT_INELIGIBLE_ERROR`. Setting it gives the Partner the `vendor` role here. |
 
 A `country` and `taxId` pair belongs to one Partner of the Organization:
 
@@ -260,9 +260,11 @@ A Partner this Entity's records still reference, such as Ledger Lines with Open 
 
 **Response:** the deleted Partner row, as `GET /partners/pages` listed it.
 
-## GET `/partners/:partnerId/logo`
+## GET `/api/organizations/:organizationId/partners/:partnerId/logo`
 
 Read the Partner's logo: a 64 × 64 PNG that Sintropix takes from the icon of the Partner's `website`. The app shows it in place of the Partner's initial.
+
+The logo belongs to the Organization, like the Partner and its `website`, so this route lives under the Organization. There is no logo route under `/api/entities/:entityId`.
 
 **Response**
 
@@ -270,7 +272,7 @@ Read the Partner's logo: a 64 × 64 PNG that Sintropix takes from the icon of th
 - `404` with `PARTNER_LOGO_NOT_FOUND_ERROR` when the Partner has no `website`, or its site shows no usable icon. A `404` carries no cache header. A site that could not be reached is tried again on the next request; a site that answered with no usable icon is not.
 
 ```bash
-curl -i "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/logo" \
+curl -i "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partners/$PARTNER_ID/logo" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
