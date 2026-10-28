@@ -25,6 +25,8 @@ Sintropix sets up your Entities for you: you can't create one from the client ap
 - Creating an Entity opens none of its books to the Superadmin. Users reach it through a Membership of its Organization.
 - Creating an Entity also gives it its [representing Partner](/api-reference/partners#representing-partners): the Organization's Partner with the Entity's tax identity, which the other Entities use to name it as their counterparty. When the Organization already has a Partner with that tax identity, that Partner becomes the representing one.
 - An unknown `organizationId` returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+- An unknown `country` returns `400` with `ENTITY_CREATION_COUNTRY_UNKNOWN_ERROR`, and an unknown `currency` returns `400` with `ENTITY_CREATION_CURRENCY_UNKNOWN_ERROR`.
+- An Entity with the same `country` and `taxId` already exists: the request returns `409` with `ENTITY_CREATION_TAX_ID_ALREADY_EXISTS_ERROR`.
 - An unknown `parentEntityId` returns `404` with `ENTITY_CREATION_PARENT_NOT_FOUND_ERROR`. A parent in another Organization returns `409` with `ENTITY_CREATION_PARENT_IN_ANOTHER_ORGANIZATION_ERROR`.
 - **Body:**
 
@@ -38,7 +40,7 @@ Sintropix sets up your Entities for you: you can't create one from the client ap
 | `organizationId` | UUID | Yes | Organization the Entity belongs to |
 | `parentEntityId` | UUID or null | No | Parent Entity that controls the new Entity. It must be an Entity of the same Organization. Defaults to `null`, a root Entity. |
 
-- **Success response:** the created Entity with `organizationName` and `organizationWebsite` (see [Response shape](#response-shape))
+- **Success response:** the created Entity with `organizationName`, `organizationWebsite`, and `organizationEmailDomain` (see [Response shape](#response-shape))
 - **Status:** 201
 
 ```bash
@@ -60,7 +62,7 @@ curl -X POST https://api.sintropix.com/api/entities \
 
 List every Entity the caller can access. You see every Entity of each Organization you hold a Membership in, whatever your Role. Being a Superadmin adds no Entities to this list. An OAuth access token sees only the Entities of the Organization it was approved for.
 
-- **Success response:** array of Entity objects, each with `organizationName` and `organizationWebsite` (see [Response shape](#response-shape)). Group the rows by `organizationId` to show Entities per Organization.
+- **Success response:** array of Entity objects, each with `organizationName`, `organizationWebsite`, and `organizationEmailDomain` (see [Response shape](#response-shape)). Group the rows by `organizationId` to show Entities per Organization.
 - **Status:** 200
 
 ```bash
@@ -91,6 +93,8 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/editability \
 Update the core identity fields of an Entity. At least one field must be provided. To change the Organization, use `PATCH /api/entities/:entityId/organization` below. The update canonicalizes Chilean tax registrations and requires both `country` and `taxId` when either is supplied.
 
 A corrected `country` or `taxId` also corrects the Entity's [representing Partner](/api-reference/partners#representing-partners). When another Partner of the Organization already holds the new tax identity, the update returns `409` with `ENTITY_TAX_IDENTITY_TAKEN_ERROR`, and `params.partnerId` names that Partner. Correct or clear that Partner's tax ID first.
+
+Once the Entity has had a Ledger Entry, a change to `country`, `taxId`, or `currency` returns `409` with `ENTITY_IDENTITY_FIELDS_LOCKED_ERROR`. Check first with [`GET /api/entities/:entityId/editability`](#get-/api/entities/entityid/editability). An unknown `country` returns `400` with `UNKNOWN_COUNTRY_ERROR`, an unknown `currency` returns `400` with `UNKNOWN_CURRENCY_ERROR`, and a `country` and `taxId` that another Entity already holds returns `409` with `ENTITY_ALREADY_EXISTS_ERROR`.
 
 - **Path param:** `entityId` (UUID)
 - **Body:**
@@ -249,6 +253,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `organizationId` | UUID | Organization the Entity belongs to |
 | `organizationName` | string | Name of that Organization. Returned by `GET /api/entities` and `POST /api/entities` only. |
 | `organizationWebsite` | string or null | Website of that Organization, as a bare domain. Read the Organization's logo from [`GET /api/organizations/:organizationId/logo`](/api-reference/organizations#get-/organizations/organizationid/logo). Returned by `GET /api/entities` and `POST /api/entities` only. |
+| `organizationEmailDomain` | string or null | That Organization's [email domain](/api-reference/organizations#patch-/organizations/organizationid/email-domain). `null` until a Superadmin sets it. Returned by `GET /api/entities` and `POST /api/entities` only. |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
@@ -274,6 +279,14 @@ Every endpoint on this page that returns an Entity uses this shape:
 | --- | --- |
 | `ENTITY_LOCK_DATE_OVER_SCHEDULED_ENTRY_ERROR` | Lock date would cover a Scheduled Entry |
 | `ENTITY_FISCAL_YEAR_START_LOCKED_ERROR` | The Fiscal Year start can't change while a lock date is set. `params.ledgerLockDate` names it |
+| `ENTITY_CREATION_COUNTRY_UNKNOWN_ERROR` | The `country` of a new Entity is not a known country code |
+| `ENTITY_CREATION_CURRENCY_UNKNOWN_ERROR` | The `currency` of a new Entity is not a known currency code |
+| `ENTITY_CREATION_TAX_ID_ALREADY_EXISTS_ERROR` | An Entity with the same `country` and `taxId` already exists |
+| `ENTITY_ALREADY_EXISTS_ERROR` | The corrected `country` and `taxId` belong to another Entity |
+| `ENTITY_IDENTITY_FIELDS_LOCKED_ERROR` | The Entity has had Ledger Entries, so `country`, `taxId`, and `currency` can't change |
+| `ENTITY_NOT_FOUND_ERROR` | Named Entity does not exist or is outside your reach |
+| `UNKNOWN_COUNTRY_ERROR` | The corrected `country` is not a known country code |
+| `UNKNOWN_CURRENCY_ERROR` | The corrected `currency` is not a known currency code |
 | `ENTITY_CREATION_PARENT_NOT_FOUND_ERROR` | The `parentEntityId` of a new Entity does not exist |
 | `ENTITY_CREATION_PARENT_IN_ANOTHER_ORGANIZATION_ERROR` | The `parentEntityId` of a new Entity is in another Organization |
 | `ENTITY_PARENT_NOT_FOUND_ERROR` | Named parent Entity does not exist |

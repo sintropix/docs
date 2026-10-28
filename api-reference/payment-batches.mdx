@@ -51,9 +51,9 @@ Sintropix trims both. A blank name or label is refused with `400`; send `null` t
 
 In the app:
 
-- **Nueva nómina** asks for the name, the payment date, and the label. Click the batch's name in the breadcrumb to rename it, and click its label, or **Agregar etiqueta**, to change it.
+- **Crear nómina** asks for the name, the payment date, and the label. Click the batch's name in the breadcrumb to rename it, and click its label, or **Agregar etiqueta**, to change it.
 - You pick a label like a tag. The picker lists the labels already used on the Entity's batches, and **Buscar o crear etiqueta…** filters them as you type. To make a new label, type it and choose **Crear «…»**. The app doesn't offer to create a label that already exists with different capitalization, so one label isn't spelled two ways. Choose **Sin etiqueta** to clear the label.
-- The **Pagos** list shows each batch's **Nombre** and **Etiqueta**. **Buscar nóminas** matches the name and the label. It ignores case and accents, and every word you type must match. Under **Filtros**, **Etiqueta** keeps only the batches with that exact label.
+- The **Nóminas** list shows each batch's **Nombre** and **Etiqueta**. **Buscar nóminas** matches the name and the label. It ignores case and accents, and every word you type must match. Under **Filtros**, **Etiqueta** keeps only the batches with that exact label.
 
 ## Amount to Plan
 
@@ -83,7 +83,7 @@ A manual order shows **—** under **Monto total** and **Saldo pendiente**. Lowe
 
 **Agregar cuentas por pagar** shows the same **Monto total** and **Saldo pendiente** for each invoice. When orders in other batches already plan part of the balance, a line such as *$150.000 ya en nóminas* shows how much. Picking the invoice adds an order for what is left, its [Amount to Plan](#amount-to-plan).
 
-To narrow the list, use **Filtros**, as on **Compras**. It filters by **Fuente** (the invoices of one [Source](/api-reference/sources)), **Documento tributario**, **Contacto**, **Moneda**, **Estado de pago**, **Estado SII**, **Seguimiento**, issue and due dates, **Período tributario**, **Monto**, and **Conversación** (whether someone has written in the invoice's ERP Thread). Each active filter shows as a chip you can remove.
+To narrow the list, use **Filtros**, as on **Compras**. It filters by **Fuente** (the invoices of one [Source](/api-reference/sources)), **Documento tributario**, **Contacto**, **Moneda**, **Estado de pago**, **Estado SII**, **Seguimiento**, issue and due dates, **Período tributario**, **Monto**, and **Conversación** (whether the invoice has an ERP Thread in the Chat). Each active filter shows as a chip you can remove.
 
 A due-date filter keeps the invoices with no due date. The API takes the same filters on [Payables to Plan](/api-reference/reports#payables-to-plan).
 
@@ -119,7 +119,7 @@ Each element of `paymentOrders`:
 | `currency` | string | ISO 4217 code of the order. An order that pays an Invoice is in the Invoice's currency. |
 | `amount` | integer | Amount to pay, greater than zero. |
 | `memo` | string \| null | Glosa: the message that travels with the transfer. |
-| `payee` | object | `{ name, country, taxId, bankDetails }` of the payee. `bankDetails` is the Partner's [Bank Details](/api-reference/partners#bank-details), or `null` when it has none. |
+| `payee` | object | `{ name, country, taxId, website, bankDetails }` of the payee. `bankDetails` is the Partner's [Bank Details](/api-reference/partners#bank-details), or `null` when it has none. |
 | `invoice` | object \| null | `{ documentNumber, dueDate, total, owedAmount, amountToPlan, dteTypeCode, dteTypeLabel }` of the Invoice. `owedAmount` is what it still owes: its `total` while unbooked, the Open Amount of its Control Line once booked, and `0` when it's [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books). `amountToPlan` is its current [Amount to Plan](#amount-to-plan). `dteTypeCode` and `dteTypeLabel` name the SII type of the DTE behind it, or `null` when no DTE backs it. `null` when `invoiceId` is null. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
@@ -312,7 +312,7 @@ In the app, a Ready batch has a **Descargar** menu with two options. The browser
 
 - **Nómina para pago nacional (CLP)…**: the batch's transfers in `CLP`, in the format of the bank that pays them. It opens a dialog where you choose the **Banco**. The dialog starts on a bank where the Entity holds a Bank Account in `CLP`, read from each account's `bankCode`:
   - **BCI**: BCI's bulk transfer file (Pago a Proveedores), in `.xlsx`, ready to upload to BCI's portal. Choose the **Cuenta de cargo**, the account BCI debits, among the Entity's Bank Accounts in `CLP` at BCI, the ones whose [`bankCode`](/api-reference/bank-accounts#response-schema) is `016`. It needs an `accountNumber`. When the Entity has no such account, the dialog says *La entidad legal no tiene una cuenta BCI en CLP.* and links to **Cuentas bancarias**, where you set an account's bank. When the chosen account has no `accountNumber`, the dialog names the account and links to its edit. The file carries only the orders in `CLP`. When the batch also has orders in other currencies, the dialog says how many are left out, for example *1 pago en otra moneda queda fuera*. With no order in `CLP`, no BCI account in `CLP`, or a Cuenta de cargo with no `accountNumber`, **Descargar** is disabled and the dialog says why.
-  - **Global66**: Global66's beneficiary template (PlantillaBeneficiarios), filled in, as `nomina-global66-<paymentDate>.xlsm`, ready to upload to Global66's portal to pay from a Global66 account. It asks for no account. It carries only the orders in `CLP` to a bank that Global66 lists (see [Global66 file](#global66-file)). When the batch has other orders, the dialog says how many are left out, for example *1 pago en otra moneda o a un banco que Global66 no recibe queda fuera*. When no order qualifies, **Descargar** is disabled.
+  - **Global66**: Global66's beneficiary template (PlantillaBeneficiarios), filled in, as `nomina-global66-<paymentDate>.xlsm`, ready to upload to Global66's portal to pay from a Global66 account. It asks for no account. It carries only the orders in `CLP` to a bank that Global66 lists (see [Global66 file](#global66-file)). When the batch has other orders, the dialog lists them under *Estos pagos quedan fuera del archivo. Págalos por otro banco o a mano.*, each with its reason: an order in another currency, or a bank Global66 doesn't transfer to. When no order qualifies, **Descargar** is disabled.
 - **Excel de movimientos**: a spreadsheet of every order, in every currency.
 
 Every download reads the batch again first. If it was reopened in the meantime, for example from another tab, the app refuses to build the file and asks you to mark it Ready again. A bank file never carries amounts the batch no longer plans.
@@ -355,7 +355,7 @@ Each qualifying order fills one row of the **Cuenta Bancaria** sheet of Global66
 | Modalidad Origen o Destino | `Destino`: the payee receives the exact amount, and Global66 charges its cost on top. |
 | Monto | The amount, in whole pesos. |
 
-Global66 takes transfers to these banks, named by their CMF code: Banco de Chile (`001`), Banco Internacional (`009`), BancoEstado (`012`), Scotiabank (`014`), BCI / MACHBANK (`016`), Banco Bice (`028`), HSBC (`031`), Santander (`037`), Itaú (`039`), JP Morgan (`041`), Banco Security (`049`), Banco Falabella (`051`), Banco Ripley (`053`), Banco Consorcio (`055`), Tanner (`062`), Coopeuch / Dale (`672`), Prepago Los Héroes (`729`), Prepago Tenpo (`730`), TAPP Caja Los Andes (`732`), Copec Pay (`741`), Prex (`743`), Fintual (`746`), and Mercado Pago (`875`). An order to any other bank is left out of the file.
+Global66 takes transfers to these banks, named by their CMF code: Banco de Chile (`001`), Banco Internacional (`009`), BancoEstado (`012`), Scotiabank (`014`), BCI / MACHBANK (`016`), Banco Bice (`028`), HSBC (`031`), Santander (`037`), Itaú (`039`), JP Morgan (`041`), Banco Security (`049`), Banco Falabella (`051`), Banco Ripley (`053`), Banco Consorcio (`055`), Tanner (`062`), Coopeuch / Dale (`672`), Prepago Los Héroes (`729`), Prepago Tenpo (`730`), TAPP Caja Los Andes (`732`), Copec Pay (`741`), Prex (`743`), Fintual (`746`), Fintoc (`764`), and Mercado Pago (`875`). An order to any other bank is left out of the file.
 
 Each file reads each payee's Bank Details when you download it. If you change a Partner's Bank Details after marking the batch Ready, download the file again.
 

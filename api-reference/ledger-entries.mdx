@@ -57,6 +57,7 @@ Each item in `entries` carries the Ledger Entry fields plus three line-derived t
 | `notes` | string or null | Longer notes |
 | `status` | enum | `active`, `deleted`, `reversed`, `scheduled`, or `cancelled` |
 | `reversalOfEntryId` | UUID or null | The entry this one reverses; `null` for ordinary entries |
+| `bookId` | UUID or null | The [Book](/api-reference/books) the entry counts in; `null` for a common entry |
 | `intercompanyEntryId` | UUID or null | The [Intercompany Entry](/api-reference/intercompany-entries) this entry is one side of; `null` for ordinary entries. See [Entries of an Intercompany Entry](#entries-of-an-intercompany-entry) |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
@@ -66,7 +67,7 @@ Each item in `entries` carries the Ledger Entry fields plus three line-derived t
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the entry |
 | `otherEntityOfIntercompanyEntry` | object or null | `{ id, name }` of the other Entity of the entry's [Intercompany Entry](/api-reference/intercompany-entries); `null` for ordinary entries |
 
-The first ten fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
+The first eleven fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?limit=20&sort=date&direction=desc" \
@@ -126,7 +127,7 @@ Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which 
 | `accountName` | string | Name of the account |
 | `accountType` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
 | `partnerName` | string or null | Name of the partner |
-| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-/partners/partnerid/logo) is read from it |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo) is read from it |
 | `lineDimensionValues` | array | Tags on the line: `{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }` |
 | `intercompanyPairId` | UUID or null | The [Intercompany Pair](/api-reference/intercompany-entries#get-/api/organizations/organizationid/intercompany-entries/intercompanyentryid) the line belongs to; `null` for an unpaired line |
 
@@ -150,6 +151,9 @@ Each item in `relatedInvoices`:
 | `sourceId` | UUID or null | Source the document came from |
 | `controlLineId` | UUID or null | The receivable/payable line that books it; `null` when unbooked |
 | `controlAccountId` | UUID or null | Account of the control line; `null` when unbooked |
+| `followUp` | object or null | The [Follow-up](/api-reference/follow-ups) on the Invoice; `null` when there is none |
+| `excludedAt` | ISO datetime or null | When the Invoice was [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books); `null` when it isn't excluded |
+| `exclusionReason` | string or null | Why it was excluded; `null` exactly when `excludedAt` is null |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
@@ -173,6 +177,9 @@ Each item in `relatedMovements`:
 | `ledgerLineId` | UUID or null | Bank line of that entry |
 | `ledgerAccountId` | UUID or null | Account of that bank line |
 | `metadata` | array | Additional information as `{ label, value }` pairs |
+| `followUp` | object or null | The [Follow-up](/api-reference/follow-ups) on the Movement; `null` when there is none |
+| `excludedAt` | ISO datetime or null | When the Movement was [excluded from the books](/api-reference/bank-movements#exclude-a-movement-from-the-books); `null` when it isn't excluded |
+| `exclusionReason` | string or null | Why it was excluded; `null` exactly when `excludedAt` is null |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
@@ -188,7 +195,7 @@ Each item in `allocations`:
 | `amount` | integer | Settled amount |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
-| `counterpart` | object | The other side of the allocation: `{ lineId, entryId, entryMemo, accountId, accountCode, accountName, partnerId, partnerName }` |
+| `counterpart` | object | The other side of the allocation: `{ lineId, entryId, entryDate, entryMemo, accountId, accountCode, accountName, partnerId, partnerName }` |
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID \
@@ -243,6 +250,8 @@ You choose the `id` of every line, the same way you choose the entry `id`. Becau
   "notes": null,
   "status": "active",
   "reversalOfEntryId": null,
+  "bookId": null,
+  "intercompanyEntryId": null,
   "createdAt": "2026-01-15T14:02:11.000Z",
   "updatedAt": "2026-01-15T14:02:11.000Z",
   "ledgerEntryLines": [
@@ -598,6 +607,8 @@ List Open Item lines for an Open-Item Account with pagination. Shows unsettled l
 | `sortDirection` | enum | No | `asc` | `asc` or `desc` |
 | `bookId` | UUID | Conditional | — | Required when the Entity has at least one Book; must be omitted otherwise |
 
+An account that does not track open items returns `400` with `ACCOUNT_TRACKS_NO_OPEN_ITEMS_ERROR`.
+
 - **Success response:** a page of open-item lines
 - **Status:** 200
 
@@ -606,7 +617,6 @@ List Open Item lines for an Open-Item Account with pagination. Shows unsettled l
 | `lines` | array | Lines on this page, each with the fields below |
 | `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
 | `openTotal` | integer | Open amount of the whole account, regardless of filter or page |
-| `lineCount` | integer | Line count of the whole account, regardless of filter or page |
 | `partnerOptions` | array | Partners named by the account's lines, as `{ id, name }` |
 
 Each item in `lines` is a Ledger Entry Line object (see the entry detail endpoint) extended with:
@@ -617,7 +627,7 @@ Each item in `lines` is a Ledger Entry Line object (see the entry detail endpoin
 | `entryDate` | ISO date | Date of the parent entry |
 | `entryMemo` | string or null | Memo of the parent entry |
 | `partnerName` | string or null | Name of the partner |
-| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-/partners/partnerid/logo) is read from it |
+| `partnerWebsite` | string or null | Website of the partner, as a bare domain (`acme.cl`); `null` when it has none. The partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo) is read from it |
 | `settlementStatus` | enum | `open` (nothing settled), `partial`, or `settled` (nothing left open) |
 | `invoiceId` | UUID or null | The Invoice whose Control Line this line is; `null` for any other line, even on the same account |
 | `invoiceDocumentNumber` | string or null | Document number of that Invoice. In the app, **Partidas abiertas** prefixes the line with `Doc.` and this number |
@@ -693,42 +703,6 @@ curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE
   -d '{"dimensionValueIds": ["dddddddd-dddd-4ddd-8ddd-dddddddddddd"]}'
 ```
 
-## POST /api/entities/:entityId/ledger/entries/:entryId/comments
-
-Post a Comment on a Ledger Entry. The author is taken from the session; the Comment appears in the entry's [audit trail](/api-reference/audit-trail) alongside every other change, and inside the entry view of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host entry.
-
-- **Path params:** `entityId` (UUID), `entryId` (UUID)
-- **Body:**
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
-
-- **Success response:** the created Comment
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | UUID | Comment id |
-| `entityId` | UUID | Owning Entity |
-| `authorUserId` | UUID | User the session belonged to |
-| `body` | string | The text that was posted |
-| `ledgerEntryId` | UUID | The entry the Comment belongs to |
-| `invoiceId` | null | Always null on this route |
-| `bankMovementId` | null | Always null on this route |
-| `createdAt`, `updatedAt` | ISO datetime | Row timestamps |
-
-- **Status:** 201
-
-The entry must exist under the Entity. When it does not, the response is `404` with `code: "COMMENT_HOST_NOT_FOUND_ERROR"` and `params: { hostKind: "ledger_entry", hostId }`. Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before reaching the database.
-
-```bash
-curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID/comments \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -d '{ "body": "Reclassified after review with the auditor." }'
-```
-
 ## Domain error codes
 
 | Code | Meaning |
@@ -751,6 +725,10 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `LEDGER_ENTRY_LINE_PARTNER_PINNED_ERROR` | Partner cannot be changed (pinned by constraint) |
 | `LEDGER_ENTRY_LINE_PARTNER_NOT_FOUND_ERROR` | Partner not found |
 | `LEDGER_ENTRY_LINE_PARTNERS_NOT_FOUND_ERROR` | Multiple partners not found |
+| `LEDGER_ENTRY_LINE_PARTNER_MERGED_ERROR` | A line names a [Merged Partner](/api-reference/partners#after-a-merge). `params.partnerIds` lists them (`409`) |
+| `TRANSACTION_CURRENCY_IS_ENTITY_CURRENCY_ERROR` | A line's `transactionCurrency` is the Entity's functional currency (`400`) |
+| `DIMENSION_VALUE_ON_NON_RESULT_ACCOUNT_ERROR` | Dimension values tag only lines on income or expense accounts. `params.accountIds` lists the others (`400`) |
+| `ACCOUNT_TRACKS_NO_OPEN_ITEMS_ERROR` | The account named in an Open Item Lines read does not track open items (`400`) |
 | `LEDGER_ENTRY_LINE_ACCOUNT_PINNED_ERROR` | Account cannot be changed (pinned by constraint) |
 | `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line posts to the Suspense Account, which only bank Match, Assign, and Unassign can use |
 | `LEDGER_ENTRY_LINE_PARTNER_ON_SUSPENSE_ACCOUNT_ERROR` | A line on the Suspense Account cannot carry a Partner |
@@ -765,14 +743,13 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$E
 | `DIMENSION_VALUE_SET_DUPLICATE_DIMENSION_ERROR` | Multiple values from the same dimension |
 | `RECONCILIATION_ALLOCATION_NOT_FOUND_ERROR` | Allocation not found |
 | `RECONCILIATION_ALLOCATION_NETS_REVERSAL_ERROR` | Allocation nets a reversal |
-| `COMMENT_HOST_NOT_FOUND_ERROR` | Ledger Entry named as a comment host does not exist |
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | 200 | Success (GET, PATCH, DELETE, book) |
-| 201 | Created (POST entries, POST entries/bulk, POST reverse, POST scheduled-entries, POST comments) |
+| 201 | Created (POST entries, POST entries/bulk, POST reverse, POST scheduled-entries) |
 | 400 | Validation error |
 | 401 | Unauthenticated |
 | 403 | Forbidden |

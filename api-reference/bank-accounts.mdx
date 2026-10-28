@@ -18,7 +18,7 @@ A Bank Account is a real-world account an Entity holds at a financial institutio
 All Bank Account routes are prefixed under:
 
 ```text
-POST /api/entities/:entityId/bank-accounts
+/api/entities/:entityId/bank-accounts
 ```
 
 Feed sub-routes live under:
@@ -41,7 +41,7 @@ A Bank Account has one of two kinds, validated at creation against the mapped Le
 
 | Kind | Mapped Ledger Account type |
 | --- | --- |
-| `bank` | Asset |
+| `bank` | Asset, with the **Cash** sub-type |
 | `card` | Liability |
 
 ## List bank accounts
@@ -70,7 +70,7 @@ Each Bank Account in the list carries:
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 | `balance` | integer | Signed balance in minor units |
-| `unreconciledCount` | integer | Movements without a booking entry |
+| `unreconciledCount` | integer | Movements still to reconcile: those with no booking entry, and those booked with part still on the Suspense Account. Excluded Movements don't count |
 
 The last two fields (`balance` and `unreconciledCount`) are the summary; endpoints that return a Bank Account without summary omit them.
 
@@ -79,7 +79,7 @@ The `feed` object, when present, contains:
 | Field | Type | Description |
 | --- | --- | --- |
 | `integrationId` | UUID | The [Integration](/api-reference/integrations) that feeds the account |
-| `integrationKind` | `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` | The kind of that Integration |
+| `integrationKind` | `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` \| `polar` \| `stripe` | The kind of that Integration |
 | `providerAccountId` | string | Provider-side account handle |
 | `institutionName` | string \| null | The bank's display name for a `fintoc` or `plaid` feed; `null` for every other kind |
 | `lastSyncedAt` | ISO datetime \| null | Last sync that landed, whether or not it tied out. `null` until the first sync lands |
@@ -152,9 +152,12 @@ Returns `201 Created` with the created Bank Account, including the `balance` and
 | Status | Meaning |
 | --- | --- |
 | 201 | Created |
-| 400 | Validation error, kind/type mismatch, or an unknown `bankCode` (`BANK_ACCOUNT_BANK_UNKNOWN_ERROR`, with `params.bankCode`) |
+| 400 | Validation error, an unknown `currency` (`UNKNOWN_CURRENCY_ERROR`), or an unknown `bankCode` (`BANK_ACCOUNT_BANK_UNKNOWN_ERROR`, with `params.bankCode`) |
 | 404 | Entity or Ledger Account not found |
-| 409 | `id` already exists |
+| 409 | `id` already exists (`BANK_ACCOUNT_ID_CONFLICT_ERROR`) |
+| 409 | The Ledger Account's type doesn't match `kind` (`BANK_ACCOUNT_KIND_LEDGER_ACCOUNT_TYPE_MISMATCH_ERROR`) |
+| 409 | A `bank` account maps to a Ledger Account that isn't a Cash Account (`BANK_ACCOUNT_LEDGER_ACCOUNT_NOT_CASH_ERROR`) |
+| 409 | The Ledger Account is the reserved suspense account (`LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR`) |
 
 ### Example
 
@@ -235,7 +238,7 @@ Returns `200 OK` with:
 | --- | --- |
 | 200 | Deleted |
 | 404 | Bank Account not found |
-| 409 | Account has Movements or an active feed |
+| 409 | Account has Movements (`BANK_ACCOUNT_HAS_MOVEMENTS_ERROR`) or an active feed (`BANK_ACCOUNT_FED_ERROR`) |
 
 ### Example
 
@@ -292,6 +295,7 @@ Returns `201 Created` with:
 | --- | --- | --- |
 | `landedCount` | integer | New Movements written (nonnegative) |
 | `skippedCount` | integer | Movements already present (nonnegative) |
+| `updatedCount` | integer | Of the `skippedCount` Movements, those Sintropix updated because the Provider changed their details since they landed, such as the description (nonnegative) |
 
 ### Status codes
 
@@ -302,6 +306,7 @@ Returns `201 Created` with:
 | 409 | The Provider restated a Movement the feed already landed, and a person must accept the Provider's version (`BANK_FEED_SYNC_RESTATEMENT_ERROR`). Nothing landed. See [Restatement](#restatement) |
 | 409 | The sync found a restatement, but another sync landed after it read the Provider (`BANK_FEED_SYNC_RACED_ERROR`). Nothing landed. Sync again |
 | 424 | The Provider refused the read or the landing (`BANK_FEED_PROVIDER_FAILURE_ERROR` and the other codes in [Provider refusals](/api-reference/overview#provider-refusals)) |
+| 503 | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`). Retry later |
 
 ### Example
 
@@ -417,7 +422,7 @@ Accept the Provider's version of the restatement you reviewed. Sintropix deletes
 | --- | --- | --- | --- |
 | `fingerprint` | string | Yes | The `fingerprint` of the review you read with `GET /feed/restatement` |
 
-Returns `201 Created` with the [sync result](#sync-a-bank-account-feed): `landedCount` and `skippedCount`. The feed's tie-out is judged again, as on any sync.
+Returns `201 Created` with the [sync result](#sync-a-bank-account-feed): `landedCount`, `skippedCount`, and `updatedCount`. The feed's tie-out is judged again, as on any sync.
 
 | Status | Meaning |
 | --- | --- |

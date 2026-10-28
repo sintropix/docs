@@ -10,13 +10,13 @@ A Bank Movement is a single transaction line pulled from a bank feed or entered 
 
 ## Status
 
-Read endpoints enrich each Movement with a `status` field (`bankMovementWithStatusSchema`) computed from its ledger link and allocations:
+Read endpoints enrich each Movement with a `status` field computed from its booking and its Suspense line:
 
 | Value | Meaning |
 | --- | --- |
 | `unbooked` | Movement has no Ledger Entry yet. |
-| `booked_pending_allocation` | Movement is booked to a Ledger Entry, but the counterpart Open-Item line still has open amount, or part of the Movement still sits on the [Suspense Account](#overpayments-and-the-suspense-account). |
-| `reconciled` | Movement is booked and every counterpart line is fully allocated. |
+| `booked_pending_allocation` | Movement is booked to a Ledger Entry, but part of the Movement still sits on the [Suspense Account](#overpayments-and-the-suspense-account). |
+| `reconciled` | Movement is booked, and its Ledger Entry has no Suspense line. |
 | `excluded` | Movement is [excluded from the books](#exclude-a-movement-from-the-books): someone recorded that it will never be booked. |
 
 You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value. Only `unbooked` and `booked_pending_allocation` are pending work. A listing with no `status` filter lists every Movement, `excluded` ones included. Use `status=notExcluded` to list every Movement headed for the books, and `status=excluded` to list only the excluded ones.
@@ -114,7 +114,7 @@ Erwin loads only the rows that succeeded, and skips failed ones. Each row become
 Erwin only reads Ontop. It never pays, tops up, approves, signs, or changes anything on Ontop's site.
 
 <Note>
-  Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
+  The routes on this page are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID.
 </Note>
 
 <Note>
@@ -151,7 +151,6 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `excluded` | Derived booking status. |
 | `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it regardless of filters. |
 | `partnerName` | string \| null | Name of `partnerId`, for display. |
-| `reconciliationLabel` | string \| null | Counterpart of the booking entry as `"<code> <name>"`, with `" +N"` when there are more counterpart lines. `null` while unbooked. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 Write answers also return the Bank Account with its computed summary:
@@ -164,9 +163,11 @@ Write answers also return the Bank Account with its computed summary:
 | `kind` | `bank` \| `card` | Account kind. |
 | `ledgerAccountId` | uuid | Ledger Account where booked activity accumulates. |
 | `currency` | string | ISO 4217 code, for example `CLP`. |
-| `feed` | object \| null | `{ integrationId, integrationKind, providerAccountId, institutionName, lastSyncedAt }` when an [Integration](/api-reference/bank-feeds) feeds the account; `null` otherwise. See [Bank Accounts](/api-reference/bank-accounts) for each field. |
+| `accountNumber` | string \| null | The number the bank knows the account by. |
+| `bankCode` | string \| null | CMF code of the bank that holds the account. |
+| `feed` | object \| null | `{ integrationId, integrationKind, providerAccountId, institutionName, lastSyncedAt, tieOut }` when an [Integration](/api-reference/bank-feeds) feeds the account; `null` otherwise. See [Bank Accounts](/api-reference/bank-accounts) for each field. |
 | `balance` | integer | Signed balance on the Ledger Account's normal side. |
-| `unreconciledCount` | integer | Movements not yet reconciled. Excluded Movements don't count. |
+| `unreconciledCount` | integer | Movements still to reconcile: `unbooked` and `booked_pending_allocation`. Excluded Movements don't count. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## GET `/movements`
@@ -189,24 +190,24 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `amountMin` | integer | No | Minimum magnitude in minor units. Matched against the magnitude on either side. |
 | `amountMax` | integer | No | Maximum magnitude in minor units. |
 | `search` | string | No | Up to 100 characters. Matches the description and the Partner name anywhere, ignoring case. Matches the bank reference only from its start: the whole reference or a prefix of it, ignoring case, with `%` and `_` read as plain characters. A search that reads as an amount also matches the Movement's amount; see [Search by amount](/api-reference/overview#search-by-amount). Blank is ignored. |
-| `comments` | `with` \| `without` | No | `with` keeps only Movements that have at least one Comment; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
+| `erpThread` | `with` \| `without` | No | `with` keeps only Movements that have an ERP Thread, the conversation about the Movement in the Organization's Chat; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
 | `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. |
 | `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
 | `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
 
 **Response**
 
-Each row is a Bank Movement object plus `attachmentCount` (integer, the number of [attachments](/api-reference/attachments) on the Movement), `commentCount` (integer, the number of Comments on the Movement), and `group`: `null` when `groupBy=none`, otherwise `{ by, value, key, movementCount, startsGroup }` where `by` is the `groupBy` value, `value` is the Partner name (nullable), the `YYYY-MM` month, or the status, `movementCount` is the size of the group across the whole result, and `startsGroup` is `true` on the first row of the group. `nextCursor` is `null` on the last page.
+Each row is a Bank Movement object plus `attachmentCount` (integer, the number of [attachments](/api-reference/attachments) on the Movement), `hasErpThread` (boolean, `true` when the Movement has an ERP Thread), and `group`: `null` when `groupBy=none`, otherwise `{ by, value, key, movementCount, startsGroup }` where `by` is the `groupBy` value, `value` is the Partner name (nullable), the `YYYY-MM` month, or the status, `movementCount` is the size of the group across the whole result, and `startsGroup` is `true` on the first row of the group. `nextCursor` is `null` on the last page.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&limit=25" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-To list only the unbooked Movements that nobody has commented on yet, add `comments=without`:
+To list only the unbooked Movements that nobody has written about yet, add `erpThread=without`:
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&comments=without" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&erpThread=without" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -230,9 +231,8 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
       "status": "unbooked",
       "runningBalance": 4830000,
       "partnerName": "Acme SpA",
-      "reconciliationLabel": null,
       "attachmentCount": 0,
-      "commentCount": 0,
+      "hasErpThread": false,
       "group": null,
       "createdAt": "2025-12-31T03:10:22.000Z",
       "updatedAt": "2025-12-31T03:10:22.000Z"
@@ -244,23 +244,33 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
 
 ## GET `/movements/:movementId/match-candidates`
 
-List Invoices and Ledger Entries that could plausibly settle this Movement (per Sintropix's matching heuristics). Up to 200 open Ledger Entry Lines on the side that settles the Movement, newest entry date first.
+List the open Ledger Entry Lines and the unbooked Invoices that could settle this Movement, ranked by Sintropix. The order is: exact amount first, then Partner evidence, then the distance between the dates, then the newest entry or issue date, then id. At most 200 candidates, cut after the ranking.
 
 **Query parameters**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `bookId` | uuid | Conditional | Required when the Entity has at least one Book; must be omitted otherwise. The candidates are the open lines of that Book, plus the common ones. |
+| `q` | string | No | Search text. Matches the document number, the entry memo, the account code and name, the Partner's name, legal name, and tax ID, and the amount. Names, memos, and account names match ignoring accents. The search runs before the cut, so it reaches candidates past the first 200. |
 
-**Response:** `{ candidates: [...] }`, one item per open line:
+**Response:** `{ candidates: [...], highConfidenceCandidateId }`. `highConfidenceCandidateId` names the recommended candidate (its `line.id`, or its `invoice.id` for an unbooked Invoice), or is `null` when no single candidate stands out. Each candidate has a `kind`:
+
+- `line`: an open Ledger Entry Line on the side that settles the Movement.
+- `unbookedInvoice`: an Invoice that isn't booked yet, so it has no line to settle. Book the Invoice first; it then appears as a `line` candidate. It carries `kind`, `invoice` (`{ id, documentNumber, issueDate, total, currency, direction, documentKind, isExpenseRendition }`), `partner`, and `evidence`.
+
+Every candidate carries `evidence`: `partnerEvidence` (`{ assigned, name, taxId }`, booleans that say whether the Partner is the Movement's Partner, or its name or tax ID appears in the description), `amountRelation` (`exact` \| `underpays` \| `overpays`, where `underpays` means the Movement is smaller; `null` on a foreign-currency Bank Account), and `dateDistanceDays` (integer).
+
+A `line` candidate has these fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `kind` | `line` | Candidate kind. |
 | `line` | object | The open Ledger Entry Line: `id`, `entryId`, `accountId`, `entityId`, `functionalAmount`, `side`, `partnerId`, `transactionCurrency`, `transactionAmount`, `transactionFxRate`, `openAmount` (remaining unsettled amount, nullable), `createdAt`, `updatedAt`. |
 | `entry` | object | `{ id, entryDate, memo }` of the entry the line belongs to. |
 | `account` | object | `{ id, code, name }` of the Ledger Account the line sits on. |
 | `partner` | object \| null | `{ id, name, legalName, taxId }` when the line names a Partner. |
 | `invoice` | object \| null | `{ id, documentNumber, issueDate, isExpenseRendition }` when the line is an Invoice's control line. `isExpenseRendition` is `true` for an [Expense Rendition](/api-reference/expense-claims), which the app names **Rendición** instead of **Factura**. |
+| `evidence` | object | See above. |
 
 Pass the candidate's `line.id` as `lineId` to `POST /movements/:movementId/match`.
 
@@ -272,40 +282,11 @@ Return the Movement's current booking or match state and the Ledger Lines that d
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
-| `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, `partnerWebsite` (the Partner's website as a bare domain, or `null`), and `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`). |
-| `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
+| `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `bookId`, `intercompanyEntryId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
+| `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, `partnerWebsite` (the Partner's website as a bare domain, or `null`), `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`), and `intercompanyPairId` (nullable). |
+| `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryDate, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
 | `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount`. `null` when the booking touches no open-item account. |
-| `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.entryDate`, `counterpart.invoiceDocumentNumber` (nullable), `counterpart.invoiceIsExpenseRendition` (boolean), and `counterpart.openAmount` added. `counterpart.invoiceIsExpenseRendition` is `true` when the counterpart is an [Expense Rendition](/api-reference/expense-claims). `counterpart.openAmount` is the balance still unsettled on the counterpart line, such as an Invoice, after every Allocation against it. It is nullable. A value above `0` means the Movement settled the counterpart only in part. |
-
-## GET `/movements/:movementId/erwin-context`
-
-Compact reconciliation context tailored for Erwin (the AI assistant) as it decides how to book a Movement. Present in the public surface because Erwin authenticates as the User via a Key Lease.
-
-**Response**
-
-```json
-{
-  "bankAccount": {
-    "id": "c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
-    "name": "Banco de Chile CLP",
-    "ledgerAccountId": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
-    "currency": "CLP"
-  },
-  "movement": {
-    "id": "3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11",
-    "bankAccountId": "c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
-    "movementDate": "2025-12-30",
-    "amount": 1250000,
-    "side": "debit",
-    "description": "TRANSFERENCIA DE ACME SPA",
-    "externalRef": "BCH-2025-1230-0007",
-    "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
-    "status": "unbooked",
-    "runningBalance": 4830000
-  }
-}
-```
+| `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.invoiceDocumentNumber` (nullable), `counterpart.invoiceIsExpenseRendition` (boolean), and `counterpart.openAmount` added. `counterpart.invoiceIsExpenseRendition` is `true` when the counterpart is an [Expense Rendition](/api-reference/expense-claims). `counterpart.openAmount` is the balance still unsettled on the counterpart line, such as an Invoice, after every Allocation against it. It is nullable. A value above `0` means the Movement settled the counterpart only in part. |
 
 ## POST `/movements`
 
@@ -347,8 +328,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 Create up to 100 Movements on the Bank Account in a single request and transaction. Each element carries its own client-supplied `id` (required and unique within the batch) so a retry collides on the primary key rather than double-inserting.
 
-- **Body:** `BulkCreateBankMovementDto` — `{ movements: CreateBankMovement[] }` (1 to 100 elements).
-- **Response:** array of `createBankMovementResultSchema`, in input order.
+- **Body:** `{ movements: [...] }` (1 to 100 elements), each in the [`POST /movements`](#post-/movements) body shape.
+- **Response:** array of `{ movement, bankAccount }`, in input order.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/bulk" \
@@ -359,27 +340,27 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 ```
 
 <Note>
-  The bulk routes are declared before `:movementId` in the controller so Nest does not read `bulk`, `book`, or `match` as a movement id. Match that ordering when composing URLs.
+  `bulk`, `book`, and `match` directly under `/movements` are the bulk routes, never a Movement id.
 </Note>
 
 ## POST `/movements/book`
 
 Book up to 100 already-created Movements in a single transaction. Each element carries a `movementId` plus the booking instructions used by the single-movement endpoint.
 
-- **Body:** `BulkBookBankMovementDto` — `{ bookings: (BookBankMovement & { movementId })[] }` (1 to 100 elements).
-- **Response:** array of `reconcileBankMovementResultSchema`, in input order.
+- **Body:** `{ bookings: [...] }` (1 to 100 elements), each in the [`POST /movements/:movementId/book`](#post-/movements/movementid/book) body shape plus `movementId`.
+- **Response:** array of `{ movement, bankAccount, reconciliation }`, in input order.
 
 ## POST `/movements/match`
 
 Match up to 100 already-created Movements to existing documents in a single transaction. Each element carries a `movementId` plus the match instructions used by the single-movement endpoint.
 
-- **Body:** `BulkMatchBankMovementDto` — `{ matches: (MatchBankMovement & { movementId })[] }` (1 to 100 elements).
-- **Response:** array of `reconcileBankMovementResultSchema`, in input order.
+- **Body:** `{ matches: [...] }` (1 to 100 elements), each in the [`POST /movements/:movementId/match`](#post-/movements/movementid/match) body shape plus `movementId`.
+- **Response:** array of `{ movement, bankAccount, reconciliation }`, in input order.
 
 Each element follows the same rules as the single-movement Match, including the [Suspense line](#overpayments-and-the-suspense-account) for the rest.
 
 <Info>
-  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`).
+  Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex`.
 </Info>
 
 ## PATCH `/movements/:movementId`
@@ -544,7 +525,7 @@ Assign works in two ways:
 - **Settle an open item.** Set `lineId` to the open line to settle, such as another Invoice's control line. Include a settlement line on that line's account. Sintropix allocates it against the target, up to the target's Open Amount, the same way as Match.
 - **Categorize to accounts.** Set `lineId` to `null` and send plain lines on any account, for example other income or a bank fee.
 
-The Suspense line shrinks by the net amount the new lines take. It goes away when nothing is left, and the Movement becomes `reconciled` once its open items are settled.
+The Suspense line shrinks by the net amount the new lines take. It goes away when nothing is left, and the Movement then becomes `reconciled`.
 
 **Body**
 
@@ -667,49 +648,6 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocatio
   -d '{ "lineIds": ["'"$BRIDGE_LINE_A_ID"'", "'"$BRIDGE_LINE_B_ID"'"] }'
 ```
 
-## POST `/api/entities/:entityId/bank-movements/:movementId/comments`
-
-Post a Comment on a Bank Movement. The author is taken from the session; the Comment appears in the Movement's [audit trail](/api-reference/audit-trail) alongside every other change, and inside the Movement panel of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host Movement.
-
-<Note>
-  This route is nested directly under the Entity, not under a Bank Account. `movementId` alone identifies the Movement.
-</Note>
-
-**Body**
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
-
-**Response** (`201`): the created Comment.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | uuid | Comment id. |
-| `entityId` | uuid | Owning Entity. |
-| `authorUserId` | uuid | User the session belonged to. |
-| `body` | string | The text that was posted. |
-| `bankMovementId` | uuid | The Movement the Comment belongs to. |
-| `invoiceId` | null | Always null on this route. |
-| `ledgerEntryId` | null | Always null on this route. |
-| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
-
-**Domain errors**
-
-| Code | Status | Meaning |
-| --- | --- | --- |
-| `COMMENT_HOST_NOT_FOUND_ERROR` | `404` | The Bank Movement in the URL does not exist under this Entity. The response carries `params: { hostKind: "bank_movement", hostId }`. |
-
-Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before the Comment reaches the database.
-
-```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-movements/$MOVEMENT_ID/comments" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "Content-Type: application/json" \
-  -d '{ "body": "Cargo bancario correspondiente al proveedor Acme." }'
-```
-
 ## Exclude a movement from the books
 
 Some Movements should never be booked, and deleting a fed Movement doesn't help because the next sync lands it again. Exclude it instead. An **Exclusion** records, with a reason, that the Movement will never be booked. It takes the Movement out of the pending work, and you can lift it at any time.
@@ -762,8 +700,8 @@ A blank `reason`, or one longer than 1,000 characters, is refused with `400`. Ea
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success (`GET`, `PATCH`, `DELETE`, and `POST` actions on an existing Movement). |
-| `201` | Movement or Comment created. |
+| `200` | Success (`GET`, `PATCH`, `PUT`, and `DELETE`). |
+| `201` | Success of any `POST`, including the actions on an existing Movement such as `/book` and `/match`. |
 | `400` | Validation error, or missing `x-audit-actor` on a key call. |
 | `403` | Read-only key attempted a mutation. |
 | `404` | Entity, Bank Account, or Movement not found. |
