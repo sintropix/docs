@@ -82,7 +82,7 @@ Returns the audit envelopes that changed one row of the Entity, the same history
 
 **Accepted `tableName` values**
 
-The trail records changes to these tables: `ledger_entry`, `ledger_entry_line`, `invoice`, `invoice_attachment`, `attachment`, `partner`, `bank_movement`, `bank_account`, `reconciliation_allocation`, `fixed_asset`, `fixed_asset_class`, `fixed_asset_depreciation_entry`. Any other string is accepted but matches no rows.
+The trail records changes to these tables: `ledger_entry`, `ledger_entry_line`, `invoice`, `invoice_attachment`, `attachment`, `partner`, `bank_movement`, `bank_account`, `reconciliation_allocation`, `fixed_asset`, `fixed_asset_class`, `fixed_asset_depreciation_entry`, `intercompany_entry`. Any other string is accepted but matches no rows.
 
 Two parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry and to its `ledger_entry_line` rows; `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links. For an [Expense Rendition](/api-reference/expense-claims), `tableName=invoice` also returns the history of the Expense Claim it came from: who submitted it and who approved it.
 

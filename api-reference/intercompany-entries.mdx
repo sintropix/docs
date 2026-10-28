@@ -1,0 +1,568 @@
+---
+title: "Sintropix Intercompany Entries API: Book and Unbook Entries Between Two Entities"
+sidebarTitle: "Intercompany Entries"
+description: "List, read, create, and unbook Intercompany Entries: one balanced Ledger Entry in each of two Entities of an Organization, joined by Pairs. DELETE is the Unbook. To correct an act, unbook it and create it again."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+An **Intercompany Entry** is one act between two Entities of the same Organization, such as a loan from one company of the group to another. The act books one balanced [Ledger Entry](/api-reference/ledger-entries) in each Entity, both on the same date and with the same memo. It also stores **Pairs**. Each Pair joins one line of the first Entry with one line of the second: the two halves of one position, such as the receivable in the lender and the payable in the borrower. A consolidated view eliminates the paired lines.
+
+The act changes only as a whole. You create it, read it, and unbook it. Nothing edits it in place, and its two Ledger Entries refuse the ordinary Ledger Entry edits. To fix a mistake, [unbook the act and create it again](#correct-an-intercompany-entry).
+
+The routes live under the Organization, not under an Entity:
+
+| Method | Route | What it does |
+| --- | --- | --- |
+| `GET` | `/api/organizations/:organizationId/intercompany-entries` | [List the acts](#get-/api/organizations/organizationid/intercompany-entries), newest date first |
+| `GET` | `/api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` | [Read one act](#get-/api/organizations/organizationid/intercompany-entries/intercompanyentryid) with its two Entries and its Pairs |
+| `POST` | `/api/organizations/:organizationId/intercompany-entries` | [Create the act](#post-/api/organizations/organizationid/intercompany-entries), which books both Entries |
+| `DELETE` | `/api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` | [Unbook the act](#delete-/api/organizations/organizationid/intercompany-entries/intercompanyentryid), which unbooks both Entries |
+
+<Warning>
+  There is no `PATCH` or `PUT` on an act, and no `/reverse` or `/unbook` sub-route. Those requests return `404`. `DELETE` is the Unbook. It isn't a hard delete: the act and its Entries stay readable, and their history is kept.
+</Warning>
+
+All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Timestamps are ISO 8601 datetimes.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/intercompany-entries/{intercompanyEntryId}"
+  note="The list is at /organizations/{organizationId}/intercompany-entries, under Intercompañía in the Grupo sidebar."
+/>
+
+## Access
+
+An act holds the books of two Entities, so every route asks for access to the whole Organization:
+
+- **Use an Organization-level API key.** Create the key with **Todas las empresas** in the **Empresa** selector (see [Get an API Key](/guides/api-keys)). A key confined to one Entity gets `403` with `PERMISSION_DENIED_ERROR` on every route on this page, reads included.
+- **Writes need a Role that writes.** `POST` and `DELETE` need the `staff` or `client` Role. A `viewer` can list and read acts, and gets `403` with `PERMISSION_DENIED_ERROR` on a write. See [Access and roles](/api-reference/overview#access-and-roles).
+- **Send the audit headers on writes.** With an API key, `POST` and `DELETE` need `x-audit-actor` and `x-audit-reason`, like every mutation. See [Authentication](/api-reference/overview#authentication).
+
+An act the Organization doesn't hold, including an act of another Organization, returns `404` with `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR`.
+
+## The Intercompany Entry object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Act id, chosen by the client on create |
+| `organizationId` | UUID | Organization that holds the act |
+| `status` | enum | `active`, or `deleted` once the act is unbooked |
+| `memo` | string or null | Short description, shared by both Entries |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+The act has no date of its own. The list and the detail add `entryDate`, the date its two Entries carry.
+
+## GET /api/organizations/:organizationId/intercompany-entries
+
+List the Organization's acts as keyset pages, newest `entryDate` first. The list includes unbooked acts, with `status` set to `deleted`.
+
+- **Path param:** `organizationId` (UUID)
+- **Query params:**
+
+| Param | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `cursor` | UUID | No | — | `nextCursor` of the previous page, the id of its last act. An id the Organization doesn't hold returns `404` with `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR`. |
+| `limit` | integer | No | 50 | Page size, 1 to 100 |
+
+No other query parameter is accepted. An unknown one returns `400`.
+
+- **Success response:** a page of acts
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `intercompanyEntries` | array | Acts on this page, each with the fields below |
+| `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
+
+Each item in `intercompanyEntries` is the Intercompany Entry object plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entryDate` | ISO date | Date of the act's two Entries |
+| `ledgerEntries` | array | The act's two Ledger Entries, ordered by Entity name: `{ id, entityId, entityName }` |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries?limit=20" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "intercompanyEntries": [
+    {
+      "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+      "status": "active",
+      "memo": "Préstamo a Operaciones",
+      "createdAt": "2026-10-02T13:15:20.000Z",
+      "updatedAt": "2026-10-02T13:15:20.000Z",
+      "entryDate": "2026-10-01",
+      "ledgerEntries": [
+        {
+          "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "entityName": "Holding SpA"
+        },
+        {
+          "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "entityName": "Operaciones SpA"
+        }
+      ]
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+## GET /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId
+
+Read one act with its two Ledger Entries, their lines, and its Pairs. An unbooked act is still readable.
+
+- **Path params:** `organizationId` (UUID), `intercompanyEntryId` (UUID)
+- **Success response:** the Intercompany Entry detail
+- **Status:** 200
+
+The detail is the Intercompany Entry object plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entryDate` | ISO date | Date of the act's two Entries |
+| `ledgerEntries` | array | The act's two Ledger Entries, ordered by Entity name, each with the fields below |
+| `pairs` | array | The act's Pairs, each with the fields below |
+
+Each item in `ledgerEntries`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Ledger Entry id |
+| `entityId` | UUID | Entity that holds the Entry |
+| `entityName` | string | Name of that Entity |
+| `entryDate` | ISO date | The act's date |
+| `memo` | string or null | The act's memo |
+| `notes` | string or null | Always `null`: the act takes no notes |
+| `status` | enum | Ledger Entry status: `active` while the act is active, `deleted` once it's unbooked |
+| `reversalOfEntryId` | UUID or null | Always `null`: an act's Entry is never a reversal |
+| `bookId` | UUID or null | [Book](/api-reference/books) the Entry counts in; `null` when common |
+| `intercompanyEntryId` | UUID | The act's id |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+| `lines` | array | The Entry's lines, with the same fields as the `lines` of [`GET /api/entities/:entityId/ledger/entries/:entryId`](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid) |
+
+A line in a Pair carries the Pair's id in `intercompanyPairId`. An unpaired line carries `null`.
+
+Each item in `pairs`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Pair id, chosen by Sintropix |
+| `lines` | array | Exactly two items, `{ lineId, entityId }`, in the order of `ledgerEntries` |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries/$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+The response has the same shape as the [create response](#post-/api/organizations/organizationid/intercompany-entries).
+
+## POST /api/organizations/:organizationId/intercompany-entries
+
+Create an act. In one transaction, Sintropix books one Ledger Entry in each of the two Entities, links both to the act, and stores the Pairs. If any check fails, nothing is written.
+
+- **Path param:** `organizationId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied act id. A retry with the same `id` returns `409` with `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, so a repeated request never books twice. |
+| `entryDate` | ISO date | Yes | Date of both Entries. Must be after the Lock Date of both Entities. |
+| `memo` | string or null | Yes | Memo of both Entries |
+| `newLedgerEntries` | array | Yes | Exactly two Entries, one per Entity, each with the fields below. The two `entityId` values must differ. |
+| `newIntercompanyPairs` | array | Yes | 1 to 5,000 Pairs, each with the fields below |
+
+Each item in `newLedgerEntries`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied Ledger Entry id |
+| `entityId` | UUID | Yes | An Entity of the Organization |
+| `newLedgerEntryLines` | array | Yes | 2 to 5,000 lines, balanced (total debits equal total credits) |
+
+Each line has the fields of a line in [`POST /api/entities/:entityId/ledger/entries`](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries): `id`, `accountId`, `functionalAmount`, `side`, and optionally `partnerId`, the transaction trio (`transactionCurrency`, `transactionAmount`, `transactionFxRate`), and `dimensionValueIds`. Every line id must be new and unique across both Entries.
+
+Each item in `newIntercompanyPairs`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lineIds` | [UUID, UUID] | Yes | One line of the first Entry, then one line of the second Entry, in the order of `newLedgerEntries` |
+
+The Pairs follow these rules:
+
+- **One Pair per line.** A line is in at most one Pair. A line in no Pair is an ordinary line of its Entry, such as the bank side of a loan.
+- **Opposite sides.** A Pair is a debit in one Entity and a credit in the other, so the elimination cancels it. Otherwise: `422` with `INTERCOMPANY_PAIR_SAME_SIDE_ERROR`.
+- **Same amount.** Both lines carry the same currency and amount. A line in a foreign currency carries it in its transaction trio. Any other line carries it in its `functionalAmount`, in its Entity's functional currency. Otherwise: `422` with `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR`.
+- **One currency per act.** The act's currency is the currency of its first Pair. A Pair in another currency returns `422` with `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR`.
+- **One rate per Entity.** When an Entity takes the act's currency as a foreign currency, its paired lines carry one rate. `"0.9"` and `"0.90"` count as the same rate. Otherwise: `422` with `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR`, naming the Entity.
+- **No Partner on a paired line.** Leave `partnerId` out or `null`. Sintropix sets it to the [Partner that represents](/api-reference/partners#representing-partners) the other Entity.
+
+Each Entry also passes every check of an ordinary Ledger Entry, the Lock Date included.
+
+- **Success response:** the Intercompany Entry detail, the same shape as the [read](#get-/api/organizations/organizationid/intercompany-entries/intercompanyentryid)
+- **Status:** 201
+
+A Holding lends 5,000,000 CLP to Operaciones. Both Entities keep their books in CLP, so each paired line carries the amount in `functionalAmount`:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Book the October loan from Holding to Operaciones" \
+  -d '{
+    "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+    "entryDate": "2026-10-01",
+    "memo": "Préstamo a Operaciones",
+    "newLedgerEntries": [
+      {
+        "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+        "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "newLedgerEntryLines": [
+          { "id": "c1000000-0000-4000-8000-000000000001", "accountId": "a1000000-0000-4000-8000-000000000001", "functionalAmount": 5000000, "side": "debit" },
+          { "id": "c1000000-0000-4000-8000-000000000002", "accountId": "a1000000-0000-4000-8000-000000000002", "functionalAmount": 5000000, "side": "credit" }
+        ]
+      },
+      {
+        "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+        "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "newLedgerEntryLines": [
+          { "id": "c2000000-0000-4000-8000-000000000001", "accountId": "b2000000-0000-4000-8000-000000000001", "functionalAmount": 5000000, "side": "debit" },
+          { "id": "c2000000-0000-4000-8000-000000000002", "accountId": "b2000000-0000-4000-8000-000000000002", "functionalAmount": 5000000, "side": "credit" }
+        ]
+      }
+    ],
+    "newIntercompanyPairs": [
+      { "lineIds": ["c1000000-0000-4000-8000-000000000001", "c2000000-0000-4000-8000-000000000002"] }
+    ]
+  }'
+```
+
+The Pair joins the Holding's receivable (debit) with the Operaciones payable (credit). The two bank lines stay unpaired.
+
+```json
+{
+  "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+  "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+  "status": "active",
+  "memo": "Préstamo a Operaciones",
+  "createdAt": "2026-10-02T13:15:20.000Z",
+  "updatedAt": "2026-10-02T13:15:20.000Z",
+  "entryDate": "2026-10-01",
+  "ledgerEntries": [
+    {
+      "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "entityName": "Holding SpA",
+      "entryDate": "2026-10-01",
+      "memo": "Préstamo a Operaciones",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "createdAt": "2026-10-02T13:15:20.000Z",
+      "updatedAt": "2026-10-02T13:15:20.000Z",
+      "lines": [
+        {
+          "id": "c1000000-0000-4000-8000-000000000001",
+          "entryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "accountId": "a1000000-0000-4000-8000-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "functionalAmount": 5000000,
+          "side": "debit",
+          "partnerId": "d2000000-0000-4000-8000-000000000001",
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "1180",
+          "accountName": "Cuentas por cobrar a empresas relacionadas",
+          "accountType": "asset",
+          "partnerName": "Operaciones SpA",
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": "e0000000-0000-4000-8000-000000000001"
+        },
+        {
+          "id": "c1000000-0000-4000-8000-000000000002",
+          "entryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "accountId": "a1000000-0000-4000-8000-000000000002",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "functionalAmount": 5000000,
+          "side": "credit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "1110",
+          "accountName": "Banco",
+          "accountType": "asset",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": null
+        }
+      ]
+    },
+    {
+      "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+      "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "entityName": "Operaciones SpA",
+      "entryDate": "2026-10-01",
+      "memo": "Préstamo a Operaciones",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "createdAt": "2026-10-02T13:15:20.000Z",
+      "updatedAt": "2026-10-02T13:15:20.000Z",
+      "lines": [
+        {
+          "id": "c2000000-0000-4000-8000-000000000001",
+          "entryId": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "accountId": "b2000000-0000-4000-8000-000000000001",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "functionalAmount": 5000000,
+          "side": "debit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "1110",
+          "accountName": "Banco",
+          "accountType": "asset",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": null
+        },
+        {
+          "id": "c2000000-0000-4000-8000-000000000002",
+          "entryId": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "accountId": "b2000000-0000-4000-8000-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "functionalAmount": 5000000,
+          "side": "credit",
+          "partnerId": "d1000000-0000-4000-8000-000000000001",
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T13:15:20.000Z",
+          "updatedAt": "2026-10-02T13:15:20.000Z",
+          "accountCode": "2180",
+          "accountName": "Cuentas por pagar a empresas relacionadas",
+          "accountType": "liability",
+          "partnerName": "Holding SpA",
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyPairId": "e0000000-0000-4000-8000-000000000001"
+        }
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "id": "e0000000-0000-4000-8000-000000000001",
+      "lines": [
+        { "lineId": "c1000000-0000-4000-8000-000000000001", "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        { "lineId": "c2000000-0000-4000-8000-000000000002", "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }
+      ]
+    }
+  ]
+}
+```
+
+An act dated on or before the Lock Date of either Entity is refused, and nothing is written:
+
+```json
+{
+  "code": "LEDGER_ENTRY_DATE_LOCKED_ERROR",
+  "params": { "entryDate": "2026-09-30", "ledgerLockDate": "2026-09-30" }
+}
+```
+
+## DELETE /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId
+
+**Unbook** the act. In one transaction, Sintropix unbooks both Ledger Entries and sets the act's `status` to `deleted`. Each Entry is unbooked the way [`DELETE /api/entities/:entityId/ledger/entries/:entryId`](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid) unbooks one Entry. Either both Entries are unbooked or neither is.
+
+This is not a hard delete. The act, its two Entries, their lines, and the Pairs stay readable, with `status` set to `deleted`. Their history stays in the [Audit Trail](#history).
+
+- **Path params:** `organizationId` (UUID), `intercompanyEntryId` (UUID)
+- **Success response:** every row the Unbook changed
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `unbookedIntercompanyEntry` | object | The Intercompany Entry object, with `status` set to `deleted` |
+| `ledgerEntryUnbookResults` | array | Two items, one per Entry, ordered by Entity name. Each has the shape of the [Ledger Entry Unbook response](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid): `unbookedEntry`, `severedInvoices`, `severedMovements`, and `settledChainEntries` |
+
+Like an ordinary Unbook, it also cuts the [Allocations](/api-reference/allocations) and bank Matches that settle the Entries' lines.
+
+The Unbook is refused when:
+
+- **Either Entry is on or before its Entity's Lock Date.** The request returns `409` with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR`. `params` names the Entry, its date, and its Entity's Lock Date. The act and both Entries stay `active`.
+- **The act is already unbooked.** The request returns `409` with `INTERCOMPANY_ENTRY_NOT_ACTIVE_ERROR`.
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-entries/$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Wrong amount on the October loan; rebooking it"
+```
+
+```json
+{
+  "unbookedIntercompanyEntry": {
+    "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+    "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+    "status": "deleted",
+    "memo": "Préstamo a Operaciones",
+    "createdAt": "2026-10-02T13:15:20.000Z",
+    "updatedAt": "2026-10-05T09:40:02.000Z"
+  },
+  "ledgerEntryUnbookResults": [
+    {
+      "unbookedEntry": {
+        "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+        "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "entryDate": "2026-10-01",
+        "memo": "Préstamo a Operaciones",
+        "notes": null,
+        "status": "deleted",
+        "reversalOfEntryId": null,
+        "bookId": null,
+        "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+        "createdAt": "2026-10-02T13:15:20.000Z",
+        "updatedAt": "2026-10-05T09:40:02.000Z"
+      },
+      "severedInvoices": [],
+      "severedMovements": [],
+      "settledChainEntries": []
+    },
+    {
+      "unbookedEntry": {
+        "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+        "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "entryDate": "2026-10-01",
+        "memo": "Préstamo a Operaciones",
+        "notes": null,
+        "status": "deleted",
+        "reversalOfEntryId": null,
+        "bookId": null,
+        "intercompanyEntryId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+        "createdAt": "2026-10-02T13:15:20.000Z",
+        "updatedAt": "2026-10-05T09:40:02.000Z"
+      },
+      "severedInvoices": [],
+      "severedMovements": [],
+      "settledChainEntries": []
+    }
+  ]
+}
+```
+
+A refused Unbook, where the Holding's Entry falls inside its locked period:
+
+```json
+{
+  "code": "LEDGER_ENTRY_UNBOOK_FROZEN_ERROR",
+  "params": {
+    "ledgerEntryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+    "entryDate": "2026-10-01",
+    "ledgerLockDate": "2026-10-31"
+  }
+}
+```
+
+## Correct an Intercompany Entry
+
+You can't edit an act or either of its Entries. To change its date, memo, amounts, accounts, Entities, or Pairs, unbook it and create it again:
+
+<Steps>
+  <Step title="Read the act">
+    `GET /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` returns what you need to rebuild it: the date, the memo, both Entries with their lines, and the Pairs.
+  </Step>
+  <Step title="Unbook it with DELETE">
+    `DELETE /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` unbooks both Entries in one transaction. It isn't a hard delete. The act and its Entries stay readable with `status` set to `deleted`, and the [Audit Trail](#history) keeps their history.
+  </Step>
+  <Step title="Create the corrected act with POST">
+    Send `POST /api/organizations/:organizationId/intercompany-entries` with the corrected body. Use **new ids** for the act, both Entries, and every line. The unbooked act keeps its ids, so reusing the act's `id` returns `409` with `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, and reusing a line id returns `409` with `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+  </Step>
+</Steps>
+
+If either Entry is on or before its Entity's Lock Date, the Unbook returns `409` with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR`, and you can't correct the act this way. Book an adjusting act dated in an open period, or ask whoever manages the books to move the [Lock Date](/api-reference/entities#patch-/api/entities/entityid/ledger-lock-date).
+
+These requests don't exist and return `404`:
+
+- `PATCH` or `PUT /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId`
+- `POST /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId/reverse`
+- `POST /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId/unbook`
+
+The [Ledger Entry routes](/api-reference/ledger-entries#entries-of-an-intercompany-entry) refuse to edit, unbook, reverse, reclassify, or change the Partner of an act's Entry on its own. They return `409` with `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR`, and `params.intercompanyEntryId` names the act to unbook. You can still tag the Entry's lines with [Dimension values](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values) without touching the act.
+
+## Find the act of a Ledger Entry
+
+An Entry that belongs to an act says so wherever you meet it:
+
+- The Ledger Entry object carries `intercompanyEntryId`, the act's id, or `null` for an ordinary Entry.
+- The rows of [`GET /api/entities/:entityId/ledger/entries`](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries) and the [Entry detail](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid) carry `otherEntityOfIntercompanyEntry`: `{ id, name }` of the act's other Entity, or `null`.
+- A line of the [general ledger](/api-reference/reports#general-ledger) carries the `intercompanyEntryId` of its Entry.
+
+## History
+
+Every create and Unbook is recorded in the [Audit Trail](/api-reference/audit-trail). Read an act's history through either of its Entities:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=intercompany_entry&rowId=$INTERCOMPANY_ENTRY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+The act's changes also show in the [Organization Log](/api-reference/audit-trail#list-the-organization-log). Each Entry's own history is under `tableName=ledger_entry` and the Entry's id.
+
+## Domain error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `PERMISSION_DENIED_ERROR` | `403` | The API key is confined to one Entity (every route), or the caller's Role can't write (`POST`, `DELETE`) |
+| `INTERCOMPANY_ENTRY_NOT_FOUND_ERROR` | `404` | The Organization holds no act with this id, or the list `cursor` names none. `params.intercompanyEntryId` |
+| `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR` | `409` | An act with this `id` already exists, active or unbooked. `params.intercompanyEntryId` |
+| `INTERCOMPANY_ENTRY_NOT_ACTIVE_ERROR` | `409` | The act is already unbooked. `params.intercompanyEntryId` |
+| `INTERCOMPANY_ENTRY_ENTITY_IN_ANOTHER_ORGANIZATION_ERROR` | `409` | An `entityId` isn't an Entity of the Organization, whether or not it exists. `params.entityId` |
+| `INTERCOMPANY_PAIR_SAME_SIDE_ERROR` | `422` | A Pair's two lines are on the same side. `params.lineIds` |
+| `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR` | `422` | A Pair's two lines differ in currency or amount. `params.lineIds` |
+| `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR` | `422` | A Pair is in another currency than the act's first Pair. `params.lineIds` |
+| `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR` | `422` | An Entity's paired lines carry different rates. `params.entityId` |
+| `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` | `409` | A line id is used twice in the act, or already exists. `params.lineIds` |
+| `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | On create: `entryDate` is on or before the Lock Date of either Entity. `params.entryDate`, `params.ledgerLockDate` |
+| `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | `409` | On Unbook: an Entry is on or before its Entity's Lock Date. `params.ledgerEntryId`, `params.entryDate`, `params.ledgerLockDate` |
+
+On create, each Entry can also return any [Ledger Entry error](/api-reference/ledger-entries#domain-error-codes) of an ordinary create, such as `LEDGER_ACCOUNT_NOT_FOUND_ERROR`.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, DELETE) |
+| 201 | Created (POST) |
+| 400 | Validation error: a malformed body or query, an unbalanced Entry, two Entries in the same Entity, no Pair, a Pair that doesn't name one line of each Entry in order, a line in two Pairs, a paired line with a `partnerId`, or a missing audit header |
+| 401 | Unauthenticated |
+| 403 | `PERMISSION_DENIED_ERROR` |
+| 404 | The act doesn't exist in the Organization, or the route doesn't exist (`PATCH`, `PUT`, `/reverse`, `/unbook`) |
+| 409 | Domain rule violation |
+| 422 | A Pair breaks a Pair rule |
