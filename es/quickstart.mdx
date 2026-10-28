@@ -31,13 +31,13 @@ Empezar a usar Sintropix no requiere una implementación larga. Conectas tu enti
     </Tip>
   </Step>
   <Step title="Conecta tus integraciones">
-    Además de los bancos, Sintropix obtiene datos de las herramientas que tu equipo financiero ya usa. Ve a **Configuración → Integraciones** y conecta lo que aplique a tu stack:
+    Además de los bancos, Sintropix se conecta con las herramientas que tu equipo financiero ya usa. Ve a **Configuración → Integraciones** y conecta lo que aplique a tu stack:
 
-    - **Nómina**: [Buk](https://www.buk.cl). Las liquidaciones se contabilizan directamente en tu libro mayor, con las líneas de impuestos y beneficios desglosadas automáticamente
-    - **Gastos**: [Xpendit](https://www.xpendit.com). Las rendiciones aprobadas generan asientos contables sin volver a digitarlas
-    - **Pagos**: [Stripe](https://stripe.com) o Mercado Pago. Los eventos de pago se cruzan con las facturas abiertas y el efectivo se aplica en tiempo real
+    - **Nómina**: [Buk](https://www.buk.cl). Conecta tu Buk con su dirección y una clave de API, y Sintropix lista las empresas que alcanza la clave. Buk todavía no lleva las remuneraciones a tu libro mayor. Consulta [Buk](/api-reference/integrations#buk).
+    - **Gastos**: [Xpendit](https://www.xpendit.com). Asigna cada filial de Xpendit a una fuente que guarde rendiciones de gastos, y cada sincronización contabiliza los gastos que Xpendit aprobó, sin volver a digitarlos. Consulta [Expense Feeds](/api-reference/source-feeds#expense-feeds).
+    - **Pagos**: [Stripe](https://stripe.com) o Mercado Pago. Lleva el saldo de la cuenta a una cuenta bancaria, y sus cobros, reembolsos, comisiones y retiros llegan como movimientos que tú concilias. Consulta [Bank Feeds](/api-reference/bank-feeds).
 
-    Cada integración es una conexión única por OAuth o clave de API. Una vez vinculada, los datos fluyen de forma continua, sin exportaciones programadas ni cargas manuales.
+    Conectas cada integración una sola vez, por OAuth o con una clave de API. Conectarla no trae datos por sí sola: los datos empiezan a fluir cuando asignas la integración a una entidad mediante sus feeds. Sintropix sincroniza cada feed cada 4 horas, y puedes sincronizar uno cuando quieras.
   </Step>
   <Step title="Conoce a Erwin, tu asistente financiero de IA">
     Cuando tus cuentas estén conectadas y los datos empiecen a fluir, haz clic en **Erwin**, abajo a la derecha de cualquier página de una entidad. Erwin está integrado directamente en tus datos contables, así que cada respuesta que da se basa en tu libro mayor real, no en un resumen ni en un informe estático.
@@ -54,7 +54,7 @@ Empezar a usar Sintropix no requiere una implementación larga. Conectas tu enti
 </Steps>
 
 <Note>
-  En tu primera conexión, la sincronización completa del historial de transacciones y la aparición de sugerencias de conciliación pueden tardar hasta 24 horas. El flujo de transacciones en tiempo real comienza en cuanto termina la sincronización inicial.
+  En tu primera conexión, la sincronización completa del historial de transacciones y la aparición de sugerencias de conciliación pueden tardar hasta 24 horas. Después de la sincronización inicial, Sintropix sincroniza tus feeds cada 4 horas.
 </Note>
 
 <CardGroup cols={2}>
