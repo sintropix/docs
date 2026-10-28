@@ -506,6 +506,8 @@ You can't edit an act or either of its Entries. To change its date, memo, amount
   </Step>
   <Step title="Create the corrected act with POST">
     Send `POST /api/organizations/:organizationId/intercompany-entries` with the corrected body. Use **new ids** for the act, both Entries, and every line. The unbooked act keeps its ids, so reusing the act's `id` returns `409` with `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, reusing an Entry id returns `409` with `LEDGER_ENTRY_ALREADY_EXISTS_ERROR`, and reusing a line id returns `409` with `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+
+    The new lines don't inherit the old lines' [Dimension values](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values). To keep a line's tags, send the `dimensionValueId` of each item in its `lineDimensionValues` in the new line's `dimensionValueIds`. A line sent without `dimensionValueIds` is created untagged.
   </Step>
   <Step title="Restore the Allocations">
     For each saved Allocation, send [`POST /api/entities/:entityId/ledger/allocations`](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations) with a new `id`, the new line in place of the old one, the same other line, and the same `amount`. If the correction changed an amount and an Allocation no longer fits the line's open amount, the request returns `409` with `RECONCILIATION_ALLOCATION_AMOUNT_EXCEEDS_OPEN_AMOUNT_ERROR`.
