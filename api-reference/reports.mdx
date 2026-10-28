@@ -765,7 +765,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/eight-
 
 `GET /api/entities/:entityId/ledger/general-ledger`
 
-Returns a paginated walk of one ledger account in ledger order, with a running balance that starts from what the account carries into the window.
+Returns the lines of one ledger account in a window, one page at a time, with a running balance that starts from what the account carries into the window. Lines come by date, oldest first, unless you pass `sort`.
 
 The window must sit inside one [Fiscal Year](#the-fiscal-year-in-reports); one that crosses a Fiscal Year start returns `400` with `LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR`. In the app, the **Libro mayor** page opens on the current Fiscal Year.
 
@@ -776,15 +776,25 @@ The window must sit inside one [Fiscal Year](#the-fiscal-year-in-reports); one t
 | `accountId` | UUID | Yes | Ledger account to read |
 | `from` | ISO date | Yes | Window start |
 | `to` | ISO date | Yes | Window end (must be on or after `from`, in the same Fiscal Year) |
+| `sort` | enum | No | `entryDate` (default), `entryMemo`, `partnerName`, `debit`, `credit`, or `runningBalance` |
+| `sortDirection` | enum | No | `asc` (default) or `desc` |
 | `cursor` | UUID | No | Id of the last line from the previous page |
 | `limit` | integer | No | Page size (default 50, max 100) |
 | `bookId` | UUID | Conditional | Required when the Entity has at least one Book; must be omitted otherwise |
+
+**Sorting**
+
+- Lines with the same sort value keep date order, oldest first.
+- `entryMemo` and `partnerName` sort alphabetically. A line with no memo or no partner sorts as empty text, so it comes first in ascending order.
+- `debit` and `credit` sort by the amount on that side. A line on the other side counts as zero.
+- `runningBalance` is always the balance of the line in date order. A sort never recomputes it, so sorting by `runningBalance` orders the lines by that balance.
+- `cursor` continues the walk in the order you asked for. Pass the same `sort` and `sortDirection` on every page.
 
 **Response**
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `lines` | array | Lines on this page, each with the fields below |
+| `lines` | array | Lines on this page, in the requested order, each with the fields below |
 | `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
 | `openingBalance` | integer | What the account carries into `from`, under the [carry rule](#the-fiscal-year-in-reports) |
 | `closingBalance` | integer | What the account carries out of `to` |
@@ -810,12 +820,16 @@ Each item in `lines`:
 | `entryStatus` | enum | `active` or `reversed` (only live entries appear) |
 | `reversalOfEntryId` | UUID or null | Entry the parent entry reverses; `null` otherwise |
 | `intercompanyEntryId` | UUID or null | The [Intercompany Entry](/api-reference/intercompany-entries) the parent entry belongs to; `null` otherwise |
-| `runningBalance` | integer | Balance after this line, counted from `openingBalance` and signed by the account's normal side |
+| `runningBalance` | integer | Balance after this line in date order, counted from `openingBalance` and signed by the account's normal side. It's the same whatever the sort |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger?accountId=<uuid>&from=2026-01-01&to=2026-10-31&limit=50" \
+  -H "Cookie: <session-cookie>"
+
+# Largest debits first
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/general-ledger?accountId=<uuid>&from=2026-01-01&to=2026-10-31&sort=debit&sortDirection=desc" \
   -H "Cookie: <session-cookie>"
 ```
 
