@@ -55,7 +55,7 @@ Send `entityIds`, `includeOrganizationEnvelopes`, or both, to narrow the Log:
 
 Selecting every Entity plus **Empresa** gives the same Log as no filter.
 
-An API key [confined to one Entity](/guides/api-keys) reads its own Entity and the **Empresa** envelopes by default. Asking for another Entity in `entityIds` answers `404` with `ENTITY_NOT_FOUND`.
+An API key [confined to one Entity](/guides/api-keys) reads its own Entity and the **Empresa** envelopes by default. Asking for another Entity in `entityIds` answers `404` with `ENTITY_NOT_FOUND_ERROR`.
 
 ```bash
 curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/audit-trail?entityIds=$ENTITY_ID&includeOrganizationEnvelopes=true&limit=50" \
@@ -82,9 +82,9 @@ Returns the audit envelopes that changed one row of the Entity, the same history
 
 **Accepted `tableName` values**
 
-The trail records changes to these tables: `ledger_entry`, `ledger_entry_line`, `invoice`, `invoice_attachment`, `attachment`, `partner`, `bank_movement`, `bank_account`, `reconciliation_allocation`, `fixed_asset`, `fixed_asset_class`, `fixed_asset_depreciation_entry`, `intercompany_entry`. Any other string is accepted but matches no rows.
+The trail records changes to the tables of the books and the records around them, for example `ledger_entry`, `ledger_entry_line`, `invoice`, `invoice_attachment`, `attachment`, `partner`, `partner_alias`, `partner_bank_details`, `entity_partner`, `bank_movement`, `bank_movement_attachment`, `bank_account`, `reconciliation_allocation`, `fixed_asset`, `fixed_asset_class`, `fixed_asset_depreciation_entry`, `intercompany_entry`, `expense_claim`, and `task`. Any string is accepted; one that names no audited row matches nothing.
 
-Two parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry and to its `ledger_entry_line` rows; `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links. For an [Expense Rendition](/api-reference/expense-claims), `tableName=invoice` also returns the history of the Expense Claim it came from: who submitted it and who approved it.
+Some parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry and to its `ledger_entry_line` rows; `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links; `tableName=bank_movement` returns changes to that movement and to its `bank_movement_attachment` links; `tableName=partner` returns changes to that Partner, its `partner_alias` rows, its `entity_partner` links, and the Partners merged into it. The invoice and bank movement histories also carry the `attachment` rows of the files linked in the same request. For `tableName=partner_bank_details`, pass the Partner's id as `rowId`. For an [Expense Rendition](/api-reference/expense-claims), `tableName=invoice` also returns the history of the Expense Claim it came from: who submitted it and who approved it.
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=invoice&rowId=$INVOICE_ID" \
@@ -120,6 +120,7 @@ Each **envelope**:
 | `route` | string | The endpoint pattern that produced the mutation. For a change made by a scheduled job, the job's name. See [Scheduled jobs](#scheduled-jobs). |
 | `method` | string | HTTP method, for example `POST`. `CRON` for a change made by a scheduled job. |
 | `params` | object | Path parameters of the request. |
+| `organizationId` | UUID or `null` | The Organization of the write. |
 | `entityId` | UUID or `null` | The entity scope of the change. |
 | `ipAddress` | string or `null` | IP address of the client that sent the request, not of a proxy in between. An IPv6 address is written in full, with each group padded to four digits, for example `2800:0150:011e:1a00:1c8f:6d2a:3b4e:9f01`. |
 | `userAgent` | string or `null` | Caller user agent. |
@@ -171,6 +172,7 @@ A resource that no longer exists is absent from these lists; treat an id you can
       "route": "/entities/:entityId/partners/:partnerId",
       "method": "PATCH",
       "params": { "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57", "partnerId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e" },
+      "organizationId": "7c1e4b2a-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
       "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
       "ipAddress": "203.0.113.10",
       "userAgent": "curl/8.4.0",

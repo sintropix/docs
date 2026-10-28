@@ -30,6 +30,7 @@ Create a User. A User has no Role of their own: a new User reaches no Entity unt
 | `id` | UUID | The new User's id. Use it in the `:userId` path segment of the routes below. |
 | `email` | string | The email, stored in lowercase. |
 | `name` | string | The display name, trimmed. |
+| `image` | string or null | The id of the User's profile photo, or `null` when they have none. Always `null` for a new User. |
 | `createdAt` | ISO datetime | Creation timestamp. |
 | `lastSignInAt` | ISO datetime \| null | When the User last completed a sign-in. `null` for a User who never did, so always `null` for a new User. |
 
@@ -50,6 +51,7 @@ curl -X POST "https://api.sintropix.com/api/onboarding/users" \
   "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
   "email": "ana.perez@example.com",
   "name": "Ana Perez",
+  "image": null,
   "createdAt": "2026-09-26T12:00:00.000Z",
   "lastSignInAt": null
 }
@@ -68,7 +70,7 @@ List Users, look one up by email, or find the Users who haven't signed in for a 
 
 Without filters, the response lists every User. With both filters, a User must match both. A value of `inactiveForDays` that is not a positive integer, such as `0`, `-3`, or `1.5`, returns `400`.
 
-**Response** `200`: an array of User objects in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `createdAt`, `lastSignInAt`). An unknown email returns an empty array.
+**Response** `200`: an array of User objects in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `image`, `createdAt`, `lastSignInAt`). An unknown email returns an empty array.
 
 `lastSignInAt` moves only when a sign-in completes, including its second factor when the User has one. A wrong password, a sign-in that stops at the second-factor code, and a session refresh leave it unchanged.
 
@@ -90,6 +92,7 @@ curl "https://api.sintropix.com/api/onboarding/users?inactiveForDays=30" \
     "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
     "email": "ana.perez@example.com",
     "name": "Ana Perez",
+    "image": null,
     "createdAt": "2026-07-01T12:00:00.000Z",
     "lastSignInAt": "2026-08-14T09:30:00.000Z"
   }
@@ -230,7 +233,7 @@ Delete a User for good. The User loses access on their next request. No request 
 - You can't delete yourself: deleting your own User returns `403` with `USER_SELF_DELETION_ERROR`, and `params.userId` names you.
 - An unknown User returns `404` with `USER_NOT_FOUND_ERROR`.
 
-**Response** `200`: the deleted User, in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `createdAt`, `lastSignInAt`).
+**Response** `200`: the deleted User, in the shape returned by `POST /onboarding/users` (`id`, `email`, `name`, `image`, `createdAt`, `lastSignInAt`).
 
 ```bash
 curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID" \
@@ -242,6 +245,7 @@ curl -X DELETE "https://api.sintropix.com/api/onboarding/users/$USER_ID" \
   "id": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
   "email": "ana.perez@example.com",
   "name": "Ana Perez",
+  "image": null,
   "createdAt": "2026-07-01T12:00:00.000Z",
   "lastSignInAt": "2026-08-14T09:30:00.000Z"
 }
