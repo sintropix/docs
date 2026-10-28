@@ -56,7 +56,7 @@ A Task can hold subtasks (**subtareas** in the app), one level deep. Use them to
 - Deleting a Task deletes its subtasks too.
 - A parent and its subtasks change state independently. Completing a parent leaves its open subtasks as they are, and completing every subtask leaves the parent as it is. Read `subtaskCount` and `completedSubtaskCount` to show progress, such as "1/3".
 
-In the app, open a Task and type in **Agregar subtarea** to add one. In **Todas**, a parent shows its progress after its title, and clicking it unfolds its subtasks. In **Mías**, your subtasks are listed with their parent's name. Completing a parent with open subtasks asks you to confirm, and deleting a parent tells you how many subtasks go with it.
+In the app, open a Task and type in **Agregar subtarea** to add one. In **Todas**, a parent shows its progress after its title, and clicking it unfolds its subtasks. In **Mías**, your subtasks sit under their parent too, and each top-level row falls in the band of its own state. A parent assigned to you starts folded and shows its full progress, and unfolding it shows only your subtasks. When none of its subtasks are yours, it shows its progress but doesn't unfold. A parent assigned to someone else comes along to hold your subtasks: it starts unfolded, its title is muted, and you open and edit it like any other Task. Completing a parent with open subtasks asks you to confirm, and deleting a parent tells you how many subtasks go with it.
 
 ## Related records
 
