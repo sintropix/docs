@@ -506,6 +506,8 @@ No puedes editar un asiento intercompañía ni ninguno de sus dos asientos conta
   </Step>
   <Step title="Crea el asiento corregido con POST">
     Envía `POST /api/organizations/:organizationId/intercompany-entries` con el cuerpo corregido. Usa **ids nuevos** para el asiento intercompañía, para ambos asientos y para cada línea. El asiento anulado conserva sus ids, así que reutilizar su `id` devuelve `409` con `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, reutilizar el id de un asiento devuelve `409` con `LEDGER_ENTRY_ALREADY_EXISTS_ERROR`, y reutilizar un id de línea devuelve `409` con `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+
+    Las líneas nuevas no heredan los [valores de Dimensión](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values) de las líneas antiguas. Para conservar las etiquetas de una línea, envía el `dimensionValueId` de cada elemento de su `lineDimensionValues` en el `dimensionValueIds` de la línea nueva. Una línea enviada sin `dimensionValueIds` se crea sin etiquetas.
   </Step>
   <Step title="Restaura las Asignaciones">
     Por cada Asignación guardada, envía [`POST /api/entities/:entityId/ledger/allocations`](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations) con un `id` nuevo, la línea nueva en lugar de la antigua, la misma otra línea y el mismo `amount`. Si la corrección cambió un monto y una Asignación ya no cabe en el monto abierto de la línea, la solicitud devuelve `409` con `RECONCILIATION_ALLOCATION_AMOUNT_EXCEEDS_OPEN_AMOUNT_ERROR`.
