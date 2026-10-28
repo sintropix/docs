@@ -12,14 +12,14 @@ A Notification has one of four kinds:
 
 | `kind` | When you get it | In the **Bandeja** |
 | --- | --- | --- |
-| `mention` | Another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. | The message that mentions you. |
+| `mention` | Another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. | "*Autor* te mencionó", over the message that mentions you. |
 | `thread_reply` | Someone replied in an ERP Thread you [take part in](#follow-the-erp-threads-you-take-part-in), without mentioning you. | "*Autor* respondió en un hilo en el que participas", naming the reply's author. |
-| `task_assigned` | Another Member assigned you a [Task](/api-reference/tasks). | "*Autor* te asignó una tarea", or "Te asignaron una tarea" when that Member's account no longer exists. |
-| `task_overdue` | The due date of a Task assigned to you passed and the Task isn't completed. See [Task Notifications](#task-notifications). | "Tarea vencida el *fecha*". |
+| `task_assigned` | Another Member assigned you a [Task](/api-reference/tasks). | The Task's text, over "*Autor* te la asignó", or "Te la asignaron" when that Member's account no longer exists. |
+| `task_overdue` | The due date of a Task assigned to you passed and the Task isn't completed. See [Task Notifications](#task-notifications). | The Task's text, over "Venció el *fecha*". |
 
 More kinds may come later, so read `kind` before you read the rest of a Notification.
 
-Every Role can use the routes on this page, `viewer` included. Only `staff` Members are assigned Tasks, so only they get the two Task kinds. Each route reads or marks only the caller's own Notifications: the User of the session or of the API key.
+Every Role can use the routes on this page, `viewer` included. Only `staff` and `client` Members are assigned Tasks, so only they get the two Task kinds. Each route reads or marks only the caller's own Notifications: the User of the session or of the API key.
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/notifications"
@@ -82,7 +82,7 @@ Only current Members of the Organization count. These rules apply when a reply i
 
 [Tasks](/api-reference/tasks) notify their assignee:
 
-- **Assigned.** Assigning a Task to another staff Member sends them a `task_assigned` Notification that names who assigned it. Assigning yourself, saving the same assignee again, or unassigning notifies nobody.
+- **Assigned.** Assigning a Task to another `staff` or `client` Member sends them a `task_assigned` Notification that names who assigned it. Assigning yourself, saving the same assignee again, or unassigning notifies nobody.
 - **Overdue.** Just after midnight in Santiago (Chile) time, Sintropix sends a `task_overdue` Notification for each assigned Task whose due date has passed and that isn't `completed`. Each Task notifies once per due date. If you move the due date and the new one passes too, the assignee is notified again. A change of assignee doesn't send a new overdue Notification.
 
 Opening a Task Notification in the app marks it read and opens the Task in **Tareas**. Deleting the Task deletes its Notifications.

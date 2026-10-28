@@ -61,6 +61,7 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/budgets \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Plan 2027" \
   -d '{
     "id": "44444444-4444-4444-8444-444444444444",
     "name": "Presupuesto 2027"
@@ -115,6 +116,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/budgets/$BUDGET_
   -H "Content-Type: application/json" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Rename after the board review" \
   -d '{"name": "Presupuesto 2027 revisado"}'
 ```
 
@@ -129,7 +131,8 @@ Delete a Budget and all its amounts.
 ```bash
 curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/budgets/$BUDGET_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent"
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Discard the draft scenario"
 ```
 
 ## PUT /api/entities/:entityId/budgets/:budgetId/amounts

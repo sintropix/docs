@@ -231,6 +231,7 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/role \
   "userId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
   "name": "Ana Perez",
   "email": "ana.perez@example.com",
+  "image": null,
   "role": "client"
 }
 ```
@@ -261,6 +262,7 @@ List the Users who hold a Membership in the Organization.
 | `userId` | UUID | The member's User id |
 | `name` | string | The member's display name |
 | `email` | string | The member's email |
+| `image` | string or null | The id of the member's profile photo, or `null` when they have none |
 | `role` | enum | `staff`, `client`, or `viewer` |
 
 ```bash
@@ -274,6 +276,7 @@ curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/members \
     "userId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
     "name": "Ana Perez",
     "email": "ana.perez@example.com",
+    "image": null,
     "role": "client"
   }
 ]

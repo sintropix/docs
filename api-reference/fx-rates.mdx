@@ -12,7 +12,7 @@ Sintropix tracks three series, all quoted in CLP: `USD/CLP` (dólar observado), 
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/settings/fx-rates"
-  note="The page lives in the Organization's Configuración de empresa and shows the same global rates in every Organization."
+  note="The page lives in the Organization's Configuración, under Tipos de cambio, and shows the same global rates in every Organization."
 />
 
 ## The FX Rate object
@@ -58,7 +58,7 @@ curl "https://api.sintropix.com/api/fx-rates?baseCurrency=USD&quoteCurrency=CLP&
 
 ## GET `/fx-rates/recent`
 
-List the most recent published rates across all tracked currency pairs.
+List the most recent published rates across all tracked currency pairs: up to 100 rates, newest `rateDate` first.
 
 - **Response:** array of FX Rate objects.
 
@@ -92,6 +92,7 @@ An empty body (or no body) syncs the default trailing window: the last 10 days e
 curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Backfill December rates" \
   -H "Content-Type: application/json" \
   -d '{ "startDate": "2025-12-01", "endDate": "2025-12-31" }'
 ```
@@ -115,7 +116,8 @@ curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
 | Status | Meaning |
 | --- | --- |
 | `200` | Success. |
-| `400` | Validation error on query or body, or missing `x-audit-actor` on the sync call. |
+| `400` | Validation error on query or body, or missing `x-audit-actor` or `x-audit-reason` on an API-key sync call. |
 | `403` | `POST /sync` called by a User with no `staff` Role in any Organization. |
-| `404` | No rate found for the requested currency pair on or before the given date. |
-| `502` | Upstream error from Banco Central de Chile on sync. |
+| `404` | No rate found for the requested currency pair on or before the given date (`FX_RATE_NOT_FOUND_ERROR`). |
+
+A sync doesn't fail when Banco Central de Chile does: a series it can't fetch comes back with `failureMessage` in the `200` response.

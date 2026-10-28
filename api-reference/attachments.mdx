@@ -233,11 +233,27 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVO
 
 | Code | Meaning |
 | --- | --- |
-| `200` | Success (GET, POST presign/confirm, GET url). |
+| `200` | Success (GET list, GET url). |
+| `201` | Success (POST presign, POST confirm). |
 | `204` | Success, no content (DELETE). |
-| `400` | Validation error on request body or path parameter. |
+| `400` | Validation error on request body or path parameter, or on confirm the uploaded object's content type is missing or not accepted, or its size is empty or over 25 MB. |
 | `401` | Unauthenticated. |
 | `403` | Your Role in the Entity's Organization doesn't allow this action (`PERMISSION_DENIED_ERROR`). |
 | `404` | Entity, host resource, or attachment not found, or the Entity is outside your Organizations. |
-| `409` | Attachment already exists, or content type / size mismatch on confirm. |
+| `409` | Attachment already exists, or no file was uploaded to the presigned URL before confirm. |
 | `429` | Rate limit exceeded (25,000 requests per hour per API key). |
+
+## Error codes
+
+Attachment domain errors carry a `code` and a `params` object in the body.
+
+| Status | `code` | `params` | When |
+| --- | --- | --- | --- |
+| `400` | `ATTACHMENT_CONTENT_TYPE_NOT_FOUND_ERROR` | `{ attachmentId }` | The uploaded object has no content type. |
+| `400` | `ATTACHMENT_CONTENT_TYPE_NOT_SUPPORTED_ERROR` | `{ attachmentId, contentType }` | The uploaded object's content type isn't one of the accepted types. |
+| `400` | `ATTACHMENT_BYTE_SIZE_EMPTY_ERROR` | `{ attachmentId }` | The uploaded object is empty. |
+| `400` | `ATTACHMENT_BYTE_SIZE_TOO_LARGE_ERROR` | `{ attachmentId, byteSize, maxByteSize }` | The uploaded object is larger than 25 MB. |
+| `404` | `ATTACHMENT_HOST_NOT_FOUND_ERROR` | `{ hostKind, hostId }` | The host resource doesn't exist in the Entity. `hostKind` is `invoices`, `bank-movements`, or `ledger/entries`. |
+| `404` | `ATTACHMENT_NOT_FOUND_ERROR` | `{ attachmentId }` | No attachment with that id is linked to the host. |
+| `409` | `ATTACHMENT_UPLOAD_NOT_FOUND_ERROR` | `{ attachmentId }` | Confirm found no uploaded file for that `attachmentId`. |
+| `409` | `ATTACHMENT_ALREADY_EXISTS_ERROR` | `{ attachmentId }` | The attachment was already confirmed. A file backs at most one host. |
