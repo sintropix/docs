@@ -178,7 +178,7 @@ curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/budgets/$BUDGET_ID
 
 ## Compare the income statement against a Budget
 
-Pass `budgetId` to [`GET /reports/income-statement`](/api-reference/reports#income-statement). Each account then carries the months the Budget plans for it in `budgetAmounts`, next to its actual `lines`.
+Pass `budgetId` to [`GET /reports/income-statement`](/api-reference/reports#income-statement). Each account then carries the months the Budget plans for it in `budgetAmounts`, next to its actual monthly `amounts`.
 
 For example, to compare the actual results of 2027 against a Budget:
 
