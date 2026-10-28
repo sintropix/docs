@@ -1,0 +1,213 @@
+---
+title: "Forward invoices and receipts from Gmail to Sintropix"
+sidebarTitle: "Forward invoices from Gmail"
+description: "How to forward your invoices, receipts, and boletas from Gmail or Google Workspace to your Sintropix Mailbox automatically: add the forwarding address, confirm it, create an invoices-only filter, and fix common problems."
+keywords: ["forward invoices", "Gmail forwarding", "receipts", "Sintropix Mailbox", "Gmail filter", "Google Workspace", "DTE", "XML"]
+---
+
+Once you finish this guide, Gmail sends a copy of every email with an invoice or receipt to your Sintropix Mailbox on its own. Sintropix receives them and uses them in your books, and you never forward anything by hand.
+
+<Info>
+**Your Sintropix Mailbox.** This guide uses `facturas@cliente.sintropix.com` as an example. Use your own Mailbox address instead. To find it in Sintropix, open your user menu, go to **Configuración → Integraciones** (Settings → Integrations), and open your **Casilla de correo** (Mailbox). If you don't have one yet, ask your Sintropix contact.
+</Info>
+
+**Before you start**
+
+- Use a computer and Gmail on the web ([mail.google.com](https://mail.google.com)). The Gmail mobile app doesn't have these settings.
+- It takes about 10 minutes.
+- If Gmail stops you at any step, see [Troubleshooting](#troubleshooting).
+
+## Set up forwarding
+
+<Steps>
+  <Step title="Open Gmail settings">
+    1. In the top right, click the gear icon (**Settings**).
+    2. Click **See all settings**.
+
+    <Frame caption="The screenshots in this guide show Gmail in Spanish. The buttons are in the same place in English.">
+      <img src="/images/guides/gmail/01-configuracion.png" alt="Gmail with the Settings gear and the See all settings button highlighted, in the Spanish interface" />
+    </Frame>
+  </Step>
+
+  <Step title="Add your Sintropix Mailbox as a forwarding address">
+    1. Click the **Forwarding and POP/IMAP** tab.
+    2. In the "Forwarding" section, click **Add a forwarding address**.
+
+    <Frame>
+      <img src="/images/guides/gmail/02-pestana-reenvio.png" alt="The Forwarding and POP/IMAP tab with the Add a forwarding address button" />
+    </Frame>
+
+    3. Enter your Mailbox address, for example `facturas@cliente.sintropix.com`, and click **Next**.
+
+    <Frame>
+      <img src="/images/guides/gmail/03-agregar-direccion.png" alt="The Add a forwarding address box with the Mailbox address entered" />
+    </Frame>
+
+    4. Google may ask you to confirm it's you, with your password or a code on your phone. Do that and continue.
+
+    <Frame>
+      <img src="/images/guides/gmail/04-verifica-que-eres-tu.png" alt="Google asks you to verify it's you before it adds the address" />
+    </Frame>
+
+    5. In the window that opens, click **Proceed**, then **OK**.
+
+    Google now sends a confirmation email to your Sintropix Mailbox. Nothing is forwarded until the address is confirmed.
+  </Step>
+
+  <Step title="Confirm the address">
+    The confirmation email doesn't arrive in your Gmail. It arrives in your Sintropix Mailbox. Google sends it from `forwarding-noreply@google.com`, its subject mentions **Gmail Forwarding Confirmation**, and it contains a confirmation link.
+
+    Get the link in one of two ways:
+
+    - **Ask Sintropix.** Write to your Sintropix contact. They can see the email and send you the link.
+    - **Find it yourself in Sintropix.** Open your user menu and go to **Configuración → Integraciones**. Open your Mailbox and click **Abrir correo** (Open mail). Open the email from Google and copy its link.
+
+    <Warning>
+    In **Correo**, Sintropix's mail view, the link doesn't open when you click it. Select it, copy it, and paste it into a new browser tab yourself.
+    </Warning>
+
+    Once you have the link:
+
+    1. Paste it into a new browser tab.
+    2. Click **Confirm**.
+    3. Go back to Gmail, open **Forwarding and POP/IMAP**, and refresh the page. Your Sintropix Mailbox now shows as confirmed.
+
+    The email's subject also has a code in parentheses, such as **(#123456789)**. If Gmail shows you a box for a confirmation code, you can enter that number instead of using the link.
+
+    <Warning>
+    **Don't select "Forward a copy of incoming mail to"** on that screen unless you want to forward all your email (see [Forward everything instead](#forward-everything-instead)). The filter in the next step decides what gets forwarded.
+    </Warning>
+  </Step>
+
+  <Step title="Create the filter that picks which emails to forward">
+    1. In the search box at the top, click **Show search options** (the icon on the right).
+
+    <Frame>
+      <img src="/images/guides/gmail/05-opciones-busqueda-icono.png" alt="The Show search options icon on the right of the Gmail search box" />
+    </Frame>
+
+    2. In **Has the words**, paste exactly this:
+
+    ```text
+    {subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml}
+    ```
+
+    3. To preview which emails match, click **Search**, then open the search options again.
+    4. Click **Create filter**.
+
+    <Frame>
+      <img src="/images/guides/gmail/06-opciones-busqueda.png" alt="Gmail search options with the criteria pasted into Has the words and the Create filter button" />
+    </Frame>
+
+    **What the criteria do.** They pick an email if its subject has one of those words, or if it has an XML file attached. Chilean electronic invoices (DTE) arrive with their XML file. Many receipts from apps and foreign suppliers have the word in the subject even without an attachment. The Spanish words stay in on purpose, because most Chilean suppliers write in Spanish. To change the balance, see [Adjust the filter](#adjust-the-filter).
+  </Step>
+
+  <Step title="Forward to your Sintropix Mailbox">
+    1. In the list of actions, check **Forward it**.
+    2. In the dropdown, choose your Sintropix Mailbox.
+    3. Leave every other action unchecked.
+    4. Click **Create filter**.
+
+    <Frame>
+      <img src="/images/guides/gmail/07-reenviar.png" alt="The filter actions list with the forward option checked" />
+    </Frame>
+
+    If you see an **add forwarding address** link next to the forward option instead of your Mailbox, the address isn't confirmed yet. Go back to step 3.
+
+    For the first week, Gmail shows a notice reminding you that forwarding is on. That's expected.
+  </Step>
+</Steps>
+
+## Emails you already have
+
+Before you create the filter, you see the **Also apply filter to matching conversations** checkbox. It applies the filter's other actions to older emails, but it doesn't forward them.
+
+<Warning>
+Google applies a forwarding filter to new email only. Invoices already in your Gmail don't reach Sintropix when you create the filter. You can leave the checkbox unchecked.
+</Warning>
+
+<Frame>
+  <img src="/images/guides/gmail/08-aplicar-existentes.png" alt="The Also apply filter to matching conversations checkbox" />
+</Frame>
+
+To send older invoices:
+
+- **A few:** open each one, click **Forward**, and send it to your Sintropix Mailbox.
+- **Many:** talk to Sintropix. You can also [connect your Gmail to Sintropix](/guides/connect-gmail) with read-only access, so older email can be searched there.
+
+## Adjust the filter
+
+The recommended criteria cover most cases. For a different balance, paste one of these into **Has the words**:
+
+| If you want… | Paste into "Has the words" | What you lose |
+| --- | --- | --- |
+| The recommended setup | `{subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml}` | A PDF invoice whose subject has none of those words. |
+| Never miss a PDF | `{subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml filename:pdf}` | Privacy: contracts, quotes, and other PDFs that aren't accounting documents are forwarded too. |
+| Only emails with an attachment | `has:attachment {filename:pdf filename:xml}` | Receipts that come in the body of the email, with no file. |
+
+If a supplier always writes from the same address, add it inside the braces:
+
+```text
+{subject:(factura OR boleta OR invoice OR receipt OR recibo OR comprobante OR DTE) filename:xml from:billing@supplier.com}
+```
+
+## Forward everything instead
+
+If you'd rather not deal with criteria, you can forward all the email you receive. It's simpler, but Sintropix also receives email that has nothing to do with accounting. You don't need the filter with this option.
+
+<Steps>
+  <Step title="Add and confirm your Mailbox">
+    Follow steps 1, 2, and 3 of [Set up forwarding](#set-up-forwarding).
+  </Step>
+  <Step title="Forward all incoming email">
+    1. In **Forwarding and POP/IMAP**, select **Forward a copy of incoming mail to** and your Sintropix Mailbox.
+    2. In the second dropdown, choose **keep Gmail's copy in the Inbox**.
+    3. At the bottom of the page, click **Save Changes**.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Add a forwarding address is missing, or Gmail says forwarding is disabled">
+    In Google Workspace, your company's administrator decides whether users can forward email. Ask them to do this, or do it yourself if you're the administrator:
+
+    1. Sign in to the Google Admin console at [admin.google.com](https://admin.google.com).
+    2. Go to **Menu → Apps → Google Workspace → Gmail → End User Access**.
+    3. Click **Automatic forwarding**.
+    4. Check **Allow users to automatically forward email to another address**. If your console limits forwarding to addresses inside your organization, that won't work, because Sintropix is outside your company.
+    5. Click **Save**.
+
+    If your company uses organizational units, turning it on for the unit of the person who forwards is enough. The change can take a while to apply. If Gmail still blocks you, try again later.
+  </Accordion>
+
+  <Accordion title="The confirmation email didn't arrive">
+    - In **Forwarding and POP/IMAP**, check that the address is spelled right. If it isn't, remove it and go back to step 2.
+    - Wait a few minutes and look in Sintropix again. The email can take a moment to show up.
+    - If it still doesn't show up, ask Gmail to resend the verification email from the same screen, and let Sintropix know.
+  </Accordion>
+
+  <Accordion title="Stop forwarding">
+    - **If you used the filter:** go to **Settings → See all settings → Filters and Blocked Addresses**, check the box next to the filter that forwards to your Sintropix Mailbox, and click **Delete**.
+    - **If you forward everything:** in **Forwarding and POP/IMAP**, select **Disable forwarding** and click **Save Changes**.
+
+    <Frame>
+      <img src="/images/guides/gmail/09-filtros.png" alt="The Filters and Blocked Addresses tab with the forwarding filter and the Delete button" />
+    </Frame>
+  </Accordion>
+
+  <Accordion title="Are my emails marked as read or deleted?">
+    No. Gmail sends a copy, and your email stays in your inbox as it was: not marked as read, not archived, not deleted. Sintropix doesn't touch your Gmail either. The only new thing is the copy in your Sintropix Mailbox.
+
+    Gmail never forwards email that lands in Spam. If an invoice lands in Spam, forward it by hand.
+  </Accordion>
+</AccordionGroup>
+
+## Sources
+
+- Gmail Help: [Automatically forward Gmail messages to another account](https://support.google.com/mail/answer/10957?hl=en)
+- Gmail Help: [Create rules to filter your emails](https://support.google.com/mail/answer/6579?hl=en)
+- Gmail Help: [Refine searches in Gmail](https://support.google.com/mail/answer/7190?hl=en)
+- Google Workspace Admin Help: [Let users automatically forward their own Gmail emails](https://support.google.com/a/answer/14724207?hl=en)
+
+The screenshots show Gmail on the web in Spanish (Latin America), taken in October 2026. Google changes its design from time to time, so a button may look slightly different.

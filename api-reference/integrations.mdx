@@ -459,6 +459,8 @@ You connect an email account from the app, because Google and Microsoft ask for 
 
 Google asks for full access to the mailbox, but Sintropix only reads it. Outlook asks for read access to the mail only.
 
+For a step-by-step guide written for the account owner, see [Connect Gmail](/guides/connect-gmail).
+
 ## Mailbox
 
 A `mailbox` Integration is an email address that Sintropix holds for the Organization, such as `facturas@acme.sintropix.com`. Your clients and suppliers send or forward invoices and other documents to it, and you read them in Sintropix. There's no outside account to connect: Sintropix creates the address and receives its email. Sintropix doesn't turn that email into documents.
@@ -483,6 +485,8 @@ Once a Mailbox lives at the domain, the domain can't change.
 The Mailbox's panel opens with its address, its purpose, and **Abrir correo**. When the Organization has no email domain yet, the form says *Esta empresa aún no tiene dominio de correo. Pídelo a Sintropix.*
 
 Choose the name carefully: you can't rename a Mailbox, and you can't remove it.
+
+To have Gmail send your invoices to a Mailbox automatically, see [Forward invoices from Gmail](/guides/gmail-forwarding).
 
 ### POST `/integrations/mailbox`
 

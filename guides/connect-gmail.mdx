@@ -1,0 +1,94 @@
+---
+title: "Connect your Gmail account to Sintropix (read-only)"
+sidebarTitle: "Connect Gmail"
+description: "How to connect a Gmail or Google Workspace account to Sintropix so you and Erwin can search your email for invoices and receipts. Sintropix only reads: it never sends, changes, or deletes email."
+keywords: ["connect Gmail", "Gmail", "Google Workspace", "email integration", "read-only", "Erwin", "old invoices"]
+---
+
+When you connect your Gmail account, Sintropix can search and read your email whenever it needs to. You, or Erwin, can then find a supplier's invoice, the receipt behind an expense, or an older email, without forwarding anything.
+
+<Info>
+**Sintropix only reads.** It never sends, changes, or deletes email, and it doesn't mark anything as read. It doesn't keep a copy of your mailbox either: it reads email when it's needed.
+</Info>
+
+## Connect or forward?
+
+There are two ways to get your Gmail invoices into Sintropix. You can use both.
+
+| | [Forward to your Sintropix Mailbox](/guides/gmail-forwarding) | Connect Gmail |
+| --- | --- | --- |
+| What Sintropix gets | A copy of each new email that passes your filter | Access to search and read your email when it needs to |
+| Older email | No. Forwarding only acts on new email | Yes. Email you already have can be searched |
+| What Sintropix sees | Only what the filter forwards | What it searches for in your email, with the reason logged |
+| Where you set it up | In Gmail | In Sintropix, with your approval in Google |
+
+## Before you start
+
+- You need a Sintropix user who can edit. A read-only user can't connect accounts, so ask whoever manages your company in Sintropix.
+- Have the password of the Gmail account you want to connect at hand.
+- Use a computer, because Google asks for your approval in the browser.
+
+## Connect your account
+
+The Sintropix app shows its labels in Spanish or English, depending on your language. This guide gives the Spanish label first, with the English one in parentheses.
+
+<Steps>
+  <Step title="Open Integrations in Sintropix">
+    Open your user menu and go to **Configuración → Integraciones** (Settings → Integrations).
+  </Step>
+
+  <Step title="Pick Gmail">
+    1. Click **Conectar integración** (Connect integration).
+    2. Filter by the **Correo** (Email) tag and pick **Gmail**.
+  </Step>
+
+  <Step title="Approve access in Google">
+    Sintropix sends you to a secure connection page, which keeps the access to your email for Sintropix, and from there to Google.
+
+    1. Pick the Gmail account you want to connect, or sign in to it.
+    2. Review the permissions Google shows and allow access.
+
+    <Warning>
+    Google shows that full access to your email is requested, including sending and deleting. That's the only set of permissions Google accepts for this connection, but Sintropix only reads: it never sends, changes, or deletes email.
+    </Warning>
+  </Step>
+
+  <Step title="Return to Sintropix">
+    When you finish, you land back on **Integraciones** and your Gmail account appears in the list.
+  </Step>
+
+  <Step title="Say what the account is for">
+    Open the account's panel. In **Propósito** (Purpose), the first row of its details, write what you use that email for, such as "Supplier invoices" or "Managing director's personal email".
+
+    Erwin reads the purpose to decide which account to search, especially when your company connects more than one. The clearer it is, the better he searches.
+  </Step>
+</Steps>
+
+## What Sintropix does with your email
+
+- **Searches and reads when needed.** You, or Erwin, can ask Sintropix to find a supplier's invoice in any connected account. Erwin also searches on his own, for supporting evidence, when he reviews a record or leaves a follow-up.
+- **Copies attachments into your books.** It can copy a file, such as an invoice PDF, to attach it to the matching document.
+- **Logs every read.** Each email Sintropix reads and each file it copies is logged with the reason.
+- **Leaves your inbox alone.** It doesn't send, reply, archive, delete, or mark anything as read.
+
+Only people in your company who can edit in Sintropix can read the connected email. A read-only user can't.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The account says Conéctalo de nuevo (Connect it again)">
+    The access expired or was revoked, for example because you changed your password or removed access from your Google Account. Open the account's panel, disconnect it, and connect it again with the steps above.
+  </Accordion>
+
+  <Accordion title="The account says No pudimos revisar la conexión (Could not check the connection)">
+    Sintropix couldn't check the access at that moment. Reload the page later. If the notice stays, let Sintropix know.
+  </Accordion>
+
+  <Accordion title="Google won't let me approve access">
+    In Google Workspace, your company's administrator can restrict which outside apps can reach your accounts. Ask them to check that setting, or talk to Sintropix.
+  </Accordion>
+
+  <Accordion title="I want to disconnect the account">
+    In **Configuración → Integraciones**, open the Gmail account's panel and disconnect it. Sintropix stops reading that email, and the stored access is deleted.
+  </Accordion>
+</AccordionGroup>

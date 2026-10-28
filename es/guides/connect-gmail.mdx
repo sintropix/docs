@@ -1,0 +1,92 @@
+---
+title: "Conectar tu cuenta de Gmail a Sintropix (solo lectura)"
+sidebarTitle: "Conectar Gmail"
+description: "Cómo conectar una cuenta de Gmail o Google Workspace a Sintropix para que tú y Erwin busquen facturas y respaldos en tu correo. Sintropix solo lee: nunca envía, cambia ni borra correos."
+keywords: ["conectar Gmail", "Gmail", "Google Workspace", "integración de correo", "solo lectura", "Erwin", "facturas antiguas"]
+---
+
+Cuando conectas tu Gmail, Sintropix puede buscar y leer tu correo en el momento en que lo necesita. Así tú, o Erwin, encuentran la factura de un proveedor, el respaldo de un gasto o un correo antiguo, sin que tengas que reenviar nada.
+
+<Info>
+**Sintropix solo lee.** Nunca envía, cambia ni borra correos, y no marca nada como leído. Tampoco guarda una copia de tu correo: lo lee cuando hace falta.
+</Info>
+
+## ¿Conectar o reenviar?
+
+Hay dos formas de que tus facturas de Gmail lleguen a Sintropix. Puedes usar las dos.
+
+| | [Reenviar a tu casilla Sintropix](/es/guides/gmail-forwarding) | Conectar Gmail |
+| --- | --- | --- |
+| Qué recibe Sintropix | Una copia de cada correo nuevo que pase tu filtro | Acceso para buscar y leer tu correo cuando lo necesita |
+| Correos antiguos | No. El reenvío solo actúa sobre correos nuevos | Sí. Se pueden buscar los que ya tienes |
+| Qué ve Sintropix | Solo lo que el filtro reenvía | Lo que busca en tu correo, con el motivo registrado |
+| Dónde lo configuras | En Gmail | En Sintropix, con tu autorización en Google |
+
+## Antes de empezar
+
+- Necesitas un usuario de Sintropix que pueda editar. Un usuario de solo lectura no puede conectar cuentas: pídeselo a quien administra tu empresa en Sintropix.
+- Ten a mano la contraseña de la cuenta de Gmail que quieres conectar.
+- Hazlo desde un computador, porque Google pide tu autorización en el navegador.
+
+## Conecta tu cuenta
+
+<Steps>
+  <Step title="Abre Integraciones en Sintropix">
+    Abre el menú de tu usuario y ve a **Configuración → Integraciones**.
+  </Step>
+
+  <Step title="Elige Gmail">
+    1. Haz clic en **Conectar integración**.
+    2. Filtra por el tag **Correo** y elige **Gmail**.
+  </Step>
+
+  <Step title="Autoriza el acceso en Google">
+    Sintropix te lleva a una página de conexión segura, que guarda el acceso a tu correo para Sintropix, y de ahí a Google.
+
+    1. Elige la cuenta de Gmail que quieres conectar, o inicia sesión con ella.
+    2. Revisa los permisos que muestra Google y haz clic para permitir el acceso.
+
+    <Warning>
+    Google muestra que se pide acceso completo a tu correo, incluido enviar y borrar. Es el único conjunto de permisos que Google acepta para esta conexión, pero Sintropix solo lee: nunca envía, cambia ni borra correos.
+    </Warning>
+  </Step>
+
+  <Step title="Vuelve a Sintropix">
+    Al terminar, vuelves a **Integraciones** y tu cuenta de Gmail aparece en la lista.
+  </Step>
+
+  <Step title="Escribe para qué es la cuenta">
+    Abre el panel de la cuenta. En **Propósito**, la primera fila de sus detalles, escribe para qué usas ese correo, por ejemplo "Facturas de proveedores" o "Correo personal de la gerenta".
+
+    Erwin lee el propósito para elegir en qué cuenta buscar, sobre todo si tu empresa conecta más de una. Mientras más claro, mejor busca.
+  </Step>
+</Steps>
+
+## Qué hace Sintropix con tu correo
+
+- **Busca y lee cuando lo necesita.** Tú, o Erwin, pueden pedirle a Sintropix que encuentre la factura de un proveedor en cualquiera de las cuentas conectadas. Erwin también busca por su cuenta cuando revisa un registro o deja un seguimiento, como respaldo.
+- **Copia adjuntos a tu contabilidad.** Puede copiar un archivo, como el PDF de una factura, para adjuntarlo al documento que corresponde.
+- **Registra cada lectura.** Cada correo que Sintropix lee y cada archivo que copia quedan registrados con el motivo.
+- **No toca tu bandeja.** No envía, no responde, no archiva, no borra y no marca nada como leído.
+
+Solo las personas de tu empresa con permiso para editar en Sintropix pueden leer el correo conectado. Un usuario de solo lectura no puede.
+
+## Si algo no funciona
+
+<AccordionGroup>
+  <Accordion title="La cuenta dice Conéctalo de nuevo">
+    El acceso venció o se revocó, por ejemplo porque cambiaste la contraseña o quitaste el acceso desde tu cuenta de Google. Abre el panel de la cuenta, desconéctala y vuelve a conectarla con los pasos de arriba.
+  </Accordion>
+
+  <Accordion title="La cuenta dice No pudimos revisar la conexión">
+    Sintropix no pudo revisar el acceso en ese momento. Vuelve a cargar la página más tarde. Si el aviso sigue, avísale a Sintropix.
+  </Accordion>
+
+  <Accordion title="Google no me deja autorizar el acceso">
+    En Google Workspace, el administrador de tu empresa puede restringir qué aplicaciones externas acceden a las cuentas. Pídele que revise esa configuración, o conversa con Sintropix.
+  </Accordion>
+
+  <Accordion title="Quiero desconectar la cuenta">
+    En **Configuración → Integraciones**, abre el panel de la cuenta de Gmail y desconéctala. Sintropix deja de leer ese correo y se borra el acceso que se guardaba.
+  </Accordion>
+</AccordionGroup>
