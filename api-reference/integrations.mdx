@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect Xpendit with an API key and read its expenses, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect Xpendit with an API key and read its expenses, connect Stripe with read-only access, connect Notion and preview its databases, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -14,9 +14,10 @@ What an Integration can feed depends on its kind:
 | --- | --- |
 | `sii_mirror` | Up to two [Sources](/api-reference/sources), through [Source Feeds](/api-reference/source-feeds): one for DTEs (`dte`) and one for boletas de honorarios (`honorarium`) |
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
-| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
+| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar`, `stripe` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `xpendit` | A [Source](/api-reference/sources) that holds Expense Renditions for each of its Subsidiaries, through a [Source Feed](/api-reference/source-feeds#expense-feeds) of expenses (`expense`). Each sync lands the expenses Xpendit approved as approved [Expense Claims](/api-reference/expense-claims). You can also [read its expenses](#read-what-xpendit-holds) on demand |
-| `mercadolibre`, `stripe` | Nothing yet |
+| `mercadolibre` | Nothing yet |
+| `notion` | Nothing yet. You [preview its databases](#notion) on demand instead |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 
@@ -36,7 +37,9 @@ The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintrop
 
 The `xpendit` kind connects the enterprise of an Xpendit account, the expense tool, with its API key. You can read the expenses and funds of each of its Subsidiaries, and route each Subsidiary to a Source of Expense Renditions. See [Xpendit](#xpendit).
 
-The `stripe` kind connects a [Stripe](https://stripe.com) account through OAuth, by installing the Sintropix Stripe App in that account with read-only access. It feeds nothing yet. See [Stripe](#stripe).
+The `stripe` kind connects a [Stripe](https://stripe.com) account through OAuth, by installing the Sintropix Stripe App in that account with read-only access. It can feed a Bank Account with each currency of the account's Stripe balance. See [Stripe](#stripe) and [Bank Feeds](/api-reference/bank-feeds#stripe).
+
+The `notion` kind connects a [Notion](https://www.notion.so) workspace through OAuth, with read-only access to the pages and databases you share with Sintropix. It feeds nothing yet: you list its databases and preview each one. See [Notion](#notion).
 
 The `polar` kind connects a [Polar](https://polar.sh) account through OAuth. You grant Sintropix read-only access to the account's organizations, orders, payments, refunds, disputes, transactions, and payouts. If you clear the transactions or payouts permission on Polar's consent screen, Sintropix refuses the connection and stores nothing. Sign in to Polar as a user with the owner, admin, or finance role in the organization: Polar shows an organization's money to those roles only. It can feed a USD Bank Account with each organization's Polar balance. Sintropix only reads: it never charges, refunds, or withdraws money. See [Bank Feeds](/api-reference/bank-feeds#polar).
 
@@ -60,13 +63,13 @@ An Integration belongs to the [Organization](/api-reference/organizations), not 
 
 The routes follow the same split:
 
-- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the replacement of an API key, the purpose, the SII legal representative's Clave, the discovered accounts, the Provider Accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, and disconnect.
+- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the replacement of an API key, the purpose, the SII legal representative's Clave, the discovered accounts, the Provider Accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the preview of a Notion database, and disconnect.
 - Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. So does the copy of an [email attachment](#post-api-entities-entityid-email-attachments) into an Entity. They take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
 
-Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account or the expenses of an Xpendit account. An API key confined to one Entity:
+Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, or the databases of a Notion workspace. An API key confined to one Entity:
 
 - Lists every Integration of its Organization, but sees only the Sources and Bank Accounts of its own Entity.
-- Can't connect, reconnect, renew, or disconnect an Integration, replace its API key, run a General Ledger Export, read or copy the email of a Gmail, Outlook, or Mailbox account, or read the expenses of an Xpendit account. It gets `403` with `PERMISSION_DENIED_ERROR`.
+- Can't connect, reconnect, renew, or disconnect an Integration, replace its API key, run a General Ledger Export, read or copy the email of a Gmail, Outlook, or Mailbox account, read the expenses of an Xpendit account, or preview a Notion database. It gets `403` with `PERMISSION_DENIED_ERROR`.
 - Adds and removes only the feeds that land in its own Entity.
 
 An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-api-entities-entityid-organization).
@@ -79,13 +82,13 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `xpendit` \| `stripe` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `xpendit` \| `stripe` \| `notion` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `notion`, the Notion workspace id). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. `null` for every kind that is not a document integration: the bank kinds and the OAuth authorizations. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
 | `mode` | `test` \| `live` \| null | Whether a `fintoc`, `plaid`, or `stripe` Integration runs against the Provider's test or live environment. `null` for every other kind. |
-| `accountName` | string \| null | For `stripe`, the business name of the Stripe account, or its Dashboard name when it has no business name, as read at connect. It can be `null` for a Stripe account that states neither. `null` for every other kind. |
+| `accountName` | string \| null | For `stripe`, the business name of the Stripe account, or its Dashboard name when it has no business name, as read at connect. It can be `null` for a Stripe account that states neither. For `notion`, the name of the Notion workspace, as read at connect. `null` for every other kind. |
 | `country` | string \| null | For `stripe`, the country of the Stripe account, as an ISO 3166-1 alpha-2 code such as `US`, read at connect. `null` for every other kind. |
 | `defaultCurrency` | string \| null | For `stripe`, the default currency of the Stripe account, as an uppercase ISO 4217 code such as `USD`, read at connect. `null` for every other kind. |
 | `feedableFamilies` | array | The [Document Families](/api-reference/source-feeds#document-families) this Integration's provider can feed: `["dte", "honorarium"]` for `sii_mirror`, `["dte"]` for `bsale` and `wasabil`, `["expense"]` for `xpendit`. Empty for every kind that feeds no documents. |
@@ -104,14 +107,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers, the bank Providers, and Xpendit. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, and Stripe use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-integrations-mailbox).
+This route connects the document Providers, the bank Providers, and Xpendit. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Stripe, and Notion use OAuth and are connected from **Configuración de empresa → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-integrations-mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, and `stripe` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `stripe`, and `notion` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -295,7 +298,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `GET /api/organizations/:organizationId/integrations`
 
-List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, or Stripe authorization connected from the app, and every Mailbox. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
+List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Stripe, or Notion authorization connected from the app, and every Mailbox. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
 
 An API key confined to one Entity gets every Integration of the Organization, with only the Source Feeds and Bank Accounts of its own Entity. `routedEntities` still names every Entity a feed reaches.
 
@@ -336,6 +339,7 @@ Remove an Integration. A [Mailbox](#a-mailbox-stays) can't be removed. Every fee
 - For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `424` or `503` and the Integration stays. Retry later.
 - For a `sii_mirror` Integration, the SII mirror first deletes the company Clave and the legal representative's Clave, and stops reading that RUT. If the mirror is busy with that RUT or can't be reached, the disconnect answers `503` with `SII_UNAVAILABLE_ERROR`, and the Integration and both Claves stay. Retry in a few minutes.
 - For a `stripe` Integration, Sintropix first uninstalls the Sintropix Stripe App from the account. If the account already uninstalled it, the disconnect still succeeds. If Stripe fails, the disconnect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and the Integration stays. Retry later.
+- For a `notion` Integration, Sintropix first revokes its access at Notion. If Notion already refuses that access, because someone removed the connection in Notion, the disconnect still succeeds. If Notion fails, the disconnect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and the Integration stays. Retry later.
 - A `mailbox` Integration is refused with `409` (`MAILBOX_NOT_REMOVABLE_ERROR`), because removing it would delete its email. See [A Mailbox stays](#a-mailbox-stays).
 - For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked. For `google_sheets`, the Sheet keeps the last General Ledger written to it.
 
@@ -1142,9 +1146,9 @@ A key that Xpendit no longer accepts answers `422` with `INTEGRATION_PROVIDER_UN
 
 `GET /api/organizations/:organizationId/integrations/:integrationId/provider-accounts`
 
-List the Provider Accounts of an Integration: for Xpendit, the Subsidiaries of the enterprise. Sintropix reads them from Xpendit on every request. Use an `id` as the `providerAccountId` of an [expense Feed](/api-reference/source-feeds#expense-feeds). Any member of the Organization can list them.
+List the Provider Accounts of an Integration: for Xpendit, the Subsidiaries of the enterprise, and for Notion, the [databases the connection reaches](#list-the-databases). Sintropix reads them from the Provider on every request. Use an Xpendit `id` as the `providerAccountId` of an [expense Feed](/api-reference/source-feeds#expense-feeds). Any member of the Organization can list them.
 
-**Response:** an array of `{ id, name }`, where `id` is the Subsidiary's id at Xpendit, as a string.
+**Response:** an array of `{ id, name }`, where `id` is the Subsidiary's id at Xpendit, as a string, or the database's data source id at Notion.
 
 An Integration that has no Provider Accounts to list answers `422` with `INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`.
 
@@ -1166,7 +1170,7 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
 
 ## Stripe
 
-A `stripe` Integration connects one Stripe account with read-only access. Sintropix only reads: it never charges, refunds, or withdraws money. It feeds nothing yet.
+A `stripe` Integration connects one Stripe account with read-only access. Sintropix only reads: it never charges, refunds, or withdraws money. It can feed a Bank Account with each currency of the account's Stripe balance. See [Bank Feeds](/api-reference/bank-feeds#stripe).
 
 ### Connect Stripe
 
@@ -1175,13 +1179,121 @@ You connect Stripe from the app, because Stripe asks for consent in a browser:
 1. Open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Stripe**, under the **Pagos** tag.
 2. Continue on Stripe, pick the account to connect, and accept the read permissions of the Sintropix Stripe App. This installs the App in that account.
 
-When you return, the Integration's panel shows what the connection reaches: the account's business name, **País**, **Moneda por defecto**, and **Modo** (**En vivo** or **Prueba**). The Integration object carries the same facts in `accountName`, `country`, `defaultCurrency`, and `mode`.
+When you return, the Integration's panel shows what the connection reaches: the account's business name, **País**, **Moneda por defecto**, and **Modo** (**En vivo** or **Prueba**). The Integration object carries the same facts in `accountName`, `country`, `defaultCurrency`, and `mode`. The panel also lists one account per currency of the Stripe balance, such as **Stripe USD**, which you link to a Bank Account.
 
 If you cancel on Stripe, nothing is connected. Each Stripe account can be connected only once.
 
 ### Disconnect Stripe
 
 Disconnecting uninstalls the Sintropix Stripe App from the account, then removes the Integration. See [`DELETE /integrations/:integrationId`](#delete-integrations-integrationid).
+
+## Notion
+
+A `notion` Integration connects one Notion workspace with read-only access. Sintropix reads only the pages and databases you share with it, and never writes to Notion. It feeds nothing yet: you list the databases it reaches and preview each one. Sintropix stores nothing it reads from them.
+
+### Connect Notion
+
+You connect Notion from the app, because Notion asks for consent in a browser:
+
+1. Open **Configuración de empresa → Integraciones**, click **Conectar integración**, and pick **Notion**, under the **Rendiciones** tag.
+2. Continue on Notion, pick the workspace, and pick the pages and databases to share with Sintropix.
+
+When you return, the Integration's panel names the workspace and lists, under **Bases en Notion**, the databases the connection reaches. The Integration object carries the workspace id in `providerRef` and its name in `accountName`.
+
+If you cancel on Notion, nothing is connected. Each Notion workspace can be connected only once, in any Organization.
+
+To share another database later, open it in Notion and add the Sintropix connection from its **•••** menu, under **Connections**. It appears in the list on the next read.
+
+### List the databases
+
+[`GET /integrations/:integrationId/provider-accounts`](#get-integrations-integrationid-provider-accounts) lists the databases the connection reaches, as `{ id, name }`, where `id` is the database's data source id at Notion and `name` its title. Sintropix reads them from Notion on every request. Any member of the Organization can list them.
+
+### GET `/integrations/:integrationId/notion-data-sources/:dataSourceId/preview`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/notion-data-sources/:dataSourceId/preview`
+
+Read one database: its properties and its latest 20 pages, newest first by the time Notion created them. Sintropix reads Notion live on every request and stores nothing. In the app, click a database under **Bases en Notion** to open its read-only preview, with **Abrir en Notion** to open it in Notion.
+
+A `staff` or `client` caller can read it. A `viewer` and an API key confined to one Entity get `403` with `PERMISSION_DENIED_ERROR`.
+
+**Path parameters**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `dataSourceId` | string | An `id` from the [list of databases](#list-the-databases): a Notion id of 32 hexadecimal digits, with or without dashes. |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `dataSourceId` | string | The database's data source id at Notion. |
+| `title` | string | The database title. |
+| `url` | string | The database in Notion. |
+| `properties` | array | Each property of the database, as `{ propertyId, name, type }`. See the types below. |
+| `pages` | array | Up to 20 pages, newest first. Each is `{ pageId, url, createdTime, values }`, where `values` holds one value per property. |
+
+`type` is one of `title`, `rich_text`, `number`, `select`, `multi_select`, `status`, `date`, `people`, `files`, `checkbox`, `url`, `email`, `phone_number`, `formula`, `relation`, `rollup`, `created_time`, `created_by`, `last_edited_time`, `last_edited_by`, or `unique_id`. A type Sintropix doesn't read yet is `null`, and its values read as `text` with `text: null`. Notion adds property types over time, so expect `null`.
+
+Each value carries the `propertyId` it belongs to and a `kind`:
+
+| `kind` | Fields | Properties it reads |
+| --- | --- | --- |
+| `text` | `text` (string or null) | A title, text, select, status, multi-select, person, URL, email, phone number, or unique id. A multi-select or several people join their names with commas. A relation reads as the number of linked pages. |
+| `number` | `number` (number or null) | A number, or a formula or rollup that gives a number. |
+| `checkbox` | `checked` (boolean) | A checkbox, or a formula that gives true or false. |
+| `date` | `start`, `end` (string or null) | A date, a date range, the created or last edited time, or a formula or rollup that gives a date. Each is a date or a date-time, as Notion states it. |
+| `files` | `files` (array) | A files property. Each file is `{ name, url, expiresAt }`. |
+
+A link to a file Notion hosts expires within an hour, at `expiresAt`. Each read answers new links, so read the preview again instead of storing a link. A link to a file hosted elsewhere has `expiresAt: null`.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/notion-data-sources/$DATA_SOURCE_ID/preview" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "dataSourceId": "2a1f4c3e-8b7d-4e6a-9c5b-1d0e3f2a4b6c",
+  "title": "Rendiciones",
+  "url": "https://www.notion.so/2a1f4c3e8b7d4e6a9c5b1d0e3f2a4b6c",
+  "properties": [
+    { "propertyId": "title", "name": "Gasto", "type": "title" },
+    { "propertyId": "a%3Bb1", "name": "Monto", "type": "number" },
+    { "propertyId": "c%3Dd2", "name": "Boleta", "type": "files" }
+  ],
+  "pages": [
+    {
+      "pageId": "7c3e1a2b-4d5f-4a6b-8c9d-0e1f2a3b4c5d",
+      "url": "https://www.notion.so/7c3e1a2b4d5f4a6b8c9d0e1f2a3b4c5d",
+      "createdTime": "2026-10-26T14:12:00.000Z",
+      "values": [
+        { "kind": "text", "propertyId": "title", "text": "Almuerzo con cliente" },
+        { "kind": "number", "propertyId": "a%3Bb1", "number": 32500 },
+        {
+          "kind": "files",
+          "propertyId": "c%3Dd2",
+          "files": [
+            {
+              "name": "boleta.pdf",
+              "url": "https://prod-files-secure.s3.us-west-2.amazonaws.com/…",
+              "expiresAt": "2026-10-27T15:12:00.000Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Status | `code` | When |
+| --- | --- | --- |
+| `404` | `INTEGRATION_DATA_SOURCE_NOT_FOUND_ERROR` | The connection doesn't reach the database: nobody shared it with Sintropix, or it no longer exists. `params` carries `integrationId` and `dataSourceId`. Share the database with the connection in Notion. |
+| `422` | `INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR` | The Integration isn't `notion`. `params` carries `integrationId` and `kind`. |
+
+### Disconnect Notion
+
+Disconnecting revokes Sintropix's access at Notion, then removes the Integration. See [`DELETE /integrations/:integrationId`](#delete-integrations-integrationid). The connection stays listed in the workspace until you remove it in Notion too, under **Settings → Connections**.
 
 ## Portal Logins
 
@@ -1385,10 +1497,10 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `200` | Success on `GET`, `PUT`, `DELETE`, and a General Ledger Export, including one Google refused. |
 | `201` | Integration, Mailbox, or Portal Login created, or an email attachment copied into an Entity. |
 | `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while an Entity other than the one of the picked Book keeps Books (`BOOK_REQUIRED_ERROR`). |
-| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email, reads a Mailbox's Conversations, or reads the expenses of an Xpendit account, or an API key confined to one Entity creates a Mailbox (`PERMISSION_DENIED_ERROR`). |
-| `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), or email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`) not found. |
+| `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email, reads a Mailbox's Conversations, or reads the expenses of an Xpendit account or the preview of a Notion database, or an API key confined to one Entity creates a Mailbox (`PERMISSION_DENIED_ERROR`). |
+| `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`), or a Notion database the connection doesn't reach (`INTEGRATION_DATA_SOURCE_NOT_FOUND_ERROR`) not found. |
 | `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), or an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Global66 account names a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_COMPANY_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), or an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`). |
 | `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), or the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`), or a Mailbox can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |

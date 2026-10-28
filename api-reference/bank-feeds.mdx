@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
 sidebarTitle: "Bank Feeds"
-description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, and Polar Integrations."
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, and Stripe Integrations."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -19,6 +19,7 @@ These Integration kinds can feed a Bank Account:
 | `dlocal` | dLocal Go | The merchant's one balance |
 | `mercadopago` | Mercado Pago | The account's available money |
 | `polar` | Polar | The USD balance of each organization the Polar user can read. See [Polar](#polar) |
+| `stripe` | Stripe | Each currency of the account's Stripe balance. See [Stripe](#stripe) |
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
@@ -420,3 +421,73 @@ The Additional Information holds these lines, in this order, each only when Pola
 **Balance check.** Each sync reads the whole Polar ledger and checks it against the organization's Polar balance. When the ledger doesn't add up to the balance, the map, the Bank Account creation, and every sync answer `424` with `BANK_FEED_PROVIDER_FAILURE_ERROR`, so no made-up opening balance absorbs the gap. A row type, fee type, or currency that Sintropix doesn't know refuses the sync with the same code. When the landed Movements don't reach the balance, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out).
 
 The Polar Integration renews its authorization on its own before a sync reads.
+
+### Stripe
+
+[Stripe](https://stripe.com) holds the money it collects for you in a balance, one per currency, until it pays it out to your bank. A Stripe feed mirrors one currency of that balance, row by row, from Stripe's balance transactions.
+
+**Discovered accounts**
+
+- The Integration discovers one account per currency of the Stripe balance.
+- `name` is `Stripe` followed by the currency, such as `Stripe USD`, and `number` is the Stripe account id (`acct_…`).
+- `currency` is that currency, and `balance.current` and `balance.available` are both its available and pending funds together.
+
+**What lands**
+
+Every balance transaction of that currency lands as its own Movement: each charge, refund, payout, fee, and adjustment. Stripe's own fees (`stripe_fee`) land as their own negative Movements, so you can book them to an expense account.
+
+- A Movement lands at the transaction's net amount: the gross minus the fee Stripe took. The gross and the fee stay in its Additional Information.
+- A transaction lands as soon as Stripe creates it, while its funds are still pending. The Movement date is the day Stripe created it, read in the calendar of Santiago (Chile). A transaction whose funds become available changes nothing.
+- Money that comes into the balance lands as a positive amount, and money that leaves it lands as a negative amount.
+- A payout lands in the balance currency. The amount your bank received lands on that bank's Bank Account through its own feed. Reconcile the two Movements as a transfer.
+- Only the transactions of Stripe's payments balance land. The transactions of Stripe Issuing, of the funds Stripe holds for refunds and disputes, and of a risk reserve never land, because those funds are apart from the balance the feed mirrors. Each sync run records them as skipped.
+
+The description is `Stripe`, the transaction type in Spanish, and Stripe's own description of the transaction, such as `Stripe Cobro: Payment for Invoice`:
+
+| Type at Stripe | Description |
+| --- | --- |
+| `charge` | `Stripe Cobro` |
+| `payment` | `Stripe Pago` |
+| `refund`, `payment_refund` | `Stripe Reembolso` |
+| `refund_failure`, `payment_failure_refund` | `Stripe Reembolso fallido` |
+| `payout` | `Stripe Retiro` |
+| `payout_cancel` | `Stripe Retiro cancelado` |
+| `payout_failure` | `Stripe Retiro fallido` |
+| `stripe_fee` | `Stripe Comisión` |
+| `stripe_fx_fee` | `Stripe Comisión por conversión` |
+| `tax_fee` | `Stripe Impuesto sobre comisión` |
+| `application_fee` | `Stripe Comisión de aplicación` |
+| `adjustment` | `Stripe Ajuste` |
+| `transfer` | `Stripe Transferencia` |
+| `topup` | `Stripe Recarga` |
+
+Any other type keeps Stripe's own name, such as `Stripe dispute`.
+
+The Additional Information holds these lines, in this order, each only when Stripe states it. The lines of the charge and of the invoice let you match a Movement to its sale and its tax document without opening Stripe.
+
+| Label | Value |
+| --- | --- |
+| `Fuente` | Where Sintropix read the transaction |
+| `ID transacción Stripe` | Stripe's id for the transaction (`txn_…`) |
+| `Tipo Stripe` | The transaction type at Stripe, such as `charge` or `payout` |
+| `Categoría Stripe` | Stripe's reporting category, such as `charge` or `fee` |
+| `Monto bruto Stripe` | The gross amount, in the balance currency |
+| `Comisión Stripe` | The fee Stripe took, in the balance currency |
+| `Origen Stripe` | The object behind the transaction: a charge (`ch_…`), a refund (`re_…`), or a payout (`po_…`) |
+| `Monto original Stripe` | On a charge Stripe converted from another currency, its original amount and currency, such as `CLP 11900` |
+| `Tipo de cambio Stripe` | On a converted transaction, the exchange rate per whole unit of the original currency. The rate times the original amount gives the gross. |
+| `Factura Stripe` | The number of the Stripe invoice the charge paid |
+| `Cliente Stripe` | The customer name on that invoice |
+| `ID tributario cliente Stripe` | The customer's tax ids on that invoice, separated by commas |
+| `Impuesto factura Stripe` | The total tax of that invoice, with its currency, such as `USD 3.19` |
+| `País de facturación Stripe` | The billing country of the charge, such as `CL` |
+| `Titular tarjeta Stripe` | The cardholder's name on the charge |
+| `Tarjeta Stripe` | The card brand and its last four digits, such as `visa •••• 4242` |
+
+A refund of an invoiced charge carries the invoice lines too. The customer on the invoice can differ from the cardholder: a company's invoice is paid with a person's card. A charge of the feed's first days can land without its invoice lines, because Stripe can record the invoice payment before the feed start date.
+
+A sync rewrites these lines on every Movement it landed, booked Movements included, so a Movement always shows what Stripe states now.
+
+**Balance check.** Each sync reads every balance transaction from the feed start date and checks the landed Movements against the available and pending funds of the currency. When they don't add up, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out). Stripe keeps the account's whole history, so any feed start date works.
+
+Sintropix reads Stripe with the access of the connected account and renews it on its own before a sync reads.
