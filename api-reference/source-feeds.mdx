@@ -53,15 +53,15 @@ Every route on this page returns Feeds in this shape.
 | `id` | uuid | Run id. |
 | `entityId`, `integrationId`, `sourceFeedId`, `sourceId` | uuid | What the run belonged to. |
 | `feedStartDate` | string (`YYYY-MM-DD`) | Start of the range the run read. |
-| `sweptTo` | string (`YYYY-MM-DD`) | End of the range the run read (the day it ran, Chilean calendar). |
+| `sweptTo` | string (`YYYY-MM-DD`) | The day the run ran, on the Chilean calendar. Some providers also read documents dated after it; see [The sync window](#the-sync-window). |
 | `landedCount` | integer | Documents newly imported. |
 | `skippedCount` | integer | Documents already present and unchanged. |
-| `ignoredCount` | integer | Documents of types the books do not track. |
+| `ignoredCount` | integer | Documents the run read and did not land, each for a reason. See [Ignored documents](#ignored-documents). |
 | `rejectedCount` | integer | Documents refused with a reason. |
 | `awaitingCount` | integer | Documents the provider counts but does not list yet, so a later sync lands them. Today only `sii_mirror` boletas; see [SII Mirror boletas](#sii-mirror-boletas). |
 | `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
 | `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
-| `report` | object | `{ tieOutLines, rejected, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef, month? }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `range.month` (`YYYY-MM`) is present on the tie-out lines of an [expense Feed](#sync-an-expense-feed), one per month of creation. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`, `currency_mismatch`, `expense_category_unassigned`, or `person_unknown`). An expense Feed's rejections have `dteTypeCode: null` and the expense number as `folio`. `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `expenseDivergences[]` is present only on an expense Feed's run and lists landed expenses that changed in the tool; see [Changed expenses](#changed-expenses). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (`sii_mirror` and `xpendit`); see [File attachments](#file-attachments). |
+| `report` | object | `{ tieOutLines, rejected, ignored?, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef, month? }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `range.month` (`YYYY-MM`) is present on the tie-out lines of an [expense Feed](#sync-an-expense-feed), one per month of creation. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`, `currency_mismatch`, `expense_category_unassigned`, or `person_unknown`). An expense Feed's rejections have `dteTypeCode: null` and the expense number as `folio`. `ignored[]` lists the documents the run ignored, each with its reason; see [Ignored documents](#ignored-documents). `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `expenseDivergences[]` is present only on an expense Feed's run and lists landed expenses that changed in the tool; see [Changed expenses](#changed-expenses). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (`sii_mirror` and `xpendit`); see [File attachments](#file-attachments). |
 | `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
@@ -169,7 +169,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FE
     "awaitingCount": 0,
     "outcome": "success",
     "failureCode": null,
-    "report": { "tieOutLines": [], "rejected": [], "divergences": [], "updates": [] },
+    "report": { "tieOutLines": [], "rejected": [], "ignored": [], "divergences": [], "updates": [] },
     "occurredAt": "2025-12-31T14:02:11.000Z"
   }
 }
@@ -200,6 +200,67 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$F
 Delete a Source Feed. The parent Source and any already-imported documents are unaffected.
 
 - **Response:** the deleted Source Feed object.
+
+## The sync window
+
+A sync reads the documents dated from the Feed's link date on. How far past the day it runs depends on the provider:
+
+| Provider `kind` | Reads documents dated through |
+| --- | --- |
+| `bsale`, `wasabil` | One month after the day the sync runs, on the Chilean calendar. This holds for Bsale sales and the Bsale purchase book alike. |
+| `sii_mirror` | The end of the current month. The sync reads whole months of the SII registers, up to the current one. See [The current month](#the-current-month). |
+| `xpendit` | The day the sync runs. See [Sync an expense Feed](#sync-an-expense-feed). |
+
+A document dated after the day the sync runs lands like any other. For example, a BHE issued on 28 October and dated 31 October lands on the next sync. A Bsale or Wasabil document dated more than a month ahead lands on the first sync within a month of its date. The run's `sweptTo` stays the day the sync ran.
+
+A document dated before the link date doesn't land. The run lists it in `report.ignored` with the reason `issued_before_link_date`. To land it, [move the link date](#patch-/source-feeds/sourcefeedid) earlier.
+
+## Ignored documents
+
+A sync **ignores** a document it reads but the Feed doesn't land. Each ignored document counts in `ignored` on its tie-out line and in the run's `ignoredCount`, and the run lists it in `report.ignored` with its reason. A range the books don't track (a tie-out line with `tracked: false`) counts its documents in `ignored` but doesn't list them one by one.
+
+Each entry in `report.ignored[]`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `externalRef` | string | The document's provider-side id. For an expense, its id at Xpendit. |
+| `dteTypeCode` | string \| null | SII document type code. `null` when the provider states no type, and for an expense. |
+| `folio` | integer \| null | Document folio, or the expense number for an expense. |
+| `issueDate` | string (`YYYY-MM-DD`) \| null | The document's issue date, or the expense's date. |
+| `counterpartyRut` | string \| null | RUT of the document's counterparty, or of the person who reported the expense. |
+| `counterpartyName` | string \| null | Name of the counterparty, or of the person who reported the expense. |
+| `reason` | enum | Why the document didn't land. See below. |
+
+| `reason` | Meaning |
+| --- | --- |
+| `type_not_stated` | The provider states no type for the document. |
+| `type_not_tracked` | The Feed lands no document of this type. |
+| `direction_mismatch` | The provider listed the document in the book of the other side: issued instead of received, or the reverse. |
+| `issued_before_link_date` | The document is dated before the Feed's link date. See [The sync window](#the-sync-window). |
+| `expense_not_approved` | Xpendit hasn't approved the expense yet. Only on an [expense Feed](#sync-an-expense-feed). |
+| `expense_kind_not_tracked` | The expense is a `corporate_card` expense, or another kind the Feed doesn't land. Only on an [expense Feed](#sync-an-expense-feed). |
+
+Each sync reads its whole range again, so an ignored document lands on a later sync once its reason no longer holds, for example once Xpendit approves the expense.
+
+`report.ignored` is absent on runs recorded before Sintropix listed ignored documents. Those runs state only `ignoredCount` and the tie-out line counts.
+
+```json
+{
+  "ignored": [
+    {
+      "externalRef": "sii:received:33:8812",
+      "dteTypeCode": "33",
+      "folio": 8812,
+      "issueDate": "2026-09-27",
+      "counterpartyRut": "76123456-7",
+      "counterpartyName": "Distribuidora Andes SpA",
+      "reason": "issued_before_link_date"
+    }
+  ]
+}
+```
+
+In the app, the run detail shows **Documentos ignorados**. It lists each ignored document with its type, folio, issue date, counterparty, and the reason in words, and you can copy the RUT. For an expense Feed, it shows the expense's date and person instead. A run recorded before the list existed shows no such section.
 
 ## Standing and Tax Period
 
@@ -427,7 +488,7 @@ Before the first sync, set the Entity's [booking setting](/api-reference/expense
 
 **What a sync reads.** It reads the expenses created in each month from the Link Date to today, one month at a time. Each month is a tie-out line with `range.month` set, and its `count` is the number of expenses Xpendit states for that month.
 
-**What lands.** An expense lands when Xpendit's `state` is `approved`, `accounted`, or `paid`, and its `expenseType` is `reimbursement`, `one_time_fund`, or `recurrent_fund`. Every other expense counts as `ignored`, including `corporate_card` and `other` expenses, and expenses Xpendit hasn't approved. An expense whose claim already exists counts as `skipped`.
+**What lands.** An expense lands when Xpendit's `state` is `approved`, `accounted`, or `paid`, and its `expenseType` is `reimbursement`, `one_time_fund`, or `recurrent_fund`. Every other expense counts as `ignored` and is listed in `report.ignored`: a `corporate_card` or `other` expense with `expense_kind_not_tracked`, whether Xpendit approved it or not, and any other expense Xpendit hasn't approved with `expense_not_approved`. See [Ignored documents](#ignored-documents). An expense whose claim already exists counts as `skipped`.
 
 Each landed claim gets these values:
 
@@ -494,7 +555,7 @@ An Xpendit expense carries a receipt and, at times, an additional file. A sync a
 
 A sync with `preview: true` reads and lands every expense, then rolls everything back. It reports what a real sync would land, skip, ignore, and reject, and writes no claim, category, Partner, or file.
 
-The run detail in the app lists the month ranges, the rejected expenses, the changed expenses, and the files that failed.
+The run detail in the app lists the month ranges, the rejected expenses, the ignored expenses, the changed expenses, and the files that failed.
 
 ## DTE references
 
