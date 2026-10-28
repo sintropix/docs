@@ -8,21 +8,21 @@ Getting up and running on Sintropix doesn't require a lengthy implementation. Yo
 
 <Steps>
   <Step title="Create Your Account">
-    Go to [sintropix.com](https://sintropix.com) and sign up. During onboarding, you'll be asked to:
+    Sintropix sets up your account with you. There is no self-service sign-up: Sintropix creates your Organization and its entities, the legal companies you run (e.g., your US holding and your operating subsidiaries), each with its functional currency (USD for a US holding, CLP for a Chilean subsidiary, MXN for Mexico, etc.).
 
-    - **Name your first entity** — this is the legal company you're setting up first (e.g., your US holding or your primary operating subsidiary)
-    - **Select your functional currency** — the primary currency for that entity (USD for a US holding, CLP for a Chilean subsidiary, MXN for Mexico, etc.)
-    - **Choose your reporting currency** — the currency used for consolidated multi-entity reports; most teams choose USD
+    Sintropix then emails you a link to choose your password. Your first sign-in also sets up two-step verification; see [Get an API Key](/guides/api-keys) for the sign-in steps.
 
-    If you operate multiple entities, you can add additional subsidiaries from **Settings → Entities** after completing the initial setup. Each entity has its own chart of accounts, functional currency, and tax jurisdiction.
+    If you operate multiple entities, ask Sintropix to add more subsidiaries. Each entity has its own chart of accounts, functional currency, and tax jurisdiction, and its settings are in its row under **Entidades legales**, on the **Empresa** page in **Configuración**.
   </Step>
   <Step title="Connect Your Bank Accounts">
     Link your bank accounts so that transactions flow into your general ledger automatically — no CSV imports, no manual entry.
 
-    Navigate to **Integrations → Banks** and select your institution. Sintropix supports direct connections to:
+    Open your user menu, go to **Configuración → Integraciones**, click **Conectar integración**, and filter by the **Banco** tag. Sintropix supports direct connections through:
 
-    - **LATAM:** Santander, BCI, Banco de Chile, BICE, Itaú, BBVA, Mercado Pago, Global66
-    - **US:** Mercury
+    - **LATAM:** Chilean banks through Fintoc, Mercado Pago, Global66, Cardda, and dLocal Go
+    - **US:** banks through Plaid
+
+    Connecting a bank through Fintoc is done by the Sintropix team. You can store your bank portal login instead.
 
     Once connected, Sintropix pulls your transaction history and begins classifying movements against your chart of accounts. New transactions appear in your ledger within 24 hours of posting at the bank.
 
@@ -31,17 +31,16 @@ Getting up and running on Sintropix doesn't require a lengthy implementation. Yo
     </Tip>
   </Step>
   <Step title="Connect Your Integrations">
-    Beyond banks, Sintropix pulls data from the tools your finance team already uses. Head to **Integrations** and connect what applies to your stack:
+    Beyond banks, Sintropix pulls data from the tools your finance team already uses. Head to **Configuración → Integraciones** and connect what applies to your stack:
 
-    - **Payroll** — [Buk](https://www.buk.cl) or [Rankmi](https://www.rankmi.com): payroll runs post directly to your general ledger, with payroll tax and benefit line items broken out automatically
-    - **Expenses** — [Rinde Gastos](https://www.rindegastos.com), [Xpendit](https://www.xpendit.com), or [Ramp](https://ramp.com): approved expense reports create accounting entries without manual re-entry
-    - **CRM** — [HubSpot](https://www.hubspot.com) or [Salesforce](https://www.salesforce.com): closed deals feed the revenue recognition engine, which maps contracts to accrual schedules automatically
+    - **Payroll** — [Buk](https://www.buk.cl): payroll runs post directly to your general ledger, with payroll tax and benefit line items broken out automatically
+    - **Expenses** — [Xpendit](https://www.xpendit.com): approved expense reports create accounting entries without manual re-entry
     - **Payments** — [Stripe](https://stripe.com) or Mercado Pago: payment events are matched to open invoices and cash is applied in real time
 
     Each integration is a one-time OAuth or API key connection. Once linked, data flows continuously — no scheduled exports or manual uploads required.
   </Step>
   <Step title="Meet Erwin, Your AI Finance Assistant">
-    Once your accounts are connected and data starts flowing, open the **Erwin** panel from the left navigation bar. Erwin is embedded directly in your accounting data, so every answer he gives is grounded in your actual general ledger — not a summary or a static report.
+    Once your accounts are connected and data starts flowing, click **Erwin** at the bottom right of any entity page. Erwin is embedded directly in your accounting data, so every answer he gives is grounded in your actual general ledger — not a summary or a static report.
 
     Start by asking him something practical:
 

@@ -1,7 +1,7 @@
 ---
 title: "Core Concepts: How Sintropix Organizes Your Finance Data"
 sidebarTitle: "Core Concepts"
-description: "Understand the key building blocks of Sintropix — entities, currencies, transactions, reconciliation, close checklists, fixed assets, and more — before you dive in."
+description: "Understand the key building blocks of Sintropix — entities, currencies, transactions, reconciliation, fixed assets, and more — before you dive in."
 ---
 
 Sintropix introduces a small set of concepts that shape how your financial data is structured, how transactions flow through the system, and how the AI layer interacts with your accounting. Familiarizing yourself with these building blocks will make every other part of the platform easier to understand and use.
@@ -14,9 +14,9 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - **Functional currency** — the primary currency in which that entity measures its financial performance (see below)
     - **Tax jurisdiction** — the country whose tax calendar, filing requirements, and local rules apply
 
-    Most multi-country teams set up one entity per legal company: a US holding, a Chilean SPA, a Mexican SAPI de CV, and so on. You can add, configure, and archive entities from **Settings → Entities** at any time.
+    Most multi-country teams set up one entity per legal company: a US holding, a Chilean SPA, a Mexican SAPI de CV, and so on. Sintropix adds the entities of your Organization for you. Each entity's settings are in its row under **Entidades legales**, on the Organization's **Empresa** page in **Configuración**.
 
-    Sintropix consolidates across all your entities automatically — intercompany transactions between entities are tracked and eliminated when generating group-level reports.
+    Each entity keeps its own books, and every report covers one entity. A transaction between two entities of the same Organization is recorded once as an [Intercompany Entry](/api-reference/intercompany-entries), which books both sides together.
   </Accordion>
 
   <Accordion title="Organization">
@@ -24,13 +24,13 @@ Sintropix introduces a small set of concepts that shape how your financial data 
 
     Access goes through the Organization. A User holds an **Organization Membership** with one Role, and that Role applies to every entity of the Organization, including entities added later:
 
-    - **`staff`**: reads and writes the books, and does Sintropix accounting work such as Tasks and automations
-    - **`client`**: reads and writes the books
+    - **`staff`**: reads and writes the books, works the Organization's Tasks, and does Sintropix accounting work such as automations
+    - **`client`**: reads and writes the books, and works the Organization's Tasks
     - **`viewer`**: reads only
 
     Moving an entity to another Organization moves its access with it. See the [Organizations API](/api-reference/organizations) and [Access and roles](/api-reference/overview#access-and-roles).
 
-    **Switch companies in the app.** Click the company menu at the top of the sidebar. It shows the logo and name of the active Organization, and below them the active entity when the Organization has more than one. The menu lists every entity you can reach, grouped under its Organization, with the flag of its country and a check on the active one. Click an entity to switch to it in one step, even when it's in another Organization. An Organization is a heading in the menu, not an option: there is no view of a whole Organization.
+    **Switch companies in the app.** Click the company menu at the top of the sidebar. It shows the logo and name of the active Organization, and below them the active entity when the Organization has more than one. The menu lists every entity you can reach, grouped under its Organization, with the flag of its country and a check on the active one. Click an entity to switch to it in one step, even when it's in another Organization. An Organization with one entity is listed as that entity. An Organization with more than one entity is a heading, and it also offers **Grupo**, which opens views of the whole Organization, such as the **Bancos** of all its entities, its Chat, Bandeja, Tareas, and **Intercompañía**.
   </Accordion>
 
   <Accordion title="Book">
@@ -57,11 +57,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
   </Accordion>
 
   <Accordion title="Reporting Currency">
-    The **reporting currency** is the single currency you choose for consolidated, multi-entity financial statements. It is separate from each entity's functional currency and is applied only when generating group-level reports (consolidated P&L, Balance Sheet, Cash Flow).
-
-    Most multi-country LATAM teams set their reporting currency to **USD**, but you can choose any currency your investors or board require.
-
-    Sintropix translates each entity's functional-currency balances into the reporting currency using the appropriate rate (average rate for income statement items, closing rate for balance sheet items) every time a consolidated report is generated.
+    Reports are in the entity's functional currency. To read a report in another currency, such as **USD** for investors or a board, ask for it with a **presentation currency** and the rate to apply. The Income Statement, Balance Sheet, general ledger, and Revenue Realization take `presentationCurrency` and `presentationRate` together, and every amount in the answer is then converted at that one rate. See [Reports](/api-reference/reports).
   </Accordion>
 
   <Accordion title="Transaction">
@@ -69,12 +65,12 @@ Sintropix introduces a small set of concepts that shape how your financial data 
 
     - Bank transfers and cash receipts (from bank integrations)
     - Invoice payments received or made
-    - Payroll runs (from Buk, Rankmi)
-    - Employee expense reports (from Rinde Gastos, Xpendit, Ramp)
+    - Payroll runs (from Buk)
+    - Employee expense reports (from Xpendit)
     - Subscription payments (from Stripe, Mercado Pago)
     - Manual journal entries created by your team
 
-    Every transaction is associated with a specific entity, dated, denominated in a transaction currency, and mapped to one or more accounts in the chart of accounts. Unclassified transactions appear in the **Inbox** for review and coding.
+    Every transaction is associated with a specific entity, dated, denominated in a transaction currency, and mapped to one or more accounts in the chart of accounts.
   </Accordion>
 
   <Accordion title="Reconciliation">
@@ -84,19 +80,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     2. The accounting entry in the general ledger reflects the correct account, amount, and currency
     3. A team member (or Erwin, if auto-reconciliation is enabled) has approved the match
 
-    Sintropix uses AI to suggest matches automatically. Your team reviews and approves the suggestions, or handles exceptions that Erwin couldn't match with confidence. Reconciliation status is visible at the entity level and rolls up into the close checklist.
-  </Accordion>
-
-  <Accordion title="Close Checklist">
-    The **close checklist** is the structured list of items that must be completed before a given month is considered closed. For each entity, it tracks:
-
-    - Unreconciled bank movements as a percentage of total activity
-    - Unapproved journal entries and adjustments
-    - Outstanding AP and AR items requiring action
-    - Revenue recognition schedules that need review
-    - Intercompany balances pending confirmation
-
-    Sintropix calculates a **completion percentage** for each entity's checklist in real time. When all items reach 100%, the month can be locked. Because the general ledger is updated daily (continuous close), most checklist items are handled throughout the month — the formal close is a short review, not a multi-week reconstruction.
+    Sintropix uses AI to suggest matches automatically. Your team reviews and approves the suggestions, or handles exceptions that Erwin couldn't match with confidence. Reconciliation status is visible at the entity level.
   </Accordion>
 
   <Accordion title="Erwin — AI Finance Assistant">
@@ -201,10 +185,10 @@ Loading data from its source, such as the movements of a bank account, isn't a d
     - Corrections and reversals
     - Opening balance entries when migrating from another system
 
-    Each journal entry requires a date, a description, a balanced set of debit and credit lines, and an approver. Erwin can draft proposed journal entries for you to review; nothing is posted until a qualified team member approves it.
+    Each journal entry needs a date, a memo, and a balanced set of debit and credit lines. There is no approval step: an entry posts as soon as it is created. When Erwin isn't sure how to book something, he leaves a [Follow-up](/api-reference/follow-ups) for a person to approve instead of posting it. No entry can be posted on or before the entity's [ledger lock date](/api-reference/entities#patch-/api/entities/entityid/ledger-lock-date).
 
     <Warning>
-      Journal entries affect your general ledger immediately upon posting and are included in all reports. Always review entries carefully before approving, especially during a locked period.
+      Journal entries affect your general ledger immediately upon posting and are included in all reports. Review an entry before you create it. To undo a posted entry, [reverse it](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse).
     </Warning>
   </Accordion>
 </AccordionGroup>

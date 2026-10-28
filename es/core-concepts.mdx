@@ -1,7 +1,7 @@
 ---
 title: "Conceptos básicos: cómo organiza Sintropix tus datos financieros"
 sidebarTitle: "Conceptos básicos"
-description: "Entiende los bloques fundamentales de Sintropix (entidades, monedas, transacciones, conciliación, listas de cierre y más) antes de empezar."
+description: "Entiende los bloques fundamentales de Sintropix (entidades, monedas, transacciones, conciliación y más) antes de empezar."
 ---
 
 Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estructuran tus datos financieros, cómo fluyen las transacciones por el sistema y cómo interactúa la capa de IA con tu contabilidad. Familiarizarte con estos bloques hará que el resto de la plataforma sea más fácil de entender y usar.
@@ -14,9 +14,9 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
     - **Moneda funcional**: la moneda principal en la que esa entidad mide su desempeño financiero (ver más abajo)
     - **Jurisdicción tributaria**: el país cuyo calendario tributario, obligaciones de declaración y normas locales aplican
 
-    La mayoría de los equipos con presencia en varios países configura una entidad por empresa legal: un holding en Estados Unidos, una SpA chilena, una SAPI de CV mexicana, y así sucesivamente. Puedes agregar, configurar y archivar entidades desde **Ajustes → Entidades** en cualquier momento.
+    La mayoría de los equipos con presencia en varios países configura una entidad por empresa legal: un holding en Estados Unidos, una SpA chilena, una SAPI de CV mexicana, y así sucesivamente. Sintropix agrega por ti las entidades de tu Organización. Los ajustes de cada entidad están en su fila de **Entidades legales**, en la página **Empresa** de la Organización, dentro de **Configuración**.
 
-    Sintropix consolida todas tus entidades automáticamente: las transacciones intercompañía se rastrean y se eliminan al generar informes a nivel de grupo.
+    Cada entidad lleva su propia contabilidad, y cada informe cubre una entidad. Una transacción entre dos entidades de la misma Organización se registra una sola vez como un [asiento intercompañía](/es/api-reference/intercompany-entries), que contabiliza ambos lados juntos.
   </Accordion>
 
   <Accordion title="Organización">
@@ -24,13 +24,13 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
 
     El acceso pasa por la Organización. Un Usuario tiene una **Membresía de Organización** con un Rol, y ese Rol aplica a todas las entidades de la Organización, incluidas las que se agreguen después:
 
-    - **`staff`**: lee y escribe los libros, y realiza trabajo contable de Sintropix como tareas y automatizaciones
-    - **`client`**: lee y escribe los libros
+    - **`staff`**: lee y escribe los libros, trabaja las tareas de la Organización y realiza trabajo contable de Sintropix como automatizaciones
+    - **`client`**: lee y escribe los libros, y trabaja las tareas de la Organización
     - **`viewer`**: solo lee
 
     Mover una entidad a otra Organización traslada su acceso con ella. Consulta la [API de Organizaciones](/api-reference/organizations) y [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
 
-    **Cambia de empresa en la app.** Haz clic en el menú de empresas, arriba en la barra lateral. Muestra el logo y el nombre de la Organización activa y, debajo, la entidad activa cuando la Organización tiene más de una. El menú lista todas las entidades a las que tienes acceso, agrupadas bajo su Organización, con la bandera de su país y una marca en la activa. Haz clic en una entidad para cambiarte a ella en un solo paso, aunque esté en otra Organización. En el menú, una Organización es un título, no una opción: no hay una vista de toda una Organización.
+    **Cambia de empresa en la app.** Haz clic en el menú de empresas, arriba en la barra lateral. Muestra el logo y el nombre de la Organización activa y, debajo, la entidad activa cuando la Organización tiene más de una. El menú lista todas las entidades a las que tienes acceso, agrupadas bajo su Organización, con la bandera de su país y una marca en la activa. Haz clic en una entidad para cambiarte a ella en un solo paso, aunque esté en otra Organización. Una Organización con una sola entidad aparece como esa entidad. Una Organización con más de una entidad es un título, y además ofrece **Grupo**, que abre vistas de toda la Organización, como los **Bancos** de todas sus entidades, su Chat, Bandeja, Tareas e **Intercompañía**.
   </Accordion>
 
   <Accordion title="Moneda funcional">
@@ -46,11 +46,7 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
   </Accordion>
 
   <Accordion title="Moneda de reporte">
-    La **moneda de reporte** es la moneda única que eliges para los estados financieros consolidados de varias entidades. Es independiente de la moneda funcional de cada entidad y se aplica solo al generar informes a nivel de grupo (estado de resultados, balance general y flujo de caja consolidados).
-
-    La mayoría de los equipos multinacionales de LATAM define su moneda de reporte en **USD**, pero puedes elegir cualquier moneda que requieran tus inversionistas o tu directorio.
-
-    Sintropix convierte los saldos en moneda funcional de cada entidad a la moneda de reporte usando el tipo de cambio adecuado (tipo promedio para las partidas del estado de resultados, tipo de cierre para las del balance) cada vez que se genera un informe consolidado.
+    Los informes están en la moneda funcional de la entidad. Para leer un informe en otra moneda, por ejemplo en **USD** para tus inversionistas o tu directorio, pídelo con una **moneda de presentación** y el tipo de cambio a aplicar. El estado de resultados, el balance general, el libro mayor y la realización de ingresos aceptan `presentationCurrency` y `presentationRate` juntos, y todos los montos de la respuesta se convierten a ese único tipo. Consulta [Informes](/api-reference/reports).
   </Accordion>
 
   <Accordion title="Transacción">
@@ -58,12 +54,12 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
 
     - Transferencias bancarias e ingresos de caja (desde las integraciones bancarias)
     - Pagos de facturas recibidos o realizados
-    - Liquidaciones de nómina (desde Buk, Rankmi)
-    - Rendiciones de gastos de empleados (desde Rinde Gastos, Xpendit, Ramp)
+    - Liquidaciones de nómina (desde Buk)
+    - Rendiciones de gastos de empleados (desde Xpendit)
     - Pagos de suscripciones (desde Stripe, Mercado Pago)
     - Asientos manuales creados por tu equipo
 
-    Toda transacción está asociada a una entidad específica, tiene fecha, está denominada en una moneda de transacción y se mapea a una o más cuentas del plan de cuentas. Las transacciones sin clasificar aparecen en la **Bandeja de entrada** para su revisión y codificación.
+    Toda transacción está asociada a una entidad específica, tiene fecha, está denominada en una moneda de transacción y se mapea a una o más cuentas del plan de cuentas.
   </Accordion>
 
   <Accordion title="Conciliación">
@@ -73,19 +69,7 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
     2. El asiento en el libro mayor refleja la cuenta, el monto y la moneda correctos
     3. Un miembro del equipo (o Erwin, si la conciliación automática está habilitada) aprobó el cruce
 
-    Sintropix usa IA para sugerir cruces automáticamente. Tu equipo revisa y aprueba las sugerencias, o gestiona las excepciones que Erwin no pudo cruzar con confianza. El estado de conciliación es visible a nivel de entidad y se refleja en la lista de cierre.
-  </Accordion>
-
-  <Accordion title="Lista de cierre">
-    La **lista de cierre** es la lista estructurada de ítems que deben completarse antes de dar un mes por cerrado. Para cada entidad, hace seguimiento de:
-
-    - Movimientos bancarios sin conciliar como porcentaje de la actividad total
-    - Asientos y ajustes sin aprobar
-    - Partidas pendientes de cuentas por pagar y por cobrar que requieren acción
-    - Calendarios de reconocimiento de ingresos que necesitan revisión
-    - Saldos intercompañía pendientes de confirmación
-
-    Sintropix calcula un **porcentaje de avance** para la lista de cada entidad en tiempo real. Cuando todos los ítems llegan al 100 %, el mes puede bloquearse. Como el libro mayor se actualiza a diario (cierre continuo), la mayoría de los ítems de la lista se resuelve durante el mes: el cierre formal es una revisión breve, no una reconstrucción de varias semanas.
+    Sintropix usa IA para sugerir cruces automáticamente. Tu equipo revisa y aprueba las sugerencias, o gestiona las excepciones que Erwin no pudo cruzar con confianza. El estado de conciliación es visible a nivel de entidad.
   </Accordion>
 
   <Accordion title="Erwin, asistente financiero de IA">
@@ -166,10 +150,10 @@ Cargar datos desde su origen, como los movimientos de una cuenta bancaria, no es
     - Correcciones y reversiones
     - Asientos de saldos iniciales al migrar desde otro sistema
 
-    Cada asiento manual requiere una fecha, una descripción, un conjunto balanceado de líneas de débito y crédito y un aprobador. Erwin puede proponerte asientos para que los revises; nada se contabiliza hasta que un miembro del equipo autorizado lo aprueba.
+    Cada asiento manual necesita una fecha, una glosa y un conjunto balanceado de líneas de débito y crédito. No hay un paso de aprobación: un asiento se contabiliza en cuanto se crea. Cuando Erwin no está seguro de cómo contabilizar algo, deja un [seguimiento](/api-reference/follow-ups) para que una persona lo apruebe en vez de contabilizarlo. Ningún asiento puede contabilizarse en o antes de la [fecha de bloqueo](/api-reference/entities#patch-/api/entities/entityid/ledger-lock-date) de la entidad.
 
     <Warning>
-      Los asientos manuales afectan tu libro mayor en cuanto se contabilizan y se incluyen en todos los informes. Revisa siempre los asientos con cuidado antes de aprobarlos, especialmente durante un período bloqueado.
+      Los asientos manuales afectan tu libro mayor en cuanto se contabilizan y se incluyen en todos los informes. Revisa cada asiento antes de crearlo. Para deshacer un asiento contabilizado, [revérsalo](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse).
     </Warning>
   </Accordion>
 </AccordionGroup>

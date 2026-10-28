@@ -35,6 +35,7 @@ Every route on this page returns Feeds in this shape.
 | --- | --- | --- |
 | `id` | uuid | Feed id. |
 | `entityId` | uuid | Owning Entity. |
+| `organizationId` | uuid | The Organization of the Entity and the Integration. |
 | `sourceId` | uuid | The Source the Feed fills. |
 | `integrationId` | uuid | The Integration the Feed reads through. |
 | `family` | `dte` \| `honorarium` \| `expense` | The [Document Family](#document-families) the Feed lands. |
@@ -84,7 +85,7 @@ Create a Source Feed. The body names the Source to fill, either an existing one 
 | `feedStartDate` | string (`YYYY-MM-DD`) | Yes | The link date: the earliest emission date to import. |
 | `source` | object | Yes | Exactly one of `{ "sourceId": "<uuid>" }` (an existing Source) or `{ "sourceName": "<name>" }` (create a Source with that name). A body carrying both keys is rejected. For an `expense` Feed, an existing Source must hold Expense Renditions, and a Source you create holds them. |
 
-**Response:** `{ feed, source }`, where `feed` is the Source Feed object and `source` is the Source it fills: `{ id, entityId, name, invoiceCount, createdAt, updatedAt }`.
+**Response:** `{ feed, source }`, where `feed` is the Source Feed object and `source` is the Source it fills: `{ id, entityId, name, holdsExpenseRenditions, invoiceCount, createdAt, updatedAt }`.
 
 **Domain errors**
 
@@ -92,7 +93,10 @@ Create a Source Feed. The body names the Source to fill, either an existing one 
 | --- | --- | --- |
 | `SOURCE_FEED_FAMILY_NOT_FED_ERROR` | `422` | The Integration's provider doesn't feed this `family`, for example `honorarium` through a `bsale` Integration. `params: { integrationId, family }`. |
 | `SOURCE_FEED_FAMILY_ALREADY_FED_ERROR` | `409` | The Entity already has a Feed of this `family`. Delete it first. `params: { entityId, family }`. |
-| `SOURCE_FEED_SOURCE_ALREADY_FED_ERROR` | `409` | The Source already has a Feed. |
+| `SOURCE_FEED_SOURCE_ALREADY_FED_ERROR` | `409` | The Source already has a Feed. `params: { sourceId }`. |
+| `SOURCE_FEED_ALREADY_EXISTS_ERROR` | `409` | A Feed with this `id` already exists, for example on a retried `POST`. `params: { sourceFeedId }`. |
+| `SOURCE_NOT_FOUND_ERROR` | `404` | `source.sourceId` names no Source of the Entity. `params: { sourceId }`. |
+| `SOURCE_NAME_ALREADY_EXISTS_ERROR` | `409` | `source.sourceName` is already the name of a Source of the Entity. `params: { name }`. |
 | `SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR` | `422` | The Provider doesn't list this `providerAccountId`. `params: { integrationId, providerAccountId }`. |
 | `SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR` | `409` | Another Feed already reads this Provider Account, in this Entity or another one. `params: { integrationId, providerAccountId }`. |
 | `SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR` | `422` | An `expense` Feed names a Source that doesn't hold Expense Renditions. `params: { sourceId }`. |
@@ -139,8 +143,10 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FE
     "id": "e4f5a6b7-c8d9-4e0f-a1b2-c3d4e5f6a7b8",
     "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
     "sourceId": "f5a6b7c8-d9e0-4f1a-b2c3-d4e5f6a7b8c9",
+    "organizationId": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
     "integrationId": "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f6a",
     "family": "dte",
+    "providerAccountId": null,
     "feedStartDate": "2025-01-01",
     "lastSyncedAt": "2025-12-31T14:02:11.000Z",
     "sourceName": "Bsale",
@@ -160,6 +166,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$FE
     "skippedCount": 340,
     "ignoredCount": 3,
     "rejectedCount": 0,
+    "awaitingCount": 0,
     "outcome": "success",
     "failureCode": null,
     "report": { "tieOutLines": [], "rejected": [], "divergences": [], "updates": [] },
@@ -416,7 +423,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
 
 A sync of an `expense` Feed lands each expense the tool approved as an [Expense Claim](/api-reference/expense-claims) that the Feed approves in the same act. Approving books it as an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions) in the Feed's Source. Sintropix syncs it every 4 hours with the other Feeds, and you can [sync it on demand](#post-/source-feeds/sourcefeedid/sync). In the app, click **Sincronizar** or **Vista previa** on the Subsidiary's line in the Integration's panel.
 
-Before the first sync, set the Entity's [booking setting](/api-reference/expense-claims#before-you-submit-claims). The Feed books with its **Rendición por pagar** account and its supplier payable account. Without the setting, the sync fails with `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` and lands nothing. The Feed doesn't need the Approver: Xpendit already approved the expense.
+Before the first sync, set the Entity's [booking setting](/api-reference/expense-claims#before-you-submit-claims). The Feed books with its **Rendición por pagar** account and its supplier payable account. Without the setting, the sync fails with `409` and `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` and lands nothing. The Feed doesn't need the Approver: Xpendit already approved the expense.
 
 **What a sync reads.** It reads the expenses created in each month from the Link Date to today, one month at a time. Each month is a tie-out line with `range.month` set, and its `count` is the number of expenses Xpendit states for that month.
 
@@ -507,7 +514,7 @@ A reference is linked only when its target is already in the Entity's books: a D
 | `200` | Success on `GET`, `PATCH`, `DELETE`, `POST /sync`. |
 | `201` | Source Feed created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity, Source Feed, or Integration (`INTEGRATION_NOT_FOUND_ERROR`) not found. |
-| `409` | The Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), the Source already has a Feed, or another Feed already reads the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR`). |
+| `404` | Entity, Source Feed (`SOURCE_FEED_NOT_FOUND_ERROR`), Source (`SOURCE_NOT_FOUND_ERROR`), or Integration (`INTEGRATION_NOT_FOUND_ERROR`) not found. |
+| `409` | The Feed id already exists (`SOURCE_FEED_ALREADY_EXISTS_ERROR`), the Entity already has a Feed of the family (`SOURCE_FEED_FAMILY_ALREADY_FED_ERROR`), the Source already has a Feed (`SOURCE_FEED_SOURCE_ALREADY_FED_ERROR`), the new Source's name is taken (`SOURCE_NAME_ALREADY_EXISTS_ERROR`), or another Feed already reads the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_ALREADY_FED_ERROR`). On a sync: the provider's stated count and the count read disagree (`SOURCE_FEED_SYNC_TIE_OUT_MISMATCH_ERROR`), or an `expense` Feed's Entity has no booking setting (`EXPENSE_CLAIM_SETTING_NOT_SET_ERROR`). |
 | `422` | The Integration's provider doesn't feed the family (`SOURCE_FEED_FAMILY_NOT_FED_ERROR`), the Provider doesn't list the Provider Account (`SOURCE_FEED_PROVIDER_ACCOUNT_NOT_FOUND_ERROR`), or an `expense` Feed names a Source that doesn't hold Expense Renditions (`SOURCE_FEED_SOURCE_NOT_EXPENSE_RENDITIONS_ERROR`). |
 | `424` | The provider refused the sync (`SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |

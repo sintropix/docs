@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<page>[?<params>]
 
 Two areas live outside an Entity:
 
-- **Configuración de empresa** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio, and Log. Take `organizationId` from the Entity or the record. The Organization's pages live beside them, under `https://app.sintropix.com/organizations/{organizationId}`: **Chat** at `/chat`, **Bandeja** at `/notifications`, **Tareas** at `/tasks`, and **Intercompañía** at `/intercompany-entries`.
+- **Configuración** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio, and Log. Take `organizationId` from the Entity or the record. The Organization's pages live beside them, under `https://app.sintropix.com/organizations/{organizationId}`: **Chat** at `/chat`, **Bandeja** at `/notifications`, **Tareas** at `/tasks`, and **Intercompañía** at `/intercompany-entries`.
 - **Tu cuenta**, the signed-in User's own settings, lives under `https://app.sintropix.com/account`.
 
 Deep links survive login. If the user is signed out, the app shows the login form and then lands on the exact URL requested. A user without access to the Entity sees a "no access" screen rather than a redirect.
@@ -51,7 +51,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Invoice, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | AP documents. |
 | Expense Claim | `/{entityId}/expense-renditions?expenseClaimStatus=submitted` | **Rendiciones**, on its **Por aprobar** view. Use `expenseClaimStatus=rejected` for **Rechazadas**. An approved claim is its Expense Rendition, at `/{entityId}/expense-renditions?open={invoiceId}`. The Approver and the booking setting are at `/{entityId}/settings/expense-claims`. |
 | Attachment | `/{entityId}/invoices?open={invoiceId}` or `/{entityId}/bills?open={invoiceId}` | Attachments are shown inside the invoice panel. |
-| Task | `/organizations/{organizationId}/tasks` | Staff only. Every Task of the Organization, across its Entities. Add `assignee=me` for the caller's own Tasks (**Mías**), or `task={taskId}` to open one Task in its detail panel. A related Task also shows in the panel of each Invoice, Bank Movement, or Ledger Entry it relates to. |
+| Task | `/organizations/{organizationId}/tasks` | `staff` and `client` members. Every Task of the Organization, across its Entities. Add `assignee=me` for the caller's own Tasks (**Mías**), or `task={taskId}` to open one Task in its detail panel. A related Task also shows in the panel of each Invoice, Bank Movement, or Ledger Entry it relates to. |
 | Chat message | `/organizations/{organizationId}/chat?open={messageId}` | The Organization's **Chat**, with the message's ERP Thread open beside it. Drop `open` for the main Chat. Every Member can open it. |
 | Notification | `/organizations/{organizationId}/notifications` | The signed-in User's [Notifications](/api-reference/notifications) (**Bandeja**) in the Organization. |
 | Intercompany Entries | `/organizations/{organizationId}/intercompany-entries` | **Intercompañía**, the Organization's list of intercompany entries. The sidebar offers it only in **Grupo**, so an Organization with one Entity doesn't show it. |
@@ -83,14 +83,14 @@ Reports are pages with the period in the query string. Omit a parameter to get t
 | --- | --- | --- |
 | Balance Sheet | `/{entityId}/balance` | `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Eight-column Balance | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
-| Income Statement | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`, or `none` for one column; the statement opens by `month` when you omit it), `dimension` (a Dimension id, to open accounts by its values). Add `drillDown={accountId}:{columnKey}` to open one cell, or `drillDown={accountId}:{columnKey}:{dimensionValueId}` to open one value's cell (`unassigned` for the lines with no value). |
+| Income Statement | `/{entityId}/income-statement` | `from`, `to`, `presentationCurrency`, `presentationRate`, `groupBy` (`month`, `quarter`, `year`, or `none` for one column; the statement opens by `month` when you omit it), `dimension` (a Dimension id, to open accounts by its values). Add `drillDown={accountId}:{columnKey}` to open one cell, or `drillDown={accountId}:{columnKey}:{dimensionValueId}` to open one value's cell (`unassigned` for the lines with no value). |
 | Income Statement by Dimension | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | General Ledger | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Journal | `/{entityId}/journal` | `from`, `to`, `search` |
 | Partner Ledger | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId` |
 | Receivables aging | `/{entityId}/receivables` | `open` |
 | Payables aging | `/{entityId}/payables` | `open` |
-| Revenue Realization | `/{entityId}/revenue-realization` | `from`, `to` |
+| Revenue Realization | `/{entityId}/revenue-realization` | `from`, `to`, `presentationCurrency`, `presentationRate` |
 | Customer management | `/{entityId}/customers` | `from`, `to`, `search`, `onlyPending` (`true` by default). `/{entityId}/customers/{partnerId}` for one customer, with `from`, `to`, and `tab` (`invoices`, `unbilledReceivableLines`, `movements`). |
 | Cash Flow | `/{entityId}/cash-flow` | `exerciseStart`, `cutoffDate`, `groupBy` (`month`, `quarter`, `year`). Add `drillDown={category}@{columnKey}`, or `drillDown={category}:{accountId}@{columnKey}` for one account, to open the entries of one cell. `columnKey` is the first day of the period column, or `total`. |
 | Fixed Assets | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` for one asset |
@@ -103,10 +103,10 @@ List pages accept the same filters the user can set in the UI, so you can link t
 
 | Page | Useful parameters |
 | --- | --- |
-| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, `notExcluded`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source`, `followUpKind` (`proposal`, `question`, `waiting`, `none`), `standing` (`accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, `observed`, `incompatible`) |
+| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, `notExcluded`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `paymentStatus` (`paid`, `partial`, `unpaid`), `totalMin` and `totalMax` (only with `currency`), `dteType`, `source`, `followUpKind` (`proposal`, `question`, `waiting`, `none`), `standing` (`accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, `observed`, `incompatible`) |
 | `/{entityId}/entries` | `search`, `from`, `to`, `status` |
-| `/{entityId}/banks/{bankAccountId}` | `status` (`unbooked`, `booked_pending_allocation`, `reconciled`, `excluded`, `unreconciled`, `notExcluded`), `followUpKind`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
-| `/{entityId}/banks/movements` | The same as one Bank Account, without `amountMin` and `amountMax`, plus `groupBy` (`bankAccount`, `none`, `partner`, `movementMonth`, `status`) |
+| `/{entityId}/banks/{bankAccountId}` | `status` (`unbooked`, `booked_pending_allocation`, `reconciled`, `excluded`, `unreconciled`, `notExcluded`), `followUpKind`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search`, `groupBy` (`none`, `partner`, `movementMonth`, `status`) |
+| `/{entityId}/banks/movements` | The same as one Bank Account, without `amountMin` and `amountMax`. `groupBy` also takes `bankAccount` |
 
 ## Example
 
