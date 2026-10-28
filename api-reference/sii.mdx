@@ -124,7 +124,7 @@ Add a reference from this DTE to a target DTE. Used, for example, to record that
 | `targetDteId` | uuid | Yes | The DTE being referenced. Must belong to the same Entity and differ from `dteId`. |
 | `referenceCode` | integer or null | Yes | `1` (voids), `2` (corrects text), `3` (corrects amounts), or `null` for a reference with no code. |
 
-**Response:** the updated DTE detail, as returned by `GET /sii/dte/:dteId`.
+**Response** (`201`): the updated DTE detail, as returned by `GET /sii/dte/:dteId`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/sii/dte/$DTE_ID/references" \
@@ -232,7 +232,8 @@ Fetch one Sales Summary with the Invoices that land it.
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success. |
-| `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity, DTE, target DTE, or Sales Summary not found. |
-| `409` | Duplicate reference or invalid reference target (for example, a DTE referencing itself). |
+| `200` | Success on `GET` and `DELETE`. |
+| `201` | Reference added on `POST /sii/dte/:dteId/references`. |
+| `400` | Validation error, a DTE referencing itself (`DTE_REFERENCE_SELF_ERROR`), or missing `x-audit-actor` on a key-authenticated mutation. |
+| `404` | Entity, DTE (`DTE_NOT_FOUND_ERROR`), target DTE (`DTE_REFERENCE_TARGET_NOT_FOUND_ERROR`), reference to remove (`DTE_REFERENCE_NOT_FOUND_ERROR`), or Sales Summary not found. A target DTE of another Entity answers as not found. |
+| `409` | Duplicate reference (`DTE_REFERENCE_ALREADY_EXISTS_ERROR`). |

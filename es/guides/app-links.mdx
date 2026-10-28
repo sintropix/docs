@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<pagina>[?<parametros>]
 
 Dos áreas viven fuera de una Entidad:
 
-- Las páginas de **Configuración de empresa** que pertenecen a toda la Organización viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Son la página Empresa, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio y Log. Toma `organizationId` de la Entidad o del registro. Las páginas de la Organización viven a su lado, bajo `https://app.sintropix.com/organizations/{organizationId}`: **Chat** en `/chat`, **Bandeja** en `/notifications`, **Tareas** en `/tasks` e **Intercompañía** en `/intercompany-entries`.
+- Las páginas de **Configuración** que pertenecen a toda la Organización viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Son la página Empresa, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio y Log. Toma `organizationId` de la Entidad o del registro. Las páginas de la Organización viven a su lado, bajo `https://app.sintropix.com/organizations/{organizationId}`: **Chat** en `/chat`, **Bandeja** en `/notifications`, **Tareas** en `/tasks` e **Intercompañía** en `/intercompany-entries`.
 - **Tu cuenta**, los ajustes propios del Usuario que inició sesión, vive bajo `https://app.sintropix.com/account`.
 
 Los enlaces directos sobreviven al inicio de sesión. Si el usuario no está autenticado, la aplicación muestra el formulario de acceso y luego aterriza en la URL exacta solicitada. Un usuario sin acceso a la Entidad ve una pantalla de "sin acceso" en lugar de una redirección.
@@ -51,7 +51,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Factura, `direction: payable` | `/{entityId}/bills?open={invoiceId}` | Documentos por pagar. |
 | Rendición (Expense Claim) | `/{entityId}/expense-renditions?expenseClaimStatus=submitted` | **Rendiciones**, en la vista **Por aprobar**. Usa `expenseClaimStatus=rejected` para **Rechazadas**. Una rendición aprobada es su Expense Rendition, en `/{entityId}/expense-renditions?open={invoiceId}`. El aprobador y la configuración contable están en `/{entityId}/settings/expense-claims`. |
 | Adjunto | `/{entityId}/invoices?open={invoiceId}` o `/{entityId}/bills?open={invoiceId}` | Los adjuntos se muestran dentro del panel de la factura. |
-| Tarea (Task) | `/organizations/{organizationId}/tasks` | Solo staff. Todas las tareas de la Organización, de todas sus Entidades. Agrega `assignee=me` para ver solo las tuyas (**Mías**), o `task={taskId}` para abrir una tarea en su panel de detalle. Una tarea relacionada también aparece en el panel de cada factura, movimiento bancario o asiento contable con que se relaciona. |
+| Tarea (Task) | `/organizations/{organizationId}/tasks` | Miembros `staff` y `client`. Todas las tareas de la Organización, de todas sus Entidades. Agrega `assignee=me` para ver solo las tuyas (**Mías**), o `task={taskId}` para abrir una tarea en su panel de detalle. Una tarea relacionada también aparece en el panel de cada factura, movimiento bancario o asiento contable con que se relaciona. |
 | Mensaje del Chat | `/organizations/{organizationId}/chat?open={messageId}` | El **Chat** de la Organización, con el hilo del ERP de ese mensaje abierto al lado. Quita `open` para ver el Chat principal. Todo Miembro puede abrirlo. |
 | Notificación | `/organizations/{organizationId}/notifications` | Las [notificaciones](/api-reference/notifications) del Usuario que inició sesión (**Bandeja**) en la Organización. |
 | Asientos intercompañía | `/organizations/{organizationId}/intercompany-entries` | **Intercompañía**, la lista de asientos intercompañía de la Organización. La barra lateral la ofrece solo en **Grupo**, así que una Organización con una sola Entidad no la muestra. |
@@ -83,14 +83,14 @@ Los informes son páginas con el período en la cadena de consulta. Omite un par
 | --- | --- | --- |
 | Balance general | `/{entityId}/balance` | `cutoffDate`, `presentationCurrency`, `presentationRate` |
 | Balance de ocho columnas | `/{entityId}/eight-column-balance` | `exerciseStart`, `cutoffDate`, `presentationCurrency`, `presentationRate` |
-| Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `groupBy` (`month`, `quarter`, `year`, o `none` para una sola columna; el estado se abre por `month` si lo omites), `dimension` (el id de una dimensión, para abrir las cuentas por sus valores). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda, o `drillDown={accountId}:{columnKey}:{dimensionValueId}` para abrir la celda de un valor (`unassigned` para las líneas sin valor). |
+| Estado de resultados | `/{entityId}/income-statement` | `from`, `to`, `presentationCurrency`, `presentationRate`, `groupBy` (`month`, `quarter`, `year`, o `none` para una sola columna; el estado se abre por `month` si lo omites), `dimension` (el id de una dimensión, para abrir las cuentas por sus valores). Agrega `drillDown={accountId}:{columnKey}` para abrir una celda, o `drillDown={accountId}:{columnKey}:{dimensionValueId}` para abrir la celda de un valor (`unassigned` para las líneas sin valor). |
 | Estado de resultados por dimensión | `/{entityId}/income-statement-by-dimension` | `from`, `to`, `dimension` |
 | Libro mayor | `/{entityId}/general-ledger` | `from`, `to`, `selectedAccountId` |
 | Libro diario | `/{entityId}/journal` | `from`, `to`, `search` |
 | Libro de contrapartes | `/{entityId}/partner-ledger` | `from`, `to`, `partners`, `selectedAccountId` |
 | Antigüedad de cuentas por cobrar | `/{entityId}/receivables` | `open` |
 | Antigüedad de cuentas por pagar | `/{entityId}/payables` | `open` |
-| Realización de ingresos | `/{entityId}/revenue-realization` | `from`, `to` |
+| Realización de ingresos | `/{entityId}/revenue-realization` | `from`, `to`, `presentationCurrency`, `presentationRate` |
 | Gestión de clientes | `/{entityId}/customers` | `from`, `to`, `search`, `onlyPending` (`true` por defecto). `/{entityId}/customers/{partnerId}` para un cliente, con `from`, `to` y `tab` (`invoices`, `unbilledReceivableLines`, `movements`). |
 | Flujo de caja | `/{entityId}/cash-flow` | `exerciseStart`, `cutoffDate`, `groupBy` (`month`, `quarter`, `year`). Agrega `drillDown={category}@{columnKey}`, o `drillDown={category}:{accountId}@{columnKey}` para una cuenta, para abrir los asientos de una celda. `columnKey` es el primer día de la columna del período, o `total`. |
 | Activos fijos | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` para un activo |
@@ -103,10 +103,10 @@ Las páginas de listado aceptan los mismos filtros que el usuario puede fijar en
 
 | Página | Parámetros útiles |
 | --- | --- |
-| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, `notExcluded`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `dteType`, `source`, `followUpKind` (`proposal`, `question`, `waiting`, `none`), `standing` (`accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, `observed`, `incompatible`) |
+| `/{entityId}/invoices`, `/{entityId}/bills` | `statusFilter` (`all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, `notExcluded`), `partnerId`, `currency`, `search`, `issueDateFrom`, `issueDateTo`, `dueDateFrom`, `dueDateTo`, `taxPeriodFrom`, `taxPeriodTo` (`YYYY-MM`), `paymentStatus` (`paid`, `partial`, `unpaid`), `totalMin` y `totalMax` (solo con `currency`), `dteType`, `source`, `followUpKind` (`proposal`, `question`, `waiting`, `none`), `standing` (`accepted`, `pending`, `claimed`, `annulment_requested`, `annulled`, `observed`, `incompatible`) |
 | `/{entityId}/entries` | `search`, `from`, `to`, `status` |
-| `/{entityId}/banks/{bankAccountId}` | `status` (`unbooked`, `booked_pending_allocation`, `reconciled`, `excluded`, `unreconciled`, `notExcluded`), `followUpKind`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search` |
-| `/{entityId}/banks/movements` | Los mismos de una cuenta bancaria, sin `amountMin` ni `amountMax`, más `groupBy` (`bankAccount`, `none`, `partner`, `movementMonth`, `status`) |
+| `/{entityId}/banks/{bankAccountId}` | `status` (`unbooked`, `booked_pending_allocation`, `reconciled`, `excluded`, `unreconciled`, `notExcluded`), `followUpKind`, `partnerId`, `side`, `movementDateFrom`, `movementDateTo`, `amountMin`, `amountMax`, `search`, `groupBy` (`none`, `partner`, `movementMonth`, `status`) |
+| `/{entityId}/banks/movements` | Los mismos de una cuenta bancaria, sin `amountMin` ni `amountMax`. `groupBy` acepta además `bankAccount` |
 
 ## Ejemplo
 

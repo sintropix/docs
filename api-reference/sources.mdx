@@ -123,7 +123,7 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/sources/$SOURCE
 
 ## DELETE `/sources/:sourceId`
 
-Delete a Source. Sources referenced by existing Invoices or attached Source Feeds are refused. So is a Source the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) names, with `409` and `SOURCE_PINNED_ERROR`.
+Delete a Source. A Source that existing Invoices name is refused with `409` and `SOURCE_HAS_INVOICES_ERROR`, with `params.sourceId` and `params.invoiceCount`. So is a Source the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) names, with `409` and `SOURCE_PINNED_ERROR`. Deleting a Source also deletes the [Source Feed](/api-reference/source-feeds) attached to it; the Integration stays connected.
 
 **Response:** the deleted Source object.
 
@@ -134,5 +134,5 @@ Delete a Source. Sources referenced by existing Invoices or attached Source Feed
 | `200` | Success on `GET`, `PATCH`, `DELETE`. `DELETE` answers with the deleted row. |
 | `201` | Source created. |
 | `400` | Validation error, an empty `PATCH` body, or missing `x-audit-actor` on a key-authenticated mutation. |
-| `404` | Entity or Source not found. |
-| `409` | Source id or name already exists, the Source has attached Invoices or Feeds and cannot be deleted, or the Expense Claim setting names it (`SOURCE_PINNED_ERROR`). |
+| `404` | Entity or Source not found (`SOURCE_NOT_FOUND_ERROR`, with `params.sourceId`). |
+| `409` | Source id already exists (`SOURCE_ALREADY_EXISTS_ERROR`), name already exists in the Entity (`SOURCE_NAME_ALREADY_EXISTS_ERROR`, with `params.name`), the Source has Invoices and cannot be deleted (`SOURCE_HAS_INVOICES_ERROR`), or a holder pins it (`SOURCE_PINNED_ERROR`). |

@@ -63,7 +63,9 @@ El acceso a una Entidad proviene de una **Membresía de Organización**. Una [Or
 | `viewer` | Sí | No | No |
 
 - **Leer** cubre las solicitudes `GET` sobre rutas de Entidad y sobre los datos que comparte la Organización, incluido el [Audit Trail](/api-reference/audit-trail) de la Organización. **Escribir** cubre `POST`, `PUT`, `PATCH` y `DELETE`.
-- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels), [Tareas](/api-reference/tasks) y la [sincronización de tipos de cambio](/api-reference/fx-rates).
+- **Trabajo de Sintropix** cubre las rutas reservadas al equipo contable: credenciales, automatizaciones, [Agent Channels](/api-reference/agent-channels) y la [sincronización de tipos de cambio](/api-reference/fx-rates).
+- Las [Tareas](/api-reference/tasks) están abiertas a `staff` y `client`, que las leen y trabajan de la misma forma. Un `viewer` no puede acceder a ellas.
+- Todos los Roles, incluido `viewer`, leen y escriben en el Chat de la Organización, y leen y marcan sus propias [Notificaciones](/api-reference/notifications).
 - Leer el correo de las cuentas de [Gmail, Outlook y Casilla de correo](/api-reference/integrations#read-email) de la Organización es más que leer sus libros: `staff` y `client` pueden, `viewer` no.
 - Una Entidad fuera de tus Organizaciones devuelve `404`. Una acción que tu Rol no permite devuelve `403` con `PERMISSION_DENIED_ERROR`.
 - Ningún Rol es global. Un Usuario sin Membresía en una Organización no puede acceder a sus Entidades, sin importar el Rol que tenga en otras.
@@ -85,7 +87,7 @@ x-audit-actor: <etiqueta-de-tu-agente>
 x-audit-reason: <por qué realizas este cambio>
 ```
 
-`x-audit-actor` es una etiqueta de software autodeclarada (por ejemplo `claude-opus-4.8`) que se guarda tal cual en el [registro de auditoría](/api-reference/audit-trail). Omitirla en una mutación devuelve `400`.
+`x-audit-actor` es una etiqueta de software autodeclarada (por ejemplo `claude-opus-4.8`) que se guarda en el [registro de auditoría](/api-reference/audit-trail), sin los espacios de los extremos. Omitirla en una mutación, o enviarla vacía, devuelve `400` con el código `AUDIT_ACTOR_REQUIRED_ERROR`. Un valor que empieza con `erwin:` está reservado y devuelve `403` con el código `AUDIT_ACTOR_NOT_ALLOWED_ERROR`.
 
 `x-audit-reason` es una explicación de una sola línea, en texto plano, de por qué se realiza el cambio (máx. 500 caracteres). El servidor recorta los espacios al inicio y al final, y guarda el valor en el Sobre de Auditoría. Un valor ausente o vacío devuelve `400` con el código `AUDIT_REASON_REQUIRED_ERROR`; un valor de más de 500 caracteres devuelve `400` con el código `AUDIT_REASON_TOO_LONG_ERROR`.
 
@@ -142,6 +144,8 @@ Un endpoint paginado (aquellos cuya ruta termina en `/pages`, más algunos infor
 ## Errores
 
 Las respuestas distintas de 2xx son JSON. Toda respuesta, exitosa o fallida, lleva un encabezado `x-request-id`; cítalo cuando contactes a soporte.
+
+El cuerpo de un error lleva `statusCode`, `timestamp` (fecha y hora ISO), `path` y `requestId` (el mismo valor del encabezado). Un error de dominio lleva además su `code` y sus `params`.
 
 | Código | Significado |
 | --- | --- |

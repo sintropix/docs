@@ -23,7 +23,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
     Click your name at the bottom of the left sidebar and choose **Tu cuenta**.
   </Step>
   <Step title="Go to Claves de API">
-    **Tu cuenta** opens on **Preferencias**. In the list on the left, click **Claves de API**. The page is at `https://app.sintropix.com/account/api-keys`.
+    **Tu cuenta** opens on **Perfil**. In the list on the left, click **Claves de API**. The page is at `https://app.sintropix.com/account/api-keys`.
 
     The page lists every key you own with its name, prefix, creation date, expiry, and last use. Keys can be revoked from the trash icon on each row.
 
@@ -34,13 +34,13 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
   <Step title="Create the key">
     Click **Crear clave**. Give the key a descriptive name (for example `erwin-agent` or `reconciliation-bot`) so you can identify it later in the key list and the audit trail.
 
-    If the owning User belongs to more than one Entity, the dialog also shows an **Empresa** selector. Leave it on **Todas las empresas** to let the key act across every Entity the User can already access, or pick one Entity to confine the key to that single company. A confined key cannot read or write the data of the other Entities, and the confinement is visible in the **Empresa** column of the key list.
+    If the owning User belongs to more than one Entity, the dialog also shows an **Entidad legal** selector. Leave it on **Todas las entidades legales** to let the key act across every Entity the User can already access, or pick one Entity to confine the key to that single company. A confined key cannot read or write the data of the other Entities, and the confinement is visible in the **Entidad legal** column of the key list.
 
     Choose one Entity when the integration only needs to work with one company (for example a bookkeeping bot that services a single client), so a leaked key cannot touch the rest.
 
     Click **Crear clave** in the dialog to mint the key.
 
-    <Frame caption="Name the key after the software that will use it. The Empresa selector only appears when the owning User has access to more than one company.">
+    <Frame caption="Name the key after the software that will use it. The Entidad legal selector only appears when the owning User has access to more than one Entity.">
       <img src="/images/api-keys/04-create-key-dialog.png" alt="Crear clave de API dialog with a Nombre field" />
     </Frame>
   </Step>
@@ -64,7 +64,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
     - `x-audit-actor` names the software that is acting (for example `my-agent`).
     - `x-audit-reason` states why the change is being made, as one line of plain text up to 500 characters.
 
-    Both values are recorded verbatim on the [audit trail](/api-reference/audit-trail) envelope. Omitting `x-audit-actor` returns `400`. A missing or blank `x-audit-reason` returns `400` with code `AUDIT_REASON_REQUIRED_ERROR`; a value longer than 500 characters returns `400` with code `AUDIT_REASON_TOO_LONG_ERROR`.
+    Both values are recorded verbatim on the [audit trail](/api-reference/audit-trail) envelope. Omitting `x-audit-actor` returns `400` with code `AUDIT_ACTOR_REQUIRED_ERROR`. A missing or blank `x-audit-reason` returns `400` with code `AUDIT_REASON_REQUIRED_ERROR`; a value longer than 500 characters returns `400` with code `AUDIT_REASON_TOO_LONG_ERROR`.
 
     ```bash
     curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/partners \

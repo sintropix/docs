@@ -59,7 +59,9 @@ Access to an Entity comes from an **Organization Membership**. An [Organization]
 | `viewer` | Yes | No | No |
 
 - **Read** covers `GET` requests on Entity routes and on the data the Organization shares, including the Organization's [Audit Trail](/api-reference/audit-trail). **Write** covers `POST`, `PUT`, `PATCH`, and `DELETE`.
-- **Sintropix work** covers routes reserved for the accounting team: credentials (except [Portal Logins](/api-reference/integrations#portal-logins), the bank, Getnet, SII, and Clay logins a `client` can store too), [connecting or reconnecting a bank through Fintoc](/api-reference/integrations#post-/integrations/fintoc/link-intents), automations, [Agent Channels](/api-reference/agent-channels), [Tasks](/api-reference/tasks), and [FX rate sync](/api-reference/fx-rates).
+- **Sintropix work** covers routes reserved for the accounting team: credentials (except [Portal Logins](/api-reference/integrations#portal-logins), the bank, Getnet, SII, and Clay logins a `client` can store too), [connecting or reconnecting a bank through Fintoc](/api-reference/integrations#post-/integrations/fintoc/link-intents), automations, [Agent Channels](/api-reference/agent-channels), and [FX rate sync](/api-reference/fx-rates).
+- [Tasks](/api-reference/tasks) are open to `staff` and `client`, who read and work them the same way. A `viewer` can't reach them.
+- Every Role, `viewer` included, reads and writes the Organization's Chat and reads and marks their own [Notifications](/api-reference/notifications).
 - Reading the email of the Organization's [Gmail, Outlook, and Mailbox](/api-reference/integrations#read-email) accounts takes more than reading the books: `staff` and `client` can, `viewer` can't.
 - An Entity outside your Organizations returns `404`. An action your Role doesn't allow returns `403` with `PERMISSION_DENIED_ERROR`.
 - No Role is global. A User with no Membership in an Organization can't reach its Entities, whatever Role they hold elsewhere.
@@ -85,7 +87,7 @@ x-audit-actor: <your-agent-label>
 x-audit-reason: <why you are making this change>
 ```
 
-`x-audit-actor` is a self-reported software label (for example `claude-opus-4.8`) that lands verbatim in the [Audit Trail](/api-reference/audit-trail). Omitting it on a mutation returns `400`.
+`x-audit-actor` is a self-reported software label (for example `claude-opus-4.8`) that lands in the [Audit Trail](/api-reference/audit-trail), with surrounding whitespace trimmed. Omitting it on a mutation, or sending it blank, returns `400` with code `AUDIT_ACTOR_REQUIRED_ERROR`. A value that starts with `erwin:` is reserved and returns `403` with code `AUDIT_ACTOR_NOT_ALLOWED_ERROR`.
 
 `x-audit-reason` is a one-line, plain-text explanation of why the change is being made (max 500 characters). The server trims surrounding whitespace and stores the value on the Audit Envelope. Missing or blank returns `400` with code `AUDIT_REASON_REQUIRED_ERROR`; longer than 500 characters returns `400` with code `AUDIT_REASON_TOO_LONG_ERROR`.
 
@@ -155,6 +157,8 @@ A page endpoint (endpoints whose path ends in `/pages`, plus a handful of report
 
 Non-2xx responses are JSON. Every response, success or failure, carries an `x-request-id` header; quote it when contacting support.
 
+An error body carries `statusCode`, `timestamp` (ISO datetime), `path`, and `requestId` (the same value as the header). A domain error also carries its `code` and `params`.
+
 | Status | Meaning |
 | --- | --- |
 | `200` | Request succeeded. |
@@ -181,6 +185,7 @@ When an outside system refuses a request, the API answers `424 Failed Dependency
 - `INTEGRATION_PROVIDER_FAILURE_ERROR` and `INTEGRATION_GRANT_FAILED_ERROR`
 - `SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`
 - `AUTOMATION_PROVIDER_FAILURE_ERROR` and `AUTOMATION_PROVIDER_UNAUTHORIZED_ERROR`
+- `MAILBOX_LIMIT_REACHED_ERROR`
 
 A refusal answers the same until someone acts, for example by reconnecting the Integration, so don't retry it in a loop. An outside system that doesn't answer at all returns `503` with its own code, and that one is worth retrying later. The API doesn't send `502` or `504` on purpose: if you see one, it comes from the network in front of the API, not from Sintropix.
 
