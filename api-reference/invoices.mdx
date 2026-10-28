@@ -230,7 +230,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `totalMax` | integer | No | Maximum `total`, in minor units. |
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
 | `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. A search that reads as an amount also matches `total` and the Open Amount; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
-| `comments` | string | No | `with` keeps only documents that have at least one Comment; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
+| `erpThread` | string | No | `with` keeps only documents that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread); `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
 | `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
@@ -258,7 +258,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the Invoice. |
-| `commentCount` | integer | Number of Comments on the Invoice. |
+| `hasErpThread` | boolean | Whether the Invoice has an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread). |
 | `group` | object or null | Null unless `groupBy` was requested. Contains `by` (the grouping), `value`, `key` (string), `invoiceCount` (integer, size of the whole group), and `startsGroup` (boolean, true on the first row of each group). |
 
 The type of `group.value` depends on `group.by`:
@@ -290,10 +290,10 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-To find the payable documents that someone has commented on, pass `comments=with`:
+To find the payable documents that someone has written about, pass `erpThread=with`:
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&comments=with" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&erpThread=with" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -385,7 +385,7 @@ Example response:
     "bookingAccountLabel": null,
     "bookingExtraLineCount": 0,
     "attachmentCount": 0,
-    "commentCount": 0
+    "hasErpThread": false
   },
   "bookingEntry": null,
   "partner": null,
@@ -854,51 +854,16 @@ Include an excluded Invoice in the books again. It goes back to `unbooked`.
 
 A blank `reason`, or one longer than 1,000 characters, is refused with `400`.
 
-## POST `/invoices/:invoiceId/comments`
+## Talk about an Invoice
 
-Post a Comment on the Invoice. The author is taken from the session; the Comment appears in the Invoice's [audit trail](/api-reference/audit-trail) alongside every other change to the document, and inside the Invoice panel of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host Invoice.
-
-**Body**
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
-
-**Response** (`201`): the created Comment.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | uuid | Comment id. |
-| `entityId` | uuid | Owning Entity. |
-| `authorUserId` | uuid | User the session belonged to. |
-| `body` | string | The text that was posted. |
-| `invoiceId` | uuid | The Invoice the Comment belongs to. |
-| `ledgerEntryId` | null | Always null on this route. |
-| `bankMovementId` | null | Always null on this route. |
-| `createdAt`, `updatedAt` | timestamp | Row timestamps. |
-
-**Domain errors**
-
-| Code | Status | Meaning |
-| --- | --- | --- |
-| `COMMENT_HOST_NOT_FOUND_ERROR` | `404` | The Invoice in the URL does not exist under this Entity. The response carries `params: { hostKind: "invoice", hostId }`. |
-
-Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before the Comment reaches the database.
-
-```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/comments" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "Content-Type: application/json" \
-  -d '{ "body": "Confirmé con el proveedor: la OC corresponde a este mes." }'
-```
+To talk about an Invoice with your team or with Erwin, write in its ERP Thread: open the Invoice's panel and click the **Hilo** tab. Through the API, send a message with `record: { kind: "invoice", entityId, id }`. See [Talk about a record in its ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread).
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on `GET`, `PATCH`, `PUT`, `DELETE`, `POST /book`, `POST /deferrals/:deferralId/cancel`. `DELETE` answers with the deleted row. |
-| `201` | Invoice or Comment created. |
+| `201` | Invoice created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | The caller's Role can't write, for example a `viewer` excluding an Invoice. |
 | `404` | Entity, Invoice, or Deferral not found. |

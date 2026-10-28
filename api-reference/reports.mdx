@@ -178,7 +178,7 @@ The report takes the same filters as the purchases listing, [`GET /invoices/page
 | `taxPeriodTo` | string | No | `YYYY-MM` |
 | `totalMin` | integer | No | Minimum `total`, in minor units |
 | `totalMax` | integer | No | Maximum `total`, in minor units |
-| `comments` | string | No | `with` keeps only invoices that have at least one Comment; `without` keeps only invoices with none. |
+| `erpThread` | string | No | `with` keeps only invoices that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread); `without` keeps only invoices with none. |
 
 <Note>
   Unlike `GET /invoices/pages`, a due-date bound here keeps the invoices with no due date.

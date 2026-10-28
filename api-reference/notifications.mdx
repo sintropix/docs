@@ -1,7 +1,7 @@
 ---
 title: "Notifications API: Mentions, Thread Replies, Tasks, and the Signed-in User's Inbox"
 sidebarTitle: "Notifications"
-description: "Mention Members in the Organization Chat, follow the ERP Threads you take part in, hear about the Tasks assigned to you, then list, count, and mark read the Notifications of the signed-in User in one Organization."
+description: "Mention Members in the Organization Chat, follow the ERP Threads you take part in, talk about an Invoice, Bank Movement, or Ledger Entry in its ERP Thread, hear about the Tasks assigned to you, then list, count, and mark read the Notifications of the signed-in User in one Organization."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -77,6 +77,49 @@ Only current Members of the Organization count. These rules apply when a reply i
 - A Participant the reply mentions gets only the `mention`, not a second Notification.
 - Each User gets at most one Notification per message.
 - Erwin is never a Participant. His answer in an ERP Thread notifies its Participants once, when his text arrives, not while he shows his progress. A later edit of his answer doesn't notify again.
+
+## Talk about a record in its ERP Thread
+
+An Invoice, a Bank Movement, or a Ledger Entry has at most one ERP Thread: the conversation about that record. It's an ordinary ERP Thread of the Organization's Chat, so mentions, `thread_reply` Notifications, and tagging Erwin work in it as anywhere else in the Chat.
+
+In the app, open the record's panel and click the **Hilo** tab, or scroll to the **Hilo** section of a Ledger Entry's page. Write there, and the first message about the record starts its ERP Thread. Later messages reply in it. In the Chat, the first message of a record's ERP Thread shows a card with the record, such as the Partner, the document number, and the amount, and the card opens the record.
+
+To write about a record through the API, send `record` instead of `parentMessageId` in `POST /organizations/:organizationId/chat/messages`. You name the record, never the first message: when the record has no ERP Thread yet, the message starts it, and otherwise it becomes a reply in it.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-generated message id. |
+| `parentMessageId` | null | Yes | Must be `null` when you send `record`. A message names a parent or a record, never both. |
+| `text` | string | Yes | The message, with `<@userId>` for each mention and `<@erwin>` to tag Erwin. |
+| `record` | object or null | No | The record the message is about: `{ kind, entityId, id }`. `kind` is `invoice`, `bank_movement`, or `ledger_entry`, `entityId` is the record's Entity, which must belong to the Organization, and `id` is the record's id. Defaults to `null`, a message about no record. |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/chat/messages" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "8b2e4f1a-3c5d-4e7f-9a1b-2c3d4e5f6a7b",
+    "parentMessageId": null,
+    "text": "Confirmé con el proveedor: la OC corresponde a este mes.",
+    "record": {
+      "kind": "invoice",
+      "entityId": "0192a8b4-0000-7000-8000-000000000010",
+      "id": "0192a8b4-0000-7000-8000-000000000042"
+    }
+  }'
+```
+
+**Response** `201`: the ERP Message. The first message of a record's ERP Thread carries the record in `entityId` and in one of `invoiceId`, `bankMovementId`, or `ledgerEntryId`, and its `parentMessageId` is `null`. A reply carries the first message's id in `parentMessageId`, and those record fields are `null`.
+
+| Status | `code` | `params` | When |
+| --- | --- | --- | --- |
+| `400` | — | — | The message sends both a `parentMessageId` and a `record`. |
+| `404` | `ERP_MESSAGE_RECORD_NOT_FOUND_ERROR` | `{ kind, recordId }` | The record doesn't exist in that Entity, the Entity isn't one of the Organization's, or the record was deleted while you wrote. |
+
+Deleting a record deletes its ERP Thread with it.
+
+The Invoice and Bank Movement listings filter by `erpThread`: `with` keeps only the records that have an ERP Thread, and `without` only those with none. Each row carries `hasErpThread`. In the app, the **Filtros** menu of each listing offers **Conversación: Con** and **Sin**. See [`GET /invoices/pages`](/api-reference/invoices#get-invoices-pages) and [Bank Movements](/api-reference/bank-movements).
 
 ## Task Notifications
 

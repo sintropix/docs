@@ -10,7 +10,7 @@ A Task (**Tarea** in the app) is a piece of pending work that staff tracks for a
 
 Tasks belong to the Organization, not to one Entity. A Task names an Entity only through the records it relates to, so one Task can relate to records of several Entities, and one list holds the Tasks of every Entity of the Organization. A Task moves through three states, can be assigned to a staff Member, can carry a due date and a description, and can hold subtasks.
 
-Tasks are independent of a record's [Follow-up](/api-reference/follow-ups) and of Comments. Setting or clearing one never changes the others.
+Tasks are independent of a record's [Follow-up](/api-reference/follow-ups) and of its [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread). Setting or clearing one never changes the others.
 
 <Note>
   Tasks replace To-dos. The routes moved from `/api/entities/:entityId/todos` to `/api/organizations/:organizationId/tasks`, the `completed` flag became `status`, and the error codes moved from `TODO_*` to `TASK_*`.

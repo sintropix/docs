@@ -114,7 +114,7 @@ Erwin loads only the rows that succeeded, and skips failed ones. Each row become
 Erwin only reads Ontop. It never pays, tops up, approves, signs, or changes anything on Ontop's site.
 
 <Note>
-  Most routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is `POST …/comments`, which sits directly under the Entity at `/api/entities/:entityId/bank-movements/:movementId/comments`.
+  Routes are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID.
 </Note>
 
 <Note>
@@ -189,24 +189,24 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `amountMin` | integer | No | Minimum magnitude in minor units. Matched against the magnitude on either side. |
 | `amountMax` | integer | No | Maximum magnitude in minor units. |
 | `search` | string | No | Up to 100 characters. Matches the description and the Partner name anywhere, ignoring case. Matches the bank reference only from its start: the whole reference or a prefix of it, ignoring case, with `%` and `_` read as plain characters. A search that reads as an amount also matches the Movement's amount; see [Search by amount](/api-reference/overview#search-by-amount). Blank is ignored. |
-| `comments` | `with` \| `without` | No | `with` keeps only Movements that have at least one Comment; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
+| `erpThread` | `with` \| `without` | No | `with` keeps only Movements that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread); `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
 | `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. |
 | `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
 | `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
 
 **Response**
 
-Each row is a Bank Movement object plus `attachmentCount` (integer, the number of [attachments](/api-reference/attachments) on the Movement), `commentCount` (integer, the number of Comments on the Movement), and `group`: `null` when `groupBy=none`, otherwise `{ by, value, key, movementCount, startsGroup }` where `by` is the `groupBy` value, `value` is the Partner name (nullable), the `YYYY-MM` month, or the status, `movementCount` is the size of the group across the whole result, and `startsGroup` is `true` on the first row of the group. `nextCursor` is `null` on the last page.
+Each row is a Bank Movement object plus `attachmentCount` (integer, the number of [attachments](/api-reference/attachments) on the Movement), `hasErpThread` (boolean, whether the Movement has an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread)), and `group`: `null` when `groupBy=none`, otherwise `{ by, value, key, movementCount, startsGroup }` where `by` is the `groupBy` value, `value` is the Partner name (nullable), the `YYYY-MM` month, or the status, `movementCount` is the size of the group across the whole result, and `startsGroup` is `true` on the first row of the group. `nextCursor` is `null` on the last page.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&limit=25" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
-To list only the unbooked Movements that nobody has commented on yet, add `comments=without`:
+To list only the unbooked Movements that nobody has written about yet, add `erpThread=without`:
 
 ```bash
-curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&comments=without" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements?status=unbooked&erpThread=without" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -232,7 +232,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
       "partnerName": "Acme SpA",
       "reconciliationLabel": null,
       "attachmentCount": 0,
-      "commentCount": 0,
+      "hasErpThread": false,
       "group": null,
       "createdAt": "2025-12-31T03:10:22.000Z",
       "updatedAt": "2025-12-31T03:10:22.000Z"
@@ -667,48 +667,9 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocatio
   -d '{ "lineIds": ["'"$BRIDGE_LINE_A_ID"'", "'"$BRIDGE_LINE_B_ID"'"] }'
 ```
 
-## POST `/api/entities/:entityId/bank-movements/:movementId/comments`
+## Talk about a Movement
 
-Post a Comment on a Bank Movement. The author is taken from the session; the Comment appears in the Movement's [audit trail](/api-reference/audit-trail) alongside every other change, and inside the Movement panel of the app. Comments cannot be edited or deleted, and there is no `GET` for them: read them through the audit trail of the host Movement.
-
-<Note>
-  This route is nested directly under the Entity, not under a Bank Account. `movementId` alone identifies the Movement.
-</Note>
-
-**Body**
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `body` | string | Yes | Free text. Trimmed, non-empty after trim, up to 4,000 characters. Line breaks are preserved. |
-
-**Response** (`201`): the created Comment.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | uuid | Comment id. |
-| `entityId` | uuid | Owning Entity. |
-| `authorUserId` | uuid | User the session belonged to. |
-| `body` | string | The text that was posted. |
-| `bankMovementId` | uuid | The Movement the Comment belongs to. |
-| `invoiceId` | null | Always null on this route. |
-| `ledgerEntryId` | null | Always null on this route. |
-| `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
-
-**Domain errors**
-
-| Code | Status | Meaning |
-| --- | --- | --- |
-| `COMMENT_HOST_NOT_FOUND_ERROR` | `404` | The Bank Movement in the URL does not exist under this Entity. The response carries `params: { hostKind: "bank_movement", hostId }`. |
-
-Bodies longer than 4,000 characters, or blank after trimming, are rejected with `400` before the Comment reaches the database.
-
-```bash
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-movements/$MOVEMENT_ID/comments" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "Content-Type: application/json" \
-  -d '{ "body": "Cargo bancario correspondiente al proveedor Acme." }'
-```
+To talk about a Movement with your team or with Erwin, write in its ERP Thread: open the Movement's panel and click the **Hilo** tab. Through the API, send a message with `record: { kind: "bank_movement", entityId, id }`. See [Talk about a record in its ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread).
 
 ## Exclude a movement from the books
 
@@ -763,7 +724,7 @@ A blank `reason`, or one longer than 1,000 characters, is refused with `400`. Ea
 | Status | Meaning |
 | --- | --- |
 | `200` | Success (`GET`, `PATCH`, `DELETE`, and `POST` actions on an existing Movement). |
-| `201` | Movement or Comment created. |
+| `201` | Movement created. |
 | `400` | Validation error, or missing `x-audit-actor` on a key call. |
 | `403` | Read-only key attempted a mutation. |
 | `404` | Entity, Bank Account, or Movement not found. |
