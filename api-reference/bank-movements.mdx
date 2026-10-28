@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Movements API: Book, Match, and Transfer"
 sidebarTitle: "Bank Movements"
-description: "List Bank Movements, get match candidates, book or match a movement, assign an overpayment from the Suspense Account, and record internal transfers."
+description: "List Bank Movements of one Bank Account or of the whole Entity, get match candidates, book or match a movement, assign an overpayment from the Suspense Account, and record internal transfers."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -114,7 +114,7 @@ Erwin loads only the rows that succeeded, and skips failed ones. Each row become
 Erwin only reads Ontop. It never pays, tops up, approves, signs, or changes anything on Ontop's site.
 
 <Note>
-  The routes on this page are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID.
+  Most routes on this page are nested under a Bank Account. The base path is `/api/entities/:entityId/bank-accounts/:bankAccountId/movements`, and `:movementId` is a UUID. The one exception is [`GET /bank-movements/pages`](#get-/api/entities/entityid/bank-movements/pages), which sits directly under the Entity and lists the Movements of every Bank Account.
 </Note>
 
 <Note>
@@ -123,7 +123,7 @@ Erwin only reads Ontop. It never pays, tops up, approves, signs, or changes anyt
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/banks/{bankAccountId}?open={movementId}"
-  note="Take bankAccountId from the Movement. Use reconcile={movementId} instead of open to start reconciling it."
+  note="Take bankAccountId from the Movement. The panel's Conciliación tab is where the user reconciles it."
 />
 
 ## The Bank Movement object
@@ -191,8 +191,8 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `amountMin` | integer | No | Minimum magnitude in minor units. Matched against the magnitude on either side. |
 | `amountMax` | integer | No | Maximum magnitude in minor units. |
 | `search` | string | No | Up to 100 characters. Matches the description and the Partner name anywhere, ignoring case. Matches the bank reference only from its start: the whole reference or a prefix of it, ignoring case, with `%` and `_` read as plain characters. A search that reads as an amount also matches the Movement's amount; see [Search by amount](/api-reference/overview#search-by-amount). Blank is ignored. |
-| `erpThread` | `with` \| `without` | No | `with` keeps only Movements that have an ERP Thread, the conversation about the Movement in the Organization's Chat; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
-| `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. |
+| `erpThread` | `with` \| `without` | No | `with` keeps only Movements that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread), the conversation about the Movement in the Organization's Chat; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
+| `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. `bankAccount` is refused with `400`, because this listing covers one Bank Account. |
 | `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
 | `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
 
@@ -243,6 +243,29 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
   "nextCursor": "{\"groupSortKey\":\"\",\"groupKey\":\"\",\"sortKey\":\"2025-12-30\",\"createdAt\":\"2025-12-31 03:10:22.000000+00\",\"id\":\"3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11\"}"
 }
 ```
+
+## GET `/api/entities/:entityId/bank-movements/pages`
+
+List the Movements of every Bank Account of the Entity in one listing, grouped by Bank Account by default. Use it to build one queue of the work still to reconcile instead of reading each Bank Account in turn. It returns the same paginated `{ movements, nextCursor }` object as [`GET /movements`](#get-/movements).
+
+**Query parameters**
+
+It takes the parameters of `GET /movements` except `amountMin` and `amountMax`, because the Bank Accounts can hold different currencies. `groupBy` also takes `bankAccount`, and defaults to it. Any other parameter, including `amountMin` and `amountMax`, is refused with `400`.
+
+**Response**
+
+Each row has the shape of a `GET /movements` row. Read `bankAccountId` to know which account a Movement sits on. `runningBalance` is the balance of that Movement's own Bank Account.
+
+With `groupBy=bankAccount`, `group.value` is the Bank Account name and `group.key` is `bankAccount:<bankAccountId>`. Groups come in alphabetical order of the account name.
+
+To list every Movement still to reconcile, across every account:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-movements/pages?status=unreconciled" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+In the app, the same listing is at `/{entityId}/banks/movements`. See [Link to the app](/guides/app-links).
 
 ## GET `/movements/:movementId/match-candidates`
 

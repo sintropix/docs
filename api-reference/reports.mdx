@@ -178,7 +178,7 @@ The report takes the same filters as the purchases listing, [`GET /invoices/page
 | `taxPeriodTo` | string | No | `YYYY-MM` |
 | `totalMin` | integer | No | Minimum `total`, in minor units |
 | `totalMax` | integer | No | Maximum `total`, in minor units |
-| `erpThread` | string | No | `with` keeps only invoices that have an ERP Thread, the conversation in the invoice's **Hilo** tab; `without` keeps only invoices with none. |
+| `erpThread` | string | No | `with` keeps only invoices that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread), the conversation in the invoice's **Hilo** tab; `without` keeps only invoices with none. |
 
 <Note>
   Unlike `GET /invoices/pages`, a due-date bound here keeps the invoices with no due date.
@@ -441,6 +441,13 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/income-statem
 `GET /api/entities/:entityId/reports/cash-flow`
 
 Returns the cash flow statement for the period, prepared with the direct method. It reads the entries that post to a Cash Account, a Ledger Account with the sub-type `cash`, and classifies the cash they move into operating, investing, and financing activities. Pass `groupBy` to also get one statement per month, quarter, or year.
+
+Each entry's cash lands on the entry's other accounts, classified by their [cash flow category](/api-reference/chart-of-accounts#cash-flow-categories):
+
+- A transfer between two Cash Accounts moves no flow.
+- A line on an `internal_transfer` account counts as cash in transit (`cashInTransit`): cash that left one of your accounts and hasn't reached the other yet.
+- A payment or collection allocated to an Invoice follows the Allocation to the Invoice. Its amount is spread pro rata over the Invoice's lines, and the tax lines are absorbed into the other lines. For example, a supplier payment for a fixed asset bought on credit counts as `fixed_assets`, not `supplier_payments`.
+- A line on the Suspense Account, or on an account with no category and no default, lands in `unclassified`. Set a `cashFlowCategory` on the account to move it into an activity.
 
 **Query params**
 

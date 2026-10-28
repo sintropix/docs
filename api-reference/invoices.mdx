@@ -230,7 +230,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `totalMax` | integer | No | Maximum `total`, in minor units. |
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
 | `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. A search that reads as an amount also matches `total` and the Open Amount; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
-| `erpThread` | string | No | `with` keeps only documents that have an ERP Thread, the conversation about the record in its **Thread** tab; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
+| `erpThread` | string | No | `with` keeps only documents that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread), the conversation about the record in its **Thread** tab; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
 | `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
@@ -509,7 +509,7 @@ While a [Payment Order](/api-reference/payment-batches) names the Invoice, a cha
 
 ## DELETE `/invoices/:invoiceId`
 
-Delete the Invoice. Booked Invoices are refused; unbook first. Deleting an Invoice also deletes the DTE behind it, unless another DTE still references that DTE (`409`).
+Delete the Invoice. Booked Invoices are refused; unbook first. In the app, open the unbooked or excluded document and click the trash icon in its panel's footer, then confirm. A booked document's panel offers no delete. Deleting an Invoice also deletes the DTE behind it, unless another DTE still references that DTE (`409`).
 
 **Response:** `{ "deletedInvoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 

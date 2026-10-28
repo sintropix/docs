@@ -22,7 +22,7 @@ Tasks are independent of a record's [Follow-up](/api-reference/follow-ups). Sett
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/tasks"
-  note="Add ?assignee=me for your own Tasks (Mías), or ?task={taskId} to open one Task in its detail panel. The sidebar offers Tareas both in an Entity and in Grupo. Related Tasks also appear in the panel of their Invoice, Bank Movement, or Ledger Entry."
+  note="Add ?assignee=me for your own Tasks (Mías), ?view=board for the board (Tablero), or ?task={taskId} to open one Task in its detail panel. The sidebar offers Tareas both in an Entity and in Grupo. Related Tasks also appear in the panel of their Invoice, Bank Movement, or Ledger Entry."
 />
 
 ## States
@@ -56,7 +56,16 @@ A Task can hold subtasks (**subtareas** in the app), one level deep. Use them to
 - Deleting a Task deletes its subtasks too.
 - A parent and its subtasks change state independently. Completing a parent leaves its open subtasks as they are, and completing every subtask leaves the parent as it is. Read `subtaskCount` and `completedSubtaskCount` to show progress, such as "1/3".
 
-In the app, open a Task and type in **Agregar subtarea** to add one. In **Todas**, a parent shows its progress after its title, and clicking it unfolds its subtasks. In **Mías**, your subtasks sit under their parent too, and each top-level row falls in the band of its own state. A parent assigned to you starts folded and shows its full progress, and unfolding it shows only your subtasks. When none of its subtasks are yours, it shows its progress but doesn't unfold. A parent assigned to someone else comes along to hold your subtasks: it starts unfolded, its title is muted, and you open and edit it like any other Task. Completing a parent with open subtasks asks you to confirm, and deleting a parent tells you how many subtasks go with it.
+In the app, open a Task and type in **Agregar subtarea** to add one. In **Todas**, a parent shows its progress after its title, and clicking it unfolds its subtasks. In **Mías**, your subtasks sit under their parent too, and each top-level row falls in the band of its own state. A parent assigned to you starts folded and shows its full progress, and unfolding it shows only your subtasks. When none of its subtasks are yours, it shows its progress but doesn't unfold. A parent assigned to someone else comes along to hold your subtasks: it starts unfolded, its title is muted, and you open and edit it like any other Task. To give a subtask a due date, hover its row in the Task's panel and click the calendar beside its assignee. Completing a parent with open subtasks asks you to confirm, and deleting a parent tells you how many subtasks go with it.
+
+## The board
+
+In the app, switch Tareas from **Lista** to **Tablero** to see the Tasks as a board, with one column per state: **Por hacer**, **En progreso**, and **Completadas**. **Todas** and **Mías** work the same on the board. The URL keeps the view, so a reload or a shared link opens the board again.
+
+- Each card shows the title and the assignee and, when the Task has them, its due date, its subtask progress, and its related records. A subtask is its own card, in the column of its own state, with its parent's name above its title.
+- Drag a card to another column to change its state, or use the state menu on the card. A refused change shows the reason under the card. Moving a parent with open subtasks to **Completadas** asks you to confirm, as in the list.
+- You can't reorder cards within a column. They keep the list's order: nearest due date first.
+- Change a card's due date or assignee on the card, delete it from the trash icon that shows on hover, and click it to open the Task's detail panel.
 
 ## Related records
 
