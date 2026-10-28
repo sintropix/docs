@@ -498,11 +498,17 @@ No puedes editar un asiento intercompañía ni ninguno de sus dos asientos conta
   <Step title="Lee el asiento intercompañía">
     `GET /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` devuelve lo que necesitas para rehacerlo: la fecha, la glosa, ambos asientos con sus líneas y los Pares.
   </Step>
+  <Step title="Guarda las Asignaciones de sus asientos">
+    El Unbook elimina las [Asignaciones](/api-reference/allocations) que saldan las líneas del asiento intercompañía. Para conservarlas, léelas antes con `GET /api/entities/:entityId/ledger/allocations?entryId=:entryId` para cada asiento. Esta lectura solo acepta un asiento vigente, así que hazla antes del Unbook.
+  </Step>
   <Step title="Anúlalo con DELETE">
     `DELETE /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` anula ambos asientos en una sola transacción. No es un borrado definitivo. El asiento intercompañía y sus asientos siguen siendo legibles con `status` en `deleted`, y el [registro de auditoría](#historial) conserva su historial.
   </Step>
   <Step title="Crea el asiento corregido con POST">
-    Envía `POST /api/organizations/:organizationId/intercompany-entries` con el cuerpo corregido. Usa **ids nuevos** para el asiento intercompañía, para ambos asientos y para cada línea. El asiento anulado conserva sus ids, así que reutilizar su `id` devuelve `409` con `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, y reutilizar un id de línea devuelve `409` con `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+    Envía `POST /api/organizations/:organizationId/intercompany-entries` con el cuerpo corregido. Usa **ids nuevos** para el asiento intercompañía, para ambos asientos y para cada línea. El asiento anulado conserva sus ids, así que reutilizar su `id` devuelve `409` con `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, reutilizar el id de un asiento devuelve `409` con `LEDGER_ENTRY_ALREADY_EXISTS_ERROR`, y reutilizar un id de línea devuelve `409` con `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+  </Step>
+  <Step title="Restaura las Asignaciones">
+    Por cada Asignación guardada, envía [`POST /api/entities/:entityId/ledger/allocations`](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations) con un `id` nuevo, la línea nueva en lugar de la antigua, la misma otra línea y el mismo `amount`. Si la corrección cambió un monto y una Asignación ya no cabe en el monto abierto de la línea, la solicitud devuelve `409` con `RECONCILIATION_ALLOCATION_AMOUNT_EXCEEDS_OPEN_AMOUNT_ERROR`.
   </Step>
 </Steps>
 
@@ -548,6 +554,7 @@ Sus cambios también aparecen en el [Log de la Organización](/api-reference/aud
 | `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR` | `422` | Las dos líneas de un Par difieren en moneda o monto. `params.lineIds` |
 | `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR` | `422` | Un Par está en otra moneda que el primer Par. `params.lineIds` |
 | `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR` | `422` | Las líneas pareadas de una Entidad llevan tipos de cambio distintos. `params.entityId` |
+| `LEDGER_ENTRY_ALREADY_EXISTS_ERROR` | `409` | Ya existe un asiento contable con ese id, por ejemplo un asiento de un asiento intercompañía anulado |
 | `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` | `409` | Un id de línea se usa dos veces en el asiento intercompañía, o ya existe. `params.lineIds` |
 | `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | Al crear: `entryDate` es igual o anterior a la Fecha de bloqueo de cualquiera de las dos Entidades. `params.entryDate`, `params.ledgerLockDate` |
 | `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | `409` | Al anular: un asiento tiene fecha igual o anterior a la Fecha de bloqueo de su Entidad. `params.ledgerEntryId`, `params.entryDate`, `params.ledgerLockDate` |

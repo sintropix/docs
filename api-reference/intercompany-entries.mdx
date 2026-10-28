@@ -498,11 +498,17 @@ You can't edit an act or either of its Entries. To change its date, memo, amount
   <Step title="Read the act">
     `GET /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` returns what you need to rebuild it: the date, the memo, both Entries with their lines, and the Pairs.
   </Step>
+  <Step title="Save the Allocations of its Entries">
+    The Unbook removes the [Allocations](/api-reference/allocations) that settle the act's lines. To keep them, read them first with `GET /api/entities/:entityId/ledger/allocations?entryId=:entryId` for each Entry. This read only accepts a live Entry, so do it before the Unbook.
+  </Step>
   <Step title="Unbook it with DELETE">
     `DELETE /api/organizations/:organizationId/intercompany-entries/:intercompanyEntryId` unbooks both Entries in one transaction. It isn't a hard delete. The act and its Entries stay readable with `status` set to `deleted`, and the [Audit Trail](#history) keeps their history.
   </Step>
   <Step title="Create the corrected act with POST">
-    Send `POST /api/organizations/:organizationId/intercompany-entries` with the corrected body. Use **new ids** for the act, both Entries, and every line. The unbooked act keeps its ids, so reusing the act's `id` returns `409` with `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, and reusing a line id returns `409` with `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+    Send `POST /api/organizations/:organizationId/intercompany-entries` with the corrected body. Use **new ids** for the act, both Entries, and every line. The unbooked act keeps its ids, so reusing the act's `id` returns `409` with `INTERCOMPANY_ENTRY_ALREADY_EXISTS_ERROR`, reusing an Entry id returns `409` with `LEDGER_ENTRY_ALREADY_EXISTS_ERROR`, and reusing a line id returns `409` with `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+  </Step>
+  <Step title="Restore the Allocations">
+    For each saved Allocation, send [`POST /api/entities/:entityId/ledger/allocations`](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations) with a new `id`, the new line in place of the old one, the same other line, and the same `amount`. If the correction changed an amount and an Allocation no longer fits the line's open amount, the request returns `409` with `RECONCILIATION_ALLOCATION_AMOUNT_EXCEEDS_OPEN_AMOUNT_ERROR`.
   </Step>
 </Steps>
 
@@ -548,6 +554,7 @@ The act's changes also show in the [Organization Log](/api-reference/audit-trail
 | `INTERCOMPANY_PAIR_AMOUNTS_DIFFER_ERROR` | `422` | A Pair's two lines differ in currency or amount. `params.lineIds` |
 | `INTERCOMPANY_PAIR_CURRENCY_DIFFERS_ERROR` | `422` | A Pair is in another currency than the act's first Pair. `params.lineIds` |
 | `INTERCOMPANY_PAIR_RATES_DIFFER_ERROR` | `422` | An Entity's paired lines carry different rates. `params.entityId` |
+| `LEDGER_ENTRY_ALREADY_EXISTS_ERROR` | `409` | An Entry id already exists, for example an Entry of an unbooked act |
 | `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` | `409` | A line id is used twice in the act, or already exists. `params.lineIds` |
 | `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | On create: `entryDate` is on or before the Lock Date of either Entity. `params.entryDate`, `params.ledgerLockDate` |
 | `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | `409` | On Unbook: an Entry is on or before its Entity's Lock Date. `params.ledgerEntryId`, `params.entryDate`, `params.ledgerLockDate` |
