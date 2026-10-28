@@ -31,13 +31,13 @@ Getting up and running on Sintropix doesn't require a lengthy implementation. Yo
     </Tip>
   </Step>
   <Step title="Connect Your Integrations">
-    Beyond banks, Sintropix pulls data from the tools your finance team already uses. Head to **Configuración → Integraciones** and connect what applies to your stack:
+    Beyond banks, Sintropix connects to the tools your finance team already uses. Head to **Configuración → Integraciones** and connect what applies to your stack:
 
-    - **Payroll** — [Buk](https://www.buk.cl): payroll runs post directly to your general ledger, with payroll tax and benefit line items broken out automatically
-    - **Expenses** — [Xpendit](https://www.xpendit.com): approved expense reports create accounting entries without manual re-entry
-    - **Payments** — [Stripe](https://stripe.com) or Mercado Pago: payment events are matched to open invoices and cash is applied in real time
+    - **Payroll** — [Buk](https://www.buk.cl): connect your Buk with its address and an API key, and Sintropix lists the Empresas the key reaches. Buk doesn't feed payroll into your general ledger yet. See [Buk](/api-reference/integrations#buk).
+    - **Expenses** — [Xpendit](https://www.xpendit.com): route each Subsidiary to a Source that holds Expense Renditions, and each sync books the expenses Xpendit approved, without manual re-entry. See [Expense Feeds](/api-reference/source-feeds#expense-feeds).
+    - **Payments** — [Stripe](https://stripe.com) or Mercado Pago: feed the account's balance into a Bank Account, and its charges, refunds, fees, and payouts land as Movements that you reconcile. See [Bank Feeds](/api-reference/bank-feeds).
 
-    Each integration is a one-time OAuth or API key connection. Once linked, data flows continuously — no scheduled exports or manual uploads required.
+    You connect each integration once, through OAuth or an API key. Connecting alone brings in no data: data starts flowing when you route the integration to an entity through its feeds. Sintropix syncs every feed every 4 hours, and you can sync one on demand.
   </Step>
   <Step title="Meet Erwin, Your AI Finance Assistant">
     Once your accounts are connected and data starts flowing, click **Erwin** at the bottom right of any entity page. Erwin is embedded directly in your accounting data, so every answer he gives is grounded in your actual general ledger — not a summary or a static report.
@@ -54,7 +54,7 @@ Getting up and running on Sintropix doesn't require a lengthy implementation. Yo
 </Steps>
 
 <Note>
-  On your first connection, it can take up to 24 hours for all historical transactions to fully sync and for reconciliation suggestions to appear. Real-time transaction flow begins immediately after the initial sync completes.
+  On your first connection, it can take up to 24 hours for all historical transactions to fully sync and for reconciliation suggestions to appear. After the initial sync, Sintropix syncs your feeds every 4 hours.
 </Note>
 
 <CardGroup cols={2}>
