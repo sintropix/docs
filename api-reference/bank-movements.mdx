@@ -151,6 +151,7 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `excluded` | Derived booking status. |
 | `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it regardless of filters. |
 | `partnerName` | string \| null | Name of `partnerId`, for display. |
+| `partnerWebsite` | string \| null | Website of `partnerId`, as a bare domain, for showing the Partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo). |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 Write answers also return the Bank Account with its computed summary:
@@ -231,6 +232,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
       "status": "unbooked",
       "runningBalance": 4830000,
       "partnerName": "Acme SpA",
+      "partnerWebsite": "acme.cl",
       "attachmentCount": 0,
       "hasErpThread": false,
       "group": null,
