@@ -14,8 +14,8 @@ Invoices carry two derived, read-only status values on the listing rows:
 
 | Field | Values | Meaning |
 | --- | --- | --- |
-| Booking status | `unbooked`, `booked`, `excluded` | An Invoice is `booked` when a Ledger Entry backs it (`controlLineId` is set), `excluded` when someone [excluded it from the books](#exclude-an-invoice-from-the-books), and `unbooked` otherwise. Only an `unbooked` Invoice is pending work. |
-| `paymentStatus` | `paid`, `partial`, `unpaid`, `null` | Derived from the open amount of the Control Line (ADR 0018) in the Entity's functional currency. `null` means the Invoice is not booked and settles nothing yet. |
+| Booking status | `unbooked`, `booked`, `excluded` | An Invoice is `booked` when a Ledger Entry backs it (`bookingEntryId` is set), `excluded` when someone [excluded it from the books](#exclude-an-invoice-from-the-books), and `unbooked` otherwise. Only an `unbooked` Invoice is pending work. |
+| `paymentStatus` | `paid`, `partial`, `unpaid`, `null` | Derived from the open amount of the Control Line (ADR 0018) in the Entity's functional currency. `null` means the Invoice is not booked and settles nothing yet. A [`tax_only`](#tax-only-documents) document owes nothing, so its `paymentStatus` is always `null`, even when booked. |
 
 The `GET /invoices/pages` listing accepts a combined filter `statusFilter` with values `all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, and `notExcluded`, and supports `groupBy=bookingStatus` and `groupBy=paymentStatus`. `all` lists every document, excluded ones included. `notExcluded` lists every document still headed for the books, and `excluded` lists only the excluded ones. `notPaid` is the filter a payment run works from.
 
@@ -25,6 +25,46 @@ Amounts are integers in the minor units of their currency (`1190000` is CLP 1,19
   url="https://app.sintropix.com/{entityId}/invoices?open={invoiceId}"
   note="That page is for direction receivable. For direction payable use /{entityId}/bills?open={invoiceId}, and for an Expense Rendition use /{entityId}/expense-renditions?open={invoiceId}."
 />
+
+## Document kinds
+
+Every Invoice has a `documentKind`. It says what the booking does with the Invoice's total:
+
+| `documentKind` | What its booking does | What it owes |
+| --- | --- | --- |
+| `invoice` | Books the claim or obligation on its [Control Line](#post-/invoices/invoiceid/book): a debit on a receivable account, or a credit on a payable account. | Its total, until the Control Line is settled. |
+| `credit_note` | Books the opposite side of an `invoice`, such as a Chilean DTE `61`. You apply it to an invoice with an ordinary Match. | It settles an invoice once matched. |
+| `tax_only` | Books tax only, with no Control Line and no claim or obligation. | Nothing. |
+
+### Tax-only documents
+
+Use `tax_only` for a document that only declares tax. The usual case is a factura de compra (DTE `46`) for a purchase abroad. The foreign vendor's own Invoice already holds the payable, so the 46 books only the IVA: a debit to IVA Crédito Fiscal and a credit to IVA Retenido.
+
+A `tax_only` document:
+
+- Books a balanced Ledger Entry with no Control Line. Send `controlLineId: null` when you [book it](#post-/invoices/invoiceid/book). Its `controlLineId` and `controlAccountId` stay `null`, so read `bookingEntryId` to tell whether it's booked.
+- Can't have a line on an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. A claim there would be an open item that no Invoice owns. The booking is refused with `409` and `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR`, and [Reclassify](/api-reference/ledger-entries) refuses to move a line of its booking onto such an account the same way.
+- Owes nothing, booked or not. Its `paymentStatus`, `paymentDate`, and `openAmount` are `null`. It never appears in [Payables to Plan](/api-reference/reports#payables-to-plan), a [Payment Order](/api-reference/payment-batches) can't name it, and it adds nothing to the amounts of [customer status](/api-reference/reports#customer-status).
+- Can't be [deferred](#deferrals).
+- Is never a match candidate for a [Bank Movement](/api-reference/bank-movements).
+- Is pending work while it's unbooked, like any other document, and you can [exclude it](#exclude-an-invoice-from-the-books).
+
+Both directions accept `tax_only`. A vendor's [Booking Template](/api-reference/partners#booking-templates) can also book its new 46s as `tax_only` automatically.
+
+### Switch the kind
+
+To make an unbooked Invoice `tax_only`, send `{ "documentKind": "tax_only" }` to [`PATCH /invoices/:invoiceId`](#patch-/invoices/invoiceid). Send `"invoice"` to switch it back. In the app, open the document and pick **Solo impuesto** in **Clase de documento**. The listing then shows the document as, for example, **46 · solo impuesto**, with no payment status.
+
+The switch is refused when:
+
+| Case | Status | Code |
+| --- | --- | --- |
+| The Invoice is booked. Unbook it, switch the kind, and book it again. | `409` | `INVOICE_BOOKED_FIELDS_LOCKED_ERROR` |
+| The Invoice is a credit note. A credit note never switches, and nothing switches to `credit_note`. | `409` | `INVOICE_DOCUMENT_KIND_FIXED_ERROR` |
+| A [Payment Order](/api-reference/payment-batches) names the Invoice. Remove the orders first. | `409` | `INVOICE_PAYMENT_ORDERS_PIN_ERROR` |
+| The Invoice lands a [Sales Summary](/api-reference/sii#sales-summaries). The SII sets its kind. | `409` | `DTE_HELD_BY_SALES_SUMMARY_ERROR` |
+
+A Source Feed sync never changes the kind of an Invoice that already landed. Documents booked as `invoice` before `tax_only` existed keep their kind. To correct one, unbook it, switch it to `tax_only`, and book it again.
 
 ## Ontop invoices
 
@@ -154,7 +194,7 @@ List every Invoice for the Entity, filtered by direction and document kind. Pass
 | --- | --- | --- | --- |
 | `ids` | uuid[] | No | 1 to 100 Invoice ids. Repeat the parameter for each id (`?ids=A&ids=B`). Cannot be combined with any other query parameter. See [Reading several Invoices by id](#reading-several-invoices-by-id). |
 | `direction` | string | No | `receivable` (AR, issued to a customer) or `payable` (AP, received from a supplier). Omit to list both. |
-| `documentKind` | string | No | `invoice` or `credit_note`. Omit to list both. |
+| `documentKind` | string | No | `invoice`, `credit_note`, or `tax_only`. Omit to list every kind. |
 
 **Response:** an array of Invoice objects.
 
@@ -164,7 +204,7 @@ List every Invoice for the Entity, filtered by direction and document kind. Pass
 | `entityId` | uuid | Owning Entity. |
 | `partnerId` | uuid | Counterparty [Partner](/api-reference/partners). |
 | `direction` | string | `receivable` or `payable`. |
-| `documentKind` | string | `invoice` or `credit_note`. |
+| `documentKind` | string | `invoice`, `credit_note`, or `tax_only`. See [Document kinds](#document-kinds). |
 | `documentNumber` | string | The number printed on the document. |
 | `currency` | string | ISO 4217 code the document is denominated in. |
 | `total` | integer | Gross total in minor units of `currency`. |
@@ -173,7 +213,8 @@ List every Invoice for the Entity, filtered by direction and document kind. Pass
 | `memo` | string or null | Free text. |
 | `metadata` | array | Additional Information lines, each `{ "label": string, "value": string }`. Empty array when none. |
 | `sourceId` | uuid or null | The [Source](/api-reference/sources) the document came from. Null when it was entered directly. |
-| `controlLineId` | uuid or null | The Ledger Entry Line that carries the receivable or payable. Null means the Invoice is not booked. |
+| `bookingEntryId` | uuid or null | The Ledger Entry that books the Invoice. Null means the Invoice is not booked. |
+| `controlLineId` | uuid or null | The Ledger Entry Line that carries the receivable or payable. Null while the Invoice is not booked, and always null on a `tax_only` document. |
 | `controlAccountId` | uuid or null | The Ledger Account the control line sits on. Null exactly when `controlLineId` is null. |
 | `followUp` | object or null | The [Follow-up](/api-reference/follow-ups) on this Invoice, which marks its pending work. Null when there is none. |
 | `excludedAt` | timestamp or null | When the Invoice was [excluded from the books](#exclude-an-invoice-from-the-books). Null when it isn't excluded. |
@@ -209,6 +250,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `direction` | string | No | `receivable` or `payable`. Omit to page over both. |
+| `documentKind` | string | No | `invoice`, `credit_note`, or `tax_only`. Keep only documents of this [kind](#document-kinds). Omit to page over every kind. |
 | `cursor` | uuid | No | The `nextCursor` returned by the previous page. Omit for the first page. |
 | `limit` | integer | No | Rows per page, 1 to 100. Default `50`. |
 | `statusFilter` | string | No | `all`, `notPaid`, `paid`, `unbooked`, `booked`, `excluded`, or `notExcluded`. Default `all`, which lists excluded documents too. `notExcluded` leaves them out. |
@@ -253,9 +295,9 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo) is read from it. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `isExpenseRendition` | boolean | Whether the document is an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions): a `payable` Invoice whose Source holds Expense Renditions. Read from the Source, so marking or unmarking the Source changes it on every row at once. |
-| `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked. |
-| `paymentDate` | string or null | `YYYY-MM-DD`. For a `paid` document, the latest entry date of the entries that settled its Control Line, whatever settled it: a payment, a credit note, or a manual offset. Null while the document is unpaid, partially paid, or not booked. |
-| `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked; `0` once it is fully paid. |
+| `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked, and always null on a `tax_only` document. |
+| `paymentDate` | string or null | `YYYY-MM-DD`. For a `paid` document, the latest entry date of the entries that settled its Control Line, whatever settled it: a payment, a credit note, or a manual offset. Null while the document is unpaid, partially paid, or not booked, and always null on a `tax_only` document. |
+| `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked, and always null on a `tax_only` document; `0` once it is fully paid. |
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the Invoice. |
@@ -309,7 +351,7 @@ Create an Invoice. The same request can also book it (`bookingEntryWithLines`) a
 | `id` | uuid | Yes | Caller-generated id. Retrying with the same id is answered `409`, so a retried request never creates a second Invoice. |
 | `partnerId` | uuid | Yes | Counterparty Partner of the Entity. |
 | `direction` | string | Yes | `receivable` or `payable`. |
-| `documentKind` | string | Yes | `invoice` or `credit_note`. Fixed after creation. |
+| `documentKind` | string | Yes | `invoice`, `credit_note`, or `tax_only`. See [Document kinds](#document-kinds). Only an unbooked Invoice can [switch](#switch-the-kind) between `invoice` and `tax_only` later. |
 | `documentNumber` | string | Yes | Non-empty. The number printed on the document. |
 | `currency` | string | Yes | ISO 4217 code. |
 | `total` | integer | Yes | Gross total in minor units, zero or more. |
@@ -351,7 +393,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices" \
 ```
 
 <Note>
-  **Automatic booking.** When you omit `bookingEntryWithLines`, Sintropix books a payable invoice (not a credit note) from its vendor's [Booking Template](/api-reference/partners#booking-templates) if the vendor has `booksAutomatically` on and the Invoice fits the template exactly. The same applies to each element of `POST /invoices/bulk` and to Invoices the source-feed sync creates. An Invoice that does not fit is still created, unbooked, and the request does not fail.
+  **Automatic booking.** When you omit `bookingEntryWithLines`, Sintropix books a payable invoice (not a credit note) from its vendor's [Booking Template](/api-reference/partners#booking-templates) if the vendor has `booksAutomatically` on and the Invoice fits the template exactly. A `tax_only` template also makes the Invoice `tax_only` as it books it. The same applies to each element of `POST /invoices/bulk` and to Invoices the source-feed sync creates. An Invoice that does not fit is still created, unbooked, and the request does not fail.
 </Note>
 
 Example response:
@@ -372,6 +414,7 @@ Example response:
     "memo": "Hosting agosto 2026",
     "metadata": [{ "label": "Orden de compra", "value": "OC-2026-0193" }],
     "sourceId": null,
+    "bookingEntryId": null,
     "controlLineId": null,
     "controlAccountId": null,
     "followUp": null,
@@ -488,12 +531,13 @@ Each element of `lines`:
 
 Partial update.
 
-**Body:** any subset of the fields below. At least one is required. `documentKind` cannot change (delete and re-create an unbooked Invoice instead), and a `dte` key is ignored; use the `/dte` endpoints for that.
+**Body:** any subset of the fields below. At least one is required. A `dte` key is ignored; use the `/dte` endpoints for that.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `partnerId` | uuid | No | Counterparty Partner. |
 | `direction` | string | No | `receivable` or `payable`. |
+| `documentKind` | string | No | `invoice` or `tax_only`, on an unbooked Invoice only. See [Switch the kind](#switch-the-kind). `credit_note` is refused with `400`. |
 | `documentNumber` | string | No | Non-empty. |
 | `currency` | string | No | ISO 4217 code. |
 | `total` | integer | No | Minor units, zero or more. |
@@ -503,7 +547,7 @@ Partial update.
 | `metadata` | array | No | Replaces the whole list. Same limits as on create. |
 | `sourceId` | uuid or null | No | Editable whether or not the Invoice is booked. |
 
-While a [Payment Order](/api-reference/payment-batches) names the Invoice, a change to `partnerId` or `currency` is refused with `409` and `INVOICE_PAYMENT_ORDERS_PIN_ERROR`. Remove the orders first.
+While a [Payment Order](/api-reference/payment-batches) names the Invoice, a change to `partnerId`, `currency`, or `documentKind` is refused with `409` and `INVOICE_PAYMENT_ORDERS_PIN_ERROR`. Remove the orders first.
 
 **Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
 
@@ -593,7 +637,7 @@ Book an existing Invoice to a Ledger Entry using the supplied booking instructio
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `controlLineId` | uuid | Yes | The `id` of the line in `entry.newLedgerEntryLines` that carries the claim: the Invoice's **Control Line**. Compared without regard to case. |
+| `controlLineId` | uuid or null | Yes | The `id` of the line in `entry.newLedgerEntryLines` that carries the claim: the Invoice's **Control Line**. Compared without regard to case. Send `null` for a [`tax_only`](#tax-only-documents) document, which books no claim, and an id for every other kind. |
 | `entry` | object | Yes | The Ledger Entry to post (fields below). |
 | `expectedBookingVersion` | string | No | Opaque `bookingVersion` you read earlier from `GET /invoices/:invoiceId`. When sent, the server acquires the Invoice lock, compares it to the current version, and refuses the booking with `409` and code `INVOICE_BOOKING_CHANGED_ERROR` if the Invoice or its DTE changed in between. No Ledger Entry is written on a mismatch. Omit to skip the check. |
 
@@ -625,6 +669,23 @@ Each element of `newLedgerEntryLines`:
 
 The Control Line (the line whose `id` is `controlLineId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side. Its account becomes the Invoice's `controlAccountId`.
 
+A `tax_only` document has no Control Line. Its entry must still balance, and none of its lines may sit on an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. For example, a factura de compra 46 of CLP 190,000 IVA for a purchase abroad:
+
+```json
+{
+  "controlLineId": null,
+  "entry": {
+    "id": "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d",
+    "entryDate": "2026-08-20",
+    "memo": "Factura de compra 46 1234 Proveedor Extranjero",
+    "newLedgerEntryLines": [
+      { "id": "3b4c5d6e-7f8a-4b9c-8d0e-2f3a4b5c6d7e", "accountId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "functionalAmount": 190000, "side": "debit" },
+      { "id": "4c5d6e7f-8a9b-4c0d-9e1f-3a4b5c6d7e8f", "accountId": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b", "functionalAmount": 190000, "side": "credit" }
+    ]
+  }
+}
+```
+
 Other lines of the entry can post to the same account as the Control Line. For example, net an advance or a retention of the same Partner in the Invoice's own entry, or split a receivable into one line per due date. Only the Control Line is the Invoice's: the payment status derives from it alone. Any other line on that account is an ordinary open item of the Partner until an [Allocation](/api-reference/allocations) settles it.
 
 Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT):
@@ -649,7 +710,7 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `invoice` | object | The Invoice row, now with `controlLineId` and `controlAccountId` set. |
+| `invoice` | object | The Invoice row, now with `bookingEntryId` set. `controlLineId` and `controlAccountId` are set too, except on a `tax_only` document. |
 | `bookingEntry` | object | The Ledger Entry detail described under `GET /invoices/:invoiceId`. |
 | `partner` | object | The Partner (see [Partners](/api-reference/partners)) with `openReceivable` and `openPayable` after booking. |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
@@ -660,8 +721,10 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | --- | --- | --- |
 | `INVOICE_BOOKING_CHANGED_ERROR` | `409` | The Invoice or its DTE was edited, replaced, or removed since the `expectedBookingVersion` you sent was read. No Ledger Entry was written. The response carries `params: { invoiceId }`. Re-read the Invoice detail to check whether the change still makes the booking correct, then retry with the new `bookingVersion`. |
 | `CONTROL_LINE_NOT_IN_ENTRY_LINES_ERROR` | `400` | No line of `entry.newLedgerEntryLines` has the `id` sent as `controlLineId`. The response carries `params: { controlLineId }`. |
+| `CONTROL_LINE_CONTRADICTS_DOCUMENT_KIND_ERROR` | `409` | `controlLineId` doesn't fit the Invoice's kind: an id was sent for a `tax_only` document, or `null` for any other kind. The response carries `params: { documentKind, controlLineId }`. |
+| `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR` | `409` | A line of a `tax_only` booking sits on an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. The response carries `params: { ledgerAccountId, ledgerAccountSubtype }`. |
 | `INVOICE_EXCLUDED_ERROR` | `409` | The Invoice is [excluded from the books](#exclude-an-invoice-from-the-books). Include it first. The bulk `POST /invoices/book` refuses an excluded element the same way. The response carries `params: { invoiceId }`. |
-| `DEFERRAL_CREDIT_NOTE_NOT_SUPPORTED_ERROR` | `400` | A line of a credit note carries `deferral`. Credit notes cannot be deferred. The response carries `params: { invoiceId }`. |
+| `DEFERRAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR` | `409` | A line of a credit note or a `tax_only` document carries `deferral`. Only an `invoice` can be deferred. The response carries `params: { invoiceId, documentKind }`. |
 | `DEFERRAL_ACCOUNT_SUBTYPE_MISMATCH_ERROR` | `400` | The deferred line's account does not have the sub-type the Invoice's direction needs: `prepaid_expense` for `payable`, `deferred_revenue` for `receivable`. The response carries `params: { ledgerEntryLineId, ledgerAccountId, expectedSubtype }`. |
 | `DEFERRAL_LINE_SIDE_MISMATCH_ERROR` | `400` | The deferred line is on the wrong side: a payable Invoice defers a `debit` line, a receivable Invoice a `credit` line. The response carries `params: { ledgerEntryLineId, expectedSide }`. |
 | `DEFERRAL_RECOGNITION_ACCOUNT_INELIGIBLE_ERROR` | `400` | `recognitionAccountId` is not of a type the deferral can release into. The response carries `params: { ledgerEntryLineId, recognitionAccountId, deferredAccountSubtype }`. |
@@ -704,7 +767,7 @@ These rules apply:
 
 - The whole line is deferred. You can't defer part of a line.
 - The line's account must have the sub-type of the Invoice's direction, on the matching side: a `debit` on `prepaid_expense` for a payable Invoice, a `credit` on `deferred_revenue` for a receivable one.
-- Credit notes can't be deferred.
+- Credit notes and `tax_only` documents can't be deferred.
 - Only the functional amount is deferred. A foreign-currency line is released at the amount booked on the Invoice, and the Releases carry no transaction currency.
 - Defer the net line only. The IVA line and the control line follow the Invoice as usual.
 - Several lines of the same booking can each carry their own `deferral`.
@@ -868,4 +931,4 @@ A blank `reason`, or one longer than 1,000 characters, is refused with `400`.
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | The caller's Role can't write, for example a `viewer` excluding an Invoice. |
 | `404` | Entity, Invoice, or Deferral not found. |
-| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), booking refused because the Invoice or DTE changed since the read (`INVOICE_BOOKING_CHANGED_ERROR`), the Invoice is excluded (`INVOICE_EXCLUDED_ERROR`) or not excluded (`INVOICE_NOT_EXCLUDED_ERROR`), a Payment Order pins its Partner and currency (`INVOICE_PAYMENT_ORDERS_PIN_ERROR`), a DTE write or removal on a Sales Summary Invoice (`DTE_HELD_BY_SALES_SUMMARY_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
+| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), booking refused because the Invoice or DTE changed since the read (`INVOICE_BOOKING_CHANGED_ERROR`), the Invoice is excluded (`INVOICE_EXCLUDED_ERROR`) or not excluded (`INVOICE_NOT_EXCLUDED_ERROR`), a Payment Order pins its Partner, currency, and kind (`INVOICE_PAYMENT_ORDERS_PIN_ERROR`), a DTE write or removal or a kind switch on a Sales Summary Invoice (`DTE_HELD_BY_SALES_SUMMARY_ERROR`), a credit note's kind can't switch (`INVOICE_DOCUMENT_KIND_FIXED_ERROR`), `controlLineId` doesn't fit the kind (`CONTROL_LINE_CONTRADICTS_DOCUMENT_KIND_ERROR`), a `tax_only` line sits on a receivable or payable account (`TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR`), a credit note or `tax_only` line carries a deferral (`DEFERRAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |

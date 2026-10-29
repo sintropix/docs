@@ -744,13 +744,13 @@ Each item in `invoices`:
 | `id` | UUID | Invoice id |
 | `issueDate` | ISO date | Issue date |
 | `dueDate` | ISO date or null | Due date |
-| `documentKind` | string | `invoice` or `credit_note` |
+| `documentKind` | string | `invoice`, `credit_note`, or `tax_only` |
 | `documentNumber` | string | The number printed on the document |
 | `dteTypeCode` | string or null | SII document type code, when the Invoice has a DTE |
 | `currency` | string | Currency of the document |
-| `amount` | integer | Document total in its own `currency`, negative for a credit note |
-| `openAmount` | integer or null | Amount still open, in the functional currency. `null` while the document is not booked. |
-| `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. `null` while the document is not booked. |
+| `amount` | integer | Document total in its own `currency`, negative for a credit note and `0` for a [`tax_only`](/api-reference/invoices#tax-only-documents) document |
+| `openAmount` | integer or null | Amount still open, in the functional currency. `null` while the document is not booked, and on a `tax_only` document. |
+| `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. `null` while the document is not booked, and on a `tax_only` document. |
 | `paymentDate` | ISO date or null | For a paid document, the latest date of the entries that settled it. `null` while it is unpaid, partially paid, or not booked. |
 
 Each item in `unbilledReceivableLines`:

@@ -140,7 +140,7 @@ Each item in `relatedInvoices`:
 | `partnerId` | UUID | Customer or vendor |
 | `partnerName` | string or null | Name of the partner |
 | `direction` | enum | `receivable` or `payable` |
-| `documentKind` | enum | `invoice` or `credit_note` |
+| `documentKind` | enum | `invoice`, `credit_note`, or `tax_only` |
 | `documentNumber` | string | Number printed on the document |
 | `currency` | string | Denomination currency |
 | `total` | integer | Gross total in `currency` |
@@ -149,8 +149,9 @@ Each item in `relatedInvoices`:
 | `memo` | string or null | Free text |
 | `metadata` | array | Additional information as `{ label, value }` pairs |
 | `sourceId` | UUID or null | Source the document came from |
-| `controlLineId` | UUID or null | The receivable/payable line that books it; `null` when unbooked |
-| `controlAccountId` | UUID or null | Account of the control line; `null` when unbooked |
+| `bookingEntryId` | UUID or null | The Ledger Entry that books it; `null` when unbooked |
+| `controlLineId` | UUID or null | The receivable/payable line that books it; `null` when unbooked, and always `null` on a [`tax_only`](/api-reference/invoices#tax-only-documents) document |
+| `controlAccountId` | UUID or null | Account of the control line; `null` exactly when `controlLineId` is `null` |
 | `followUp` | object or null | The [Follow-up](/api-reference/follow-ups) on the Invoice; `null` when there is none |
 | `excludedAt` | ISO datetime or null | When the Invoice was [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books); `null` when it isn't excluded |
 | `exclusionReason` | string or null | Why it was excluded; `null` exactly when `excludedAt` is null |
@@ -733,6 +734,7 @@ curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE
 | `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line posts to the Suspense Account, which only bank Match, Assign, and Unassign can use |
 | `LEDGER_ENTRY_LINE_PARTNER_ON_SUSPENSE_ACCOUNT_ERROR` | A line on the Suspense Account cannot carry a Partner |
 | `LEDGER_ENTRY_LINE_RECLASSIFY_SUSPENSE_ACCOUNT_ERROR` | Reclassify cannot move a line to or from the Suspense Account |
+| `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR` | Reclassify cannot move a line of a [`tax_only`](/api-reference/invoices#tax-only-documents) document's booking to an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. `params: { ledgerAccountId, ledgerAccountSubtype }` (`409`) |
 | `LEDGER_REVERSAL_ENTRY_HAS_SUSPENSE_LINE_ERROR` | Entry holds a Suspense line and cannot be reversed |
 | `LEDGER_ENTRY_NOT_SCHEDULED_ERROR` | Entry is not a Scheduled Entry |
 | `LEDGER_ENTRY_SCHEDULED_DATE_NOT_FUTURE_ERROR` | Scheduled date must be in the future |
