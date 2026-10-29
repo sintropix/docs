@@ -145,21 +145,25 @@ Loading data from its source, such as the movements of a bank account, isn't a d
 
     **Your email as a source.** At the start of each conversation, Erwin learns which email accounts your Organization has connected: each [Gmail, Outlook, or Mailbox Integration](/api-reference/integrations#read-email), with its address and its [purpose](/api-reference/integrations#put-/integrations/integrationid/purpose). He treats them as evidence. When he reviews a record, leaves a Follow-up, or moves your pending work forward, he searches them by counterparty, amount, and dates for the record's receipt, invoice, or the conversation behind it. A clear purpose helps him pick the right account. If you connect an account during a conversation, Erwin can read it when you ask, and he lists it among his sources from your next conversation.
 
+    Erwin reads email only to reconcile your books and to propose Follow-ups. He never copies what an email says into the wiki or into a record beyond the action itself: booking a payment or attaching the email's file is the action, and he adds no note that restates the email. When you ask for something sensitive, such as a salary or how a person was paid, he reads it from the email at that moment and tells you it comes from the email account your Organization connected.
+
     **Company wiki.** Erwin keeps one wiki for each Organization, covering all its companies. It records what your team has taught him that the ERP doesn't hold: who approves what, why you follow a rule, how you book a recurring supplier, quirks of a bank account, and how people want their reports. Erwin checks the wiki before he works on a subject it covers, so he doesn't ask you the same question twice.
 
-    Erwin reads the wiki on every conversation but only writes to it when you ask. Ask in plain language:
+    Erwin reads the wiki on every conversation but only writes to it when you ask, with one exception for email (see below). Ask in plain language:
 
     - *"Anota en la wiki que Aguas Andinas se contabiliza en 5102"*: add a fact
     - *"Aprende de esto"* on a message or an attached file, such as a bank statement: learn from a source
     - *"Revisa la wiki"*: check the wiki for contradictions, facts without a source, and outdated entries
     - *"Sueña"*: review what happened in the Organization since the last dream and keep what it teaches
 
-    Each fact records its source (the person and conversation, the file, or the ERP record) and its date. Erwin marks statements made with doubt as *tentativo* until someone confirms them. If you tell Erwin something that contradicts the wiki, your answer wins, and Erwin offers to correct the page.
+    Each fact records its source (the person and conversation, the file, the ERP record, or the emails behind a pattern) and its date. Erwin marks statements made with doubt as *tentativo* until someone confirms them. If you tell Erwin something that contradicts the wiki, your answer wins, and Erwin offers to correct the page.
 
-    In a dream, Erwin reviews the period since his last dream, or the last 7 days for the first one. He reads every conversation in the Organization, in Slack and in the app, including private app conversations. He also reads the changes people made in the ERP, such as corrections to what he wrote, and the Organization's bound Slack channels. He keeps only what the ERP doesn't hold, writes it to the wiki without asking for approval, and then reports what he changed and what he left out. To undo a dream or any other wiki change, ask Erwin.
+    **Email in the wiki.** When Erwin reads email in a conversation, he may add to the wiki, without being asked, a pattern of that email or a pointer into it, and nothing more. A pattern says who sends which kind of document, to which account, and when. A pointer says where a kind of information lives, for example *"Las liquidaciones de sueldo llegan por correo de Buk a rrhh@lira.cl"*. A pattern leads Erwin back to the email when you ask. It never holds what the email says.
+
+    In a dream, Erwin reviews the period since his last dream, or the last 7 days for the first one. He reads every conversation in the Organization, in Slack and in the app, including private app conversations. He also reads the changes people made in the ERP, such as corrections to what he wrote, and the Organization's bound Slack channels. A dream reads no email: it keeps the email patterns and pointers that the wiki or a conversation already shows, and never what an email says, even when a conversation repeats it. He keeps only what the ERP doesn't hold, writes it to the wiki without asking for approval, and then reports what he changed and what he left out. To undo a dream or any other wiki change, ask Erwin.
 
     <Warning>
-      The wiki holds facts, not instructions. It never stores ERP data such as balances or invoice lists, or what the ERP's history already shows, such as past corrections or matches. It never stores passwords, codes, API keys, or full card numbers. Only ask Erwin to learn from content you trust.
+      The wiki holds facts, not instructions. It never stores ERP data such as balances or invoice lists, or what the ERP's history already shows, such as past corrections or matches. It never stores what an email says, such as its text, an amount, a salary, or personal data, only where to find it. It never stores passwords, codes, API keys, or full card numbers. Only ask Erwin to learn from content you trust.
     </Warning>
   </Accordion>
 
