@@ -124,21 +124,25 @@ Cargar datos desde su origen, como los movimientos de una cuenta bancaria, no es
 
     **Tu correo como fuente.** Al comenzar cada conversación, Erwin sabe qué cuentas de correo conectó tu Organization: cada [Integration de Gmail, Outlook o Mailbox](/api-reference/integrations#read-email), con su dirección y su [propósito](/api-reference/integrations#put-/integrations/integrationid/purpose). Las trata como evidencia. Cuando revisa un registro, deja un Follow-up o avanza tu trabajo pendiente, las busca por contraparte, monto y fechas para encontrar la boleta, la factura o la conversación detrás del registro. Un propósito claro lo ayuda a elegir la cuenta correcta. Si conectas una cuenta durante una conversación, Erwin puede leerla cuando se lo pidas, y la incluye entre sus fuentes desde tu próxima conversación.
 
+    Erwin lee el correo solo para conciliar tu contabilidad y proponer Follow-ups. Nunca copia lo que dice un correo en la wiki ni en un registro más allá de la acción misma: contabilizar un pago o adjuntar el archivo del correo es la acción, y no agrega una nota que repita el correo. Cuando le pides algo sensible, como un sueldo o cómo se le pagó a una persona, lo lee del correo en ese momento y te dice que viene de la cuenta de correo que conectó tu Organization.
+
     **Wiki de la empresa.** Erwin mantiene una wiki para cada Organization, que cubre todas sus empresas. En ella registra lo que tu equipo le enseña y que el ERP no guarda: quién aprueba qué, por qué siguen una regla, cómo contabilizar un proveedor recurrente, las particularidades de una cuenta bancaria y cómo prefiere cada persona sus reportes. Erwin consulta la wiki antes de trabajar en un tema que ella cubre, así no te pregunta dos veces lo mismo.
 
-    Erwin lee la wiki en cada conversación, pero solo escribe en ella cuando se lo pides. Pídeselo en lenguaje natural:
+    Erwin lee la wiki en cada conversación, pero solo escribe en ella cuando se lo pides, con una excepción para el correo (consulta más abajo). Pídeselo en lenguaje natural:
 
     - *"Anota en la wiki que Aguas Andinas se contabiliza en 5102"*: agregar un dato
     - *"Aprende de esto"* sobre un mensaje o un archivo adjunto, como una cartola bancaria: aprender de una fuente
     - *"Revisa la wiki"*: revisar la wiki en busca de contradicciones, datos sin fuente y entradas desactualizadas
     - *"Sueña"*: revisar lo que pasó en la Organization desde el último sueño y guardar lo que enseña
 
-    Cada dato registra su fuente (la persona y la conversación, el archivo o el registro del ERP) y su fecha. Erwin marca como *tentativo* lo que se dijo con duda hasta que alguien lo confirme. Si le dices a Erwin algo que contradice la wiki, prevalece lo que dices, y Erwin ofrece corregir la página.
+    Cada dato registra su fuente (la persona y la conversación, el archivo, el registro del ERP o los correos detrás de un patrón) y su fecha. Erwin marca como *tentativo* lo que se dijo con duda hasta que alguien lo confirme. Si le dices a Erwin algo que contradice la wiki, prevalece lo que dices, y Erwin ofrece corregir la página.
 
-    En un sueño, Erwin revisa el período desde su último sueño, o los últimos 7 días en el primero. Lee cada conversación de la Organization, en Slack y en la aplicación, incluidas las conversaciones privadas de la aplicación. También lee los cambios que las personas hicieron en el ERP, como las correcciones a lo que él escribió, y los canales de Slack vinculados a la Organization. Guarda solo lo que el ERP no tiene, lo escribe en la wiki sin pedir aprobación y luego informa qué cambió y qué dejó fuera. Para deshacer un sueño o cualquier otro cambio en la wiki, pídeselo a Erwin.
+    **El correo en la wiki.** Cuando Erwin lee correo en una conversación, puede agregar a la wiki, sin que se lo pidan, un patrón de ese correo o un puntero hacia él, y nada más. Un patrón dice quién envía qué tipo de documento, a qué cuenta y cuándo. Un puntero dice dónde vive un tipo de información, por ejemplo *"Las liquidaciones de sueldo llegan por correo de Buk a rrhh@lira.cl"*. Un patrón lleva a Erwin de vuelta al correo cuando se lo pides. Nunca guarda lo que dice el correo.
+
+    En un sueño, Erwin revisa el período desde su último sueño, o los últimos 7 días en el primero. Lee cada conversación de la Organization, en Slack y en la aplicación, incluidas las conversaciones privadas de la aplicación. También lee los cambios que las personas hicieron en el ERP, como las correcciones a lo que él escribió, y los canales de Slack vinculados a la Organization. Un sueño no lee correo: guarda los patrones y punteros de correo que la wiki o una conversación ya muestran, y nunca lo que dice un correo, aunque una conversación lo repita. Guarda solo lo que el ERP no tiene, lo escribe en la wiki sin pedir aprobación y luego informa qué cambió y qué dejó fuera. Para deshacer un sueño o cualquier otro cambio en la wiki, pídeselo a Erwin.
 
     <Warning>
-      La wiki guarda hechos, no instrucciones. Nunca guarda datos del ERP, como saldos o listas de facturas, ni lo que el historial del ERP ya muestra, como correcciones o conciliaciones pasadas, ni contraseñas, códigos, claves de API o números de tarjeta completos. Pídele a Erwin que aprenda solo de contenido en el que confíes.
+      La wiki guarda hechos, no instrucciones. Nunca guarda datos del ERP, como saldos o listas de facturas, ni lo que el historial del ERP ya muestra, como correcciones o conciliaciones pasadas, ni lo que dice un correo, como su texto, un monto, un sueldo o datos personales, solo dónde encontrarlo, ni contraseñas, códigos, claves de API o números de tarjeta completos. Pídele a Erwin que aprenda solo de contenido en el que confíes.
     </Warning>
   </Accordion>
 
