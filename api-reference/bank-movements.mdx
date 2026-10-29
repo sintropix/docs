@@ -281,7 +281,7 @@ List the open Ledger Entry Lines and the unbooked Invoices that could settle thi
 **Response:** `{ candidates: [...], highConfidenceCandidateId }`. `highConfidenceCandidateId` names the recommended candidate (its `line.id`, or its `invoice.id` for an unbooked Invoice), or is `null` when no single candidate stands out. Each candidate has a `kind`:
 
 - `line`: an open Ledger Entry Line on the side that settles the Movement.
-- `unbookedInvoice`: an Invoice that isn't booked yet, so it has no line to settle. Book the Invoice first; it then appears as a `line` candidate. It carries `kind`, `invoice` (`{ id, documentNumber, issueDate, total, currency, direction, documentKind, isExpenseRendition }`), `partner`, and `evidence`.
+- `unbookedInvoice`: an Invoice of kind `invoice` that isn't booked yet, so it has no line to settle. Book the Invoice first; it then appears as a `line` candidate. A credit note or a [`tax_only`](/api-reference/invoices#tax-only-documents) document is never an `unbookedInvoice` candidate. It carries `kind`, `invoice` (`{ id, documentNumber, issueDate, total, currency, direction, documentKind, isExpenseRendition }`), `partner`, and `evidence`.
 
 Every candidate carries `evidence`: `partnerEvidence` (`{ assigned, name, taxId }`, booleans that say whether the Partner is the Movement's Partner, or its name or tax ID appears in the description), `amountRelation` (`exact` \| `underpays` \| `overpays`, where `underpays` means the Movement is smaller; `null` on a foreign-currency Bank Account), and `dateDistanceDays` (integer).
 

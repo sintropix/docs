@@ -211,7 +211,7 @@ Read the Follow-up of a record with every record in its Plan named, so you can s
 
 - `movement` names the Movement with its date, amount, side, description, and Bank Account.
 - `invoice` names the Invoice with its document kind, number, direction, issue date, total, currency, and Partner.
-- `controlLineId` is the `id` of the line in `newLines` that the booking makes the Invoice's Control Line. Another line in `newLines` can post to the same account. In the app, the Plan marks the Control Line as **línea del documento**.
+- `controlLineId` is the `id` of the line in `newLines` that the booking makes the Invoice's Control Line, or `null` for a [`tax_only`](/api-reference/invoices#tax-only-documents) document, which books no Control Line. Another line in `newLines` can post to the same account. In the app, the Plan marks the Control Line as **línea del documento**.
 - Each item in `newLines` is a line the act creates: its `id`, `side`, `functionalAmount`, `transactionCurrency`, and `transactionAmount`, with its `account` (`{ id, code, name }`) and `partner` (`{ id, name }`) named, and its `deferral`.
 - `deferral` is `null` unless the line carries [`deferral`](/api-reference/invoices#defer-a-line-when-you-book) in a `bookInvoice` act. Then it holds the terms the booking will defer the line by: `startMonth` (`YYYY-MM`), `monthCount` (integer), and `recognitionAccount` (`{ id, code, name }`), the account each Release will land in.
 - Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`. The `target` of an `assign` is `null` when its `lineId` is `null`.

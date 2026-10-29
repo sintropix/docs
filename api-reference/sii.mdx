@@ -180,7 +180,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/sales-summaries" \
 
 Fetch one Sales Summary with the Invoices that land it.
 
-**Response:** the Sales Summary object plus `invoices`, the Invoices that land it, oldest first. The first one lands the SII's figures, and each later one lands a change the SII made after the earlier ones were booked. Each item carries `id`, `documentNumber`, `documentKind`, `total`, `issueDate`, `controlLineId` (`null` until the Invoice is booked), `excludedAt`, and `createdAt`.
+**Response:** the Sales Summary object plus `invoices`, the Invoices that land it, oldest first. The first one lands the SII's figures, and each later one lands a change the SII made after the earlier ones were booked. Each item carries `id`, `documentNumber`, `documentKind`, `total`, `issueDate`, `bookingEntryId` (the Ledger Entry that books it, `null` until the Invoice is booked), `excludedAt`, and `createdAt`.
 
 ```json
 {
@@ -203,7 +203,7 @@ Fetch one Sales Summary with the Invoices that land it.
       "documentKind": "invoice",
       "total": 4986700,
       "issueDate": "2026-09-30",
-      "controlLineId": "7f8e9d0c-1b2a-4c3d-8e4f-5a6b7c8d9e0f",
+      "bookingEntryId": "7f8e9d0c-1b2a-4c3d-8e4f-5a6b7c8d9e0f",
       "excludedAt": null,
       "createdAt": "2026-10-02T06:10:11.204Z"
     },
@@ -213,7 +213,7 @@ Fetch one Sales Summary with the Invoices that land it.
       "documentKind": "invoice",
       "total": 178500,
       "issueDate": "2026-09-30",
-      "controlLineId": null,
+      "bookingEntryId": null,
       "excludedAt": null,
       "createdAt": "2026-10-18T06:10:09.877Z"
     }

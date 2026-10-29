@@ -212,7 +212,7 @@ Add purchase invoices to a Draft. Each invoice becomes an order for its current 
 
 Each invoice must be a Payable to Plan of the batch:
 
-- A `payable` Invoice of kind `invoice`. A credit note or a receivable is refused with `PAYMENT_ORDER_INVOICES_NOT_PAYABLE_ERROR`.
+- A `payable` Invoice of kind `invoice`. A credit note, a [`tax_only`](/api-reference/invoices#tax-only-documents) document, or a receivable is refused with `PAYMENT_ORDER_INVOICES_NOT_PAYABLE_ERROR`.
 - With an Amount to Plan above zero. Otherwise `PAYMENT_ORDER_INVOICES_NOTHING_TO_PLAN_ERROR`.
 
 Each of these errors answers `409` and lists every offending invoice in `params.invoiceIds`, so you can fix them all in one pass. Nothing is added when any invoice is refused.

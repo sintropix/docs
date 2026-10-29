@@ -451,14 +451,14 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partn
 Every Entity that used the merged Partner now uses the kept Partner. In each of those Entities, Sintropix moves these records from the merged Partner to the kept Partner:
 
 - Every Ledger Line in an Entry dated after that Entity's Lock Date, unless the Entry is deleted or cancelled.
-- Every Invoice that is unbooked or whose Control Line moves.
+- Every Invoice that is unbooked or whose booking entry holds a line that moves.
 - Every Bank Movement that is unbooked or whose bank line moves.
 
 Lines on or before an Entity's Lock Date stay on the merged Partner, because the Lock Date freezes them. The Partner Ledger shows that history under the merged Partner's name.
 
 The kept Partner takes these shared fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, and `website`. When the merged Partner [represents](#representing-partners) an Entity, the kept Partner takes that role with the tax identity.
 
-In each Entity, the kept Partner takes the merged Partner's `defaultPurchaseAccountId` when it has none there. It takes the merged Partner's Booking Template and `booksAutomatically` only when it has no template in that Entity. Otherwise, Sintropix removes the merged Partner's template.
+In each Entity, the kept Partner takes the merged Partner's `defaultPurchaseAccountId` when it has none there. It takes the merged Partner's Booking Template, with its `documentKind`, and `booksAutomatically` only when it has no template in that Entity. Otherwise, Sintropix removes the merged Partner's template.
 
 The kept Partner also takes every [Payment Order](/api-reference/payment-batches) and [Expense Claim](/api-reference/expense-claims) of the merged Partner, and its [Bank Details](#bank-details) when the kept Partner has none.
 
@@ -537,11 +537,20 @@ Remove the Partner's Bank Details. A Partner without them is refused with `404` 
 
 ## Booking Templates
 
-A Booking Template tells Sintropix how one Entity books a Partner's purchase invoices. It is an ordered list of lines. Each line takes one amount from the Invoice or its DTE and posts it to a Ledger Account on a side. With the Partner's `booksAutomatically` switch on in that Entity, Sintropix books each new purchase invoice of that Partner in that Entity when it is created, but only when the Invoice fits the template exactly.
+A Booking Template tells Sintropix how one Entity books a Partner's purchase invoices. It states the [Document Kind](/api-reference/invoices#document-kinds) it books and an ordered list of lines. Each line takes one amount from the Invoice or its DTE and posts it to a Ledger Account on a side. With the Partner's `booksAutomatically` switch on in that Entity, Sintropix books each new purchase invoice of that Partner in that Entity when it is created, but only when the Invoice fits the template exactly.
 
 Use a template for a vendor whose invoices you always book with the same entry shape, such as a hosting provider billed to one expense account plus IVA. Invoices that do not fit land unbooked, and you book them by hand with [`POST /invoices/:invoiceId/book`](/api-reference/invoices).
 
 Each Entity keeps its own template and switch for a Partner, so a template saved in one Entity never books another Entity's invoices. Saving a template gives the Partner the `vendor` [role](#roles) in that Entity. The Partner's default purchase account is unaffected.
+
+### Document kind
+
+A template's `documentKind` is `invoice` or `tax_only`:
+
+- An `invoice` template books the Invoice's total as a payable on its Control Line.
+- A `tax_only` template books tax only, with no Control Line. The Invoice it books becomes a [`tax_only`](/api-reference/invoices#tax-only-documents) document. Use it for a vendor whose facturas de compra (type `46`) only declare the IVA of a purchase abroad, while the foreign vendor's own Invoice holds the payable.
+
+In the app, pick **Documento por pagar** or **Solo impuesto** in the template's **Clase de documento**.
 
 ### Template lines
 
@@ -551,7 +560,9 @@ Each Entity keeps its own template and switch for a Partner, so a template saved
 | `accountId` | uuid | Ledger Account of the Entity the line posts to. |
 | `side` | string | `debit` or `credit`. |
 
-A template needs at least 2 and at most 10,000 lines. Exactly one line uses `invoice_total`: the **Control Line**. It must follow the control line rules of [Book invoice](/api-reference/invoices#post-/invoices/invoiceid/book) for a payable invoice: a `credit` on an open-item payable liability account. Other lines may post to the Control Line's account too. They book as ordinary open items of the Partner. Only the `invoice_total` line becomes the Invoice's Control Line.
+A template needs at least 2 and at most 10,000 lines. An `invoice` template has exactly one line that uses `invoice_total`: the **Control Line**. A `tax_only` template has none, and none of its lines may post to an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable` (`409`, `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR`). A wrong number of `invoice_total` lines is refused with `400`.
+
+On an `invoice` template, the Control Line must follow the control line rules of [Book invoice](/api-reference/invoices#post-/invoices/invoiceid/book) for a payable invoice: a `credit` on an open-item payable liability account. Other lines may post to the Control Line's account too. They book as ordinary open items of the Partner. Only the `invoice_total` line becomes the Invoice's Control Line.
 
 While a template uses an account as its Control Line, that account's type, subtype, and tracking cannot change (`LEDGER_ACCOUNT_FACT_PINNED_ERROR`). An account any template line uses cannot be deleted.
 
@@ -560,15 +571,15 @@ While a template uses an account as its Control Line, that account's type, subty
 Sintropix books a new Invoice from the template only when all of these hold:
 
 1. The create request sent no `bookingEntryWithLines`. An explicit booking always wins.
-2. The Invoice is `direction: "payable"` and `documentKind: "invoice"`. Credit notes are never booked automatically.
+2. The Invoice is created as `direction: "payable"` and `documentKind: "invoice"`. Credit notes are never booked automatically. With a `tax_only` template, the Invoice becomes `tax_only` in the same act that books it.
 3. The same request creates the DTE. An Invoice whose DTE is attached later is not booked. A source-feed sync never books a DTE that lands with the [Standing](/api-reference/source-feeds#standing-and-tax-period) `claimed`, `annulment_requested`, or `annulled`.
 4. The Invoice and its DTE are in the Entity's functional currency.
 5. The Partner has `booksAutomatically` set to `true` in the Entity.
 6. Every line's source has a value on the DTE, and none is negative. A DTE that withholds no IVA gives a `dte_withheld_iva_amount` line `0`.
-7. The Control Line amount is not `0`. Other lines with an amount of `0` are dropped.
-8. The remaining lines balance exactly. There is no rounding tolerance.
+7. On an `invoice` template, the Control Line amount is not `0`. Other lines with an amount of `0` are dropped.
+8. At least two lines remain, and they balance exactly. There is no rounding tolerance.
 
-The booking follows every rule of Book invoice, including the Lock Date. If any condition fails, the Invoice and its DTE are still created, unbooked, and Sintropix stores no reason. In `POST /invoices/bulk` and the source-feed sync, one Invoice that does not fit never blocks the others. Invoices that exist before you turn the switch on are not booked.
+The booking follows every rule of Book invoice, including the Lock Date. If any condition fails, the Invoice and its DTE are still created, unbooked, and Sintropix stores no reason. An Invoice that a `tax_only` template couldn't book stays `invoice`. In `POST /invoices/bulk` and the source-feed sync, one Invoice that does not fit never blocks the others. Invoices that exist before you turn the switch on are not booked.
 
 The [Audit Trail](/api-reference/audit-trail) credits an automatic booking to the system, with the declared actor `booking-template`.
 
@@ -576,13 +587,20 @@ The [Audit Trail](/api-reference/audit-trail) credits an automatic booking to th
 
 Read a Partner's template.
 
-**Response:** `{ "partner": <Partner row>, "lines": [<line>] }`. The Partner row has the shape `GET /partners/pages` lists. `lines` is empty when the Partner has no template.
+**Response:** `{ "partner": <Partner row>, "documentKind": "invoice" | "tax_only", "lines": [<line>] }`. The Partner row has the shape `GET /partners/pages` lists. `lines` is empty and `documentKind` is `invoice` when the Partner has no template.
 
 ### PUT `/partners/:partnerId/booking-template`
 
-Save a template. The body replaces the whole list of lines; the order of `lines` is the order of the template.
+Save a template. The body replaces the whole template; the order of `lines` is the order of the template.
 
-**Body:** `{ "lines": [<line>] }`. Unknown keys are rejected with `400`.
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `documentKind` | string | Yes | `invoice` or `tax_only`. See [Document kind](#document-kind). |
+| `lines` | array | Yes | The [template lines](#template-lines). |
+
+Unknown keys are rejected with `400`.
 
 **Response:** the saved template, in the shape `GET` answers.
 
@@ -592,6 +610,7 @@ curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
   -d '{
+    "documentKind": "invoice",
     "lines": [
       { "amountSource": "dte_net_amount", "accountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "side": "debit" },
       { "amountSource": "dte_tax_amount", "accountId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f", "side": "debit" },
@@ -608,6 +627,24 @@ To also book the vendor's facturas de compra (type `46`), add a `credit` line wi
 The `wasabil` Source Feed lands every 46 with `withheldIvaAmount` null, because Wasabil no longer states which IVA is withheld. A `dte_withheld_iva_amount` line has no amount on these DTEs, so the entry does not balance and the Invoice lands unbooked. For a Wasabil vendor's 46s, book the withheld IVA `credit` line from `dte_tax_amount` instead. That template books the vendor's 46s with a total withholding, but not its 33s.
 </Note>
 
+For a foreign vendor whose 46s only declare the IVA, save a `tax_only` template that debits the IVA account and credits the withheld IVA account, both from `dte_tax_amount`:
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER_ID/booking-template" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentKind": "tax_only",
+    "lines": [
+      { "amountSource": "dte_tax_amount", "accountId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f", "side": "debit" },
+      { "amountSource": "dte_tax_amount", "accountId": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b", "side": "credit" }
+    ]
+  }'
+```
+
+A 46 of that vendor with a `taxAmount` of `190000` lands as a booked `tax_only` document: IVA debited `190000`, withheld IVA credited `190000`, and nothing owed.
+
 Then turn the switch on:
 
 ```bash
@@ -620,15 +657,16 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTN
 
 ### DELETE `/partners/:partnerId/booking-template`
 
-Remove the template. This also turns `booksAutomatically` off.
+Remove the template. This also turns `booksAutomatically` off and sets `documentKind` back to `invoice`.
 
-**Response:** the Partner and its now empty `lines`, in the shape `GET` answers.
+**Response:** the Partner, `documentKind: "invoice"`, and its now empty `lines`, in the shape `GET` answers.
 
 ### Error codes
 
 | Code | Status | Meaning |
 | --- | --- | --- |
 | `PARTNER_BOOKS_AUTOMATICALLY_REQUIRES_BOOKING_TEMPLATE_ERROR` | `409` | `booksAutomatically: true` was sent for a Partner without a template. |
+| `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR` | `409` | A line of a `tax_only` template posts to an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. `params: { ledgerAccountId, ledgerAccountSubtype }`. |
 
 A Control Line on the wrong side or on an account Book invoice refuses as a payable control account is answered with the same error Book invoice returns.
 
