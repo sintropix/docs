@@ -14,7 +14,7 @@ These Integration kinds can feed a Bank Account:
 | --- | --- | --- |
 | `fintoc` | A bank, through the Fintoc widget | Every account the bank login reaches |
 | `plaid` | A US bank, through Plaid Link | The bank login's depository and credit accounts. See [Plaid](#plaid) |
-| `global66` | Global66 | The accounts you named when you connected |
+| `global66` | Global66 | Every active wallet of the Global66 client. See [Global66](#global66) |
 | `cardda` | Cardda | The company's one CLP wallet |
 | `dlocal` | dLocal Go | The merchant's one balance |
 | `mercadopago` | Mercado Pago | The account's available money |
@@ -23,7 +23,7 @@ These Integration kinds can feed a Bank Account:
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
-The routes that read or change the Integration's accounts live under the Organization, at `/api/organizations/:organizationId/integrations/:integrationId/discovered-accounts`. The routes that feed a Bank Account live under the Entity the Bank Account belongs to, at `/api/entities/:entityId/integrations/:integrationId`, and take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`. Path parameters are UUIDs, except `providerAccountId`.
+The route that reads the Integration's accounts lives under the Organization, at `/api/organizations/:organizationId/integrations/:integrationId/discovered-accounts`. The routes that feed a Bank Account live under the Entity the Bank Account belongs to, at `/api/entities/:entityId/integrations/:integrationId`, and take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`. Path parameters are UUIDs.
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/settings/integrations"
@@ -108,68 +108,6 @@ Each element of `entities` carries:
 ```bash
 curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/discovered-accounts \
   -H "x-api-key: $SINTROPIX_API_KEY"
-```
-
-## Add accounts to a Global66 Integration
-
-`POST /api/organizations/:organizationId/integrations/:integrationId/discovered-accounts`
-
-Global66 does not list its accounts, so you name each account the Integration reads. Use this route to add accounts after you connect. Sintropix checks access with the stored grant before it adds the accounts. The Integration keeps its id and its feeds. An account id that is already on the grant with the same currency stays unchanged, and a currency change is refused.
-
-### Request body
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `accounts` | `array` | Yes | At least one account object |
-| `accounts[].accountId` | `string` | Yes | Account id at Global66 |
-| `accounts[].currency` | `string` | Yes | ISO 4217 code, three uppercase letters. A code Sintropix does not know is refused with `INTEGRATION_CURRENCY_UNKNOWN_ERROR` |
-
-### Response
-
-The updated Integration, in the shape of one item of [`GET /integrations`](/api-reference/integrations#the-integration-object).
-
-```bash
-curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/discovered-accounts \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -d '{"accounts":[{"accountId":"acc_789","currency":"CLP"}]}'
-```
-
-## Remove one account from a Global66 Integration
-
-`DELETE /api/organizations/:organizationId/integrations/:integrationId/discovered-accounts/:providerAccountId`
-
-Narrow a Global66 Integration by taking one account off its grant, without disconnecting the whole Integration. Use it when a wrong account was added to a Global66 grant and you want to keep reading the rest. Sintropix rebuilds the grant from the remaining accounts, keeps the same Global66 tokens, and does not call Global66. This route only applies to Global66 Integrations.
-
-### Path parameters
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `organizationId` | `uuid` | Organization that owns the Integration |
-| `integrationId` | `uuid` | Global66 Integration to narrow |
-| `providerAccountId` | `string` | Global66 account id to remove from the grant |
-
-### Response
-
-The updated Integration, in the shape of one item of [`GET /integrations`](/api-reference/integrations#the-integration-object). `fedBankAccounts` still lists every Bank Account fed by the accounts that remain on the grant.
-
-### Refusals
-
-The endpoint returns a body of `{ "code": "<code>", "params": { ... } }` in these cases. Each answers `409 Conflict`, except `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR`, which answers `404 Not Found`:
-
-| Code | When it happens |
-| --- | --- |
-| `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR` | `providerAccountId` is not on the Integration's grant |
-| `DISCOVERED_ACCOUNT_FED_ERROR` | The account still feeds a Bank Account. Stop the feed on that Bank Account first, then retry |
-| `INTEGRATION_LAST_ACCOUNT_ERROR` | The account is the only one on the grant. [Disconnect](/api-reference/integrations#delete-/integrations/integrationid) the whole Integration instead |
-| `INTEGRATION_GRANT_MISMATCH_ERROR` | The Integration is not a Global66 Integration |
-| `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` | The narrowed grant equals another existing Global66 Integration |
-
-```bash
-curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/discovered-accounts/acc_789 \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent"
 ```
 
 ## Map a discovered account to an existing Bank Account
@@ -321,6 +259,20 @@ A Fintoc feed reads a bank account through the bank login you connected with the
 - The bank's balance already counts a pending movement. Each sync leaves pending movements out of the balance it checks against, so a pending check doesn't put the account [out of tie-out](/api-reference/bank-accounts#tie-out).
 - When you create a Bank Account from a Fintoc account, the opening balance leaves out the movements pending on that day too. Each lands once, when it posts.
 - The discovered account's `balance.current` is the bank's balance as Fintoc reports it, pending movements included.
+
+### Global66
+
+A Global66 Integration reads the wallets of the Global66 client you connected. Global66 keeps one wallet per currency, and a client can hold several wallets in the same currency. Map the wallets your books need. You don't have to map every wallet.
+
+**Discovered accounts**
+
+- The Integration discovers every active wallet of the client.
+- `name` is the wallet's alias at Global66, or `Global66` followed by the currency, such as `Global66 USD`, when the wallet has no alias.
+- `providerAccountId` and `number` are both the Global66 wallet id.
+- A wallet in a currency Sintropix doesn't know is left out. The other wallets of the client are still listed.
+- `balance.current` and `balance.available` are both the available balance Global66 states for the wallet.
+
+Each sync checks the landed Movements against that same balance, so a wallet's [tie-out](/api-reference/bank-accounts#tie-out) compares the Bank Account with the balance Global66 lists.
 
 ### Mercado Pago
 
