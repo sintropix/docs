@@ -8,7 +8,17 @@ import AppLink from "/snippets/app-link.mdx"
 
 The FX Rates API exposes the currency conversion rates Sintropix uses across every Entity. Rates are mirrored as published by Banco Central de Chile; the sync endpoint refreshes the stored rates and is restricted to staff. The read endpoints are Entity-independent because rates are global.
 
-Sintropix tracks three series, all quoted in CLP: `USD/CLP` (dólar observado), `EUR/CLP` (tipo de cambio observado), and `MXN/CLP` (tipo de cambio referencial).
+Sintropix tracks eight currency pairs, all quoted in CLP. Each pair comes from one Banco Central series, named in the rate's `source`:
+
+| Pair | `source` |
+| --- | --- |
+| `USD/CLP` | `dolar_observado` |
+| `EUR/CLP`, `GBP/CLP` | `tipo_cambio_observado` |
+| `MXN/CLP`, `COP/CLP`, `ARS/CLP`, `BRL/CLP`, `PEN/CLP` | `tipo_cambio_referencial` |
+
+A line in one of these currencies, booked in a CLP Entity, gets the pair's rate as its default. A pair outside this list has no stored rate, so a lookup for it returns `404`.
+
+Rates are stored exactly as Banco Central de Chile publishes them, with at most two decimals. For currencies worth less than one Chilean peso, such as COP and ARS, the rate is below one (for example `"0.24"`), and the published rounding carries through to the converted amount.
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/settings/fx-rates"
@@ -22,7 +32,7 @@ Sintropix tracks three series, all quoted in CLP: `USD/CLP` (dólar observado), 
 | `baseCurrency` | string | ISO 4217 code of the base currency, for example `USD`. |
 | `quoteCurrency` | string | ISO 4217 code of the quote currency, for example `CLP`. |
 | `rateDate` | string (`YYYY-MM-DD`) | The publication date of the rate. |
-| `rate` | decimal string | One major unit of `baseCurrency` equals `rate` major units of `quoteCurrency`, for example `"943.25"`. Always a string, never a float. |
+| `rate` | decimal string | One major unit of `baseCurrency` equals `rate` major units of `quoteCurrency`, for example `"943.25"`, or `"0.24"` for `COP/CLP`. Always a string, never a float. |
 | `source` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` | Which Banco Central series the rate came from. |
 | `createdAt` | ISO 8601 timestamp | When the rate was stored. |
 
