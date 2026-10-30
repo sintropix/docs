@@ -42,7 +42,7 @@ Approving needs two settings. Set them in **Configuración → Rendiciones**, at
 1. **The Approver of the Organization.** Use [`PUT /organizations/:organizationId/expense-claim-approver`](#put-/organizations/organizationid/expense-claim-approver).
 2. **The booking setting of each Entity.** Use [`PUT /expense-claim-setting`](#put-/expense-claim-setting). It names three things:
    - The Source the Expense Renditions land in. It must be a Source that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions).
-   - The **Rendición por pagar** account, which the approval credits with the person as Partner. It must be a `liability` account with the sub-type [`expense_rendition_payable`](/api-reference/chart-of-accounts#expense-rendition-payable).
+   - The **Rendición por pagar** account, which the approval credits with the person as Partner. It must be a `liability` account with the sub-type [`expense_rendition_payable`](/api-reference/chart-of-accounts#expense-rendition-payable). If the Entity already books renditions into a `payable` account, you can [switch its sub-type](/api-reference/chart-of-accounts#sub-type-changes-on-an-account-with-entries) to `expense_rendition_payable` even though it has entries.
    - The supplier payable account, which a `factura` claim debits. It must have the sub-type `payable`, and it must be the account the Entity's SII invoices credit, so that you can [match](/api-reference/allocations) the two lines later.
 
 You can submit claims before you set either one. Only approving and rejecting need them.
@@ -51,7 +51,7 @@ To let submitters pick a category instead of an account, also create the Entity'
 
 In the app, each pick saves at once, with no **Guardar** button. The booking setting saves once the Source and both accounts are set.
 
-While the setting names a Source, you can't unmark the Source as one that holds Expense Renditions, or delete it. Sintropix refuses both with `409` and `SOURCE_PINNED_ERROR`. Each account also keeps its sub-type while the setting names it. To change any of them, set another one first.
+While the setting names a Source, you can't unmark the Source as one that holds Expense Renditions, or delete it. Sintropix refuses both with `409` and `SOURCE_PINNED_ERROR`. Each account also keeps its sub-type while the setting names it: a change is refused with `409` and `LEDGER_ACCOUNT_FACT_PINNED_ERROR`. To change any of them, set another one first.
 
 ## What approving books
 
