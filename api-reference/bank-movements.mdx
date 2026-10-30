@@ -139,7 +139,7 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `providerTime` | ISO 8601 timestamp \| null | The time the [Provider](/api-reference/bank-feeds#provider-time) reported for the line. It only orders the Movements of one day. `null` when the Provider gives no time it can be trusted for, and on every Movement you create or Erwin loads. |
 | `amount` | integer | Magnitude in minor units, never negative. |
 | `side` | `debit` \| `credit` | Direction against the Bank Account's mapped Ledger Account. `debit` is money in for a `bank` account. |
-| `description` | string | The description the bank reported. |
+| `description` | string | The description the bank reported. On a fed Bank Account, each [sync](/api-reference/bank-accounts#sync-a-bank-account-feed) keeps it at the Provider's newest text, booked or not. |
 | `externalRef` | string \| null | The bank's own reference for the line. Unique per Bank Account when present. |
 | `partnerId` | uuid \| null | Counterparty Partner. |
 | `ledgerEntryId` | uuid \| null | The Ledger Entry that books this Movement. `null` while unbooked. |

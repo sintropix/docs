@@ -287,6 +287,14 @@ Triggers a manual sync of the Bank Account's feed. The server reads the latest w
 
 A sync lands its Movements even when they don't add up to the balance the Provider reports. It then flags the feed as out of tie-out. See [Tie-out](#tie-out). The only sync that lands nothing is one that finds a [restatement](#restatement) it can't take by itself.
 
+A sync also updates the Movements it already landed when the Provider changed them since, whether they're unbooked, booked, or reconciled:
+
+- The `description` becomes the Provider's newest text for the Movement. Some banks complete a movement's text a day after it posts, so the description fills in with the counterparty on the next sync.
+- The Additional Information lines the Provider writes are rewritten. Lines you added stay, in their order.
+- The Partner is set from the counterparty's tax ID, such as a RUT, only when the Movement has none.
+
+A sync never changes a landed Movement's amount, side, or date, and never touches the Ledger Entry that books it, so the entry's memo stays as you wrote it. A changed description isn't a [restatement](#restatement). Each Movement it updates counts in `updatedCount`.
+
 ### Response
 
 Returns `201 Created` with:
