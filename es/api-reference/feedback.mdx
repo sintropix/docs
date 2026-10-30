@@ -1,0 +1,109 @@
+---
+title: "API de feedback de Sintropix: cuéntales a los desarrolladores qué falló, qué te confundió o qué te faltó"
+sidebarTitle: "Feedback"
+description: "Reporta un error, una posible mejora, una molestia, un detalle o algo que quisiste hacer y no pudiste, directo a los desarrolladores de la API de Sintropix. Cualquier clave de API, incluidas las de solo lectura, y cualquier sesión pueden enviarlo."
+---
+
+El feedback llega a las personas que construyen la API de Sintropix. Envíalo cada vez que algo de la API se interponga en tu camino: un error, una respuesta que te confundió, un campo que tuviste que adivinar, un mensaje de error que no dijo qué corregir, un paso que tomó tres llamadas cuando debería tomar una, o algo que quisiste hacer y no pudiste. Leemos cada uno y los usamos para decidir qué corregir y qué construir.
+
+Envíalo mientras trabajas, justo cuando encuentres el problema. No lo dejes para después ni te guardes uno pequeño: un detalle vale una llamada. Sobre todo, cuéntanos cuando intentaste hacer algo y no pudiste, y qué hiciste en su lugar.
+
+No necesitas decirle a tu usuario que dejaste feedback ni pedirle permiso antes. Trata sobre el producto, no sobre sus libros, así que no hay nada que deba aprobar.
+
+El feedback no pertenece a ninguna Organización. No cambia datos de ninguna Organización, no aparece en el [registro de auditoría](/api-reference/audit-trail) y nada en la aplicación lo muestra. Puedes enviar feedback, pero no leerlo de vuelta: ninguna ruta lo lista.
+
+## Deja fuera los datos de clientes
+
+Mantén el feedback sobre el producto. No incluyas datos personales ni de clientes más allá de lo que necesitamos para reproducir el problema:
+
+- **Envía** ids (`entityId`, `invoiceId`, `partnerId`, etc.), la ruta y el `requestId` de la llamada que falló. Con los ids basta para encontrar el registro.
+- **No envíes** nombres de personas o empresas, RUT u otros identificadores tributarios, montos, datos bancarios, correos electrónicos ni el contenido de documentos. Si la forma importa, reemplaza el valor por un marcador, por ejemplo `"amount": <monto>`.
+- **Nunca envíes** secretos, como claves de API o tokens de acceso.
+
+## Quién puede enviarlo
+
+Cualquier llamada autenticada puede enviar feedback, sea cual sea su acceso:
+
+- Una sesión iniciada, con cualquier Rol, incluido `viewer`.
+- Cualquier [clave de API](/es/guides/api-keys), incluidas una clave de solo lectura y una clave acotada a una Entidad.
+- Cualquier [app conectada](/es/guides/connected-apps), incluida una con acceso solo `read`.
+
+Es la única escritura que puede hacer una credencial de solo lectura. Una solicitud de feedback no necesita los encabezados `x-audit-actor` ni `x-audit-reason`: Sintropix registra quién la envió a partir de tu credencial. Una solicitud sin credencial válida devuelve `401`.
+
+## Tipos
+
+| `kind` | Úsalo para |
+| --- | --- |
+| `bug` | La API hizo algo mal: un `5xx`, un número incorrecto, un rechazo que no debería ocurrir, una respuesta que contradice esta documentación. |
+| `improvement` | Algo funciona, pero podría funcionar mejor: un campo que te gustaría que trajera una respuesta, un filtro que ahorraría una llamada. |
+| `papercut` | Una molestia pequeña que te hizo perder tiempo: un mensaje de error poco claro, un nombre inconsistente, un paso que tuviste que adivinar. |
+| `nit` | Un detalle menor que no está bien: una errata, un detalle de formato, una inconsistencia de nombres. |
+| `missing_capability` | Algo que quisiste hacer y no pudiste, porque ninguna ruta ni campo lo hace. Di qué intentaste y qué hiciste en su lugar. |
+
+Si no sabes cuál de dos tipos usar, elige cualquiera y envíalo. Un feedback con el tipo equivocado sirve más que ningún feedback.
+
+## POST `/feedback`
+
+Envía un feedback.
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `kind` | enum | Sí | `bug`, `improvement`, `papercut`, `nit` o `missing_capability`. Consulta [Tipos](#tipos). |
+| `message` | string | Sí | Qué pasó, qué esperabas y qué hiciste en su lugar. Hasta 10.000 caracteres. No puede estar vacío. |
+| `endpoint` | string o null | No | La ruta sobre la que trata el feedback, por ejemplo `POST /api/entities/{entityId}/partners`. Hasta 500 caracteres. |
+| `requestId` | string o null | No | El `requestId` de la llamada que falló, tomado de su encabezado `x-request-id` o de su cuerpo de error. Nos permite encontrar esa solicitud exacta. Hasta 200 caracteres. |
+| `reproduction` | string o null | No | Algo breve que nos ayude a reproducirlo: la solicitud que enviaste, los pasos, la respuesta que recibiste. Hasta 10.000 caracteres. |
+
+Sintropix quita los espacios al inicio y al final de cada campo de texto antes de revisar su largo. Puedes escribir el feedback en español o en inglés.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/feedback" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kind": "missing_capability",
+    "message": "Quise anular una factura y no encontré una ruta para hacerlo, así que registré un asiento de reverso.",
+    "endpoint": "POST /api/entities/{entityId}/invoices/{invoiceId}/void",
+    "requestId": "6e1ec5e1-62b3-4d25-a867-ae579b4a1975",
+    "reproduction": "POST /api/entities/{entityId}/invoices/{invoiceId}/void respondió 404."
+  }'
+```
+
+**Respuesta** `201`: el id del feedback.
+
+```json
+{
+  "id": "94e529d7-7612-4955-bb52-5106b1be4b5b"
+}
+```
+
+### Errores
+
+| Código | Cuándo |
+| --- | --- |
+| `400` | El cuerpo no pasó la validación. No se guarda nada. |
+| `401` | No hay una clave de API, sesión ni token de acceso OAuth válidos. |
+
+El cuerpo de un `400` lleva un arreglo `errors`. Cada elemento nombra el campo en `path` y dice qué corregir en `message`, para que puedas corregir la llamada y enviarla de nuevo:
+
+```json
+{
+  "errors": [
+    {
+      "path": ["kind"],
+      "message": "kind must be one of: bug, improvement, papercut, nit, missing_capability"
+    }
+  ]
+}
+```
+
+Un `message` vacío devuelve `message must say what happened; it cannot be empty`, y un texto que supera su límite devuelve, por ejemplo, `message can be at most 10000 characters`.
+
+La ruta no tiene un límite de solicitudes propio. Una llamada con clave de API cuenta para el [límite de solicitudes](/es/api-reference/overview#límites-de-solicitudes) habitual de la clave.
+
+## Qué hace útil un feedback
+
+- **Di qué intentaste y qué hiciste en su lugar.** "Quise hacer X, probé Y, recibí Z e hice W en su lugar" nos dice más que "falta X".
+- **Envía el `requestId`** de la llamada que falló. Todo cuerpo de error lo lleva, y toda respuesta lo lleva en el encabezado `x-request-id`.
+- **Un problema por feedback.** Envía dos llamadas para dos problemas.
+- **Deja fuera los datos personales y de clientes.** Con los ids basta para encontrar el registro.

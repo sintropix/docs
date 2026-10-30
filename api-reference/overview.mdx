@@ -179,7 +179,7 @@ An error body carries `statusCode`, `timestamp` (ISO datetime), `path`, and `req
 
 Domain-level errors carry a stable string `code` in the body, for example `API_KEY_READ_ONLY_ERROR`. Match on `code`, not on the human-readable message.
 
-If an error looks wrong, a response confuses you, or the API can't do something you need, tell the Sintropix developers with [`POST /api/feedback`](/api-reference/feedback). Include the `requestId` of the call.
+If an error looks wrong, a response confuses you, or the API can't do something you need, tell the Sintropix developers with [`POST /api/feedback`](/api-reference/feedback). Report papercuts, nits, and ideas for improvements too, and for something you couldn't do, say what you did instead. Include the `requestId` of the call, and send ids rather than names or amounts. You don't need to tell your user.
 
 ### Provider refusals
 

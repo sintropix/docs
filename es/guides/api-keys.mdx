@@ -64,7 +64,7 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
     - `x-audit-actor` nombra al software que actúa (por ejemplo `my-agent`).
     - `x-audit-reason` explica por qué se realiza el cambio, en una sola línea de texto plano de hasta 500 caracteres.
 
-    [`POST /api/feedback`](/api-reference/feedback) es la única excepción: no necesita ninguno de los dos encabezados, y también puede enviarla una clave de solo lectura.
+    [`POST /api/feedback`](/es/api-reference/feedback) es la única excepción: no necesita ninguno de los dos encabezados, y también puede enviarla una clave de solo lectura.
 
     Ambos valores se registran tal cual en el sobre del [registro de auditoría](/api-reference/audit-trail). Omitir `x-audit-actor` devuelve `400` con el código `AUDIT_ACTOR_REQUIRED_ERROR`. Un `x-audit-reason` ausente o vacío devuelve `400` con el código `AUDIT_REASON_REQUIRED_ERROR`; un valor de más de 500 caracteres devuelve `400` con el código `AUDIT_REASON_TOO_LONG_ERROR`.
 
