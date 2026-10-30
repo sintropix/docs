@@ -504,3 +504,20 @@ The customer on the invoice can differ from the cardholder, for example when a p
 Each sync rewrites these lines on every Movement it landed, booked Movements included, so a Movement always shows what Stripe states now.
 
 **Balance check.** Each sync reads the balance transactions from the feed start date and checks the landed Movements against the available and pending funds of the currency. When they don't add up, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out). Stripe keeps the account's whole history, so any feed start date works.
+
+## Provider time
+
+Every Movement a feed lands carries a `providerTime`: the time the Provider states for the row, or `null` when the Provider gives no time Sintropix can trust. It orders the Movements of one day, and so the running balance within that day. A Movement without one comes before every Movement of its day that has one. See [Order of movements](/api-reference/bank-movements#order-of-movements).
+
+| Provider | `providerTime` |
+| --- | --- |
+| Global66 | The time of every row |
+| Stripe | The time Stripe created the balance transaction |
+| Polar | The time Polar created the row |
+| Mercado Pago | The time of every row of the release report |
+| Fintoc | The time of the operation, when the bank states one. A row with no time, or with midnight, gets `null`. The operation can fall days before the Movement date |
+| Plaid | The time of the transaction, when Plaid states one |
+| dLocal Go | The time of the date that gives the Movement its day: the approval or creation time of a payment, and the payment time of a settlement. dLocal Go states it without a time zone, so Sintropix reads it as UTC |
+| Cardda | Bank transfers only, from `authorized_at`, or `created_at` when `authorized_at` is absent. Card, commission, and payment rows get `null` |
+
+The time is written once. A sync can give a time to a landed Movement that has none, booked or not, but only while the Provider still dates the row on the Movement's day. It never changes a time a Movement already holds, so a dLocal Go payment whose approval date changes keeps its first time. Movements that landed before Provider time existed have `null` until a sync fills it.

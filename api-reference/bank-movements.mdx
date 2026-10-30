@@ -136,6 +136,7 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `entityId` | uuid | Owning Entity. |
 | `bankAccountId` | uuid | Bank Account the Movement sits on. |
 | `movementDate` | string (`YYYY-MM-DD`) | Date the bank reported the line. |
+| `providerTime` | ISO 8601 timestamp \| null | The time the [Provider](/api-reference/bank-feeds#provider-time) reported for the line. It only orders the Movements of one day. `null` when the Provider gives no time it can be trusted for, and on every Movement you create or Erwin loads. |
 | `amount` | integer | Magnitude in minor units, never negative. |
 | `side` | `debit` \| `credit` | Direction against the Bank Account's mapped Ledger Account. `debit` is money in for a `bank` account. |
 | `description` | string | The description the bank reported. |
@@ -149,10 +150,16 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `excludedAt` | ISO 8601 timestamp \| null | When the Movement was [excluded from the books](#exclude-a-movement-from-the-books). `null` when it isn't excluded. |
 | `exclusionReason` | string \| null | Why it was excluded. `null` exactly when `excludedAt` is null. |
 | `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `excluded` | Derived booking status. |
-| `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it regardless of filters. |
+| `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it in [date order](#order-of-movements) regardless of filters. |
 | `partnerName` | string \| null | Name of `partnerId`, for display. |
 | `partnerWebsite` | string \| null | Website of `partnerId`, as a bare domain, for showing the Partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo). |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
+
+### Order of movements
+
+Movements are in date order: by `movementDate`, then by `providerTime`, then by `createdAt`, then by `id`. Within one day, a Movement without a `providerTime` comes before every Movement of that day that has one. The running balance follows this order, so a conversion reads after the deposits that funded it earlier that day.
+
+A Movement keeps the `providerTime` it first landed with. A later sync can fill it on a Movement that has none, booked or not, but never changes one the Movement already holds.
 
 Write answers also return the Bank Account with its computed summary:
 
@@ -194,7 +201,7 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `erpThread` | `with` \| `without` | No | `with` keeps only Movements that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread), the conversation about the Movement in the Organization's Chat; `without` keeps only Movements with none. Omit to return both. Group counts follow this filter. |
 | `groupBy` | `none` \| `partner` \| `movementMonth` \| `status` | No | Attach a `group` object to every row. Default `none`. `bankAccount` is refused with `400`, because this listing covers one Bank Account. |
 | `sort` | `movementDate` \| `partnerName` \| `description` \| `amount` | No | Sort field. Default `movementDate`. Sorting by `amount` sorts the signed amount, money in above money out. |
-| `sortDirection` | `asc` \| `desc` | No | Default `desc`. |
+| `sortDirection` | `asc` \| `desc` | No | Default `desc`. Movements with the same sort value follow the [date order](#order-of-movements) within it, in the same direction. With `desc`, the newest `providerTime` of a day comes first and the Movements without one come last. |
 
 **Response**
 
@@ -220,6 +227,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
       "entityId": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
       "bankAccountId": "c2d4e6f8-1a3b-4c5d-8e9f-0a1b2c3d4e5f",
       "movementDate": "2025-12-30",
+      "providerTime": "2025-12-30T14:22:05.000Z",
       "amount": 1250000,
       "side": "debit",
       "description": "TRANSFERENCIA DE ACME SPA",
@@ -240,7 +248,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCO
       "updatedAt": "2025-12-31T03:10:22.000Z"
     }
   ],
-  "nextCursor": "{\"groupSortKey\":\"\",\"groupKey\":\"\",\"sortKey\":\"2025-12-30\",\"createdAt\":\"2025-12-31 03:10:22.000000+00\",\"id\":\"3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11\"}"
+  "nextCursor": "{\"groupSortKey\":\"\",\"groupKey\":\"\",\"sortKey\":\"2025-12-30\",\"providerTime\":\"2025-12-30 14:22:05+00\",\"createdAt\":\"2025-12-31 03:10:22.000000+00\",\"id\":\"3f1c2a2e-0d1b-4c6f-9a8e-5b7d2e1f0a11\"}"
 }
 ```
 
