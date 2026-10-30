@@ -1,0 +1,90 @@
+---
+title: "Feedback API: Tell the Sintropix Developers About the API"
+sidebarTitle: "Feedback"
+description: "Report a bug, an improvement, a papercut, a nit, or something you wanted to do and couldn't, straight to the developers of Sintropix. Any signed-in caller can send it, read-only API keys and Connected Apps included, with no audit headers."
+---
+
+Feedback is a note you, or the agent you run, leave for the developers who build Sintropix. Send one whenever the API gets in your way: a call that fails when it shouldn't, an answer that confuses you, a field you had to guess, or something you wanted to do and found no route for. We read every Feedback and use it to improve the API.
+
+Feedback is about Sintropix itself, not about an Organization's books. It changes no data of any Organization, it doesn't appear in the [Audit Trail](/api-reference/audit-trail), and nothing in the app shows it. You can send Feedback, but you can't read it back: no route lists it.
+
+## Who can send it
+
+Any authenticated caller can send Feedback, whatever its access:
+
+- A signed-in session, with any Role, `viewer` included.
+- Any [API key](/guides/api-keys), including a read-only key and a key confined to one Entity.
+- Any [Connected App](/guides/connected-apps), including one granted `read` only.
+
+It's the one write a read-only credential can make. A Feedback request needs no `x-audit-actor` or `x-audit-reason` header: Sintropix records who sent it from your credential. A request with no valid credential returns `401`.
+
+## Kinds
+
+Pick the `kind` that fits best:
+
+| `kind` | Use it for |
+| --- | --- |
+| `bug` | The API did something wrong: a call that should succeed fails, or an answer is wrong. |
+| `improvement` | Something works, but could work better. |
+| `papercut` | A small, repeated annoyance that slows you down. |
+| `nit` | A minor detail, such as a confusing name or an unclear message. |
+| `missing_capability` | Something you wanted to do and couldn't, because no route or field does it. |
+
+## POST `/feedback`
+
+Send one Feedback.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | enum | Yes | `bug`, `improvement`, `papercut`, `nit`, or `missing_capability`. See [Kinds](#kinds). |
+| `message` | string | Yes | What happened, or what you wanted. Up to 10,000 characters. It can't be blank. |
+| `endpoint` | string | No | The route the Feedback is about, for example `POST /api/entities/{entityId}/invoices`. Up to 500 characters. |
+| `requestId` | string | No | The `requestId` of the call that failed, from its `x-request-id` header or its error body. Up to 200 characters. |
+| `reproduction` | string | No | How to reproduce it, such as the request you sent and the response you got. Up to 10,000 characters. |
+
+Sintropix trims surrounding whitespace from each text field before it checks the length.
+
+The more context you send, the faster we can act. For a failed call, send its `endpoint` and `requestId`. Leave secrets, such as API keys and access tokens, out of every field.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/feedback" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kind": "missing_capability",
+    "message": "I wanted to void an Invoice and found no route, so I booked a reversal instead.",
+    "endpoint": "POST /api/entities/{entityId}/invoices/{invoiceId}/void",
+    "requestId": "req_8f1c2e7a9b",
+    "reproduction": "POST /api/entities/{entityId}/invoices/{invoiceId}/void answers 404."
+  }'
+```
+
+**Response** `201`: the id of the Feedback.
+
+```json
+{
+  "id": "94e529d7-7612-4955-bb52-5106b1be4b5b"
+}
+```
+
+### Errors
+
+| Status | When |
+| --- | --- |
+| `400` | The body failed validation. Nothing is stored. |
+| `401` | No valid API key, session, or OAuth access token. |
+
+A `400` body carries an `errors` array. Each item names the field in `path` and says what to fix in `message`, so you can correct the call and send it again:
+
+```json
+{
+  "errors": [
+    {
+      "path": ["kind"],
+      "message": "kind must be one of: bug, improvement, papercut, nit, missing_capability"
+    }
+  ]
+}
+```
+
+A blank `message` returns `message must say what happened; it cannot be empty`, and a text over its limit returns, for example, `message can be at most 10000 characters`.

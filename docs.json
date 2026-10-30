@@ -93,7 +93,8 @@
                   "api-reference/reference-data",
                   "api-reference/organizations",
                   "api-reference/notifications",
-                  "api-reference/onboarding"
+                  "api-reference/onboarding",
+                  "api-reference/feedback"
                 ]
               }
             ]
@@ -195,7 +196,8 @@
                   "api-reference/reference-data",
                   "api-reference/organizations",
                   "api-reference/notifications",
-                  "api-reference/onboarding"
+                  "api-reference/onboarding",
+                  "api-reference/feedback"
                 ]
               }
             ]
