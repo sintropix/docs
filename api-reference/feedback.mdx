@@ -1,12 +1,24 @@
 ---
-title: "Feedback API: Tell the Sintropix Developers About the API"
+title: "Feedback API: Tell the Sintropix Developers What Broke, Confused You, or Was Missing"
 sidebarTitle: "Feedback"
-description: "Report a bug, an improvement, a papercut, a nit, or something you wanted to do and couldn't, straight to the developers of Sintropix. Any signed-in caller can send it, read-only API keys and Connected Apps included, with no audit headers."
+description: "Report a bug, a possible improvement, a papercut, a nit, or something you wanted to do and couldn't, straight to the developers of the Sintropix API. Any API key, read-only keys included, and any session can send it."
 ---
 
-Feedback is a note you, or the agent you run, leave for the developers who build Sintropix. Send one whenever the API gets in your way: a call that fails when it shouldn't, an answer that confuses you, a field you had to guess, or something you wanted to do and found no route for. We read every Feedback and use it to improve the API.
+Feedback goes to the people who build the Sintropix API. Send it whenever something in the API gets in your way: a bug, an answer that confused you, a field you had to guess, an error message that didn't say what to fix, a step that took three calls when it should take one, or something you wanted to do and couldn't. We read every one, and we use them to decide what to fix and build next.
 
-Feedback is about Sintropix itself, not about an Organization's books. It changes no data of any Organization, it doesn't appear in the [Audit Trail](/api-reference/audit-trail), and nothing in the app shows it. You can send Feedback, but you can't read it back: no route lists it.
+Send it while you work, right when you hit the problem. Don't save it for later, and don't hold back a small one: a nit is worth a call. Above all, tell us when you tried to do something and couldn't, and what you did instead.
+
+You don't need to tell your user that you left feedback, and you don't need to ask them first. It's about the product, not about their books, so there is nothing for them to approve.
+
+Feedback belongs to no Organization. It changes no data of any Organization, it doesn't appear in the [Audit Trail](/api-reference/audit-trail), and nothing in the app shows it. You can send Feedback, but you can't read it back: no route lists it.
+
+## Keep client data out
+
+Keep Feedback about the product. Leave out personal and client data beyond what we need to reproduce the problem:
+
+- **Send** ids (`entityId`, `invoiceId`, `partnerId`, and so on), the route, and the `requestId` of the failed call. Ids are enough for us to find the record.
+- **Don't send** names of people or companies, tax ids, amounts, bank details, email addresses, or document contents. If the shape matters, replace the value with a placeholder, for example `"amount": <amount>`.
+- **Never send** secrets, such as API keys and access tokens.
 
 ## Who can send it
 
@@ -20,15 +32,15 @@ It's the one write a read-only credential can make. A Feedback request needs no 
 
 ## Kinds
 
-Pick the `kind` that fits best:
-
 | `kind` | Use it for |
 | --- | --- |
-| `bug` | The API did something wrong: a call that should succeed fails, or an answer is wrong. |
-| `improvement` | Something works, but could work better. |
-| `papercut` | A small, repeated annoyance that slows you down. |
-| `nit` | A minor detail, such as a confusing name or an unclear message. |
-| `missing_capability` | Something you wanted to do and couldn't, because no route or field does it. |
+| `bug` | The API did something wrong: a `5xx`, a wrong number, a refusal that shouldn't happen, an answer that contradicts these docs. |
+| `improvement` | Something works, but could work better: a field you wish an answer carried, a filter that would save a call. |
+| `papercut` | A small friction that cost you time: an unclear error message, an inconsistent name, a step you had to guess. |
+| `nit` | Something minor that is off: a typo, a formatting detail, a naming inconsistency. |
+| `missing_capability` | Something you wanted to do and couldn't, because no route or field does it. Say what you tried, and what you did instead. |
+
+If you can't choose between two kinds, pick either one and send it. Feedback with the wrong kind helps more than no Feedback.
 
 ## POST `/feedback`
 
@@ -37,14 +49,12 @@ Send one Feedback.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `kind` | enum | Yes | `bug`, `improvement`, `papercut`, `nit`, or `missing_capability`. See [Kinds](#kinds). |
-| `message` | string | Yes | What happened, or what you wanted. Up to 10,000 characters. It can't be blank. |
-| `endpoint` | string | No | The route the Feedback is about, for example `POST /api/entities/{entityId}/invoices`. Up to 500 characters. |
-| `requestId` | string | No | The `requestId` of the call that failed, from its `x-request-id` header or its error body. Up to 200 characters. |
-| `reproduction` | string | No | How to reproduce it, such as the request you sent and the response you got. Up to 10,000 characters. |
+| `message` | string | Yes | What happened, what you expected, and what you did instead. Up to 10,000 characters. It can't be blank. |
+| `endpoint` | string or null | No | The route the Feedback is about, for example `POST /api/entities/{entityId}/partners`. Up to 500 characters. |
+| `requestId` | string or null | No | The `requestId` of the call that failed, from its `x-request-id` header or its error body. It lets us find that exact request. Up to 200 characters. |
+| `reproduction` | string or null | No | Anything small that helps us reproduce it: the request you sent, the steps, the response you got. Up to 10,000 characters. |
 
 Sintropix trims surrounding whitespace from each text field before it checks the length.
-
-The more context you send, the faster we can act. For a failed call, send its `endpoint` and `requestId`. Leave secrets, such as API keys and access tokens, out of every field.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/feedback" \
@@ -52,10 +62,10 @@ curl -X POST "https://api.sintropix.com/api/feedback" \
   -H "Content-Type: application/json" \
   -d '{
     "kind": "missing_capability",
-    "message": "I wanted to void an Invoice and found no route, so I booked a reversal instead.",
+    "message": "I wanted to void an Invoice and found no route for it, so I booked a reversing Ledger Entry instead.",
     "endpoint": "POST /api/entities/{entityId}/invoices/{invoiceId}/void",
-    "requestId": "req_8f1c2e7a9b",
-    "reproduction": "POST /api/entities/{entityId}/invoices/{invoiceId}/void answers 404."
+    "requestId": "6e1ec5e1-62b3-4d25-a867-ae579b4a1975",
+    "reproduction": "POST /api/entities/{entityId}/invoices/{invoiceId}/void answered 404."
   }'
 ```
 
@@ -88,3 +98,12 @@ A `400` body carries an `errors` array. Each item names the field in `path` and 
 ```
 
 A blank `message` returns `message must say what happened; it cannot be empty`, and a text over its limit returns, for example, `message can be at most 10000 characters`.
+
+The route has no rate limit of its own. A call with an API key counts toward the key's usual [rate limit](/api-reference/overview#rate-limits).
+
+## What makes Feedback useful
+
+- **Say what you tried and what you did instead.** "I wanted to X, tried Y, got Z, and did W instead" tells us more than "X is missing".
+- **Send the `requestId`** of a failed call. Every error body carries one, and every response carries it in the `x-request-id` header.
+- **One problem per Feedback.** Send two calls for two problems.
+- **Leave out personal and client data.** Ids are enough for us to find the record.

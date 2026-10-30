@@ -40,7 +40,7 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para Superadmins), [`/api/feedback`](/api-reference/feedback) y `/api/health`.
+Unas pocas rutas son independientes de la Entidad: [`/api/entities`](/api-reference/entities) (listar y crear), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` y `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (solo para Superadmins), [`/api/feedback`](/es/api-reference/feedback) y `/api/health`.
 
 Los datos que comparten las Entidades de una Organización viven bajo la Organización, como sus [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensiones](/api-reference/dimensions#dimensions-belong-to-the-organization) e [Integraciones](/api-reference/integrations#integrations-belong-to-the-organization):
 
@@ -93,7 +93,7 @@ x-audit-reason: <por qué realizas este cambio>
 
 Una solicitud que modifica datos hecha con un token de acceso OAuth también debe enviar `x-audit-reason`. No necesita `x-audit-actor`: el registro de auditoría nombra la app aprobada.
 
-[`POST /api/feedback`](/api-reference/feedback) es la única excepción: no escribe nada de una Organización, así que no necesita ninguno de los dos encabezados, y también puede enviarla una clave o una app conectada de solo lectura.
+[`POST /api/feedback`](/es/api-reference/feedback) es la única excepción: no escribe nada de una Organización, así que no necesita ninguno de los dos encabezados, y también puede enviarla una clave o una app conectada de solo lectura.
 
 Una solicitud que modifica datos también puede enviar `x-audit-trigger`, el Disparador Declarado: qué inició el turno del agente detrás de la escritura. Envía `schedule` cuando lo inició una programación, o `slack`, `app`, `chat` o `terminal` cuando lo inició el mensaje de una persona en ese lugar. El encabezado es opcional, y una solicitud sin él no guarda disparador. Cualquier otro valor devuelve `400` con el código `AUDIT_TRIGGER_UNKNOWN_ERROR` y no escribe nada. Sus `params` traen `header` y los `triggers` aceptados.
 
@@ -167,7 +167,7 @@ El cuerpo de un error lleva `statusCode`, `timestamp` (fecha y hora ISO), `path`
 
 Los errores de dominio llevan en el cuerpo un `code` de tipo string estable, por ejemplo `API_KEY_READ_ONLY_ERROR`. Compara contra `code`, no contra el mensaje legible por humanos.
 
-Si un error parece incorrecto, una respuesta te confunde o la API no puede hacer algo que necesitas, cuéntaselo a los desarrolladores de Sintropix con [`POST /api/feedback`](/api-reference/feedback). Incluye el `requestId` de la llamada.
+Si un error parece incorrecto, una respuesta te confunde o la API no puede hacer algo que necesitas, cuéntaselo a los desarrolladores de Sintropix con [`POST /api/feedback`](/es/api-reference/feedback). Reporta también molestias, detalles e ideas de mejora, y si algo no se pudo hacer, di qué hiciste en su lugar. Incluye el `requestId` de la llamada, y envía ids en vez de nombres o montos. No necesitas avisarle a tu usuario.
 
 ## Límites de solicitudes
 
