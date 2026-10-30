@@ -126,9 +126,9 @@ Erwin never changes or books again an Invoice that was already in Sintropix, and
 
 ## Expense renditions
 
-A **rendition** (rendición) is an expense that a person paid with their own money for the company, which the company pays back. Sintropix records each rendition as a `payable` Invoice whose Partner is the person who paid, never the merchant. Erwin loads renditions from [Rindegastos](https://www.rindegastos.com) and books them, together with the renditions that people report to him in Slack.
+A **rendition** (rendición) is an expense that a person paid with their own money for the company, which the company pays back. Sintropix records each rendition as a `payable` Invoice whose Partner is the person who paid, never the merchant. Erwin loads renditions from [Rindegastos](https://www.rindegastos.com) and books them.
 
-People can also submit a rendition in Sintropix itself, as an [Expense Claim](/api-reference/expense-claims). When the Approver approves it, Sintropix creates its Invoice already booked.
+People can also submit a rendition in Sintropix itself, as an [Expense Claim](/api-reference/expense-claims), or report it to Erwin, who [submits the claim for them](/api-reference/expense-claims#report-a-rendition-to-erwin). When the Approver approves it, Sintropix creates its Invoice already booked.
 
 Mark the Source of the renditions, such as `Rindegastos`, as one that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions). Its Invoices are then listed in **Rendiciones** instead of **Compras**, and `GET /invoices/pages` tells them apart with `isExpenseRendition`.
 
@@ -166,7 +166,7 @@ He reports the Invoices he created by report with their totals, the receipts tha
 
 ### Book renditions
 
-Ask Erwin, for example *"contabiliza las rendiciones"*. He books each unbooked Invoice of the `Rindegastos` Source, and each rendition reported to him in Slack. He skips an Invoice that has a `question` Follow-up until a person answers it.
+Ask Erwin, for example *"contabiliza las rendiciones"*. He books each unbooked Invoice of the `Rindegastos` Source. He skips an Invoice that has a `question` Follow-up until a person answers it.
 
 The Entity needs a control account for renditions, such as *Rendiciones por pagar*. If it has none, Erwin stops and asks. Each entry is dated on the Invoice's issue date, and its Control Line credits that account with the person as Partner. The debit depends on the expense's document:
 
@@ -177,7 +177,7 @@ The Entity needs a control account for renditions, such as *Rendiciones por paga
 
 - **Expense account.** Erwin uses the account the wiki gives for the expense's category. Otherwise, he uses the one expense account that clearly fits. When none clearly fits, he leaves the Invoice unbooked with a `question` Follow-up that offers one option per account that fits.
 - **Factura.** Erwin reads the receipt to tell a factura from a boleta. A factura of a supplier with the same RUT and total, within 10 days of the expense, also confirms it. He finds the supplier by the RUT on the receipt, and creates its Partner when there is none. When the receipt shows no RUT, he leaves a `question` Follow-up that asks for the supplier. He never creates the supplier's factura from a receipt.
-- **Other currency.** An Invoice of a Rindegastos load is already in the functional currency, so Erwin books its `total` as it is. For a rendition reported in Slack in another currency, he uses the [FX rate](/api-reference/fx-rates) for the issue date, or for the last earlier date with a rate.
+- **Other currency.** An Invoice of a Rindegastos load is already in the functional currency, so Erwin books its `total` as it is.
 - **Not reimbursable, or a fund.** When the expense is marked `Reembolsable: No` or spends a `Fondo`, Erwin leaves it unbooked with a `question` Follow-up that asks how to book it.
 
 The debit to a supplier's payable is an advance until the supplier's factura is booked. On each run, Erwin [matches](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations/match) each open advance to the Control Line of a booked factura of the same supplier, with the same total, within 10 days of the expense. When two facturas fit, he matches neither and reports both. When the amounts differ, the smaller one settles and the rest stays open. He reports each advance still without a factura 30 days after the expense.
