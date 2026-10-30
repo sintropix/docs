@@ -64,6 +64,8 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
     - `x-audit-actor` names the software that is acting (for example `my-agent`).
     - `x-audit-reason` states why the change is being made, as one line of plain text up to 500 characters.
 
+    [`POST /api/feedback`](/api-reference/feedback) is the one exception: it needs neither header, and a read-only key can send it too.
+
     Both values are recorded verbatim on the [audit trail](/api-reference/audit-trail) envelope. Omitting `x-audit-actor` returns `400` with code `AUDIT_ACTOR_REQUIRED_ERROR`. A missing or blank `x-audit-reason` returns `400` with code `AUDIT_REASON_REQUIRED_ERROR`; a value longer than 500 characters returns `400` with code `AUDIT_REASON_TOO_LONG_ERROR`.
 
     ```bash

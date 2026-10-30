@@ -36,7 +36,7 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (Superadmin only), and `/api/health`.
+A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (Superadmin only), [`/api/feedback`](/api-reference/feedback), and `/api/health`.
 
 Data an Organization's Entities share lives under the Organization instead, such as its [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization), and [Integrations](/api-reference/integrations#integrations-belong-to-the-organization):
 
@@ -92,6 +92,8 @@ x-audit-reason: <why you are making this change>
 `x-audit-reason` is a one-line, plain-text explanation of why the change is being made (max 500 characters). The server trims surrounding whitespace and stores the value on the Audit Envelope. Missing or blank returns `400` with code `AUDIT_REASON_REQUIRED_ERROR`; longer than 500 characters returns `400` with code `AUDIT_REASON_TOO_LONG_ERROR`.
 
 A mutating request made with an OAuth access token must send `x-audit-reason` too. It doesn't need `x-audit-actor`: the Audit Trail names the approved app instead.
+
+[`POST /api/feedback`](/api-reference/feedback) is the one exception: it writes nothing of an Organization, so it needs neither header, and a read-only key or Connected App can send it too.
 
 A mutating request can also send `x-audit-trigger`, the Declared Trigger: what started the agent turn behind the write. Send `schedule` when a schedule started it, or `slack`, `app`, `chat`, or `terminal` when a person's message in that place started it. The header is optional, and a request without it stores no trigger. Any other value returns `400` with code `AUDIT_TRIGGER_UNKNOWN_ERROR` and writes nothing. Its `params` carry `header` and the accepted `triggers`.
 
@@ -176,6 +178,8 @@ An error body carries `statusCode`, `timestamp` (ISO datetime), `path`, and `req
 | `503` | A service or outside system can't be reached right now. Retry later. |
 
 Domain-level errors carry a stable string `code` in the body, for example `API_KEY_READ_ONLY_ERROR`. Match on `code`, not on the human-readable message.
+
+If an error looks wrong, a response confuses you, or the API can't do something you need, tell the Sintropix developers with [`POST /api/feedback`](/api-reference/feedback). Include the `requestId` of the call.
 
 ### Provider refusals
 

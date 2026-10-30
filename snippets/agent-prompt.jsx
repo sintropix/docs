@@ -13,6 +13,7 @@ export const AgentPrompt = ({ defaultLang }) => {
   Store the key securely as SINTROPIX_API_KEY; never print or commit it.
   Confirm the API base URL, send the key in x-api-key, and use GET /api/entities to identify the company to work with.
   Only make changes I authorize, and include x-audit-actor with your agent name on every write. Ground your answers in the returned records.
+  If a call fails in a way that looks wrong, an answer confuses you, or you need something the API can't do, tell the Sintropix developers with POST /api/feedback, as described at https://docs.sintropix.com/api-reference/feedback.
   Whenever you mention a record (an entry, invoice, movement, partner, or report), include its link in the app built from the URL patterns at https://docs.sintropix.com/guides/app-links.
   Once connected, ask me what I want to do.`,
     },
@@ -29,6 +30,7 @@ export const AgentPrompt = ({ defaultLang }) => {
   Guarda la clave de forma segura como SINTROPIX_API_KEY; nunca la imprimas ni la subas a un repositorio.
   Confirma la URL base de la API, envía la clave en x-api-key y usa GET /api/entities para identificar la empresa con la que vamos a trabajar.
   Haz solo los cambios que yo autorice e incluye x-audit-actor con el nombre de tu agente en cada escritura. Basa tus respuestas en los registros devueltos.
+  Si una llamada falla de una forma que parece incorrecta, una respuesta te confunde o necesitas algo que la API no puede hacer, cuéntaselo a los desarrolladores de Sintropix con POST /api/feedback, como se explica en https://docs.sintropix.com/api-reference/feedback.
   Cada vez que menciones un registro (un asiento, una factura, un movimiento, una contraparte o un informe), incluye su enlace en la aplicación construido con los patrones de URL de https://docs.sintropix.com/es/guides/app-links.
   Una vez conectado, pregúntame qué quiero hacer.`,
     },
