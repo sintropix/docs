@@ -53,6 +53,17 @@ In the app, each pick saves at once, with no **Guardar** button. The booking set
 
 While the setting names a Source, you can't unmark the Source as one that holds Expense Renditions, or delete it. Sintropix refuses both with `409` and `SOURCE_PINNED_ERROR`. Each account also keeps its sub-type while the setting names it: a change is refused with `409` and `LEDGER_ACCOUNT_FACT_PINNED_ERROR`. To change any of them, set another one first.
 
+## Report a rendition to Erwin
+
+A person can also report a rendition to Erwin, for example in a Slack channel bound through an [Agent Channel](/api-reference/agent-channels): *"pagué un almuerzo con cliente con mi tarjeta, ¿me lo devuelven?"*. Erwin submits it as an Expense Claim, and the Approver approves or rejects it like any other claim. Erwin never approves, rejects, or books the claim himself.
+
+1. **Erwin checks the setup.** When the Entity has no [booking setting](#before-you-submit-claims) or the Organization has no Approver, Erwin submits nothing. He tells you that Rendiciones isn't set up yet, and that someone who keeps the books sets it in **Configuración → Rendiciones**.
+2. **He gets the facts.** Erwin asks for a proof if you sent none: a photo, a receipt, or a screenshot. He reads the date, the merchant, and the amount from it, and asks only for what it doesn't show. The amount is what the Entity pays back, in its functional currency. When the proof is in another currency, he asks what was charged to you in the functional currency, as your card statement shows it. The claim is a `factura` when the proof is a factura electrónica issued to the Entity's RUT, and a `boleta` otherwise, including when there's no document.
+3. **He submits the claim.** The person who paid is the claim's Partner, never the merchant. Erwin creates the Partner when there's none. The `memo` holds the merchant, what the expense was, and the other facts the Approver needs, such as the payment method, the document number, and the original currency and amount. A claim holds no file, so when you report it from Slack, the memo ends with a link to the Slack message that holds the proof.
+4. **He proposes what it was spent on.** Erwin names an [Expense Category](#expense-categories) when one clearly fits the expense and has an expense account. Otherwise he proposes an expense account, following your Organization's practices in his wiki. He never creates a category, and the Approver can book to another account.
+
+Erwin answers that the rendition is submitted and waits for the Approver, with its amount, its memo, and a link to **Rendiciones → Por aprobar**. He doesn't say which account he proposed: that's for the Approver.
+
 ## What approving books
 
 Approving creates one `payable` Invoice and books it in the same request:
