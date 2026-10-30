@@ -24,7 +24,7 @@ The Organization owns one flat group chart. It is a list of Group Accounts (**Cu
 - You can always change a Group Account's code and name. Its type can't change, and it can't be deleted, while a Ledger Account maps to it.
 - An Entity that has Ledger Accounts can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization).
 
-In the app, **Plan de cuentas** lives in the Organization's settings. It opens on **Grupo**, which lists each Group Account with the Ledger Accounts of each Entity nested under it. Pick an Entity in the switcher to see its own chart, with a **Cuenta de grupo** column.
+In the app, **Plan de cuentas** lives in the Organization's settings. It opens on **Grupo**, which lists each Group Account with the Ledger Accounts of each Entity nested under it. Pick an Entity in the switcher to see its own chart, with a **Cuenta de grupo** column. Pick the Organization's own row, with its logo and name, to go back to the group chart.
 
 The group chart routes live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). They need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization, and the listing shows only that Entity's Ledger Accounts.
 
