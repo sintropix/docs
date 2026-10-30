@@ -77,7 +77,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 
 ## Reports
 
-Reports are pages with the period in the query string. Omit a parameter to get the app's default, which is the current year to date. The Income Statement runs to the last day of the current month instead, so the current month's column covers the whole month. The Balance Sheet, the Eight-column Balance, and the General Ledger read the Entity's [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports) instead: a window must stay inside one Fiscal Year, and an omitted start or end falls on its bounds.
+Reports are pages with the period in the query string. Omit a parameter to get the app's default, which is the current year to date. The Income Statement, the Income Statement by Dimension, and the Cash Flow run to the last day of the current month instead, so the current month counts in full. The Balance Sheet, the Eight-column Balance, and the General Ledger read the Entity's [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports) instead: a window must stay inside one Fiscal Year, and an omitted start or end falls on its bounds.
 
 | Report | App URL | Parameters |
 | --- | --- | --- |
