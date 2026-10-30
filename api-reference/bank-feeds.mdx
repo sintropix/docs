@@ -259,6 +259,7 @@ A Fintoc feed reads a bank account through the bank login you connected with the
 - The bank's balance already counts a pending movement. Each sync leaves pending movements out of the balance it checks against, so a pending check doesn't put the account [out of tie-out](/api-reference/bank-accounts#tie-out).
 - When you create a Bank Account from a Fintoc account, the opening balance leaves out the movements pending on that day too. Each lands once, when it posts.
 - The discovered account's `balance.current` is the bank's balance as Fintoc reports it, pending movements included.
+- Some banks complete a movement's text after it lands. For example, BCI first serves `Pago Recibido` and, a day later, `Pago Recibido PRV <RUT> <bank>` for the same movement. The next sync writes the newer text into the Movement's description, even when the Movement is already booked. See [Sync a bank account feed](/api-reference/bank-accounts#sync-a-bank-account-feed).
 
 ### Global66
 
@@ -328,7 +329,7 @@ The Additional Information holds these lines, in this order, each only when Plai
 | `Número de cheque` | The check number |
 | `ID transacción pendiente Plaid` | Plaid's id for the pending transaction this one replaced |
 
-A sync updates the description and these lines on an unbooked Movement. A booked Movement keeps its description.
+A sync updates the description and these lines on every Movement it landed, booked or not. See [Sync a bank account feed](/api-reference/bank-accounts#sync-a-bank-account-feed).
 
 <Warning>
   Feed dates follow the calendar of Santiago (Chile), not US time. A transaction can post late on a US day that is already the next day in Santiago, or post after you map with a date before the feed start date. Such a transaction never lands, but the account's balance at Plaid counts it, so every later sync leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out) by its amount. To fix it, [remove the feed](/api-reference/bank-accounts#delete-a-bank-account-feed) and map the account again with a feed start date on or before that transaction.
