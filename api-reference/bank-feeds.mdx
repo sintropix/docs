@@ -260,6 +260,7 @@ A Fintoc feed reads a bank account through the bank login you connected with the
 - When you create a Bank Account from a Fintoc account, the opening balance leaves out the movements pending on that day too. Each lands once, when it posts.
 - The discovered account's `balance.current` is the bank's balance as Fintoc reports it, pending movements included.
 - Some banks complete a movement's text after it lands. For example, BCI first serves `Pago Recibido` and, a day later, `Pago Recibido PRV <RUT> <bank>` for the same movement. The next sync writes the newer text into the Movement's description, even when the Movement is already booked. See [Sync a bank account feed](/api-reference/bank-accounts#sync-a-bank-account-feed).
+- Some banks serve a movement's text percent-encoded, such as `Traspaso Internet a T. Cr%C3%A9dito` or `Impuesto Sobregiro %2F Uso LCA`. Sintropix decodes it, so the description reads `Traspaso Internet a T. Crédito` and `Impuesto Sobregiro / Uso LCA`. A `%` that doesn't start a valid encoded character, as in `100% cubierto`, stays as the bank sent it.
 
 ### Global66
 
