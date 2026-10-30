@@ -120,7 +120,7 @@ Each element of `paymentOrders`:
 | `amount` | integer | Amount to pay, greater than zero. |
 | `memo` | string \| null | Glosa: the message that travels with the transfer. |
 | `payee` | object | `{ name, country, taxId, website, bankDetails }` of the payee. `bankDetails` is the Partner's [Bank Details](/api-reference/partners#bank-details), or `null` when it has none. |
-| `invoice` | object \| null | `{ documentNumber, dueDate, total, owedAmount, amountToPlan, dteTypeCode, dteTypeLabel }` of the Invoice. `owedAmount` is what it still owes: its `total` while unbooked, the Open Amount of its Control Line once booked, and `0` when it's [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books). `amountToPlan` is its current [Amount to Plan](#amount-to-plan). `dteTypeCode` and `dteTypeLabel` name the SII type of the DTE behind it, or `null` when no DTE backs it. `null` when `invoiceId` is null. |
+| `invoice` | object \| null | `{ documentNumber, dueDate, total, owedAmount, amountToPlan, dteTypeCode, dteFolio, dteTypeLabel }` of the Invoice. `owedAmount` is what it still owes: its `total` while unbooked, the Open Amount of its Control Line once booked, and `0` when it's [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books). `amountToPlan` is its current [Amount to Plan](#amount-to-plan). `dteTypeCode` and `dteTypeLabel` name the SII type of the DTE behind it, or `null` when no DTE backs it. `dteFolio` is that DTE's SII folio, an integer, or `null` when no DTE backs the Invoice. It can differ from `documentNumber`, which is the number recorded on the Invoice. `null` when `invoiceId` is null. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## GET `/payment-batches`
@@ -330,7 +330,7 @@ Each order in `CLP` fills one row of the BCI file:
 | Rut Beneficiario, Dig. Verif. | The payee's RUT, split into body and check digit. |
 | Nombre Beneficiario | The Partner's name, cut to 30 characters. |
 | Monto Transferencia | The amount, in whole pesos. |
-| Nro.Factura Boleta | The Invoice's document number. Empty for a manual order. |
+| Nro.Factura Boleta | The SII folio of the DTE behind the Invoice, as a number. Empty when no DTE backs the Invoice, even when it has a document number such as `RG-81308368`, because BCI reads this column as an SII folio. Empty for a manual order. |
 | Nº Orden de Compra | Empty. |
 | Tipo de Pago | `PRV` for a boleta de honorarios (BHE or BTE), `OTR` otherwise. |
 | Mensaje Destinatario | The order's memo. Without one, the SII type and number of the document, for example `Factura Electrónica 10819`, or `Factura` and the number when no DTE backs the Invoice. Empty for a manual order with no memo. |
