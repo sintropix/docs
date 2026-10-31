@@ -27,6 +27,7 @@ Any authenticated caller can send Feedback, whatever its access:
 - A signed-in session, with any Role, `viewer` included.
 - Any [API key](/guides/api-keys), including a read-only key and a key confined to one Entity.
 - Any [Connected App](/guides/connected-apps), including one granted `read` only.
+- An assistant connected to the [Sintropix MCP server](/guides/mcp-server), with its `leave_feedback` tool. It takes the same fields as this route.
 
 It's the one write a read-only credential can make. A Feedback request needs no `x-audit-actor` or `x-audit-reason` header: Sintropix records who sent it from your credential. A request with no valid credential returns `401`.
 
