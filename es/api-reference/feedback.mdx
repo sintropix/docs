@@ -27,6 +27,7 @@ Cualquier llamada autenticada puede enviar feedback, sea cual sea su acceso:
 - Una sesión iniciada, con cualquier Rol, incluido `viewer`.
 - Cualquier [clave de API](/es/guides/api-keys), incluidas una clave de solo lectura y una clave acotada a una Entidad.
 - Cualquier [app conectada](/es/guides/connected-apps), incluida una con acceso solo `read`.
+- Un asistente conectado al [servidor MCP de Sintropix](/es/guides/mcp-server), con su herramienta `leave_feedback`. Recibe los mismos campos que esta ruta.
 
 Es la única escritura que puede hacer una credencial de solo lectura. Una solicitud de feedback no necesita los encabezados `x-audit-actor` ni `x-audit-reason`: Sintropix registra quién la envió a partir de tu credencial. Una solicitud sin credencial válida devuelve `401`.
 

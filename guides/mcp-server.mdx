@@ -1,12 +1,12 @@
 ---
 title: "Read Your Books from Claude or ChatGPT with the Sintropix MCP Server"
 sidebarTitle: "Connect Claude or ChatGPT"
-description: "Connect Claude, ChatGPT, or any MCP client to the Sintropix MCP server to read companies, receivables, payables, the income statement, and the balance sheet. Server URL, sign-in, access, and the tools it exposes."
+description: "Connect Claude, ChatGPT, or any MCP client to the Sintropix MCP server to read companies, receivables, payables, the income statement, and the balance sheet, and to leave feedback for the Sintropix developers. Server URL, sign-in, access, and the tools it exposes."
 ---
 
 The Sintropix MCP server lets an AI assistant that speaks the Model Context Protocol (MCP), such as Claude or ChatGPT, read your books. You ask in plain language, for example "What do my customers owe me?", and the assistant answers from your Sintropix data.
 
-The server only reads. It can't create, change, or delete anything in Sintropix.
+The server reads your books. It can't create, change, or delete anything in them. The one thing it sends is feedback about Sintropix itself, which changes no data.
 
 ```text
 https://mcp.sintropix.com/mcp
@@ -44,7 +44,7 @@ See [Connect an app with OAuth](/guides/connected-apps) for the full rules of co
 
 ## Tools
 
-The server exposes five read-only tools. Each one answers a question, rather than mirroring an API endpoint. Amounts come back as decimal text in the company's functional currency, and accounts and Partners come back with their names.
+The server exposes six tools. Five read your books, and `leave_feedback` tells the Sintropix developers what got in the assistant's way. Each one answers a question, rather than mirroring an API endpoint. Amounts come back as decimal text in the company's functional currency, and accounts and Partners come back with their names.
 
 | Tool | Question it answers | Inputs |
 | --- | --- | --- |
@@ -53,6 +53,7 @@ The server exposes five read-only tools. Each one answers a question, rather tha
 | `get_payables` | Which bills haven't I paid? | `entityId` |
 | `get_income_statement` | What did I earn in a period? | `entityId`, optional `from` and `to` |
 | `get_balance_sheet` | What do I have and owe on a date? | `entityId`, optional `cutoffDate` |
+| `leave_feedback` | How do I tell Sintropix what got in my way? | `kind`, `message`, optional `endpoint`, `requestId`, and `reproduction` |
 
 ### `list_entities`
 
@@ -85,6 +86,22 @@ Returns the balance sheet (Balance General) on a date: assets, liabilities, and 
 | `entityId` | UUID | Required |
 | `cutoffDate` | `YYYY-MM-DD` | Today in Chile |
 
+### `leave_feedback`
+
+Sends [Feedback](/api-reference/feedback) to the people who build Sintropix: a bug, an answer that confused the assistant, a possible improvement, a papercut, a nit, or something it wanted to do and couldn't, with what it did instead. The assistant sends it on its own, right when it hits the problem, one problem per call. It doesn't need to tell you or ask you first, because Feedback is about the product, not about your books.
+
+Feedback changes nothing in your books, so a **Solo lectura** connection sends it too. The tool asks the assistant to keep client data out: it sends ids and `requestId`s, not names, amounts, or document contents. See [Keep client data out](/api-reference/feedback#keep-client-data-out).
+
+| Input | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | enum | Yes | `bug`, `improvement`, `papercut`, `nit`, or `missing_capability`. See [Kinds](/api-reference/feedback#kinds). |
+| `message` | string | Yes | What happened, what the assistant expected, and what it did instead. Up to 10,000 characters. It can't be blank. |
+| `endpoint` | string or null | No | The tool or API route involved, for example `get_payables`. Up to 500 characters. |
+| `requestId` | string or null | No | The `requestId` of a failed Sintropix API call. Up to 200 characters. |
+| `reproduction` | string or null | No | Anything small that helps reproduce the problem: the arguments sent, the steps, the answer received. Up to 10,000 characters. |
+
+The inputs follow the same rules as [`POST /api/feedback`](/api-reference/feedback#post-/feedback). The tool answers `feedbackId`, the id of the stored Feedback. If an input breaks a rule, the tool answers an error that names each field and says what to fix, for example `kind must be one of: bug, improvement, papercut, nit, missing_capability`, and sends nothing.
+
 ## Example questions
 
 - "Which of my companies can you see?"
@@ -92,10 +109,6 @@ Returns the balance sheet (Balance General) on a date: assets, liabilities, and 
 - "Which bills of Acme SpA are past due?"
 - "What was Acme SpA's net result from January to June?"
 - "Show me Acme SpA's balance sheet at the end of last month."
-
-## Report a problem
-
-The MCP server has no feedback tool. An agent that also calls the API with an [API key](/guides/api-keys) or a [connected app](/guides/connected-apps)'s token can report a bug, a confusing answer, or something it wanted to do and couldn't with [`POST /api/feedback`](/api-reference/feedback). A read-only key works.
 
 <Card title="Connect an App with OAuth" icon="plug" href="/guides/connected-apps" horizontal>
   Scopes, tokens, approvals, and how to list and revoke connected apps.

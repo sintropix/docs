@@ -1,12 +1,12 @@
 ---
 title: "Lee tus libros desde Claude o ChatGPT con el servidor MCP de Sintropix"
 sidebarTitle: "Conectar Claude o ChatGPT"
-description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados y el balance general. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
+description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados y el balance general, y para dejar feedback a los desarrolladores de Sintropix. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
 ---
 
 El servidor MCP de Sintropix permite que un asistente de IA compatible con el Model Context Protocol (MCP), como Claude o ChatGPT, lea tus libros. Preguntas en lenguaje natural, por ejemplo "¿Cuánto me deben mis clientes?", y el asistente responde con tus datos de Sintropix.
 
-El servidor solo lee. No puede crear, cambiar ni eliminar nada en Sintropix.
+El servidor lee tus libros. No puede crear, cambiar ni eliminar nada en ellos. Lo único que envía es feedback sobre Sintropix, que no cambia ningún dato.
 
 ```text
 https://mcp.sintropix.com/mcp
@@ -44,7 +44,7 @@ Consulta [Conectar una app con OAuth](/es/guides/connected-apps) para ver todas 
 
 ## Herramientas
 
-El servidor expone cinco herramientas de solo lectura. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
+El servidor expone seis herramientas. Cinco leen tus libros, y `leave_feedback` les cuenta a los desarrolladores de Sintropix qué se interpuso en el camino del asistente. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
 
 | Herramienta | Pregunta que responde | Entradas |
 | --- | --- | --- |
@@ -53,6 +53,7 @@ El servidor expone cinco herramientas de solo lectura. Cada una responde una pre
 | `get_payables` | ¿Qué facturas no he pagado? | `entityId` |
 | `get_income_statement` | ¿Cuánto gané en un período? | `entityId`, `from` y `to` opcionales |
 | `get_balance_sheet` | ¿Qué tengo y qué debo en una fecha? | `entityId`, `cutoffDate` opcional |
+| `leave_feedback` | ¿Cómo le cuento a Sintropix qué se interpuso en mi camino? | `kind`, `message`, `endpoint`, `requestId` y `reproduction` opcionales |
 
 ### `list_entities`
 
@@ -85,6 +86,22 @@ Devuelve el balance general en una fecha: activos, pasivos y patrimonio, cada un
 | `entityId` | UUID | Obligatoria |
 | `cutoffDate` | `YYYY-MM-DD` | Hoy en Chile |
 
+### `leave_feedback`
+
+Envía [feedback](/es/api-reference/feedback) a las personas que construyen Sintropix: un error, una respuesta que confundió al asistente, una posible mejora, una molestia, un detalle o algo que quiso hacer y no pudo, con lo que hizo en su lugar. El asistente lo envía por su cuenta, justo cuando encuentra el problema, un problema por llamada. No necesita decírtelo ni pedirte permiso antes, porque el feedback trata sobre el producto, no sobre tus libros.
+
+El feedback no cambia nada en tus libros, así que una conexión de **Solo lectura** también lo envía. La herramienta le pide al asistente dejar fuera los datos de clientes: envía ids y `requestId`, no nombres, montos ni el contenido de documentos. Consulta [Deja fuera los datos de clientes](/es/api-reference/feedback#deja-fuera-los-datos-de-clientes).
+
+| Entrada | Tipo | Obligatoria | Descripción |
+| --- | --- | --- | --- |
+| `kind` | enum | Sí | `bug`, `improvement`, `papercut`, `nit` o `missing_capability`. Consulta [Tipos](/es/api-reference/feedback#tipos). |
+| `message` | string | Sí | Qué pasó, qué esperaba el asistente y qué hizo en su lugar. Hasta 10.000 caracteres. No puede estar vacío. |
+| `endpoint` | string o null | No | La herramienta o la ruta de la API involucrada, por ejemplo `get_payables`. Hasta 500 caracteres. |
+| `requestId` | string o null | No | El `requestId` de una llamada a la API de Sintropix que falló. Hasta 200 caracteres. |
+| `reproduction` | string o null | No | Algo breve que ayude a reproducir el problema: los argumentos enviados, los pasos, la respuesta recibida. Hasta 10.000 caracteres. |
+
+Las entradas siguen las mismas reglas que [`POST /api/feedback`](/es/api-reference/feedback#post-/feedback). La herramienta responde `feedbackId`, el id del feedback guardado. Si una entrada no cumple una regla, la herramienta responde un error que nombra cada campo y dice qué corregir, por ejemplo `kind must be one of: bug, improvement, papercut, nit, missing_capability`, y no envía nada.
+
 ## Preguntas de ejemplo
 
 - "¿Qué empresas puedes ver?"
@@ -92,10 +109,6 @@ Devuelve el balance general en una fecha: activos, pasivos y patrimonio, cada un
 - "¿Qué facturas de Acme SpA están vencidas?"
 - "¿Cuál fue el resultado neto de Acme SpA de enero a junio?"
 - "Muéstrame el balance general de Acme SpA al cierre del mes pasado."
-
-## Reporta un problema
-
-El servidor MCP no tiene una herramienta de feedback. Un agente que además llama a la API con una [clave de API](/es/guides/api-keys) o con el token de una [app conectada](/es/guides/connected-apps) puede reportar un error, una respuesta confusa o algo que quiso hacer y no pudo con [`POST /api/feedback`](/es/api-reference/feedback). Sirve una clave de solo lectura.
 
 <Card title="Conectar una app con OAuth" icon="plug" href="/es/guides/connected-apps" horizontal>
   Scopes, tokens, aprobaciones y cómo listar y revocar apps conectadas.
