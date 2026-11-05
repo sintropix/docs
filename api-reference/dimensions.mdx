@@ -24,6 +24,41 @@ A Dimension and its Values belong to the [Organization](/api-reference/organizat
 - The [Income Statement by Dimension](/api-reference/reports#income-statement-by-dimension) stays per Entity: it lists the Organization's Values and adds up that Entity's lines.
 - An Entity whose lines carry a Value can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization).
 
+## Required Dimensions
+
+A result Group Account of the Organization's group chart can [require Dimensions](/api-reference/chart-of-accounts#required-dimensions). Then every line on a Ledger Account that maps to it must carry a value of each required Dimension, in every Entity of the Organization. Use it when an account must always be split, for example a cost center on every expense line.
+
+Sintropix checks the rule when you write the lines:
+
+- Create a Ledger Entry, [one](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries) or [in bulk](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/bulk).
+- [Schedule](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/scheduled-entries) or [reschedule](/api-reference/ledger-entries#patch-/api/entities/entityid/ledger/scheduled-entries/entryid) a Ledger Entry.
+- [Book an Invoice](/api-reference/invoices#post-/invoices/invoiceid/book). A line with a `deferral` or an `accrual` is exempt, because its values go on the Releases.
+- Approve a [Follow-up](/api-reference/follow-ups) whose Plan creates entries.
+- [Retag a line](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values). You can't remove a required value.
+
+The rule holds whoever calls: a person in the app, Erwin, or an API key. If a line leaves a required Dimension without a value, the whole request is refused with `400` and `DIMENSION_VALUE_REQUIRED_ERROR`, and nothing is written. `params` carries `ledgerAccountIds`, the accounts of the refused lines, and `missingDimensions`, an array of `{ dimensionId, name }`.
+
+```json
+{
+  "statusCode": 400,
+  "code": "DIMENSION_VALUE_REQUIRED_ERROR",
+  "params": {
+    "ledgerAccountIds": ["11111111-1111-4111-8111-111111111111"],
+    "missingDimensions": [
+      { "dimensionId": "22222222-2222-4222-8222-222222222222", "name": "Centro de costo" }
+    ]
+  }
+}
+```
+
+Sintropix doesn't check these lines:
+
+- Lines already posted. Requiring a Dimension, or mapping a Ledger Account to a Group Account that requires one, leaves existing lines as they are. The `unassignedAmount` of the [Income Statement by Dimension](/api-reference/reports#income-statement-by-dimension) shows what is still untagged.
+- Lines that Sintropix builds: the Releases of a Deferral or an Accrual, Reversals, depreciation, the booking of a Bank Movement, and the booking of a Scheduled Entry.
+- A [Reclassify](/api-reference/ledger-entries#patch-/api/entities/entityid/ledger/lines/lineid/account) that moves a line to another account.
+
+In the app, the Dimension picker marks a required Dimension with a red asterisk in the entry composer, the entry detail, and the Invoice's classification and accounting table. A refusal shows "Elige un valor de {Dimensión}: la cuenta lo exige."
+
 The routes on this page live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). The routes need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization. Any other Organization, or one where you hold no Membership, answers `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 
 ## GET /api/organizations/:organizationId/dimensions
@@ -97,7 +132,7 @@ curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/dimen
 
 ## DELETE /api/organizations/:organizationId/dimensions/:dimensionId
 
-Delete a Dimension. A Dimension that has values cannot be deleted.
+Delete a Dimension. A Dimension that has values cannot be deleted. Deleting a Dimension removes it from every Group Account that [requires it](#required-dimensions).
 
 - **Path params:** `organizationId` (UUID), `dimensionId` (UUID)
 - **Success response:** the deleted Dimension (same shape as the list response)

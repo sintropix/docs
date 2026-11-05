@@ -233,7 +233,7 @@ Each line in `newLedgerEntryLines`:
 | `transactionCurrency` | string | No | Foreign currency code |
 | `transactionAmount` | integer | No | Foreign amount |
 | `transactionFxRate` | decimal string | No | Rate as plain decimal string |
-| `dimensionValueIds` | UUID[] | No | Default `[]`; tags for this line. Each must be a Value of the Entity's Organization; see [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization) |
+| `dimensionValueIds` | UUID[] | No | Default `[]`; tags for this line. Each must be a Value of the Entity's Organization; see [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization). A line on an account whose Group Account [requires Dimensions](/api-reference/dimensions#required-dimensions) must carry a value of each |
 
 <Note>
   The transaction trio (currency, amount, rate) must be provided together or omitted together. The rate is a plain decimal string, never a float.
@@ -688,7 +688,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LI
 
 ### PUT /api/entities/:entityId/ledger/lines/:lineId/dimension-values
 
-Replace the Dimension Value tags on a Ledger Entry Line. An empty array untags the line.
+Replace the Dimension Value tags on a Ledger Entry Line. An empty array untags the line. On an account whose Group Account [requires Dimensions](/api-reference/dimensions#required-dimensions), the new set must keep a value of each required Dimension, or the request returns `400` with `DIMENSION_VALUE_REQUIRED_ERROR`.
 
 - **Path params:** `entityId` (UUID), `lineId` (UUID)
 - **Body:**
@@ -749,6 +749,7 @@ curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE
 | `ACCRUAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#accruals) of an Accrual; its date cannot change. `params: { ledgerEntryId }` (`409`) |
 | `DIMENSION_VALUE_SET_VALUES_NOT_FOUND_ERROR` | One or more dimension value ids not found in the Entity's Organization |
 | `DIMENSION_VALUE_SET_DUPLICATE_DIMENSION_ERROR` | Multiple values from the same dimension |
+| `DIMENSION_VALUE_REQUIRED_ERROR` | A line on an account whose Group Account [requires a Dimension](/api-reference/dimensions#required-dimensions) carries no value of it. `params: { ledgerAccountIds, missingDimensions }`, where each missing Dimension is `{ dimensionId, name }`. Nothing is written (`400`) |
 | `RECONCILIATION_ALLOCATION_NOT_FOUND_ERROR` | Allocation not found |
 | `RECONCILIATION_ALLOCATION_NETS_REVERSAL_ERROR` | Allocation nets a reversal |
 
