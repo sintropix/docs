@@ -54,7 +54,7 @@ El servidor expone ocho herramientas. Cinco leen tus libros, dos leen las planil
 | `get_income_statement` | ¿Cuánto gané en un período? | `entityId`, `from` y `to` opcionales |
 | `get_balance_sheet` | ¿Qué tengo y qué debo en una fecha? | `entityId`, `cutoffDate` opcional |
 | `list_integration_files` | ¿Qué archivos compartimos? | Ninguna |
-| `read_integration_file` | ¿Qué dice ahora esta planilla? | `integrationId`, `fileId`, `reason` y `tab` opcional |
+| `read_integration_file` | ¿Qué dice ahora este archivo? | `integrationId`, `fileId`, `reason` y `tab` opcional |
 | `leave_feedback` | ¿Cómo le cuento a Sintropix qué se interpuso en mi camino? | `kind`, `message`, `endpoint`, `requestId` y `reproduction` opcionales |
 
 ### `list_entities`
@@ -90,13 +90,13 @@ Devuelve el balance general en una fecha: activos, pasivos y patrimonio, cada un
 
 ### `list_integration_files`
 
-Lista las planillas de Google que las personas de tu Organization eligieron compartir con Erwin y el MCP, mediante una [Integration de Google Drive](/api-reference/integrations#google-sheets-for-erwin-and-the-mcp). Cada elemento trae su `integrationId`, `fileId`, `name`, `purpose` y `description` (la descripción de la planilla en Google Drive). El asistente lee el propósito para elegir la planilla que responde tu pregunta, y la descripción cuando no hay propósito.
+Lista los archivos que las personas de tu Organization eligieron compartir con Erwin y el MCP: la planilla de Google de cada [Integration de Google Drive](/api-reference/integrations#files-for-erwin-and-the-mcp) y las preguntas elegidas en cada [Integration de Metabase](/api-reference/integrations#metabase). Cada elemento trae su `integrationId`, `fileId`, `name`, `purpose` y `description` (la descripción del archivo en Google Drive o en Metabase). El asistente lee el propósito para elegir el archivo que responde tu pregunta, y la descripción cuando no hay propósito.
 
-Una planilla a la que Google ya no llega, porque se borró o está en la papelera, no aparece. Una conexión cuyos archivos no se pueden listar vuelve en `unlisted`, con su `integrationId` y el rechazo de la API. `INTEGRATION_GRANT_FAILED_ERROR` significa que alguien tiene que volver a conectar la planilla en **Configuración → Integraciones**.
+Un archivo al que el proveedor ya no llega, como una planilla que se borró o está en la papelera, o una pregunta de Metabase archivada, no aparece. Una conexión cuyos archivos no se pueden listar vuelve en `unlisted`, con su `integrationId` y el rechazo de la API. `INTEGRATION_GRANT_FAILED_ERROR` significa que alguien tiene que volver a conectar la planilla en **Configuración → Integraciones**.
 
 ### `read_integration_file`
 
-Lee una planilla compartida tal como está ahora en Google Drive. Responde cada pestaña como CSV, con las celdas como las muestra la planilla. Cada pestaña trae `tab` (su nombre), `rowCount`, `truncated` y `csv`. Una pestaña se corta en 2.000 filas, y `truncated` indica cuando tiene más.
+Lee un archivo compartido tal como está ahora en su proveedor: una planilla tal como está en Google Drive, o una pregunta de Metabase, que se ejecuta en Metabase al leerla. La herramienta no envía filtros, así que la pregunta se ejecuta sin ellos. Responde cada pestaña como CSV, con las celdas como las muestra la planilla. Cada pestaña trae `tab` (su nombre), `rowCount`, `truncated` y `csv`. Una pestaña se corta en 2.000 filas, y `truncated` indica cuando tiene más.
 
 | Entrada | Tipo | Obligatoria | Descripción |
 | --- | --- | --- | --- |

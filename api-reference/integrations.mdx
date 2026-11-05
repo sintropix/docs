@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect a Google Sheet for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect a Google Sheet or the questions of a Metabase site for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -19,7 +19,8 @@ What an Integration can feed depends on its kind:
 | `mercadolibre`, `buk`, `notion`, `rho` | Nothing yet |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
-| `google_drive` | Nothing. Erwin and the MCP server read the Google Sheet you picked instead. See [Google Sheets for Erwin and the MCP](#google-sheets-for-erwin-and-the-mcp) |
+| `google_drive` | Nothing. Erwin and the MCP server read the Google Sheet you picked instead. See [Files for Erwin and the MCP](#files-for-erwin-and-the-mcp) |
+| `metabase` | Nothing. The assistants you connect to the MCP server read the Metabase questions you choose instead. See [Metabase](#metabase) |
 
 An Organization can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account can be connected only once.
 
@@ -35,7 +36,9 @@ The `mailbox` kind is an email address that Sintropix holds for the Organization
 
 The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of the current Fiscal Year of every Entity of the Organization to that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
 
-The `google_drive` kind connects one Google Sheet that you pick in Google's file picker, so that Erwin and the assistants you connect to the [MCP server](/guides/mcp-server) can read it. Sintropix reaches that Sheet only, not the rest of your Drive, and reads it as it is each time someone asks. It never writes to it. See [Google Sheets for Erwin and the MCP](#google-sheets-for-erwin-and-the-mcp).
+The `google_drive` kind connects one Google Sheet that you pick in Google's file picker, so that Erwin and the assistants you connect to the [MCP server](/guides/mcp-server) can read it. Sintropix reaches that Sheet only, not the rest of your Drive, and reads it as it is each time someone asks. It never writes to it. See [Files for Erwin and the MCP](#files-for-erwin-and-the-mcp).
+
+The `metabase` kind connects a [Metabase Cloud](https://www.metabase.com/cloud) site with an API key. You choose which of its questions the assistants you connect to the MCP server can read, and Sintropix runs a question in Metabase each time someone reads it. It never changes anything in Metabase. See [Metabase](#metabase).
 
 The `xpendit` kind connects the enterprise of an Xpendit account, the expense tool, with its API key. You can read the expenses and funds of each of its Subsidiaries, and route each Subsidiary to a Source of Expense Renditions. See [Xpendit](#xpendit).
 
@@ -69,13 +72,13 @@ An Integration belongs to the [Organization](/api-reference/organizations), not 
 
 The routes follow the same split:
 
-- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the replacement of an API key, the purpose, the SII legal representative's Clave, the discovered accounts, the Provider Accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the accounts of a Rho business, the preview of a Notion database, and disconnect.
+- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the replacement of an API key, the purpose, the SII legal representative's Clave, the discovered accounts, the Provider Accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the accounts of a Rho business, the preview of a Notion database, the files Erwin and the MCP read, and disconnect.
 - Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. So does the copy of an [email attachment](#post-/api/entities/entityid/email-attachments) into an Entity. They take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
 
-Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, or the preview of a Notion database. An API key confined to one Entity:
+Connecting, reconnecting, disconnecting, and setting the purpose of an Integration need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the preview of a Notion database, or the [files](#who-can-read-the-files) of an Integration. An API key confined to one Entity:
 
 - Lists every Integration of its Organization, but sees only the Sources and Bank Accounts of its own Entity.
-- Can't connect, reconnect, renew, or disconnect an Integration, replace its API key, run a General Ledger Export, read or copy the email of a Gmail, Outlook, or Mailbox account, or read the expenses of an Xpendit account or the preview of a Notion database. It gets `403` with `PERMISSION_DENIED_ERROR`.
+- Can't connect, reconnect, renew, or disconnect an Integration, replace its API key, run a General Ledger Export, read or copy the email of a Gmail, Outlook, or Mailbox account, or read the expenses of an Xpendit account, the preview of a Notion database, or the files of an Integration. It gets `403` with `PERMISSION_DENIED_ERROR`.
 - Adds and removes only the feeds that land in its own Entity.
 
 An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-/api/entities/entityid/organization).
@@ -88,8 +91,8 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `google_drive` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets` and `google_drive`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `buk`, the tenant, the subdomain of its `buk.cl` address; for `notion`, the id of the Notion workspace; for `rho`, the id of the Rho business). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `google_drive` \| `metabase` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets` and `google_drive`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `buk`, the tenant, the subdomain of its `buk.cl` address; for `metabase`, the host of the Metabase Cloud site, such as `acme.metabaseapp.com`; for `notion`, the id of the Notion workspace; for `rho`, the id of the Rho business). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. Only `bsale` and `wasabil` state it; `null` for every other kind. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
@@ -115,14 +118,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers, the bank Providers, Xpendit, Buk, and Rho. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
+This route connects the document Providers, the bank Providers, Xpendit, Buk, Metabase, and Rho. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `rho` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `google_drive`, `stripe`, and `notion` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `metabase` \| `rho` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `google_drive`, `stripe`, and `notion` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -130,6 +133,7 @@ Each kind adds its own fields:
 | --- | --- | --- |
 | `bsale`, `wasabil`, `xpendit`, `rho` | `accessToken` (string) | The provider's API access token. For `xpendit`, the API key of the enterprise. For `rho`, an API access token of the Rho business. See [Create the token in Rho](#create-the-token-in-rho). Whitespace is trimmed and must be non-empty. |
 | `buk` | `tenant` (string), `accessToken` (string) | The address of your Buk, such as `acme.buk.cl` or a full `https://acme.buk.cl/...` address, and its API key. Sintropix keeps only the subdomain, and sends the key only to that `buk.cl` address. An address outside `buk.cl` is refused with `400`. The key must be non-empty after trimming. |
+| `metabase` | `host` (string), `accessToken` (string) | The address of your Metabase Cloud site, such as `acme.metabaseapp.com`, just `acme`, or any `https://acme.metabaseapp.com/...` address, and a Metabase API key. Sintropix keeps the host, `acme.metabaseapp.com`, and sends the key only to that host. An address outside `metabaseapp.com` is refused with `400`, so a self-hosted Metabase can't connect. The key must be non-empty after trimming. See [Metabase](#metabase). |
 | `sii_mirror` | `rut` (string), `clave` (string) | The company's RUT and its SII password (Clave). The RUT takes the same format and check-digit rule as a [Portal Login](#post-/portal-logins) `rut`. The Clave must be non-empty. See [SII](#sii). |
 | `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-/integrations/fintoc/link-intents) and the user completes the widget. |
 | `plaid` | `publicToken` (string) | The public token Plaid Link mints after you [create a Link token](#post-/integrations/plaid/link-tokens) and the user signs in to the bank. Connecting the same Plaid Item twice is refused with `409`. |
@@ -139,7 +143,7 @@ Each kind adds its own fields:
 
 For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the Integration, so the request can take up to about a minute. A Clave the SII refuses answers `422` with `SII_CLAVE_REFUSED_ERROR`. When the SII gives no answer in time, the request answers `503` with `SII_UNAVAILABLE_ERROR` and creates nothing. Retry in a few minutes.
 
-Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit or Buk refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
+Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
 
 - **Response** (`201`): the Integration object (its `sourceFeeds` and `fedBankAccounts` are empty on creation).
 
@@ -989,13 +993,22 @@ A refused export:
 }
 ```
 
-## Google Sheets for Erwin and the MCP
+## Files for Erwin and the MCP
 
-A `google_drive` Integration shares one Google Sheet with Erwin and with the assistants you connect to the [MCP server](/guides/mcp-server). Use it for what lives outside your books, such as a collections tracker or a budget your team keeps in Sheets. Sintropix stores none of the Sheet's content: each read asks Google for the Sheet as it is now, with every tab. Sintropix never writes to it.
+Some Integrations share files with Erwin and with the assistants you connect to the [MCP server](/guides/mcp-server). You choose the files, and they read each one as it is now at its Provider, as an Excel workbook. Use it for what lives outside your books, such as a collections tracker your team keeps in Sheets or a sales report in Metabase. Sintropix stores none of a file's content, and it never writes to the Provider.
 
-This is a different use of a Sheet than the [General Ledger export](#google-sheets), and one Sheet can be in both.
+Two kinds of Integration hold files:
+
+| Kind | Its files | How you choose them |
+| --- | --- | --- |
+| `google_drive` | One Google Sheet, read with every tab | You pick the Sheet when you connect. See [Connect a Sheet for Erwin and the MCP](#connect-a-sheet-for-erwin-and-the-mcp) |
+| `metabase` | The Metabase questions you choose. Sintropix runs a question in Metabase each time someone reads it. The MCP server reads them; Erwin doesn't read Metabase questions yet | In the Integration's panel, with **Elegir preguntas**, or through [`POST /integrations/:integrationId/files`](#post-/integrations/integrationid/files). See [Metabase](#metabase) |
+
+The panel's **Archivos para Erwin y el MCP** section lists the chosen files, each with its purpose. Write a purpose that says what the file holds and when to use it, for example "Cobranza mensual por cliente". Erwin and the assistants use it to pick the right file. While a file has no purpose, they read the description the file has at its Provider instead: the Sheet's description in Google Drive, or the question's description in Metabase.
 
 ### Connect a Sheet for Erwin and the MCP
+
+A `google_drive` Integration shares one Google Sheet. Each read asks Google for the Sheet as it is now, with every tab. This is a different use of a Sheet than the [General Ledger export](#google-sheets), and one Sheet can be in both.
 
 You connect it from the app, because Google asks for consent in a browser:
 
@@ -1011,11 +1024,9 @@ Sintropix gets access to the Sheet you pick and to nothing else in your Drive. W
 
 Each Integration holds the one Sheet you picked. To share another Sheet, connect it as another Integration.
 
-The panel's **Archivos para Erwin y el MCP** section lists the Sheet with its purpose. Write a purpose that says what the Sheet holds and when to use it, for example "Cobranza mensual por cliente". Erwin and the assistants use it to pick the right Sheet. While a Sheet has no purpose, they read the description the Sheet has in Google Drive instead.
-
 ### Who can read the files
 
-Reading a shared Sheet is more than reading your books, so it follows the same rule as [reading email](#who-can-read-email):
+Reading a shared file is more than reading your books, so it follows the same rule as [reading email](#who-can-read-email):
 
 | Caller | List and read files |
 | --- | --- |
@@ -1023,7 +1034,7 @@ Reading a shared Sheet is more than reading your books, so it follows the same r
 | `viewer` | No |
 | An API key confined to one Entity | No |
 
-A refused caller gets `403` with `PERMISSION_DENIED_ERROR`. Setting a file's purpose is a write, so a `viewer` can't do it either. An OAuth connection, such as the MCP server's, reads files with the Role of the person who approved it.
+The same rule covers the list of the files you can choose. A refused caller gets `403` with `PERMISSION_DENIED_ERROR`. Choosing a file, unchoosing it, and setting its purpose are writes, so a `viewer` can't do them either. An OAuth connection, such as the MCP server's, reads files with the Role of the person who approved it.
 
 Sintropix logs each file it hands out under the request's [Audit Envelope](/api-reference/audit-trail). Reading a file with an API key needs `x-audit-actor` and `x-audit-reason`, as a write does. Listing the files isn't logged.
 
@@ -1031,23 +1042,24 @@ Sintropix logs each file it hands out under the request's [Audit Envelope](/api-
 
 `GET /api/organizations/:organizationId/integrations/:integrationId/files`
 
-List the files of the Integration that Erwin and the MCP read. A Sheet that Google no longer reaches, because it was deleted, trashed, or the account lost access, stays chosen but is left out of the list.
+List the chosen files of the Integration, which Erwin and the MCP read. A file the Provider no longer reaches stays chosen but is left out of the list: a Sheet that was deleted or trashed, or that the account lost access to, or a Metabase question that was archived or deleted, or that the key's group can no longer view.
 
 **Response**
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `files` | array | The files Google still reaches. See below. |
+| `files` | array | The chosen files the Provider still reaches. See below. |
 
 Each element of `files`:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | uuid | The file's id in Sintropix. Use it to read the file or set its purpose. |
+| `id` | uuid | The file's id in Sintropix. Use it to read the file, set its purpose, or unchoose it. |
 | `integrationId` | uuid | The Integration. |
-| `name` | string | The file's name in Google Drive, read now. |
+| `name` | string | The file's name at its Provider, read now: the Sheet's name in Google Drive, or the question's name in Metabase. |
 | `purpose` | string \| null | What the file is for, in your own words. `null` until you [set it](#put-/integrations/integrationid/files/fileid/purpose). |
-| `description` | string \| null | The file's description in Google Drive, read now. `null` when it has none. |
+| `description` | string \| null | The file's description at its Provider, read now. `null` when it has none. |
+| `parameters` | array | The filters you can send when you [read the file](#get-/integrations/integrationid/files/fileid), each as `{ slug, name, type }`: the `slug` you send, the filter's name, and its type as Metabase states it, such as `string/=`, `number/=`, or `date/single`. Always empty for a Sheet. |
 
 ```bash
 curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files" \
@@ -1062,24 +1074,128 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
       "integrationId": "0192a8b4-0000-7000-8000-000000000001",
       "name": "Cobranza Ñuñoa",
       "purpose": null,
-      "description": "Cobranza mensual por cliente"
+      "description": "Cobranza mensual por cliente",
+      "parameters": []
     }
   ]
 }
+```
+
+### GET `/integrations/:integrationId/files/reachable`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/files/reachable`
+
+List every file the Integration reaches now at its Provider, chosen or not, so you can choose the ones Erwin and the MCP read. For a `metabase` Integration, that's every question the key can view, except archived ones. For a `google_drive` Integration, it's the one Sheet you picked, while Google still reaches it. The same callers who list files can call it.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `providerFiles` | array | The files the Integration reaches. See below. |
+
+Each element of `providerFiles`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `providerRef` | string | The file's id at its Provider: the Sheet's id in Google Drive, or the question's id in Metabase, such as `"42"`. Send it to [choose the file](#post-/integrations/integrationid/files). |
+| `name` | string | The file's name at its Provider. |
+| `description` | string \| null | The file's description at its Provider. `null` when it has none. |
+| `parameters` | array | The file's filters, as in [the list of files](#get-/integrations/integrationid/files). |
+| `integrationFileId` | uuid \| null | The file's id in Sintropix when it's chosen. `null` while it isn't. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files/reachable" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "providerFiles": [
+    {
+      "providerRef": "42",
+      "name": "Ventas por canal",
+      "description": "Ventas mensuales por canal y año",
+      "parameters": [
+        { "slug": "canal", "name": "Canal", "type": "string/=" },
+        { "slug": "anio", "name": "Año", "type": "number/=" }
+      ],
+      "integrationFileId": null
+    },
+    {
+      "providerRef": "17",
+      "name": "Clientes activos",
+      "description": null,
+      "parameters": [],
+      "integrationFileId": "0192a8b4-0000-7000-8000-0000000000f2"
+    }
+  ]
+}
+```
+
+### POST `/integrations/:integrationId/files`
+
+`POST /api/organizations/:organizationId/integrations/:integrationId/files`
+
+Choose a file for Erwin and the MCP to read. The Integration must still reach the file. In the app, open the Integration's panel, click **Elegir preguntas**, and switch on each question.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | uuid | Yes | Client-generated id of the new file. Retrying the same `POST` with the same id is refused instead of choosing the file twice. |
+| `providerRef` | string | Yes | The file's `providerRef`, from [the files it reaches](#get-/integrations/integrationid/files/reachable). |
+
+Unknown keys are refused with `400`.
+
+**Response** `201`: the file as Sintropix keeps it: `id`, `organizationId`, `integrationId`, `providerRef`, `purpose` (`null`), `createdAt`, and `updatedAt`.
+
+| Status | Code | When it happens |
+| --- | --- | --- |
+| `409` | `INTEGRATION_FILE_ALREADY_CHOSEN_ERROR` | The file is already chosen on this Integration. `params.integrationId` and `params.providerRef` |
+| `409` | `INTEGRATION_FILE_ALREADY_EXISTS_ERROR` | The `id` already names a file. `params.integrationId` and `params.fileId` |
+| `422` | `INTEGRATION_PROVIDER_FILE_NOT_FOUND_ERROR` | The Integration doesn't reach a file with that `providerRef`: it doesn't exist, it was archived or deleted, or the key's group can't view it. `params.integrationId` and `params.providerRef` |
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Let Erwin read the sales by channel" \
+  -H "Content-Type: application/json" \
+  -d '{ "id": "0192a8b4-0000-7000-8000-0000000000f3", "providerRef": "42" }'
+```
+
+### DELETE `/integrations/:integrationId/files/:fileId`
+
+`DELETE /api/organizations/:organizationId/integrations/:integrationId/files/:fileId`
+
+Unchoose a file: Erwin and the MCP stop reading it, and its purpose is deleted with it. The reads already made stay in the [audit trail](/api-reference/audit-trail). Nothing changes at the Provider. In the app, switch the question off in **Elegir preguntas**.
+
+**Response** `200`: the file you unchose, in the same shape as [choosing it](#post-/integrations/integrationid/files).
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files/$FILE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Erwin no longer needs the active customers"
 ```
 
 ### GET `/integrations/:integrationId/files/:fileId`
 
 `GET /api/organizations/:organizationId/integrations/:integrationId/files/:fileId`
 
-Download the file as it is now in Google Drive, as an Excel workbook (`.xlsx`) with every tab. The response's `Content-Type` is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, and its `Content-Disposition` names the file. Google exports at most 10 MB, so a larger Sheet is refused.
+Download the file as it is now at its Provider, as an Excel workbook (`.xlsx`). The response's `Content-Type` is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, and its `Content-Disposition` names the file.
+
+- **A Sheet** comes with every tab. Google exports at most 10 MB, so a larger Sheet is refused.
+- **A Metabase question** runs in Metabase when you read it, and comes with its rows, with the values unformatted.
+
+**Query.** For a file with `parameters`, send each filter you want by its `slug`, once, such as `?canal=online&anio=2026`. A filter you leave out isn't sent to Metabase. A slug the file doesn't take is refused with `422` before the Provider is asked, and the read isn't logged. A Sheet takes no filter, so any query is refused.
 
 ```bash
-curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files/$FILE_ID" \
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files/$FILE_ID?canal=online&anio=2026" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
-  -H "x-audit-reason: Compare October collections with the bank" \
-  -o cobranza.xlsx
+  -H "x-audit-reason: Compare online sales with the October invoices" \
+  -o ventas-por-canal.xlsx
 ```
 
 ### PUT `/integrations/:integrationId/files/:fileId/purpose`
@@ -1094,7 +1210,7 @@ Set or clear the purpose of a file. In the app, edit it in place in the **Archiv
 | --- | --- | --- | --- |
 | `purpose` | string \| null | Yes | 1 to 500 characters after trimming. `null` clears it. A blank string is refused with `400`. Unknown keys are refused with `400`. |
 
-**Response**: the file as Sintropix keeps it: `id`, `organizationId`, `integrationId`, `providerRef` (the file's id in Google Drive), `purpose`, `createdAt`, and `updatedAt`.
+**Response**: the file as Sintropix keeps it: `id`, `organizationId`, `integrationId`, `providerRef` (the file's id at its Provider), `purpose`, `createdAt`, and `updatedAt`.
 
 ```bash
 curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files/$FILE_ID/purpose" \
@@ -1109,13 +1225,16 @@ curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integr
 
 | Status | Code | When it happens |
 | --- | --- | --- |
-| `403` | `PERMISSION_DENIED_ERROR` | A `viewer`, or an API key confined to one Entity, lists or reads files, or a `viewer` sets a file's purpose |
+| `403` | `PERMISSION_DENIED_ERROR` | A `viewer`, or an API key confined to one Entity, lists or reads files, or a `viewer` chooses or unchooses a file or sets its purpose |
 | `404` | `INTEGRATION_NOT_FOUND_ERROR` | The Integration doesn't exist in the Organization |
-| `404` | `INTEGRATION_FILE_NOT_FOUND_ERROR` | The id names no file of that Integration. `params.integrationId` and `params.fileId` |
-| `422` | `INTEGRATION_FILES_NOT_SUPPORTED_ERROR` | The Integration isn't `google_drive`, so it has no files. `params.kind` names its kind |
-| `424` | `INTEGRATION_FILE_GONE_ERROR` | Google no longer reaches the file: it was deleted or trashed, or the account lost access. Restore or share it again, or connect another Sheet. `params.integrationId` and `params.fileId` |
+| `404` | `INTEGRATION_FILE_NOT_FOUND_ERROR` | The id names no chosen file of that Integration. `params.integrationId` and `params.fileId` |
+| `422` | `INTEGRATION_FILES_NOT_SUPPORTED_ERROR` | The Integration isn't `google_drive` or `metabase`, so it has no files. `params.kind` names its kind |
+| `422` | `INTEGRATION_FILE_PARAMETER_UNKNOWN_ERROR` | A read sends a filter the file doesn't take. `params.integrationId`, `params.fileId`, and `params.parameter`, the slug |
+| `424` | `INTEGRATION_FILE_GONE_ERROR` | The Provider no longer reaches the file: a Sheet was deleted or trashed, or the account lost access, or a Metabase question was archived or deleted, or the key's group can no longer view it. Restore or share it again, or choose another file. `params.integrationId` and `params.fileId` |
 | `424` | `INTEGRATION_FILE_TOO_LARGE_ERROR` | The Sheet is larger than the 10 MB Google exports. `params.integrationId` and `params.fileId` |
-| `424` | `INTEGRATION_GRANT_FAILED_ERROR` | Google no longer honors the access. Disconnect the Integration and connect the Sheet again |
+| `424` | `INTEGRATION_GRANT_FAILED_ERROR` | Google no longer honors the access, or Metabase no longer accepts the key. Connect the Sheet again, or [replace the Metabase key](#put-/integrations/integrationid/access-token) |
+| `424` | `INTEGRATION_PROVIDER_FAILURE_ERROR` | The Provider failed to answer, for example when a Metabase question fails to run |
+| `503` | `INTEGRATION_PROVIDER_UNREACHABLE_ERROR` | The Provider can't be reached right now. Retry later |
 
 ## Xpendit
 
@@ -1155,7 +1274,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `PUT /api/organizations/:organizationId/integrations/:integrationId/access-token`
 
-Replace the API key of an Xpendit, Buk, or Rho Integration, for example after you rotate the key. For Xpendit, the new key must open the same enterprise. For Buk, Sintropix checks the new key at the same tenant. For Rho, the new token must open the same business. The Integration keeps its id and its Feeds. In the app, open the Integration's panel and click **Reemplazar clave de API**.
+Replace the API key of an Xpendit, Buk, Metabase, or Rho Integration, for example after you rotate the key. For Xpendit, the new key must open the same enterprise. For Buk, Sintropix checks the new key at the same tenant. For Metabase, Sintropix checks the new key at the same site, with the same rules as at connect, and the chosen questions and their purposes stay. For Rho, the new token must open the same business. The Integration keeps its id and its Feeds. In the app, open the Integration's panel and click **Reemplazar clave de API**.
 
 **Body**
 
@@ -1168,9 +1287,9 @@ Sintropix checks the new key with the Provider first. If it fails any check, the
 | Status | Code | When it happens |
 | --- | --- | --- |
 | `409` | `INTEGRATION_GRANT_MISMATCH_ERROR` | The key opens another Xpendit enterprise or another Rho business. `params.integrationId` |
-| `422` | `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR` | Xpendit, Buk, or Rho refuses the key |
-| `422` | `INTEGRATION_CONNECT_REJECTED_ERROR` | The Rho token lacks a scope Sintropix needs |
-| `422` | `INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR` | The Integration isn't `xpendit`, `buk`, or `rho`. `params.integrationId` and `params.kind` |
+| `422` | `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR` | Xpendit, Buk, Metabase, or Rho refuses the key |
+| `422` | `INTEGRATION_CONNECT_REJECTED_ERROR` | The Rho token lacks a scope Sintropix needs, or the Metabase key is in the Administrators group or reaches no question |
+| `422` | `INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR` | The Integration isn't `xpendit`, `buk`, `metabase`, or `rho`. `params.integrationId` and `params.kind` |
 
 - **Response** (`200`): the Integration object.
 
@@ -1331,6 +1450,69 @@ To rotate the key, create a new one in Buk and [replace it](#put-/integrations/i
 ### Disconnect Buk
 
 [`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid), or disconnecting from the Integration's panel, removes the key Sintropix stores. Buk keeps the key working until you delete it there too, under **Configuración → Accesos API**.
+
+## Metabase
+
+A `metabase` Integration connects one [Metabase Cloud](https://www.metabase.com/cloud) site, where you keep the reports of your business, with an API key. You choose which of its questions the assistants you connect to the [MCP server](/guides/mcp-server) can read. Erwin doesn't read Metabase questions yet. Each read runs the question in Metabase at that moment and hands out its rows as an Excel workbook. Sintropix stores none of the results and never changes anything in Metabase. The Integration feeds nothing.
+
+Only Metabase Cloud connects, at an address that ends in `metabaseapp.com`. A self-hosted Metabase can't connect.
+
+### Create the key in Metabase
+
+Choosing questions in Sintropix limits what Erwin and the MCP read. It doesn't limit the key: what the key can read is set in Metabase, by the collections its group can view. So give the key a group of its own:
+
+1. In Metabase, an administrator opens **Admin → People → Groups** and creates a group for Sintropix only, for example "Sintropix".
+2. In **Admin → Permissions → Collections**, give that group **View** access to the collections Sintropix should read, and nothing else.
+3. In **Admin → Settings → Authentication → API keys**, create a key in that group. Don't pick the Administrators group: Sintropix refuses an administrator's key.
+4. Copy the key. Metabase shows it only once.
+
+### Connect Metabase
+
+In the app, open **Configuración → Integraciones**, click **Conectar integración**, and pick **Metabase**. Type the address of your Metabase in **Dirección de Metabase**, such as `tuempresa.metabaseapp.com`, paste the key in **Clave de API**, and connect. You can paste any address of your Metabase: Sintropix keeps its host. Through the API, send [`POST /integrations`](#post-/integrations) with `kind: "metabase"`, `host`, and `accessToken`.
+
+Sintropix checks the key with Metabase before it stores it. The key is stored encrypted and sent only to the host of your site.
+
+| Outcome | Answer |
+| --- | --- |
+| Metabase accepts the key | `201` with the Integration. `providerRef` is the host, such as `acme.metabaseapp.com` |
+| The address isn't a `metabaseapp.com` address | `400`. Nothing leaves Sintropix. The app says *Escribe la dirección de tu Metabase Cloud, por ejemplo tuempresa.metabaseapp.com.* |
+| Metabase refuses the key | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
+| No site lives at the address, the key is in the Administrators group, or the key reaches no question | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is stored. The app says *Metabase no tiene esa dirección, la clave es de un administrador o no llega a ninguna pregunta.* Check the address and the group of the key in Metabase |
+| Another Integration already connects that site | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` |
+
+Each Metabase site can be connected only once.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Connect Metabase so Erwin can read the sales reports" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "5d6e7f80-91a2-4b3c-8d4e-5f6a7b8c9d0e",
+    "kind": "metabase",
+    "host": "acme.metabaseapp.com",
+    "accessToken": "mb_your_api_key"
+  }'
+```
+
+### Choose the questions
+
+A new Metabase Integration has no question chosen, so the MCP server reads nothing from it yet. In the Integration's panel, click **Elegir preguntas**. The dialog lists every question the key can view, except archived ones, with a search by name or description. Switch on each question the MCP server may read, and click **Listo**.
+
+The panel's **Archivos para Erwin y el MCP** section then lists each chosen question with its purpose, or with its description in Metabase while it has no purpose, and its filters, such as *Filtros: Canal · Año*. Write a purpose for a question whose name and description don't say when to use it.
+
+Through the API, [list the questions the key reaches](#get-/integrations/integrationid/files/reachable), then [choose](#post-/integrations/integrationid/files) or [unchoose](#delete-/integrations/integrationid/files/fileid) each one. To read a question with its filters, send them in the query of [the read](#get-/integrations/integrationid/files/fileid), such as `?canal=online`. See [Files for Erwin and the MCP](#files-for-erwin-and-the-mcp).
+
+A question that's archived or deleted in Metabase, or that the key's group can no longer view, stays chosen but drops out of the list, and reading it answers `424` with `INTEGRATION_FILE_GONE_ERROR`.
+
+### Replace the Metabase key
+
+To rotate the key, regenerate it in Metabase, then [replace it](#put-/integrations/integrationid/access-token): in the app, open the Integration's panel and click **Reemplazar clave de API**. Sintropix checks the new key at the same site, with the same rules as at connect. The chosen questions and their purposes stay. A key Metabase no longer accepts makes every read answer `424` with `INTEGRATION_GRANT_FAILED_ERROR` until you replace it.
+
+### Disconnect Metabase
+
+[`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid), or disconnecting from the Integration's panel, removes the key Sintropix stores. Metabase keeps the key working until you delete it there too, under **Admin → Settings → Authentication → API keys**.
 
 ## Rho
 
@@ -1753,6 +1935,6 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`), or a Notion database the connection doesn't reach (`INTEGRATION_DATA_SOURCE_NOT_FOUND_ERROR`) not found. |
 | `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the Organization's email domain no longer receives email (`EMAIL_DOMAIN_NOT_OPEN_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise or a replaced Rho token another business (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, or Rho refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, or `rho` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, Metabase, or Rho refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, `metabase`, or `rho` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
 | `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`), or the Mailbox limit of the email plan is reached (`MAILBOX_LIMIT_REACHED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`), or a Mailbox can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |
