@@ -188,7 +188,7 @@ Each account in `accounts` carries:
 | `description` | string or null | Optional free-text description |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | `balance` or `open_item` |
-| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings` |
+| `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `unbilled_payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings` |
 | `cashFlowCategory` | enum or null | Line of the [cash flow statement](/api-reference/reports#cash-flow-statement) where a flow against the account appears: `customer_receipts`, `supplier_payments`, `employee_payments`, `taxes`, `other_operating`, `fixed_assets`, `other_investing`, `borrowings`, `interest`, `dividends`, `equity_contributions`. `null` uses `defaultCashFlowCategory` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `defaultCashFlowCategory` | enum or null | Category the account takes while `cashFlowCategory` is `null`, derived from its sub-type or type. `null` leaves the account unclassified |
@@ -322,7 +322,7 @@ Create a new Ledger Account.
 | `description` | string or null | No | Optional free-text description shown alongside the account in the app |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
 | `tracking` | enum | Yes | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`; null or omitted means none |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `unbilled_payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`; null or omitted means none |
 | `cashFlowCategory` | enum or null | No | Cash flow statement category, one of the values listed in the Chart of Accounts above; null or omitted uses the default of the sub-type or type |
 | `groupAccountId` | UUID | Yes | [Group Account](#the-group-chart) of the Entity's Organization, of the same `type` |
 | `groupId` | UUID | No | Parent group |
@@ -393,7 +393,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `description` | string or null | No | Free-text description; pass `null` to clear |
 | `type` | enum | No | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` (transition rules apply) |
 | `tracking` | enum | No | `balance` or `open_item` |
-| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, or null to clear (transition rules apply) |
+| `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `unbilled_payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, or null to clear (transition rules apply) |
 | `cashFlowCategory` | enum or null | No | Cash flow statement category; null to use the default. It can change while the account has entries |
 | `groupAccountId` | UUID | No | Map the account to another Group Account of its type. Required with a `type` change: a Group Account of the new type |
 | `groupId` | UUID | No | Parent group |
@@ -461,7 +461,7 @@ While `cashFlowCategory` is `null`, the account uses `defaultCashFlowCategory`, 
 | Account | Default category |
 | --- | --- |
 | Sub-type `receivable`, `unbilled_receivable`, or `deferred_revenue` | `customer_receipts` |
-| Sub-type `payable` or `prepaid_expense` | `supplier_payments` |
+| Sub-type `payable`, `unbilled_payable`, or `prepaid_expense` | `supplier_payments` |
 | Sub-type `expense_rendition_payable` | `employee_payments` |
 | Sub-type `fixed_asset` | `fixed_assets` |
 | Sub-type `retained_earnings` | `equity_contributions` |
@@ -503,6 +503,21 @@ The sub-types `prepaid_expense` and `deferred_revenue` mark the accounts that ho
 | `deferred_revenue` | Revenue billed ahead of the months that earn it, such as a multi-month service. A deferred line of a receivable Invoice credits it. | `liability` | `balance` |
 
 Create the account, or `PATCH` an existing one, with the matching `type`, `tracking: "balance"`, and the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `open_item` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`. In the cash flow statement, a prepaid expense account counts by default under `supplier_payments` and a deferred revenue account under `customer_receipts`.
+
+### Unbilled payables and receivables
+
+The sub-types `unbilled_payable` and `unbilled_receivable` mark the accounts that hold an [Accrual](/api-reference/invoices#accruals): an Invoice line recognized in months that ended before its booking.
+
+| Sub-type | In the app | Use it for | Type | Tracking |
+| --- | --- | --- | --- | --- |
+| `unbilled_payable` | **Facturas por recibir** | A cost of an earlier month whose document arrived later. An accrued line of a payable invoice debits it, and its Releases credit it. | `liability` | `open_item` |
+| `unbilled_receivable` | **Devengado por facturar** | Revenue of an earlier month billed later. An accrued line of a receivable invoice credits it, and its Releases debit it. | `asset` | `open_item` |
+
+A credit note's accrued line and Releases post to the same account as an invoice of its direction, on the opposite sides.
+
+Create the account, or `PATCH` an existing one, with the matching `type`, `tracking: "open_item"`, and the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `balance` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`.
+
+An Accrual ties its booking line to each of its Releases with an Allocation, so it leaves nothing open on the account. A manual accrual that you write before the document exists stays open until you [match](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations/match) it to the document's line. In the cash flow statement, an `unbilled_payable` account counts by default under `supplier_payments` and an `unbilled_receivable` account under `customer_receipts`.
 
 ### Expense rendition payable
 

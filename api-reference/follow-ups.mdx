@@ -48,8 +48,9 @@ A record that waits stays unbooked. For example, when only one leg of an interna
 
 The panel of a Bank Movement or an Invoice shows its Follow-up in a **Follow-up** section (**Seguimiento** in Spanish), with the proposed steps of each Plan named in full:
 
-- **Approve** runs the Plan of a `proposal`. For a `question`, **Choose** runs the Plan of the option you pick. The app blocks either one, and says why, while the Plan names a record the Entity doesn't hold, such as a missing account or the missing Recognition Account of a deferred line.
+- **Approve** runs the Plan of a `proposal`. For a `question`, **Choose** runs the Plan of the option you pick. The app blocks either one, and says why, while the Plan names a record the Entity doesn't hold, such as a missing account or the missing Recognition Account of a deferred or accrued line.
 - A line that a booking [defers](/api-reference/invoices#deferrals) shows its terms in one sentence under it: the months, the Recognition Account, and the amount of each month. For example, *Diferido de oct 2026 a dic 2026 (3 meses) · se reconoce en 4.01.01.02 Ventas B2B · $350.000 / mes*.
+- A line that a booking [accrues](/api-reference/invoices#accruals) shows its terms the same way, so you see the earlier months before you approve. For example, *Devengado en oct 2026 · se reconoce en 5.01.02.03 Asesorías*, or *Devengado de ago 2026 a oct 2026 (3 meses) · se reconoce en 5.01.02.03 Asesorías · $100.000 / mes*.
 - **Discard** removes the Follow-up of any kind.
 - **Answer Erwin** (**Responder a Erwin**) lets you write to Erwin about that record, for every kind. Use it to answer a question, correct a proposal, or tell Erwin what a record waits on. Your answer is posted to Erwin in the record's ERP Thread, and the panel opens its **Thread** tab (**Hilo**), where you follow what Erwin does. Erwin acts with your rights, and writes, replaces, or settles the Follow-up through these routes.
 
@@ -212,11 +213,12 @@ Read the Follow-up of a record with every record in its Plan named, so you can s
 - `movement` names the Movement with its date, amount, side, description, and Bank Account.
 - `invoice` names the Invoice with its document kind, number, direction, issue date, total, currency, and Partner.
 - `controlLineId` is the `id` of the line in `newLines` that the booking makes the Invoice's Control Line, or `null` for a [`tax_only`](/api-reference/invoices#tax-only-documents) document, which books no Control Line. Another line in `newLines` can post to the same account. In the app, the Plan marks the Control Line as **línea del documento**.
-- Each item in `newLines` is a line the act creates: its `id`, `side`, `functionalAmount`, `transactionCurrency`, and `transactionAmount`, with its `account` (`{ id, code, name }`) and `partner` (`{ id, name }`) named, and its `deferral`.
+- Each item in `newLines` is a line the act creates: its `id`, `side`, `functionalAmount`, `transactionCurrency`, and `transactionAmount`, with its `account` (`{ id, code, name }`) and `partner` (`{ id, name }`) named, and its `deferral` and `accrual`.
 - `deferral` is `null` unless the line carries [`deferral`](/api-reference/invoices#defer-a-line-when-you-book) in a `bookInvoice` act. Then it holds the terms the booking will defer the line by: `startMonth` (`YYYY-MM`), `monthCount` (integer), and `recognitionAccount` (`{ id, code, name }`), the account each Release will land in.
+- `accrual` is `null` unless the line carries [`accrual`](/api-reference/invoices#accrue-a-line-when-you-book) in a `bookInvoice` act. Then it holds the terms the booking will accrue the line by, in the same shape as `deferral`. A line carries one of the two at most.
 - Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`. The `target` of an `assign` is `null` when its `lineId` is `null`.
 
-A named record is `null` when the Plan names a record the Entity does not hold. That includes the `recognitionAccount` of a `deferral`. Approving that Plan fails.
+A named record is `null` when the Plan names a record the Entity does not hold. That includes the `recognitionAccount` of a `deferral` or an `accrual`. Approving that Plan fails.
 
 A `bookInvoice` act whose Plan defers a line reads, for example:
 
@@ -239,13 +241,14 @@ A `bookInvoice` act whose Plan defers a line reads, for example:
         "startMonth": "2026-10",
         "monthCount": 3,
         "recognitionAccount": { "id": "d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f7a", "code": "4.01.01.02", "name": "Ventas B2B" }
-      }
+      },
+      "accrual": null
     }
   ]
 }
 ```
 
-The example shows only the deferred line. The other lines of the booking, including the Control Line, carry `"deferral": null`.
+The example shows only the deferred line, which also carries `"accrual": null`. The other lines of the booking, including the Control Line, carry `"deferral": null` and `"accrual": null`.
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/follow-up" \

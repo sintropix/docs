@@ -45,7 +45,7 @@ A `tax_only` document:
 - Books a balanced Ledger Entry with no Control Line. Send `controlLineId: null` when you [book it](#post-/invoices/invoiceid/book). Its `controlLineId` and `controlAccountId` stay `null`, so read `bookingEntryId` to tell whether it's booked.
 - Can't have a line on an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. A claim there would be an open item that no Invoice owns. The booking is refused with `409` and `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR`, and [Reclassify](/api-reference/ledger-entries) refuses to move a line of its booking onto such an account the same way.
 - Owes nothing, booked or not. Its `paymentStatus`, `paymentDate`, and `openAmount` are `null`. It never appears in [Payables to Plan](/api-reference/reports#payables-to-plan), a [Payment Order](/api-reference/payment-batches) can't name it, and it adds nothing to the amounts of [customer status](/api-reference/reports#customer-status).
-- Can't be [deferred](#deferrals).
+- Can't be [deferred](#deferrals) or [accrued](#accruals).
 - Is never a match candidate for a [Bank Movement](/api-reference/bank-movements).
 - Is pending work while it's unbooked, like any other document, and you can [exclude it](#exclude-an-invoice-from-the-books).
 
@@ -484,6 +484,7 @@ Return the full Invoice detail: the Invoice row (as listed by `GET /invoices/pag
 | `bookingEntry` | object or null | The Ledger Entry that booked the Invoice. Null while unbooked. |
 | `bookingVersion` | string | Opaque token that identifies the current state of the Invoice and its DTE for optimistic concurrency. Pass it back as `expectedBookingVersion` on a later booking write to detect concurrent changes. Changes whenever the Invoice or its DTE is edited, replaced, or removed, even if `updatedAt` is preserved. |
 | `deferrals` | array | The [Deferrals](#deferrals) of the booking entry's lines, each with its Releases. Empty while the Invoice is unbooked or when no line was deferred. |
+| `accruals` | array | The [Accruals](#accruals) of the booking entry's lines, each with its Releases. Empty while the Invoice is unbooked or when no line was accrued. |
 
 **Ledger Entry detail** (`bookingEntry`)
 
@@ -502,7 +503,9 @@ Return the full Invoice detail: the Invoice row (as listed by `GET /invoices/pag
 | `relatedMovements` | array | Bank Movements linked to this entry, each with `bankAccountCurrency`, `bankAccountLedgerAccountId`, and `partnerName`. |
 | `allocations` | array | Settlements against this entry's lines. Each carries a `counterpart` with `lineId`, `entryId`, `entryDate`, `entryMemo`, `accountId`, `accountCode`, `accountName`, `partnerId`, and `partnerName`. |
 | `deferralRelease` | object or null | Set when this entry is a [Release](#deferrals): `{ deferralId, invoiceId, invoiceDocumentNumber }`. Null otherwise, and null once the booking that holds the deferred line is unbooked or reversed. |
+| `accrualRelease` | object or null | Set when this entry is a Release of an [Accrual](#accruals): `{ accrualId, invoiceId, invoiceDocumentNumber, invoiceDirection }`. Null otherwise. |
 | `deferrals` | array | The Deferrals whose deferred line this entry books, in the shape of `deferrals` above. Unbooking or reversing this entry also undoes their Releases. |
+| `accruals` | array | The Accruals whose accrued line this entry books, in the shape of `accruals` above. Unbooking or reversing this entry also undoes their Releases. |
 | `createdAt`, `updatedAt` | timestamp | |
 
 Each element of `lines`:
@@ -665,7 +668,10 @@ Each element of `newLedgerEntryLines`:
 | `transactionAmount` | integer | No | Amount in `transactionCurrency`, minor units. |
 | `transactionFxRate` | string | No | Decimal string such as `"945.12"`. No exponent or sign. |
 | `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. |
-| `deferral` | object | No | Spread this line's whole amount over whole months instead of recognizing it on the entry date: `{ recognitionAccountId, startMonth, monthCount }`. See [Deferrals](#deferrals). |
+| `deferral` | object | No | Spread this line's whole amount over whole months from the booking on, instead of recognizing it on the entry date: `{ recognitionAccountId, startMonth, monthCount }`. See [Deferrals](#deferrals). |
+| `accrual` | object | No | Recognize this line's whole amount in whole months before the month of the booking: `{ recognitionAccountId, startMonth, monthCount }`. See [Accruals](#accruals). |
+
+A line carries `deferral`, `accrual`, or neither. A line with both is refused with `400`, and so is a line of amount `0` that carries either one.
 
 The Control Line (the line whose `id` is `controlLineId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side. Its account becomes the Invoice's `controlAccountId`.
 
@@ -724,11 +730,16 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | `CONTROL_LINE_CONTRADICTS_DOCUMENT_KIND_ERROR` | `409` | `controlLineId` doesn't fit the Invoice's kind: an id was sent for a `tax_only` document, or `null` for any other kind. The response carries `params: { documentKind, controlLineId }`. |
 | `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR` | `409` | A line of a `tax_only` booking sits on an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. The response carries `params: { ledgerAccountId, ledgerAccountSubtype }`. |
 | `INVOICE_EXCLUDED_ERROR` | `409` | The Invoice is [excluded from the books](#exclude-an-invoice-from-the-books). Include it first. The bulk `POST /invoices/book` refuses an excluded element the same way. The response carries `params: { invoiceId }`. |
-| `DEFERRAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR` | `409` | A line of a credit note or a `tax_only` document carries `deferral`. Only an `invoice` can be deferred. The response carries `params: { invoiceId, documentKind }`. |
+| `DEFERRAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR` | `409` | A line of a `tax_only` document carries `deferral`. An `invoice` or a credit note can be deferred. The response carries `params: { invoiceId, documentKind }`, with `documentKind` `tax_only`. |
 | `DEFERRAL_ACCOUNT_SUBTYPE_MISMATCH_ERROR` | `400` | The deferred line's account does not have the sub-type the Invoice's direction needs: `prepaid_expense` for `payable`, `deferred_revenue` for `receivable`. The response carries `params: { ledgerEntryLineId, ledgerAccountId, expectedSubtype }`. |
-| `DEFERRAL_LINE_SIDE_MISMATCH_ERROR` | `400` | The deferred line is on the wrong side: a payable Invoice defers a `debit` line, a receivable Invoice a `credit` line. The response carries `params: { ledgerEntryLineId, expectedSide }`. |
+| `DEFERRAL_LINE_SIDE_MISMATCH_ERROR` | `400` | The deferred line is not on the side opposite the Control Line: a payable invoice defers a `debit` line and a receivable invoice a `credit` line, and a credit note the other way round. The response carries `params: { ledgerEntryLineId, expectedSide }`. |
 | `DEFERRAL_RECOGNITION_ACCOUNT_INELIGIBLE_ERROR` | `400` | `recognitionAccountId` is not of a type the deferral can release into. The response carries `params: { ledgerEntryLineId, recognitionAccountId, deferredAccountSubtype }`. |
-| `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | A Release of a deferred line falls on or before the ledger lock date. Nothing is booked. The response carries `params: { entryDate, ledgerLockDate }`. |
+| `ACCRUAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR` | `409` | A line of a `tax_only` document carries `accrual`. An `invoice` or a credit note can be accrued. The response carries `params: { invoiceId, documentKind }`, with `documentKind` `tax_only`. |
+| `ACCRUAL_ACCOUNT_SUBTYPE_MISMATCH_ERROR` | `400` | The accrued line's account does not have the sub-type the Invoice's direction needs: `unbilled_payable` for `payable`, `unbilled_receivable` for `receivable`. The response carries `params: { ledgerEntryLineId, ledgerAccountId, expectedSubtype }`. |
+| `ACCRUAL_LINE_SIDE_MISMATCH_ERROR` | `400` | The accrued line is not on the side opposite the Control Line: a payable invoice accrues a `debit` line and a receivable invoice a `credit` line, and a credit note the other way round. The response carries `params: { ledgerEntryLineId, expectedSide }`. |
+| `ACCRUAL_RECOGNITION_ACCOUNT_INELIGIBLE_ERROR` | `400` | `recognitionAccountId` is not of a type the accrual can release into. The response carries `params: { ledgerEntryLineId, recognitionAccountId, accruedAccountSubtype }`. |
+| `ACCRUAL_SCHEDULE_REACHES_BOOKING_MONTH_ERROR` | `400` | A month of the accrual is the month of the booking or later. Every month must end before the month of `entry.entryDate`. The response carries `params: { ledgerEntryLineId, entryDate }`. |
+| `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | A Release of a deferred or accrued line falls on or before the ledger lock date. Nothing is booked. The response carries `params: { entryDate, ledgerLockDate }`, where `entryDate` is the date of that Release. |
 
 ### Detecting concurrent changes with `expectedBookingVersion`
 
@@ -745,8 +756,11 @@ The check runs after the server acquires the Invoice lock, so a booking that rac
 
 Some invoices cover several months: an annual software subscription paid up front, or a four-month service billed on one sales invoice. A **Deferral** spreads one line of the booking over whole months, so the result is recognized month by month instead of all in the invoice month.
 
+A Deferral carries a line forward, into the months from the booking on. To recognize a line in months that ended before the booking, use an [Accrual](#accruals) instead.
+
 - On a **payable** Invoice, the deferred line debits a **prepaid expense** account (an `asset` with sub-type `prepaid_expense`).
 - On a **receivable** Invoice, the deferred line credits a **deferred revenue** account (a `liability` with sub-type `deferred_revenue`).
+- A **credit note** takes a Deferral too, on the same account as an invoice of its direction, with every side flipped. A purchase credit note credits the prepaid expense account, and a sales credit note debits the deferred revenue account.
 - Each month, a **Release** moves that month's share from the deferral account to the **Recognition Account**: the expense or income account the line would have posted to had it not been deferred.
 
 Create the two accounts in the [Chart of Accounts](/api-reference/chart-of-accounts#prepaid-expenses-and-deferred-revenue) before you defer a line. In the app, turn on **Diferir** on a line when you classify the Invoice.
@@ -766,8 +780,10 @@ Fields of `deferral`:
 These rules apply:
 
 - The whole line is deferred. You can't defer part of a line.
-- The line's account must have the sub-type of the Invoice's direction, on the matching side: a `debit` on `prepaid_expense` for a payable Invoice, a `credit` on `deferred_revenue` for a receivable one.
-- Credit notes and `tax_only` documents can't be deferred.
+- The line's account must have the sub-type of the Invoice's direction: `prepaid_expense` for a payable Invoice, `deferred_revenue` for a receivable one.
+- The line sits on the side opposite the Control Line: a `debit` on a payable invoice, a `credit` on a receivable invoice. A credit note flips it: a `credit` on a payable credit note, a `debit` on a receivable one.
+- An `invoice` or a credit note can be deferred. A `tax_only` document can't.
+- A line carries a `deferral` or an [`accrual`](#accruals), never both.
 - Only the functional amount is deferred. A foreign-currency line is released at the amount booked on the Invoice, and the Releases carry no transaction currency.
 - Defer the net line only. The IVA line and the control line follow the Invoice as usual.
 - Several lines of the same booking can each carry their own `deferral`.
@@ -781,8 +797,9 @@ Booking a deferred line creates one Release per month:
 - **Past and future months.** A Release dated today or earlier is booked right away with status `active`. A later one is a [Scheduled Entry](/api-reference/ledger-entries#scheduled-entries) with status `scheduled`, and Sintropix books it on its date.
 - **Closed months.** If a Release would fall on or before the ledger lock date, the whole booking is refused with `LEDGER_ENTRY_DATE_LOCKED_ERROR`.
 - **Partner and Dimensions.** Both lines of each Release carry the Invoice's Partner. The deferred line's `dimensionValueIds` go on the recognition line of each Release, not on the deferral account line of the booking.
+- **Book.** Each Release counts in the [Book](/api-reference/books) of its booking.
 
-Each Release has two lines: the Recognition Account and the deferral account. For a prepaid expense the Release debits the Recognition Account and credits the prepaid account. For deferred revenue it debits the deferred revenue account and credits the Recognition Account.
+Each Release has two lines: the Recognition Account and the deferral account. It posts to the Recognition Account on the side the deferred line took, and takes the share off the deferral account on the other side. For a prepaid expense on a purchase invoice, the Release debits the Recognition Account and credits the prepaid account. For deferred revenue on a sales invoice, it debits the deferred revenue account and credits the Recognition Account. A credit note's Releases post the other way round.
 
 A Release keeps the plan it was created with. Changing its date, through `PATCH /ledger/entries/:entryId` or by rescheduling it, is refused with `DEFERRAL_RELEASE_LOCKED_ERROR`. Moving one of its lines to another account is refused with `LEDGER_ENTRY_LINE_ACCOUNT_PINNED_ERROR`.
 
@@ -849,7 +866,8 @@ A Deferral follows its booking:
 
 - **Unbook** the booking entry ([`DELETE /ledger/entries/:entryId`](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid)): the `active` Releases are unbooked and the `scheduled` ones are cancelled.
 - **Reverse** the booking entry ([`POST /ledger/entries/:entryId/reverse`](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse)): the `active` Releases are reversed on the same reversal date and the `scheduled` ones are cancelled.
-- If an `active` Release sits on or before the ledger lock date, the whole Unbook is refused with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` and the whole Reverse with `LEDGER_ENTRY_FROZEN_ERROR`.
+- If an `active` Release sits on or before the ledger lock date, the whole Unbook is refused with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR`. A Reverse dated in an open month still works: it reverses the booking and every `active` Release, including one on or before the lock date.
+- A Release is undone with its document, never alone. Unbooking a Release entry on its own is refused with `409` and `LEDGER_ENTRY_UNBOOK_RELEASE_ERROR`. The response carries `params: { ledgerEntryId, invoiceId, invoiceDocumentNumber }`, naming the Invoice to unbook instead.
 
 In the app, the Unbook and Reverse dialogs on the Invoice and on the entry page list these effects before you confirm.
 
@@ -872,6 +890,115 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/deferrals/$DEFER
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
+
+## Accruals
+
+Some documents arrive after the month they belong to. A supplier invoice dated 3 November for a service delivered in October is October's cost, while its IVA stays in November. An **Accrual** recognizes one line of the booking in whole months that all end before the month of the booking, so the result lands in the month it belongs to and the document keeps its own date.
+
+- On a **payable** Invoice, the accrued line posts to a **Facturas por recibir** account (a `liability` with sub-type `unbilled_payable`).
+- On a **receivable** Invoice, the accrued line posts to a **Devengado por facturar** account (an `asset` with sub-type `unbilled_receivable`).
+- For each month, a **Release** moves that month's share from the accrual account to the **Recognition Account**: the expense or income account the line would have posted to had it not been accrued.
+- A **credit note** takes an Accrual too, on the same account as an invoice of its direction, with every side flipped.
+
+Create the accounts in the [Chart of Accounts](/api-reference/chart-of-accounts#unbilled-payables-and-receivables) before you accrue a line. In the app, turn on **Devengar** on a line when you classify the Invoice. The Invoice then shows a **Devengo** section with its Releases.
+
+An Accrual is for a document you already have. To recognize a cost before its document exists, write a manual entry on the same accrual account, and [match](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations/match) it to the document's line once you book the document.
+
+### Accrue a line when you book
+
+You accrue at booking time only. Add `accrual` to the line in `entry.newLedgerEntryLines` on [`POST /invoices/:invoiceId/book`](#post-/invoices/invoiceid/book). The same field works in `POST /invoices/book` and in `bookingEntryWithLines` on `POST /invoices`. To accrue an Invoice that is already booked, unbook it and book it again with the terms.
+
+Fields of `accrual`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `recognitionAccountId` | uuid | Yes | The account each Release lands in. For a payable Invoice: `cost_of_goods_sold`, `operating_expense`, or `other_expense`. For a receivable Invoice: `income` or `other_income`. |
+| `startMonth` | string | Yes | First month to recognize, `YYYY-MM`. |
+| `monthCount` | integer | Yes | Number of months, 1 to 600. The last month must end before the month of `entry.entryDate`. |
+
+These rules apply:
+
+- The whole line is accrued. You can't accrue part of a line.
+- Every month ends before the month of the booking. A booking dated 2026-11-03 can accrue October 2026 and earlier, never November. Otherwise the booking is refused with `ACCRUAL_SCHEDULE_REACHES_BOOKING_MONTH_ERROR`.
+- The line's account must have the sub-type of the Invoice's direction: `unbilled_payable` for a payable Invoice, `unbilled_receivable` for a receivable one.
+- The line sits on the side opposite the Control Line: a `debit` on a payable invoice, a `credit` on a receivable invoice. A credit note flips it: a `credit` on a payable credit note, a `debit` on a receivable one.
+- An `invoice` or a credit note can be accrued. A `tax_only` document can't.
+- A line carries an `accrual` or a [`deferral`](#deferrals), never both.
+- Only the functional amount is accrued, and the Releases carry no transaction currency.
+- Accrue the net line only. The IVA line and the Control Line follow the Invoice on its own date.
+- Several lines of the same booking can each carry their own `accrual`.
+
+### The Accrual's Releases
+
+Booking an accrued line creates one Release per month:
+
+- **Straight-line amounts.** Each Release carries an equal share of the line's functional amount. The last month absorbs the rounding.
+- **Month-end dates.** Each Release is dated the last day of its month.
+- **Booked at once.** Every month is already past, so every Release is booked right away with status `active`.
+- **Closed months.** If a Release would fall on or before the ledger lock date, the whole booking is refused with `LEDGER_ENTRY_DATE_LOCKED_ERROR`, and `params.entryDate` names that Release's date.
+- **Settled by construction.** An [Allocation](/api-reference/allocations) ties the accrued line to the line of each Release on the accrual account, so the accrual account holds nothing open for the document.
+- **Partner, Dimensions, and Book.** Both lines of each Release carry the Invoice's Partner. The accrued line's `dimensionValueIds` go on the recognition line of each Release, not on the accrual account line of the booking. Each Release counts in the [Book](/api-reference/books) of its booking.
+
+Each Release has two lines: the Recognition Account and the accrual account. It posts to the Recognition Account on the side the accrued line took, and takes the share off the accrual account on the other side. For a purchase invoice, the Release debits the Recognition Account and credits Facturas por recibir, and the booking then debits Facturas por recibir. For a sales invoice, the Release debits Devengado por facturar and credits the Recognition Account, and the booking then credits Devengado por facturar. A credit note's Releases post the other way round.
+
+A Release keeps the plan it was created with. Changing its date through `PATCH /ledger/entries/:entryId` is refused with `ACCRUAL_RELEASE_LOCKED_ERROR`. Moving one of its lines to another account is refused with `LEDGER_ENTRY_LINE_ACCOUNT_PINNED_ERROR`.
+
+Example: a bill of CLP 1,190,000 (1,000,000 net plus 19% VAT) dated 3 November 2026 for consulting delivered in October. The net line debits Facturas por recibir, and one Release on 2026-10-31 debits the consulting expense account by 1,000,000. The IVA stays in November.
+
+```json
+{
+  "controlLineId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f",
+  "entry": {
+    "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+    "entryDate": "2026-11-03",
+    "memo": "Factura 5521 Consultores Asociados SpA",
+    "newLedgerEntryLines": [
+      {
+        "id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+        "accountId": "e6f7a8b9-c0d1-4e2f-8a3b-4c5d6e7f8a9b",
+        "functionalAmount": 1000000,
+        "side": "debit",
+        "accrual": {
+          "recognitionAccountId": "f7a8b9c0-d1e2-4f3a-8b4c-5d6e7f8a9b0c",
+          "startMonth": "2026-10",
+          "monthCount": 1
+        }
+      },
+      { "id": "3c4d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f", "accountId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "functionalAmount": 190000, "side": "debit" },
+      { "id": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f", "accountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "functionalAmount": 1190000, "side": "credit", "partnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88" }
+    ]
+  }
+}
+```
+
+The booking response doesn't list the Releases. Read them from `accruals` on [`GET /invoices/:invoiceId`](#get-/invoices/invoiceid).
+
+### Reading an Accrual
+
+There is no separate route for Accruals. Read them from `accruals` on the Invoice detail, or on the [Ledger Entry detail](/api-reference/ledger-entries) of the booking. Each element:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | Accrual id. |
+| `accruedLedgerEntryLineId` | uuid | The booking line that was accrued. |
+| `accruedAccount` | object | The `unbilled_payable` or `unbilled_receivable` account: `{ id, code, name }`. |
+| `recognitionAccount` | object | The Recognition Account: `{ id, code, name }`. |
+| `startMonth` | string | First month, `YYYY-MM`. |
+| `monthCount` | integer | Number of months. |
+| `releases` | array | The Releases, ordered by date, in the shape of a Deferral's [`releases`](#reading-a-deferral). |
+| `recognizedAmount` | integer | Sum of the `active` Releases, in functional minor units. |
+
+A Release entry names its Accrual in `accrualRelease` on the entry detail: `{ accrualId, invoiceId, invoiceDocumentNumber, invoiceDirection }`. In the app, the entry page shows it as **Devengo · factura** with the document number.
+
+### Undoing an Accrual
+
+An Accrual follows its booking, like a [Deferral](#undoing-a-deferral):
+
+- **Unbook** the booking entry ([`DELETE /ledger/entries/:entryId`](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid)): its Releases are unbooked with it. If a Release sits on or before the ledger lock date, the whole Unbook is refused with `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR`.
+- **Reverse** the booking entry ([`POST /ledger/entries/:entryId/reverse`](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse)) on a date in an open month: its Releases are reversed on the same date, including one on or before the lock date. Use a Reverse to correct a document whose accrued month is already closed.
+- A Release is undone with its document, never alone. Unbooking a Release entry on its own is refused with `409` and `LEDGER_ENTRY_UNBOOK_RELEASE_ERROR`, naming the Invoice to unbook in `params: { ledgerEntryId, invoiceId, invoiceDocumentNumber }`.
+
+An Accrual has no pending Releases, so it has nothing to cancel.
 
 ## Exclude an invoice from the books
 
@@ -931,4 +1058,4 @@ A blank `reason`, or one longer than 1,000 characters, is refused with `400`.
 | `400` | Validation error, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | The caller's Role can't write, for example a `viewer` excluding an Invoice. |
 | `404` | Entity, Invoice, or Deferral not found. |
-| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), booking refused because the Invoice or DTE changed since the read (`INVOICE_BOOKING_CHANGED_ERROR`), the Invoice is excluded (`INVOICE_EXCLUDED_ERROR`) or not excluded (`INVOICE_NOT_EXCLUDED_ERROR`), a Payment Order pins its Partner, currency, and kind (`INVOICE_PAYMENT_ORDERS_PIN_ERROR`), a DTE write or removal or a kind switch on a Sales Summary Invoice (`DTE_HELD_BY_SALES_SUMMARY_ERROR`), a credit note's kind can't switch (`INVOICE_DOCUMENT_KIND_FIXED_ERROR`), `controlLineId` doesn't fit the kind (`CONTROL_LINE_CONTRADICTS_DOCUMENT_KIND_ERROR`), a `tax_only` line sits on a receivable or payable account (`TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR`), a credit note or `tax_only` line carries a deferral (`DEFERRAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
+| `409` | Cannot delete a booked Invoice, structural DTE edit or DTE removal refused on a booked Invoice (`INVOICE_BOOKED_FIELDS_LOCKED_ERROR`), booking refused because the Invoice or DTE changed since the read (`INVOICE_BOOKING_CHANGED_ERROR`), the Invoice is excluded (`INVOICE_EXCLUDED_ERROR`) or not excluded (`INVOICE_NOT_EXCLUDED_ERROR`), a Payment Order pins its Partner, currency, and kind (`INVOICE_PAYMENT_ORDERS_PIN_ERROR`), a DTE write or removal or a kind switch on a Sales Summary Invoice (`DTE_HELD_BY_SALES_SUMMARY_ERROR`), a credit note's kind can't switch (`INVOICE_DOCUMENT_KIND_FIXED_ERROR`), `controlLineId` doesn't fit the kind (`CONTROL_LINE_CONTRADICTS_DOCUMENT_KIND_ERROR`), a `tax_only` line sits on a receivable or payable account (`TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR`), a `tax_only` line carries a deferral or an accrual (`DEFERRAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR`, `ACCRUAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR`), Invoice or entry id already exists, DTE already attached, duplicate DTE identity, and so on. |
