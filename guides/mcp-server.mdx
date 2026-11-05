@@ -54,7 +54,7 @@ The server exposes eight tools. Five read your books, two read the Google Sheets
 | `get_income_statement` | What did I earn in a period? | `entityId`, optional `from` and `to` |
 | `get_balance_sheet` | What do I have and owe on a date? | `entityId`, optional `cutoffDate` |
 | `list_integration_files` | Which files did we share? | None |
-| `read_integration_file` | What does this Sheet say now? | `integrationId`, `fileId`, `reason`, optional `tab` |
+| `read_integration_file` | What does this file say now? | `integrationId`, `fileId`, `reason`, optional `tab` |
 | `leave_feedback` | How do I tell Sintropix what got in my way? | `kind`, `message`, optional `endpoint`, `requestId`, and `reproduction` |
 
 ### `list_entities`
@@ -90,13 +90,13 @@ Returns the balance sheet (Balance General) on a date: assets, liabilities, and 
 
 ### `list_integration_files`
 
-Lists the Google Sheets that your Organization's people chose to share with Erwin and the MCP, through a [Google Drive Integration](/api-reference/integrations#google-sheets-for-erwin-and-the-mcp). Each item has its `integrationId`, `fileId`, `name`, `purpose`, and `description` (the Sheet's description in Google Drive). The assistant reads the purpose to pick the Sheet that answers your question, and the description when there's no purpose.
+Lists the files that your Organization's people chose to share with Erwin and the MCP: the Google Sheet of each [Google Drive Integration](/api-reference/integrations#files-for-erwin-and-the-mcp), and the questions chosen on each [Metabase Integration](/api-reference/integrations#metabase). Each item has its `integrationId`, `fileId`, `name`, `purpose`, and `description` (the file's description in Google Drive or Metabase). The assistant reads the purpose to pick the file that answers your question, and the description when there's no purpose.
 
-A Sheet that Google no longer reaches, because it was deleted or trashed, doesn't appear. A connection whose files can't be listed comes back under `unlisted`, with its `integrationId` and the API's refusal. `INTEGRATION_GRANT_FAILED_ERROR` means someone has to connect the Sheet again in **Configuración → Integraciones**.
+A file the Provider no longer reaches, such as a Sheet that was deleted or trashed, or a Metabase question that was archived, doesn't appear. A connection whose files can't be listed comes back under `unlisted`, with its `integrationId` and the API's refusal. `INTEGRATION_GRANT_FAILED_ERROR` means someone has to connect the Sheet again in **Configuración → Integraciones**.
 
 ### `read_integration_file`
 
-Reads one shared Sheet as it is now in Google Drive. It answers each tab as CSV, with the cells as the Sheet shows them. Each tab has `tab` (its name), `rowCount`, `truncated`, and `csv`. A tab is cut at 2,000 rows, and `truncated` says when it has more.
+Reads one shared file as it is now at its Provider: a Sheet as it is in Google Drive, or a Metabase question, which runs in Metabase when it's read. The tool sends no filters, so a question runs without them. It answers each tab as CSV, with the cells as the Sheet shows them. Each tab has `tab` (its name), `rowCount`, `truncated`, and `csv`. A tab is cut at 2,000 rows, and `truncated` says when it has more.
 
 | Input | Type | Required | Description |
 | --- | --- | --- | --- |
