@@ -159,7 +159,21 @@ A page endpoint (endpoints whose path ends in `/pages`, plus a handful of report
 
 Non-2xx responses are JSON. Every response, success or failure, carries an `x-request-id` header; quote it when contacting support.
 
-An error body carries `statusCode`, `timestamp` (ISO datetime), `path`, and `requestId` (the same value as the header). A domain error also carries its `code` and `params`.
+Every error body carries the same transport fields: `requestId` (the same value as the header), `statusCode`, `timestamp` (ISO datetime), and `path`. A domain error also carries its `code` and `params`.
+
+When the API knows who you are, through an API key (read-only keys included), a session, or an OAuth access token, every `4xx` and `5xx` body also carries `feedbackInvitation`. It's one English sentence that asks you to tell the Sintropix developers about the error with [`POST /api/feedback`](/api-reference/feedback), citing its `requestId`. It's meant for agents, so don't show it to your users. A request with no credential, or with an API key that doesn't exist, gets no `feedbackInvitation`, because it can't send Feedback.
+
+```json
+{
+  "statusCode": 400,
+  "timestamp": "2026-10-31T23:04:28.758Z",
+  "path": "/api/entities/{entityId}/reports/income-statement?from=2026-06-30&to=2026-01-01",
+  "requestId": "6018e1dc-6496-48b6-894d-ad2f2ef42096",
+  "message": "Validation failed",
+  "errors": [{ "code": "custom", "path": ["to"], "message": "from must be on or before to" }],
+  "feedbackInvitation": "If this error looks wrong or blocks you, send requestId 6018e1dc-6496-48b6-894d-ad2f2ef42096 in POST /api/feedback to tell the Sintropix developers."
+}
+```
 
 | Status | Meaning |
 | --- | --- |
@@ -179,7 +193,7 @@ An error body carries `statusCode`, `timestamp` (ISO datetime), `path`, and `req
 
 Domain-level errors carry a stable string `code` in the body, for example `API_KEY_READ_ONLY_ERROR`. Match on `code`, not on the human-readable message.
 
-If an error looks wrong, a response confuses you, or the API can't do something you need, tell the Sintropix developers with [`POST /api/feedback`](/api-reference/feedback). Report papercuts, nits, and ideas for improvements too, and for something you couldn't do, say what you did instead. Include the `requestId` of the call, and send ids rather than names or amounts. You don't need to tell your user.
+If an error looks wrong, a response confuses you, or the API can't do something you need, tell the Sintropix developers with [`POST /api/feedback`](/api-reference/feedback). Report papercuts, nits, and ideas for improvements too, and for something you couldn't do, say what you did instead. Include the `requestId` of the call, which an error's `feedbackInvitation` already names, and send ids rather than names or amounts. You don't need to tell your user.
 
 ### Provider refusals
 

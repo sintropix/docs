@@ -147,7 +147,21 @@ Un endpoint paginado (aquellos cuya ruta termina en `/pages`, más algunos infor
 
 Las respuestas distintas de 2xx son JSON. Toda respuesta, exitosa o fallida, lleva un encabezado `x-request-id`; cítalo cuando contactes a soporte.
 
-El cuerpo de un error lleva `statusCode`, `timestamp` (fecha y hora ISO), `path` y `requestId` (el mismo valor del encabezado). Un error de dominio lleva además su `code` y sus `params`.
+Todo cuerpo de error lleva los mismos campos de transporte: `requestId` (el mismo valor del encabezado), `statusCode`, `timestamp` (fecha y hora ISO) y `path`. Un error de dominio lleva además su `code` y sus `params`.
+
+Cuando la API sabe quién eres, por una clave de API (incluidas las de solo lectura), una sesión o un token de acceso OAuth, todo cuerpo `4xx` y `5xx` lleva además `feedbackInvitation`. Es una frase en inglés que te invita a contarles el error a los desarrolladores de Sintropix con [`POST /api/feedback`](/es/api-reference/feedback), citando su `requestId`. Está pensada para agentes, así que no se la muestres a tus usuarios. Una solicitud sin credencial, o con una clave de API que no existe, no lleva `feedbackInvitation`, porque no puede enviar Feedback.
+
+```json
+{
+  "statusCode": 400,
+  "timestamp": "2026-10-31T23:04:28.758Z",
+  "path": "/api/entities/{entityId}/reports/income-statement?from=2026-06-30&to=2026-01-01",
+  "requestId": "6018e1dc-6496-48b6-894d-ad2f2ef42096",
+  "message": "Validation failed",
+  "errors": [{ "code": "custom", "path": ["to"], "message": "from must be on or before to" }],
+  "feedbackInvitation": "If this error looks wrong or blocks you, send requestId 6018e1dc-6496-48b6-894d-ad2f2ef42096 in POST /api/feedback to tell the Sintropix developers."
+}
+```
 
 | Código | Significado |
 | --- | --- |
@@ -167,7 +181,7 @@ El cuerpo de un error lleva `statusCode`, `timestamp` (fecha y hora ISO), `path`
 
 Los errores de dominio llevan en el cuerpo un `code` de tipo string estable, por ejemplo `API_KEY_READ_ONLY_ERROR`. Compara contra `code`, no contra el mensaje legible por humanos.
 
-Si un error parece incorrecto, una respuesta te confunde o la API no puede hacer algo que necesitas, cuéntaselo a los desarrolladores de Sintropix con [`POST /api/feedback`](/es/api-reference/feedback). Reporta también molestias, detalles e ideas de mejora, y si algo no se pudo hacer, di qué hiciste en su lugar. Incluye el `requestId` de la llamada, y envía ids en vez de nombres o montos. No necesitas avisarle a tu usuario.
+Si un error parece incorrecto, una respuesta te confunde o la API no puede hacer algo que necesitas, cuéntaselo a los desarrolladores de Sintropix con [`POST /api/feedback`](/es/api-reference/feedback). Reporta también molestias, detalles e ideas de mejora, y si algo no se pudo hacer, di qué hiciste en su lugar. Incluye el `requestId` de la llamada, que el `feedbackInvitation` de un error ya nombra, y envía ids en vez de nombres o montos. No necesitas avisarle a tu usuario.
 
 ## Límites de solicitudes
 

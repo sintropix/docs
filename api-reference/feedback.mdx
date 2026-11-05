@@ -52,7 +52,7 @@ Send one Feedback.
 | `kind` | enum | Yes | `bug`, `improvement`, `papercut`, `nit`, or `missing_capability`. See [Kinds](#kinds). |
 | `message` | string | Yes | What happened, what you expected, and what you did instead. Up to 10,000 characters. It can't be blank. |
 | `endpoint` | string or null | No | The route the Feedback is about, for example `POST /api/entities/{entityId}/partners`. Up to 500 characters. |
-| `requestId` | string or null | No | The `requestId` of the call that failed, from its `x-request-id` header or its error body. It lets us find that exact request. Up to 200 characters. |
+| `requestId` | string or null | No | The `requestId` of the call that failed, from its `x-request-id` header or its error body. Every error body carries it, and the error's `feedbackInvitation` names it already. It lets us find that exact request. Up to 200 characters. |
 | `reproduction` | string or null | No | Anything small that helps us reproduce it: the request you sent, the steps, the response you got. Up to 10,000 characters. |
 
 Sintropix trims surrounding whitespace from each text field before it checks the length.
@@ -105,6 +105,6 @@ The route has no rate limit of its own. A call with an API key counts toward the
 ## What makes Feedback useful
 
 - **Say what you tried and what you did instead.** "I wanted to X, tried Y, got Z, and did W instead" tells us more than "X is missing".
-- **Send the `requestId`** of a failed call. Every error body carries one, and every response carries it in the `x-request-id` header.
+- **Send the `requestId`** of a failed call. Every error body carries one, and every response carries it in the `x-request-id` header. When you're authenticated, the error's [`feedbackInvitation`](/api-reference/overview#errors) names it for you.
 - **One problem per Feedback.** Send two calls for two problems.
 - **Leave out personal and client data.** Ids are enough for us to find the record.
