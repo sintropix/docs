@@ -1,0 +1,369 @@
+---
+title: "Sintropix Intercompany Links API: Join a Line of Each Entity"
+sidebarTitle: "Intercompany Links"
+description: "List, read, create, and delete Intercompany Links. Each Link joins a line of an Entry in one Entity to a line of an Entry in another Entity of the same Organization. A Link writes nothing in the books. To correct one, unlink it and link again."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+An **Intercompany Link** joins two lines of the books: one line of a [Ledger Entry](/api-reference/ledger-entries) in one Entity, and one line of a Ledger Entry in another Entity of the same Organization. The two lines are the two halves of one position or flow between the Entities, such as a receivable in the lender and its payable in the borrower, or a revenue and its expense. A [consolidated report](/api-reference/consolidation) eliminates the Link when both of its Entities are in the Scope.
+
+Each Entity books its own Entry first, on its own date, as it books any other: a Book or Match of its [Bank Movement](/api-reference/bank-movements), an [Invoice](/api-reference/invoices), or a manual [Ledger Entry](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries). Then you link one line of each. The Link writes nothing in the books, so it takes no Lock Date, and the lines need no Partner and no Sub-type. A line outside any Link, such as a tax or a bank fee, stays in the group.
+
+A Link changes only by deleting it and linking again. To fix one, see [Correct a Link](#correct-a-link).
+
+The routes live under the Organization, not under an Entity:
+
+| Method | Route | What it does |
+| --- | --- | --- |
+| `GET` | `/api/organizations/:organizationId/intercompany-links` | [List the pairs of linked Entries](#get-/api/organizations/organizationid/intercompany-links), newest first |
+| `GET` | `/api/organizations/:organizationId/intercompany-links/:intercompanyLinkId` | [Read a Link](#get-/api/organizations/organizationid/intercompany-links/intercompanylinkid): its two Entries and every Link between them |
+| `POST` | `/api/organizations/:organizationId/intercompany-links` | [Link two lines](#post-/api/organizations/organizationid/intercompany-links) |
+| `DELETE` | `/api/organizations/:organizationId/intercompany-links/:intercompanyLinkId` | [Unlink](#delete-/api/organizations/organizationid/intercompany-links/intercompanylinkid) |
+
+<Warning>
+  Intercompany Links replaced Intercompany Entries. Every route under `/api/organizations/:organizationId/intercompany-entries` is gone and returns `404`. The fields `intercompanyEntryId`, `intercompanyPairId`, and `otherEntityOfIntercompanyEntry` and the error `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR` are gone too. Don't call or expect them.
+</Warning>
+
+There is no `PATCH` or `PUT` on a Link. Those requests return `404`.
+
+All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Timestamps are ISO 8601 datetimes.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/intercompany-links/{intercompanyLinkId}"
+  note="The list of linked Entries is at /organizations/{organizationId}/intercompany-links, under Intercompañía in the Grupo sidebar. The app only reads Links. You link and unlink through the API."
+/>
+
+## Access
+
+A Link joins the books of two Entities, so every route asks for access to the whole Organization:
+
+- **Use an Organization-level API key.** Create the key with **Todas las empresas** in the **Empresa** selector (see [Get an API Key](/guides/api-keys)). A key confined to one Entity gets `403` with `PERMISSION_DENIED_ERROR` on every route on this page, reads included. Don't retry with that key.
+- **Writes need a Role that writes.** `POST` and `DELETE` need the `staff` or `client` Role. A `viewer` can list and read Links, and gets `403` with `PERMISSION_DENIED_ERROR` on a write. See [Access and roles](/api-reference/overview#access-and-roles).
+- **Send the audit headers on writes.** With an API key, `POST` and `DELETE` need `x-audit-actor` and `x-audit-reason`, like every mutation. See [Authentication](/api-reference/overview#authentication).
+
+A Link the Organization doesn't hold, including a Link of another Organization, returns `404` with `INTERCOMPANY_LINK_NOT_FOUND_ERROR`.
+
+## The Intercompany Link object
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Link id, chosen by the client on create |
+| `organizationId` | UUID | Organization that holds the Link |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+| `lines` | array | Exactly two items, `{ lineId, entityId }`: the linked line of each Entity |
+
+## GET /api/organizations/:organizationId/intercompany-links
+
+List the pairs of Entries joined by at least one Link, as keyset pages. Each pair appears once, however many Links join its two Entries. The newest pair comes first, by the later of its two Entries' dates.
+
+- **Path param:** `organizationId` (UUID)
+- **Query params:**
+
+| Param | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `cursor` | UUID | No | — | `nextCursor` of the previous page. An id the Organization doesn't hold returns `404` with `INTERCOMPANY_LINK_NOT_FOUND_ERROR`. |
+| `limit` | integer | No | 50 | Page size, 1 to 100 |
+
+No other query parameter is accepted. An unknown one returns `400`.
+
+- **Success response:** a page of linked Entry pairs
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `linkedLedgerEntryPairs` | array | Pairs on this page, each with the fields below |
+| `nextCursor` | UUID or null | Pass as `cursor` to fetch the next page; `null` on the last page |
+
+Each item in `linkedLedgerEntryPairs`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `intercompanyLinkId` | UUID | The first Link between the two Entries. Read it to see both Entries and all their Links. |
+| `ledgerEntries` | array | The two Entries, ordered by Entity name: `{ id, entityId, entityName, entryDate, memo }` |
+| `intercompanyLinkCount` | integer | Number of Links between the two Entries |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links?limit=20" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "linkedLedgerEntryPairs": [
+    {
+      "intercompanyLinkId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "ledgerEntries": [
+        {
+          "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "entityName": "Holding SpA",
+          "entryDate": "2026-10-01",
+          "memo": "Préstamo a Operaciones"
+        },
+        {
+          "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "entityName": "Operaciones SpA",
+          "entryDate": "2026-10-02",
+          "memo": "Préstamo de Holding"
+        }
+      ],
+      "intercompanyLinkCount": 1
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+## GET /api/organizations/:organizationId/intercompany-links/:intercompanyLinkId
+
+Read a Link: the two Entries its lines belong to, with all their lines, and every Link between those two Entries. Any of those Links' ids reads the same detail.
+
+- **Path params:** `organizationId` (UUID), `intercompanyLinkId` (UUID)
+- **Success response:** the Link detail
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ledgerEntries` | array | The two Entries, ordered by Entity name, each with the fields below |
+| `intercompanyLinks` | array | Every [Link](#the-intercompany-link-object) between the two Entries, one or more |
+
+Each item in `ledgerEntries` is the Ledger Entry object (`id`, `entityId`, `entryDate`, `memo`, `notes`, `status`, `reversalOfEntryId`, `bookId`, `createdAt`, `updatedAt`) plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entityName` | string | Name of the Entity that holds the Entry |
+| `lines` | array | The Entry's lines, with the same fields as the `lines` of [`GET /api/entities/:entityId/ledger/entries/:entryId`](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid) |
+
+A linked line carries its Link's id in `intercompanyLinkId`. Any other line carries `null`.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links/$INTERCOMPANY_LINK_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+The example shows only the linked line of each Entry. The response lists every line.
+
+```json
+{
+  "ledgerEntries": [
+    {
+      "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "entryDate": "2026-10-01",
+      "memo": "Préstamo a Operaciones",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "createdAt": "2026-10-01T13:15:20.000Z",
+      "updatedAt": "2026-10-01T13:15:20.000Z",
+      "entityName": "Holding SpA",
+      "lines": [
+        {
+          "id": "2b3c4d5e-0001-4b00-8b00-000000000001",
+          "entryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "accountId": "3c4d5e6f-0001-4c00-8c00-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "functionalAmount": 10000000,
+          "side": "debit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-01T13:15:20.000Z",
+          "updatedAt": "2026-10-01T13:15:20.000Z",
+          "accountCode": "1180",
+          "accountName": "Cuentas por cobrar a relacionadas",
+          "accountType": "asset",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyLinkId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f"
+        }
+      ]
+    },
+    {
+      "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+      "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "entryDate": "2026-10-02",
+      "memo": "Préstamo de Holding",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "createdAt": "2026-10-02T09:40:02.000Z",
+      "updatedAt": "2026-10-02T09:40:02.000Z",
+      "entityName": "Operaciones SpA",
+      "lines": [
+        {
+          "id": "2b3c4d5e-0002-4b00-8b00-000000000002",
+          "entryId": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "accountId": "3c4d5e6f-0002-4c00-8c00-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "functionalAmount": 10000000,
+          "side": "credit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T09:40:02.000Z",
+          "updatedAt": "2026-10-02T09:40:02.000Z",
+          "accountCode": "2180",
+          "accountName": "Cuentas por pagar a relacionadas",
+          "accountType": "liability",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyLinkId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f"
+        }
+      ]
+    }
+  ],
+  "intercompanyLinks": [
+    {
+      "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+      "createdAt": "2026-10-02T10:01:44.000Z",
+      "updatedAt": "2026-10-02T10:01:44.000Z",
+      "lines": [
+        { "lineId": "2b3c4d5e-0001-4b00-8b00-000000000001", "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        { "lineId": "2b3c4d5e-0002-4b00-8b00-000000000002", "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }
+      ]
+    }
+  ]
+}
+```
+
+## POST /api/organizations/:organizationId/intercompany-links
+
+Link two lines. Both Entries must already be booked.
+
+- **Path param:** `organizationId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied Link id. A retry with the same `id` returns `409` with `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR`, so a repeated request never links twice. |
+| `lineIds` | [UUID, UUID] | Yes | Two different lines, one of an Entry in each Entity. Take the ids from the Entries' detail or from the response that booked them. |
+
+No other field is accepted. An unknown field, or the same line twice, returns `400`.
+
+The two lines must:
+
+- **Belong to two Entities of the Organization.** Two lines of one Entity return `422` with `INTERCOMPANY_LINK_LINES_IN_ONE_ENTITY_ERROR`.
+- **Be on opposite sides.** One line is a debit and the other a credit, so the elimination cancels them. Two debits or two credits return `422` with `INTERCOMPANY_LINK_SAME_SIDE_ERROR`.
+- **Carry the same amount in a currency they share.** A line carries its functional amount in its Entity's functional currency, and its transaction amount in its transaction currency when it has one. For example, a SpA line of CLP 1.995.807 with a transaction amount of USD 2,137.25 links to an Inc line of USD 2,137.25. Otherwise the request returns `422` with `INTERCOMPANY_LINK_AMOUNTS_DIFFER_ERROR`. Fix the Entry, not the Link.
+- **Belong to active Entries.** A line of an unbooked, reversed, or Scheduled Entry returns `409` with `INTERCOMPANY_LINK_LEDGER_ENTRY_NOT_ACTIVE_ERROR`.
+- **Not be on the Suspense Account.** An Assign rewrites or deletes a Suspense line, so linking one returns `409` with `INTERCOMPANY_LINK_LINE_ON_SUSPENSE_ACCOUNT_ERROR`. [Assign](/api-reference/bank-movements#post-/movements/movementid/assign) the Movement first, then link the line that took its place.
+- **Not be in another Link.** A line is in at most one Link. A linked line returns `409` with `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR`, and `params.intercompanyLinkId` names that Link.
+
+A line that doesn't exist, or belongs to another Organization, returns `404` with `INTERCOMPANY_LINK_LINE_NOT_FOUND_ERROR`. Every refusal names the line in `params`. If any check fails, nothing is written.
+
+- **Success response:** the [Link detail](#get-/api/organizations/organizationid/intercompany-links/intercompanylinkid) of the new Link
+- **Status:** 201
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Link the loan from Holding to Operaciones" \
+  -d '{
+    "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+    "lineIds": [
+      "2b3c4d5e-0001-4b00-8b00-000000000001",
+      "2b3c4d5e-0002-4b00-8b00-000000000002"
+    ]
+  }'
+```
+
+When the `POST` gets no answer, `GET` the Link by its `id` before you send it again. If you retry, keep the same `id`: a Link that already landed answers `409` with `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR`.
+
+## DELETE /api/organizations/:organizationId/intercompany-links/:intercompanyLinkId
+
+Unlink. The Link is removed, and both Entries stay as they are. Its history stays in the [Audit Trail](#history).
+
+- **Path params:** `organizationId` (UUID), `intercompanyLinkId` (UUID)
+- **Success response:** the [Intercompany Link object](#the-intercompany-link-object) that was removed
+- **Status:** 200
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links/$INTERCOMPANY_LINK_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Linked the wrong line"
+```
+
+After the `DELETE`, reading the Link returns `404` with `INTERCOMPANY_LINK_NOT_FOUND_ERROR`.
+
+## Correct a Link
+
+A Link has no edit. To change it, unlink it and link again. Pick the case that matches the mistake:
+
+<Steps>
+  <Step title="The Link joins the wrong line">
+    Send `DELETE /api/organizations/:organizationId/intercompany-links/:intercompanyLinkId`. Then send `POST /api/organizations/:organizationId/intercompany-links` with a new `id` and the right `lineIds`.
+  </Step>
+  <Step title="An Entry behind the Link is wrong">
+    Correct the Entry in its own Entity, for example by [unbooking it](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid) or [reversing it](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse) and booking it again. Unbooking or reversing an Entry removes its Links, as it removes its Allocations, so you don't unlink first. Then link the line of the new Entry with a new `id`.
+  </Step>
+  <Step title="A linked line was booked on a Bank Movement">
+    An [Unassign](/api-reference/bank-movements#post-/movements/movementid/unassign) of a linked line returns `409` with `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR`, and `params.intercompanyLinkId` names the Link. Unlink it first. Then Unassign, Assign the Movement again, and link the new line.
+  </Step>
+</Steps>
+
+After each correction, read the Link to check that both Entries and the right Link are there.
+
+The Ledger Entry routes don't refuse a linked Entry. Editing a linked Entry's header, or a linked line's Partner, account, or [Dimension values](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values), keeps the Link. An Entity with a Link can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization): the move returns `409` with `ENTITY_MOVE_USES_ORGANIZATION_DATA_ERROR`.
+
+## Find the Link of a line
+
+A line in a Link names it in `intercompanyLinkId` wherever the line comes with its detail fields:
+
+- The `lines` of the [Entry detail](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid).
+- The `entry.lines` of a [Bank Movement's reconciliation](/api-reference/bank-movements#get-/movements/movementid/reconciliation).
+- The lines of the [Consolidated Ledger](/api-reference/consolidation#get-/api/organizations/organizationid/consolidated-ledger).
+
+Any other line carries `null`. To list every Link, page through [`GET /api/organizations/:organizationId/intercompany-links`](#get-/api/organizations/organizationid/intercompany-links) and read each pair.
+
+## History
+
+Every Link and Unlink is recorded in the [Audit Trail](/api-reference/audit-trail). Read a Link's history through either of its Entities:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=intercompany_link&rowId=$INTERCOMPANY_LINK_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+It shows the Link's insert and its delete, which also show in the [Organization Log](/api-reference/audit-trail#list-the-organization-log). Each line's link and unlink also show in the history of its own Entry, under `tableName=ledger_entry` and the Entry's id.
+
+## Domain error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `PERMISSION_DENIED_ERROR` | `403` | The API key is confined to one Entity (every route), or the caller's Role can't write (`POST`, `DELETE`) |
+| `INTERCOMPANY_LINK_NOT_FOUND_ERROR` | `404` | The Organization holds no Link with this id, or the list `cursor` names none. `params.intercompanyLinkId` |
+| `INTERCOMPANY_LINK_LINE_NOT_FOUND_ERROR` | `404` | A line doesn't exist or belongs to another Organization. `params.lineId` |
+| `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR` | `409` | A Link with this `id` already exists. `params.intercompanyLinkId` |
+| `INTERCOMPANY_LINK_LEDGER_ENTRY_NOT_ACTIVE_ERROR` | `409` | A line's Entry is unbooked, reversed, or scheduled. `params.lineId`, `params.ledgerEntryId` |
+| `INTERCOMPANY_LINK_LINE_ON_SUSPENSE_ACCOUNT_ERROR` | `409` | A line is on the Suspense Account. `params.lineId` |
+| `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR` | `409` | A line is already in a Link, on create or on an Unassign. `params.lineId`, `params.intercompanyLinkId` |
+| `INTERCOMPANY_LINK_LINES_IN_ONE_ENTITY_ERROR` | `422` | Both lines are in one Entity. `params.lineIds` |
+| `INTERCOMPANY_LINK_SAME_SIDE_ERROR` | `422` | Both lines are on the same side. `params.lineIds` |
+| `INTERCOMPANY_LINK_AMOUNTS_DIFFER_ERROR` | `422` | No currency the lines share carries the same amount. `params.lineIds` |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, DELETE) |
+| 201 | Created (POST) |
+| 400 | Validation error: a malformed body or query, the same line twice, an unknown field, or a missing audit header |
+| 401 | Unauthenticated |
+| 403 | `PERMISSION_DENIED_ERROR` |
+| 404 | The Link or a line doesn't exist in the Organization, or the route doesn't exist (`PATCH`, `PUT`, and every `/intercompany-entries` route) |
+| 409 | Domain rule violation |
+| 422 | The two lines can't be linked |

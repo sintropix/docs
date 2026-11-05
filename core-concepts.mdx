@@ -16,7 +16,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
 
     Most multi-country teams set up one entity per legal company: a US holding, a Chilean SPA, a Mexican SAPI de CV, and so on. Sintropix adds the entities of your Organization for you. Each entity's settings are in its row under **Entidades legales**, on the Organization's **Empresa** page in **Configuración**.
 
-    Each entity keeps its own books, and every report covers one entity. A transaction between two entities of the same Organization is recorded once as an [Intercompany Entry](/api-reference/intercompany-entries), which books both sides together.
+    Each entity keeps its own books, and every report covers one entity, except the [consolidated reports](/api-reference/consolidation). When two entities of the same Organization deal with each other, each one books its own entry, and an [Intercompany Link](/api-reference/intercompany-links) joins a line of each. The consolidated reports eliminate those Links.
   </Accordion>
 
   <Accordion title="Organization">
@@ -96,7 +96,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - **Load Ontop**: create, book, and match the invoices of Ontop, the platform that pays your foreign contractors from a prepaid USD wallet. See [Ontop invoices](/api-reference/invoices#ontop-invoices)
     - **Load a Budget**: create or update a [Budget](/api-reference/budgets) month by month from a spreadsheet, a table in your message, or a rule such as *"lo mismo que 2026 más 10%"*. He maps each row to a Result Account by code, then by exact name, and asks about rows that match no account, the unit, and the currency. He checks each section's monthly totals against your source before he reports
     - **Centralize payroll**: book a month's remuneraciones and finiquitos from Buk, through the Entity's Buk API key Credential or the *Centralización Contable* Excel you send him. He learns each payroll code's account from your last centralization and asks about codes he hasn't seen. He books only after you approve his proposal in the thread, and clears salary and Previred payments only after you confirm them
-    - **Book and correct Intercompany Entries**: book an act between two companies of your Organization, such as a loan or a payment one company makes for the other, as one [Intercompany Entry](/api-reference/intercompany-entries) with an entry in each company. To correct one, he unbooks it and books it again with each line's Dimension values, then restores the matches its lines had. If he can't restore a match, he lists it with its lines and amount. An act's entries take no notes, so he writes the reason in the act's memo and in his answer. He can't correct an act dated on or before a company's Lock Date
+    - **Link intercompany entries**: when a loan, a charge, or a payment is between two companies of your Organization, he books each company's entry as usual and joins a line of each with an [Intercompany Link](/api-reference/intercompany-links). To correct a Link, he unlinks it and links the right lines. When he corrects an entry behind a Link by unbooking or reversing it, the Link goes with it, so he links the new line again
 
     Every response cites the underlying data, so you can drill into the detail behind any number he surfaces.
 

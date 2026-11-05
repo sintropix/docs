@@ -43,7 +43,7 @@
                   "api-reference/books",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
-                  "api-reference/intercompany-entries",
+                  "api-reference/intercompany-links",
                   "api-reference/allocations",
                   "api-reference/dimensions"
                 ]
@@ -147,7 +147,7 @@
                   "api-reference/books",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
-                  "es/api-reference/intercompany-entries",
+                  "es/api-reference/intercompany-links",
                   "api-reference/allocations",
                   "api-reference/dimensions"
                 ]
@@ -265,6 +265,14 @@
     "eyebrows": "section"
   },
   "redirects": [
+    {
+      "source": "/api-reference/intercompany-entries",
+      "destination": "/api-reference/intercompany-links"
+    },
+    {
+      "source": "/es/api-reference/intercompany-entries",
+      "destination": "/es/api-reference/intercompany-links"
+    },
     {
       "source": "/api-reference/recommendations",
       "destination": "/api-reference/follow-ups"
