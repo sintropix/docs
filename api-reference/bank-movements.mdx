@@ -315,8 +315,8 @@ Return the Movement's current booking or match state and the Ledger Lines that d
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `bookId`, `intercompanyEntryId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
-| `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, `partnerWebsite` (the Partner's website as a bare domain, or `null`), `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`), and `intercompanyPairId` (nullable). |
+| `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `bookId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
+| `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, `partnerWebsite` (the Partner's website as a bare domain, or `null`), `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`), and `intercompanyLinkId` (the [Intercompany Link](/api-reference/intercompany-links) of the line, or `null`). |
 | `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryDate, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
 | `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount`. `null` when the booking touches no open-item account. |
 | `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.invoiceDocumentNumber` (nullable), `counterpart.invoiceIsExpenseRendition` (boolean), and `counterpart.openAmount` added. `counterpart.invoiceIsExpenseRendition` is `true` when the counterpart is an [Expense Rendition](/api-reference/expense-claims). `counterpart.openAmount` is the balance still unsettled on the counterpart line, such as an Invoice, after every Allocation against it. It is nullable. A value above `0` means the Movement settled the counterpart only in part. |
@@ -596,7 +596,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 Move one counterpart line of the Movement's Ledger Entry back to the Suspense line. Sintropix removes the line's Allocations, so any document it settled reopens. Use it to correct an Assign or a Match line without unbooking the whole Movement. Requires `x-audit-actor` for API-key callers.
 
-The Entity must have a Suspense Account. Sintropix creates the Suspense line if the Entry has none. You cannot unassign the bank line, the Suspense line, or a line that another record holds, such as a Fixed Asset.
+The Entity must have a Suspense Account. Sintropix creates the Suspense line if the Entry has none. You cannot unassign the bank line, the Suspense line, or a line that another record holds, such as a Fixed Asset. A line in an [Intercompany Link](/api-reference/intercompany-links) returns `409` with `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR`, and `params.intercompanyLinkId` names the Link. Unlink it first, then Unassign.
 
 **Body**
 
@@ -629,6 +629,7 @@ Each error answers `409` with the `code` and the `params` shown. Amounts are fun
 | `BANK_MOVEMENT_ASSIGN_TAKES_NOTHING_FROM_SUSPENSE_LINE_ERROR` | The new lines take nothing from the Suspense line, for example because lines on the Movement's own side outweigh the others. `params: { suspenseLineId, assignedAmount }`. |
 | `BANK_MOVEMENT_UNASSIGN_LINE_NOT_COUNTERPART_ERROR` | `lineId` is not a counterpart line of the Movement's Entry. `params: { movementId, lineId }`. |
 | `BANK_MOVEMENT_UNASSIGN_LINE_PINNED_ERROR` | Another record, such as a Fixed Asset, holds the line. `params: { lineId }`. |
+| `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR` | The Unassign names a line in an [Intercompany Link](/api-reference/intercompany-links). `params: { lineId, intercompanyLinkId }`. |
 | `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line you sent posts to the Suspense Account. `params: { ledgerAccountId }`. |
 
 ## Record an internal transfer

@@ -897,7 +897,6 @@ Each item in `lines`:
 | `entryMemo` | string or null | Memo of the parent entry |
 | `entryStatus` | enum | `active` or `reversed` (only live entries appear) |
 | `reversalOfEntryId` | UUID or null | Entry the parent entry reverses; `null` otherwise |
-| `intercompanyEntryId` | UUID or null | The [Intercompany Entry](/api-reference/intercompany-entries) the parent entry belongs to; `null` otherwise |
 | `runningBalance` | integer | Balance after this line in date order, counted from `openingBalance` and signed by the account's normal side. It's the same whatever the sort |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |

@@ -1,0 +1,369 @@
+---
+title: "API de vínculos intercompañía de Sintropix: une una línea de cada Entidad"
+sidebarTitle: "Vínculos intercompañía"
+description: "Lista, lee, crea y elimina vínculos intercompañía. Cada vínculo une una línea de un asiento en una Entidad con una línea de un asiento en otra Entidad de la misma Organización. Un vínculo no escribe nada en los libros. Para corregir uno, desvincúlalo y vincula de nuevo."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+Un **vínculo intercompañía** (Intercompany Link) une dos líneas de los libros: una línea de un [asiento contable](/api-reference/ledger-entries) (Ledger Entry) en una Entidad y una línea de un asiento contable en otra Entidad de la misma Organización. Las dos líneas son las dos mitades de una misma posición o flujo entre las Entidades, como la cuenta por cobrar del prestamista y la cuenta por pagar del deudor, o un ingreso y su gasto. Un [informe consolidado](/api-reference/consolidation) elimina el vínculo cuando sus dos Entidades están en el Alcance (Scope).
+
+Primero cada Entidad registra su propio asiento, en su propia fecha, como registra cualquier otro: un Book o Match de su [movimiento bancario](/api-reference/bank-movements), una [factura](/api-reference/invoices) o un [asiento contable](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries) manual. Después vinculas una línea de cada uno. El vínculo no escribe nada en los libros, así que no depende de la Fecha de bloqueo, y las líneas no necesitan Partner ni Subtipo. Una línea fuera de todo vínculo, como un impuesto o una comisión bancaria, queda en el grupo.
+
+Un vínculo solo cambia si lo eliminas y vinculas de nuevo. Para arreglar uno, consulta [Corregir un vínculo](#corregir-un-vínculo).
+
+Las rutas viven bajo la Organización, no bajo una Entidad:
+
+| Método | Ruta | Qué hace |
+| --- | --- | --- |
+| `GET` | `/api/organizations/:organizationId/intercompany-links` | [Lista los pares de asientos vinculados](#get-/api/organizations/organizationid/intercompany-links), del más reciente al más antiguo |
+| `GET` | `/api/organizations/:organizationId/intercompany-links/:intercompanyLinkId` | [Lee un vínculo](#get-/api/organizations/organizationid/intercompany-links/intercompanylinkid): sus dos asientos y todos los vínculos entre ellos |
+| `POST` | `/api/organizations/:organizationId/intercompany-links` | [Vincula dos líneas](#post-/api/organizations/organizationid/intercompany-links) |
+| `DELETE` | `/api/organizations/:organizationId/intercompany-links/:intercompanyLinkId` | [Desvincula](#delete-/api/organizations/organizationid/intercompany-links/intercompanylinkid) |
+
+<Warning>
+  Los vínculos intercompañía reemplazaron a los asientos intercompañía (Intercompany Entries). Todas las rutas bajo `/api/organizations/:organizationId/intercompany-entries` ya no existen y devuelven `404`. Tampoco existen los campos `intercompanyEntryId`, `intercompanyPairId` y `otherEntityOfIntercompanyEntry` ni el error `LEDGER_ENTRY_IN_INTERCOMPANY_ENTRY_ERROR`. No los llames ni los esperes.
+</Warning>
+
+No existe `PATCH` ni `PUT` sobre un vínculo. Esas solicitudes devuelven `404`.
+
+Todos los montos son enteros en la unidad mínima de la moneda (por ejemplo, centavos). Las fechas son cadenas `YYYY-MM-DD`. Las marcas de tiempo son fechas y horas ISO 8601.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/intercompany-links/{intercompanyLinkId}"
+  note="La lista de asientos vinculados está en /organizations/{organizationId}/intercompany-links, bajo Intercompañía en la barra lateral de Grupo. La app solo lee los vínculos. Vinculas y desvinculas con la API."
+/>
+
+## Acceso
+
+Un vínculo une los libros de dos Entidades, así que cada ruta pide acceso a la Organización completa:
+
+- **Usa una clave de API de nivel Organización.** Crea la clave con **Todas las empresas** en el selector **Empresa** (consulta [Obtén una clave de API](/es/guides/api-keys)). Una clave acotada a una sola Entidad recibe `403` con `PERMISSION_DENIED_ERROR` en todas las rutas de esta página, también al leer. No reintentes con esa clave.
+- **Escribir requiere un Rol que escriba.** `POST` y `DELETE` necesitan el Rol `staff` o `client`. Un `viewer` puede listar y leer vínculos, y recibe `403` con `PERMISSION_DENIED_ERROR` al escribir. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
+- **Envía los encabezados de auditoría al escribir.** Con una clave de API, `POST` y `DELETE` necesitan `x-audit-actor` y `x-audit-reason`, como toda mutación. Consulta [Autenticación](/es/api-reference/overview#autenticación).
+
+Un vínculo que la Organización no tiene, incluido uno de otra Organización, devuelve `404` con `INTERCOMPANY_LINK_NOT_FOUND_ERROR`.
+
+## El objeto vínculo intercompañía
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | UUID | Id del vínculo, elegido por el cliente al crearlo |
+| `organizationId` | UUID | Organización que lo contiene |
+| `createdAt` | fecha y hora ISO | Marca de tiempo de creación |
+| `updatedAt` | fecha y hora ISO | Marca de tiempo de la última actualización |
+| `lines` | array | Exactamente dos elementos, `{ lineId, entityId }`: la línea vinculada de cada Entidad |
+
+## GET /api/organizations/:organizationId/intercompany-links
+
+Lista los pares de asientos unidos por al menos un vínculo, en páginas por cursor (keyset). Cada par aparece una vez, sin importar cuántos vínculos unan sus dos asientos. El par más reciente va primero, según la fecha más tardía de sus dos asientos.
+
+- **Parámetro de ruta:** `organizationId` (UUID)
+- **Parámetros de consulta:**
+
+| Parámetro | Tipo | Requerido | Por defecto | Descripción |
+| --- | --- | --- | --- | --- |
+| `cursor` | UUID | No | — | `nextCursor` de la página anterior. Un id que la Organización no tiene devuelve `404` con `INTERCOMPANY_LINK_NOT_FOUND_ERROR`. |
+| `limit` | entero | No | 50 | Tamaño de página, de 1 a 100 |
+
+No se acepta ningún otro parámetro de consulta. Uno desconocido devuelve `400`.
+
+- **Respuesta exitosa:** una página de pares de asientos vinculados
+- **Estado:** 200
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `linkedLedgerEntryPairs` | array | Los pares de esta página, cada uno con los campos de abajo |
+| `nextCursor` | UUID o null | Envíalo como `cursor` para pedir la página siguiente; `null` en la última página |
+
+Cada elemento de `linkedLedgerEntryPairs`:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `intercompanyLinkId` | UUID | El primer vínculo entre los dos asientos. Léelo para ver ambos asientos y todos sus vínculos. |
+| `ledgerEntries` | array | Los dos asientos, ordenados por nombre de Entidad: `{ id, entityId, entityName, entryDate, memo }` |
+| `intercompanyLinkCount` | entero | Cantidad de vínculos entre los dos asientos |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links?limit=20" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "linkedLedgerEntryPairs": [
+    {
+      "intercompanyLinkId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "ledgerEntries": [
+        {
+          "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "entityName": "Holding SpA",
+          "entryDate": "2026-10-01",
+          "memo": "Préstamo a Operaciones"
+        },
+        {
+          "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "entityName": "Operaciones SpA",
+          "entryDate": "2026-10-02",
+          "memo": "Préstamo de Holding"
+        }
+      ],
+      "intercompanyLinkCount": 1
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+## GET /api/organizations/:organizationId/intercompany-links/:intercompanyLinkId
+
+Lee un vínculo: los dos asientos a los que pertenecen sus líneas, con todas sus líneas, y todos los vínculos entre esos dos asientos. El id de cualquiera de esos vínculos lee el mismo detalle.
+
+- **Parámetros de ruta:** `organizationId` (UUID), `intercompanyLinkId` (UUID)
+- **Respuesta exitosa:** el detalle del vínculo
+- **Estado:** 200
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `ledgerEntries` | array | Los dos asientos, ordenados por nombre de Entidad, cada uno con los campos de abajo |
+| `intercompanyLinks` | array | Todos los [vínculos](#el-objeto-vínculo-intercompañía) entre los dos asientos, uno o más |
+
+Cada elemento de `ledgerEntries` es el objeto asiento contable (`id`, `entityId`, `entryDate`, `memo`, `notes`, `status`, `reversalOfEntryId`, `bookId`, `createdAt`, `updatedAt`) más:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `entityName` | string | Nombre de la Entidad del asiento |
+| `lines` | array | Las líneas del asiento, con los mismos campos que las `lines` de [`GET /api/entities/:entityId/ledger/entries/:entryId`](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid) |
+
+Una línea vinculada lleva el id de su vínculo en `intercompanyLinkId`. Cualquier otra línea lleva `null`.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links/$INTERCOMPANY_LINK_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+El ejemplo muestra solo la línea vinculada de cada asiento. La respuesta lista todas las líneas.
+
+```json
+{
+  "ledgerEntries": [
+    {
+      "id": "1a2b3c4d-0001-4a00-8a00-000000000001",
+      "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "entryDate": "2026-10-01",
+      "memo": "Préstamo a Operaciones",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "createdAt": "2026-10-01T13:15:20.000Z",
+      "updatedAt": "2026-10-01T13:15:20.000Z",
+      "entityName": "Holding SpA",
+      "lines": [
+        {
+          "id": "2b3c4d5e-0001-4b00-8b00-000000000001",
+          "entryId": "1a2b3c4d-0001-4a00-8a00-000000000001",
+          "accountId": "3c4d5e6f-0001-4c00-8c00-000000000001",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "functionalAmount": 10000000,
+          "side": "debit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-01T13:15:20.000Z",
+          "updatedAt": "2026-10-01T13:15:20.000Z",
+          "accountCode": "1180",
+          "accountName": "Cuentas por cobrar a relacionadas",
+          "accountType": "asset",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyLinkId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f"
+        }
+      ]
+    },
+    {
+      "id": "1a2b3c4d-0002-4a00-8a00-000000000002",
+      "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "entryDate": "2026-10-02",
+      "memo": "Préstamo de Holding",
+      "notes": null,
+      "status": "active",
+      "reversalOfEntryId": null,
+      "bookId": null,
+      "createdAt": "2026-10-02T09:40:02.000Z",
+      "updatedAt": "2026-10-02T09:40:02.000Z",
+      "entityName": "Operaciones SpA",
+      "lines": [
+        {
+          "id": "2b3c4d5e-0002-4b00-8b00-000000000002",
+          "entryId": "1a2b3c4d-0002-4a00-8a00-000000000002",
+          "accountId": "3c4d5e6f-0002-4c00-8c00-000000000002",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "functionalAmount": 10000000,
+          "side": "credit",
+          "partnerId": null,
+          "transactionCurrency": null,
+          "transactionAmount": null,
+          "transactionFxRate": null,
+          "createdAt": "2026-10-02T09:40:02.000Z",
+          "updatedAt": "2026-10-02T09:40:02.000Z",
+          "accountCode": "2180",
+          "accountName": "Cuentas por pagar a relacionadas",
+          "accountType": "liability",
+          "partnerName": null,
+          "partnerWebsite": null,
+          "lineDimensionValues": [],
+          "intercompanyLinkId": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f"
+        }
+      ]
+    }
+  ],
+  "intercompanyLinks": [
+    {
+      "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+      "organizationId": "0b1c2d3e-4f50-4a61-8b72-c3d4e5f60718",
+      "createdAt": "2026-10-02T10:01:44.000Z",
+      "updatedAt": "2026-10-02T10:01:44.000Z",
+      "lines": [
+        { "lineId": "2b3c4d5e-0001-4b00-8b00-000000000001", "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        { "lineId": "2b3c4d5e-0002-4b00-8b00-000000000002", "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }
+      ]
+    }
+  ]
+}
+```
+
+## POST /api/organizations/:organizationId/intercompany-links
+
+Vincula dos líneas. Ambos asientos deben estar registrados.
+
+- **Parámetro de ruta:** `organizationId` (UUID)
+- **Cuerpo:**
+
+| Campo | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID | Sí | Id del vínculo, elegido por el cliente. Un reintento con el mismo `id` devuelve `409` con `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR`, así que una solicitud repetida nunca vincula dos veces. |
+| `lineIds` | [UUID, UUID] | Sí | Dos líneas distintas, una de un asiento en cada Entidad. Toma los ids del detalle de los asientos o de la respuesta que los registró. |
+
+No se acepta ningún otro campo. Un campo desconocido, o la misma línea dos veces, devuelve `400`.
+
+Las dos líneas deben:
+
+- **Pertenecer a dos Entidades de la Organización.** Dos líneas de una misma Entidad devuelven `422` con `INTERCOMPANY_LINK_LINES_IN_ONE_ENTITY_ERROR`.
+- **Estar en lados opuestos.** Una línea es un débito y la otra un crédito, para que la eliminación las cancele. Dos débitos o dos créditos devuelven `422` con `INTERCOMPANY_LINK_SAME_SIDE_ERROR`.
+- **Llevar el mismo monto en una moneda que compartan.** Una línea lleva su monto funcional en la moneda funcional de su Entidad, y su monto de transacción en su moneda de transacción cuando tiene una. Por ejemplo, una línea de la SpA de CLP 1.995.807 con un monto de transacción de USD 2,137.25 se vincula con una línea de la Inc de USD 2,137.25. Si no, la solicitud devuelve `422` con `INTERCOMPANY_LINK_AMOUNTS_DIFFER_ERROR`. Corrige el asiento, no el vínculo.
+- **Pertenecer a asientos activos.** Una línea de un asiento anulado, reversado o programado devuelve `409` con `INTERCOMPANY_LINK_LEDGER_ENTRY_NOT_ACTIVE_ERROR`.
+- **No estar en la cuenta transitoria (Suspense).** Un Assign reescribe o borra una línea transitoria, así que vincularla devuelve `409` con `INTERCOMPANY_LINK_LINE_ON_SUSPENSE_ACCOUNT_ERROR`. Haz primero el [Assign](/api-reference/bank-movements#post-/movements/movementid/assign) del movimiento y luego vincula la línea que tomó su lugar.
+- **No estar en otro vínculo.** Una línea está en un vínculo como máximo. Una línea ya vinculada devuelve `409` con `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR`, y `params.intercompanyLinkId` nombra ese vínculo.
+
+Una línea que no existe, o que es de otra Organización, devuelve `404` con `INTERCOMPANY_LINK_LINE_NOT_FOUND_ERROR`. Cada rechazo nombra la línea en `params`. Si cualquier verificación falla, no se escribe nada.
+
+- **Respuesta exitosa:** el [detalle](#get-/api/organizations/organizationid/intercompany-links/intercompanylinkid) del vínculo nuevo
+- **Estado:** 201
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Vincular el préstamo de Holding a Operaciones" \
+  -d '{
+    "id": "6f1d2c3b-4a59-4e68-8d7c-1b2a3c4d5e6f",
+    "lineIds": [
+      "2b3c4d5e-0001-4b00-8b00-000000000001",
+      "2b3c4d5e-0002-4b00-8b00-000000000002"
+    ]
+  }'
+```
+
+Si el `POST` no recibe respuesta, haz `GET` del vínculo por su `id` antes de enviarlo de nuevo. Si reintentas, conserva el mismo `id`: un vínculo que ya quedó registrado responde `409` con `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR`.
+
+## DELETE /api/organizations/:organizationId/intercompany-links/:intercompanyLinkId
+
+Desvincula. El vínculo se elimina y ambos asientos quedan como estaban. Su historial queda en el [registro de auditoría](#historial).
+
+- **Parámetros de ruta:** `organizationId` (UUID), `intercompanyLinkId` (UUID)
+- **Respuesta exitosa:** el [objeto vínculo intercompañía](#el-objeto-vínculo-intercompañía) eliminado
+- **Estado:** 200
+
+```bash
+curl -X DELETE "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/intercompany-links/$INTERCOMPANY_LINK_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Se vinculó la línea equivocada"
+```
+
+Después del `DELETE`, leer el vínculo devuelve `404` con `INTERCOMPANY_LINK_NOT_FOUND_ERROR`.
+
+## Corregir un vínculo
+
+Un vínculo no se edita. Para cambiarlo, desvincúlalo y vincula de nuevo. Elige el caso que corresponde al error:
+
+<Steps>
+  <Step title="El vínculo une la línea equivocada">
+    Envía `DELETE /api/organizations/:organizationId/intercompany-links/:intercompanyLinkId`. Luego envía `POST /api/organizations/:organizationId/intercompany-links` con un `id` nuevo y los `lineIds` correctos.
+  </Step>
+  <Step title="Un asiento del vínculo está mal">
+    Corrige el asiento en su propia Entidad, por ejemplo [anulándolo](/api-reference/ledger-entries#delete-/api/entities/entityid/ledger/entries/entryid) o [reversándolo](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse) y registrándolo de nuevo. Anular o reversar un asiento elimina sus vínculos, como elimina sus Asignaciones, así que no necesitas desvincular antes. Luego vincula la línea del asiento nuevo con un `id` nuevo.
+  </Step>
+  <Step title="Una línea vinculada se registró en un movimiento bancario">
+    Un [Unassign](/api-reference/bank-movements#post-/movements/movementid/unassign) de una línea vinculada devuelve `409` con `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR`, y `params.intercompanyLinkId` nombra el vínculo. Desvincúlalo primero. Luego haz el Unassign, vuelve a hacer el Assign del movimiento y vincula la línea nueva.
+  </Step>
+</Steps>
+
+Después de cada corrección, lee el vínculo para comprobar que estén ambos asientos y el vínculo correcto.
+
+Las rutas de asientos contables no rechazan un asiento vinculado. Editar el encabezado de un asiento vinculado, o el Partner, la cuenta o los [valores de Dimensión](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values) de una línea vinculada, conserva el vínculo. Una Entidad con un vínculo no puede [moverse a otra Organización](/api-reference/entities#patch-/api/entities/entityid/organization): el movimiento devuelve `409` con `ENTITY_MOVE_USES_ORGANIZATION_DATA_ERROR`.
+
+## Encontrar el vínculo de una línea
+
+Una línea en un vínculo lo nombra en `intercompanyLinkId` dondequiera que la línea venga con sus campos de detalle:
+
+- Las `lines` del [detalle del asiento](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/entries/entryid).
+- Las `entry.lines` de la [conciliación de un movimiento bancario](/api-reference/bank-movements#get-/movements/movementid/reconciliation).
+- Las líneas del [libro mayor consolidado](/api-reference/consolidation#get-/api/organizations/organizationid/consolidated-ledger).
+
+Cualquier otra línea lleva `null`. Para listar todos los vínculos, recorre las páginas de [`GET /api/organizations/:organizationId/intercompany-links`](#get-/api/organizations/organizationid/intercompany-links) y lee cada par.
+
+## Historial
+
+Cada vínculo y cada desvínculo quedan en el [registro de auditoría](/api-reference/audit-trail). Lee el historial de un vínculo a través de cualquiera de sus dos Entidades:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=intercompany_link&rowId=$INTERCOMPANY_LINK_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+Muestra la creación del vínculo y su eliminación. También aparecen en el [Log de la Organización](/api-reference/audit-trail#list-the-organization-log). El vínculo y el desvínculo de cada línea aparecen además en el historial de su propio asiento, bajo `tableName=ledger_entry` y el id del asiento.
+
+## Códigos de error de dominio
+
+| Código | Estado | Significado |
+| --- | --- | --- |
+| `PERMISSION_DENIED_ERROR` | `403` | La clave de API está acotada a una Entidad (todas las rutas), o el Rol de quien llama no puede escribir (`POST`, `DELETE`) |
+| `INTERCOMPANY_LINK_NOT_FOUND_ERROR` | `404` | La Organización no tiene un vínculo con ese id, o el `cursor` de la lista no nombra ninguno. `params.intercompanyLinkId` |
+| `INTERCOMPANY_LINK_LINE_NOT_FOUND_ERROR` | `404` | Una línea no existe o es de otra Organización. `params.lineId` |
+| `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR` | `409` | Ya existe un vínculo con ese `id`. `params.intercompanyLinkId` |
+| `INTERCOMPANY_LINK_LEDGER_ENTRY_NOT_ACTIVE_ERROR` | `409` | El asiento de una línea está anulado, reversado o programado. `params.lineId`, `params.ledgerEntryId` |
+| `INTERCOMPANY_LINK_LINE_ON_SUSPENSE_ACCOUNT_ERROR` | `409` | Una línea está en la cuenta transitoria. `params.lineId` |
+| `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR` | `409` | Una línea ya está en un vínculo, al crear o en un Unassign. `params.lineId`, `params.intercompanyLinkId` |
+| `INTERCOMPANY_LINK_LINES_IN_ONE_ENTITY_ERROR` | `422` | Las dos líneas están en una misma Entidad. `params.lineIds` |
+| `INTERCOMPANY_LINK_SAME_SIDE_ERROR` | `422` | Las dos líneas están en el mismo lado. `params.lineIds` |
+| `INTERCOMPANY_LINK_AMOUNTS_DIFFER_ERROR` | `422` | Ninguna moneda que compartan las líneas lleva el mismo monto. `params.lineIds` |
+
+## Códigos de estado
+
+| Estado | Significado |
+| --- | --- |
+| 200 | Éxito (GET, DELETE) |
+| 201 | Creado (POST) |
+| 400 | Error de validación: un cuerpo o una consulta mal formados, la misma línea dos veces, un campo desconocido, o falta un encabezado de auditoría |
+| 401 | Sin autenticar |
+| 403 | `PERMISSION_DENIED_ERROR` |
+| 404 | El vínculo o una línea no existe en la Organización, o la ruta no existe (`PATCH`, `PUT` y todas las rutas `/intercompany-entries`) |
+| 409 | Violación de una regla de dominio |
+| 422 | Las dos líneas no se pueden vincular |
