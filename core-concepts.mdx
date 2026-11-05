@@ -190,6 +190,8 @@ Loading data from its source, such as the movements of a bank account, isn't a d
     - Corrections and reversals
     - Opening balance entries when migrating from another system
 
+    When the document has already arrived, don't write a manual accrual: book the document with an [Accrual](/api-reference/invoices#accruals) on its line, so the earlier months show on the document itself.
+
     Each journal entry needs a date, a memo, and a balanced set of debit and credit lines. There is no approval step: an entry posts as soon as it is created. When Erwin isn't sure how to book something, he leaves a [Follow-up](/api-reference/follow-ups) for a person to approve instead of posting it. No entry can be posted on or before the entity's [ledger lock date](/api-reference/entities#patch-/api/entities/entityid/ledger-lock-date).
 
     <Warning>
