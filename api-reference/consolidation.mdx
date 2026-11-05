@@ -1,0 +1,205 @@
+---
+title: "Sintropix Consolidation API: Consolidated Income Statement"
+sidebarTitle: "Consolidation"
+description: "Read the Consolidated Income Statement of a Consolidation Scope: the result of a set of Entities over a period, by result Group Account, with a column per Entity, the eliminations of their Intercompany Links, and the consolidated total in one presentation currency."
+---
+
+import AppLink from "/snippets/app-link.mdx"
+
+A **Consolidation Scope** is a set of Entities of one Organization that you read as if they were one company. A consolidated report adds up their books on the Organization's [Group Accounts](/api-reference/chart-of-accounts) and eliminates what the Entities of the Scope book with each other. What an Entity of the Scope books with an Entity outside it stays.
+
+An **Intercompany Link** joins two lines, one in each of two Entities, that are the two halves of one position or flow between them: a revenue and its expense, or a receivable and its payable. The [paired lines of an Intercompany Entry](/api-reference/intercompany-entries) are an example. A consolidated report eliminates a Link when both of its Entities are in the Scope.
+
+A consolidated report reads the books each time you call it. It posts nothing and stores nothing.
+
+## Consolidated Income Statement
+
+The **Consolidated Income Statement** is the result of a Scope over a period inside one [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports). It has one row per Group Account of a result type (`income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense`), and these columns:
+
+- **One column per Entity of the Scope.** What the Entity's Ledger Accounts mapped to that Group Account move in the period, converted to the presentation currency.
+- **Eliminaciones.** The reversal of each linked line that the period eliminates.
+- **Consolidado.** The Entities' columns plus Eliminaciones.
+
+The last row, **Resultado del período**, adds up every row and the conversion difference, column by column.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/consolidated-income-statement"
+  note="The page is Estado de resultados, under Grupo in the sidebar, next to Consolidado. A Scope, presentation currency, or rate you set on one of the two pages carries over to the other. Click a cell to open the lines behind it, or the conversion row to open its Links."
+/>
+
+### When a Link is eliminated
+
+A Link is eliminated in the period that holds the later of its two lines' dates. Each linked line that lands on a result Group Account is reversed in Eliminaciones on that Group Account, at its presentation amount.
+
+For example, SpA bills Inc a fee on March 28, and Inc books the expense on April 3. The income statement for April eliminates both lines. The income statement for March eliminates neither, and shows SpA's revenue [in transit](#in-transit).
+
+### Conversion difference
+
+The two lines of a Link carry the same amount, but each Entity converts it to the presentation currency at its own rate. When both lines of an eliminated Link land on result Group Accounts, what their presentation amounts don't cancel is a **conversion difference** (**Diferencia de conversión**). It sits in Eliminaciones and Consolidado and counts in the result, so eliminating a Link between two result lines never changes the consolidated result.
+
+When only one line of an eliminated Link lands on a result Group Account, its reversal changes the result, and the statement shows no conversion difference for it.
+
+### In transit
+
+A Link is **in transit** (**En tránsito, sin eliminar**) when one of its lines lands on a result Group Account inside the period and its other line is dated after `to`. Nothing eliminates it yet, so the line stays in its Entity's column and in Consolidado. The statement names the Link in `differences` as a memo, and no column adds it up.
+
+## Access
+
+The Consolidated Income Statement reads the books of several Entities, so it asks for access to the whole Organization:
+
+- **Use an Organization-level API key.** Create the key with **Todas las empresas** in the **Empresa** selector (see [Get an API Key](/guides/api-keys)). A key confined to one Entity gets `403` with `PERMISSION_DENIED_ERROR`, even for a Scope of only its own Entity.
+- **Any Role can read it**, `viewer` included. See [Access and roles](/api-reference/overview#access-and-roles).
+
+## GET /api/organizations/:organizationId/consolidated-income-statement
+
+Read the Consolidated Income Statement of a Scope over a period.
+
+- **Path param:** `organizationId` (UUID)
+- **Query params:**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entityIds` | UUID | Yes | An Entity of the Organization in the Scope. Repeat the parameter once per Entity. An Entity can appear only once. |
+| `from` | ISO date | Yes | First day of the period |
+| `to` | ISO date | Yes | Last day of the period. Must be on or after `from`, in the same Fiscal Year. |
+| `presentationCurrency` | string | Yes | Currency every amount is in, for example `CLP` |
+| `presentationRates` | string | Conditional | One `CURRENCY:rate` for each functional currency of the Scope other than `presentationCurrency`, where one unit of the presentation currency equals `rate` units of `CURRENCY`. For example, with `presentationCurrency=USD`, `presentationRates=CLP:950` reads 1 USD = 950 CLP. Repeat the parameter once per currency. The rate is a positive decimal string. |
+
+No other query parameter is accepted. An unknown one returns `400`.
+
+Every presentation amount is the functional amount divided by its Entity's rate, rounded to the minor unit of the presentation currency. An Entity whose functional currency is the presentation currency isn't converted.
+
+The request is refused, and nothing is read, when:
+
+| Status | Code | When |
+| --- | --- | --- |
+| `400` | `CONSOLIDATION_SCOPE_EMPTY_ERROR` | `entityIds` names no Entity |
+| `404` | `CONSOLIDATION_SCOPE_ENTITY_NOT_FOUND_ERROR` | An Entity isn't of the Organization. `params.entityId` names it. |
+| `422` | `CONSOLIDATION_SCOPE_FISCAL_YEARS_DIFFER_ERROR` | The Entities start their Fiscal Year in different months. `params.entityIds` and `params.fiscalYearStartMonths` name two of them. |
+| `422` | `CONSOLIDATION_SCOPE_ENTITY_KEEPS_BOOKS_ERROR` | An Entity has at least one [Book](/api-reference/books). `params.entityId` names it. |
+| `400` | `PRESENTATION_RATE_MISSING_ERROR` | A functional currency of the Scope has no rate. `params.currency` names it. |
+| `400` | `PRESENTATION_RATE_NOT_POSITIVE_ERROR` | A rate is zero or negative. `params.currency` and `params.presentationRate` name it. |
+| `400` | `LEDGER_WINDOW_CROSSES_FISCAL_YEAR_ERROR` | `from` and `to` are in different Fiscal Years. `params.fiscalYearStart` is the start of the Fiscal Year that holds `from`. |
+
+- **Success response:** the Consolidated Income Statement
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `from` | ISO date | As requested |
+| `to` | ISO date | As requested |
+| `presentationCurrency` | string | Currency every amount is in |
+| `entities` | array | The Scope's Entities, in the order of `entityIds`, each with the fields below |
+| `groupAccountBalances` | array | One row per result Group Account with an amount in any column, each with the fields below |
+| `differences` | array | The conversion difference and the Links in transit, each with the fields below. Empty when there are none. |
+| `result` | object | **Resultado del período**: every row plus the conversion difference, column by column, with the [amount fields](#amounts) |
+
+Each item in `entities`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Entity id |
+| `name` | string | Entity name |
+| `currency` | string | The Entity's functional currency |
+| `presentationRate` | decimal string or null | Rate applied to the Entity; `null` when its functional currency is the presentation currency |
+
+### Amounts
+
+Every amount is an integer in the minor unit of the presentation currency, **debit-positive**: a debit balance is positive and a credit balance is negative. So an income reads negative, an expense reads positive, and a profit reads negative in `result`. To show the statement the usual way, flip the sign of the income rows and of the result.
+
+Each item in `groupAccountBalances`, and `result`, carries:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entityAmounts` | array | One `{ entityId, amount }` per Entity, in the order of `entities` |
+| `eliminationsAmount` | integer | The Eliminaciones column |
+| `consolidatedAmount` | integer | The Entities' amounts plus `eliminationsAmount` |
+
+Each item in `groupAccountBalances` also carries `groupAccount`: the `{ id, code, name, type }` of its Group Account.
+
+### Differences
+
+Each item in `differences`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `kind` | enum | `translation` for the [conversion difference](#conversion-difference), or `inTransit` for the [Links in transit](#in-transit). Each kind appears at most once, `translation` first. |
+| `amount` | integer | The sum of its Links' amounts, debit-positive |
+| `intercompanyLinks` | array | The Links behind it, each with the fields below |
+
+Each item in `intercompanyLinks`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `intercompanyLinkId` | UUID | Link id |
+| `amount` | integer | For `translation`, what the Link's two presentation amounts don't cancel. For `inTransit`, the presentation amount of the line booked in the period. |
+| `ledgerEntries` | array | The two Ledger Entries that hold the Link's lines, each `{ id, entityId, memo }` |
+
+The `translation` amount is part of `eliminationsAmount`, `consolidatedAmount`, and `result`. The `inTransit` amount is part of no column, because its line already counts in its Entity's column.
+
+### Example
+
+Inc keeps its books in USD and SpA in CLP. In April, SpA bills Inc a fee of 1.100.000 CLP and sells 55.000 CLP to a customer outside the group. Inc books the fee as an expense of USD 1,000.00. Read the statement in CLP at 1 USD = 1.000 CLP:
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/consolidated-income-statement?entityIds=$INC_ID&entityIds=$SPA_ID&from=2026-04-01&to=2026-04-30&presentationCurrency=CLP&presentationRates=USD:1000" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "from": "2026-04-01",
+  "to": "2026-04-30",
+  "presentationCurrency": "CLP",
+  "entities": [
+    { "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "name": "Inc", "currency": "USD", "presentationRate": "1000" },
+    { "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "name": "SpA", "currency": "CLP", "presentationRate": null }
+  ],
+  "groupAccountBalances": [
+    {
+      "groupAccount": { "id": "11111111-1111-4111-8111-111111111111", "code": "4100", "name": "Ingresos", "type": "income" },
+      "entityAmounts": [
+        { "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "amount": 0 },
+        { "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "amount": -1155000 }
+      ],
+      "eliminationsAmount": 1100000,
+      "consolidatedAmount": -55000
+    },
+    {
+      "groupAccount": { "id": "22222222-2222-4222-8222-222222222222", "code": "6100", "name": "Gastos operacionales", "type": "operating_expense" },
+      "entityAmounts": [
+        { "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "amount": 1000000 },
+        { "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "amount": 0 }
+      ],
+      "eliminationsAmount": -1000000,
+      "consolidatedAmount": 0
+    }
+  ],
+  "differences": [
+    {
+      "kind": "translation",
+      "amount": -100000,
+      "intercompanyLinks": [
+        {
+          "intercompanyLinkId": "e0000000-0000-4000-8000-000000000001",
+          "amount": -100000,
+          "ledgerEntries": [
+            { "id": "1a2b3c4d-0001-4a00-8a00-000000000001", "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "memo": "Fee abril" },
+            { "id": "1a2b3c4d-0002-4a00-8a00-000000000002", "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "memo": "Fee abril" }
+          ]
+        }
+      ]
+    }
+  ],
+  "result": {
+    "entityAmounts": [
+      { "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "amount": 1000000 },
+      { "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "amount": -1155000 }
+    ],
+    "eliminationsAmount": 0,
+    "consolidatedAmount": -155000
+  }
+}
+```
+
+The fee cancels in Eliminaciones: 1.100.000 CLP of SpA's revenue against 1.000.000 CLP of Inc's expense. The 100.000 CLP they don't cancel is the conversion difference, a gain, so Eliminaciones nets to `0`. The group's profit is 155.000 CLP: the 55.000 CLP sold outside the group plus the conversion difference.
