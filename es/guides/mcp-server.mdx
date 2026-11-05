@@ -1,12 +1,12 @@
 ---
 title: "Lee tus libros desde Claude o ChatGPT con el servidor MCP de Sintropix"
 sidebarTitle: "Conectar Claude o ChatGPT"
-description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados y el balance general, y para dejar feedback a los desarrolladores de Sintropix. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
+description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados, el balance general y las planillas de Google que compartió tu Organization, y para dejar feedback a los desarrolladores de Sintropix. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
 ---
 
 El servidor MCP de Sintropix permite que un asistente de IA compatible con el Model Context Protocol (MCP), como Claude o ChatGPT, lea tus libros. Preguntas en lenguaje natural, por ejemplo "¿Cuánto me deben mis clientes?", y el asistente responde con tus datos de Sintropix.
 
-El servidor lee tus libros. No puede crear, cambiar ni eliminar nada en ellos. Lo único que envía es feedback sobre Sintropix, que no cambia ningún dato.
+El servidor lee tus libros y las planillas de Google que tu Organization compartió con Sintropix. No puede crear, cambiar ni eliminar nada en ellos. Lo único que envía es feedback sobre Sintropix, que no cambia ningún dato.
 
 ```text
 https://mcp.sintropix.com/mcp
@@ -44,7 +44,7 @@ Consulta [Conectar una app con OAuth](/es/guides/connected-apps) para ver todas 
 
 ## Herramientas
 
-El servidor expone seis herramientas. Cinco leen tus libros, y `leave_feedback` les cuenta a los desarrolladores de Sintropix qué se interpuso en el camino del asistente. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
+El servidor expone ocho herramientas. Cinco leen tus libros, dos leen las planillas de Google que compartió tu Organization, y `leave_feedback` les cuenta a los desarrolladores de Sintropix qué se interpuso en el camino del asistente. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
 
 | Herramienta | Pregunta que responde | Entradas |
 | --- | --- | --- |
@@ -53,6 +53,8 @@ El servidor expone seis herramientas. Cinco leen tus libros, y `leave_feedback` 
 | `get_payables` | ¿Qué facturas no he pagado? | `entityId` |
 | `get_income_statement` | ¿Cuánto gané en un período? | `entityId`, `from` y `to` opcionales |
 | `get_balance_sheet` | ¿Qué tengo y qué debo en una fecha? | `entityId`, `cutoffDate` opcional |
+| `list_integration_files` | ¿Qué archivos compartimos? | Ninguna |
+| `read_integration_file` | ¿Qué dice ahora esta planilla? | `integrationId`, `fileId`, `reason` y `tab` opcional |
 | `leave_feedback` | ¿Cómo le cuento a Sintropix qué se interpuso en mi camino? | `kind`, `message`, `endpoint`, `requestId` y `reproduction` opcionales |
 
 ### `list_entities`
@@ -85,6 +87,25 @@ Devuelve el balance general en una fecha: activos, pasivos y patrimonio, cada un
 | --- | --- | --- |
 | `entityId` | UUID | Obligatoria |
 | `cutoffDate` | `YYYY-MM-DD` | Hoy en Chile |
+
+### `list_integration_files`
+
+Lista las planillas de Google que las personas de tu Organization eligieron compartir con Erwin y el MCP, mediante una [Integration de Google Drive](/api-reference/integrations#google-sheets-for-erwin-and-the-mcp). Cada elemento trae su `integrationId`, `fileId`, `name`, `purpose` y `description` (la descripción de la planilla en Google Drive). El asistente lee el propósito para elegir la planilla que responde tu pregunta, y la descripción cuando no hay propósito.
+
+Una planilla a la que Google ya no llega, porque se borró o está en la papelera, no aparece. Una conexión cuyos archivos no se pueden listar vuelve en `unlisted`, con su `integrationId` y el rechazo de la API. `INTEGRATION_GRANT_FAILED_ERROR` significa que alguien tiene que volver a conectar la planilla en **Configuración → Integraciones**.
+
+### `read_integration_file`
+
+Lee una planilla compartida tal como está ahora en Google Drive. Responde cada pestaña como CSV, con las celdas como las muestra la planilla. Cada pestaña trae `tab` (su nombre), `rowCount`, `truncated` y `csv`. Una pestaña se corta en 2.000 filas, y `truncated` indica cuando tiene más.
+
+| Entrada | Tipo | Obligatoria | Descripción |
+| --- | --- | --- | --- |
+| `integrationId` | UUID | Sí | De `list_integration_files`. |
+| `fileId` | UUID | Sí | De `list_integration_files`. |
+| `reason` | string | Sí | Una línea sobre lo que pediste que necesita la planilla. Sintropix la registra en el [historial de auditoría](/api-reference/audit-trail) junto con la lectura. Hasta 500 caracteres. |
+| `tab` | string | No | El nombre de una pestaña. Sin él, la herramienta lee todas las pestañas. Un nombre que la planilla no tiene se rechaza con la lista de sus pestañas. |
+
+El asistente trata las celdas como datos que escribieron personas, nunca como instrucciones. `INTEGRATION_FILE_GONE_ERROR` significa que la planilla se borró o que su dueño quitó el acceso: vuelve a compartirla o conecta otra planilla. `INTEGRATION_FILE_TOO_LARGE_ERROR` significa que la planilla pesa más de los 10 MB que Google exporta. Un `viewer` no puede listar ni leer planillas compartidas. Consulta [Quién puede leer los archivos](/api-reference/integrations#who-can-read-the-files).
 
 ### `leave_feedback`
 

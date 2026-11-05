@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect a Google Sheet for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -19,6 +19,7 @@ What an Integration can feed depends on its kind:
 | `mercadolibre`, `buk`, `notion`, `rho` | Nothing yet |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
+| `google_drive` | Nothing. Erwin and the MCP server read the Google Sheet you picked instead. See [Google Sheets for Erwin and the MCP](#google-sheets-for-erwin-and-the-mcp) |
 
 An Organization can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account can be connected only once.
 
@@ -33,6 +34,8 @@ The `gmail` and `outlook` kinds connect an email account: a Gmail account or a M
 The `mailbox` kind is an email address that Sintropix holds for the Organization, such as `facturas@acme.sintropix.com`. You create it in Sintropix: there's no outside account to connect. An Organization can hold several Mailboxes, all at its own email domain. See [Mailbox](#mailbox).
 
 The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of the current Fiscal Year of every Entity of the Organization to that Sheet, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
+
+The `google_drive` kind connects one Google Sheet that you pick in Google's file picker, so that Erwin and the assistants you connect to the [MCP server](/guides/mcp-server) can read it. Sintropix reaches that Sheet only, not the rest of your Drive, and reads it as it is each time someone asks. It never writes to it. See [Google Sheets for Erwin and the MCP](#google-sheets-for-erwin-and-the-mcp).
 
 The `xpendit` kind connects the enterprise of an Xpendit account, the expense tool, with its API key. You can read the expenses and funds of each of its Subsidiaries, and route each Subsidiary to a Source of Expense Renditions. See [Xpendit](#xpendit).
 
@@ -85,13 +88,13 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `buk`, the tenant, the subdomain of its `buk.cl` address; for `notion`, the id of the Notion workspace; for `rho`, the id of the Rho business). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `google_drive` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets` and `google_drive`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `buk`, the tenant, the subdomain of its `buk.cl` address; for `notion`, the id of the Notion workspace; for `rho`, the id of the Rho business). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. Only `bsale` and `wasabil` state it; `null` for every other kind. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
 | `mode` | `test` \| `live` \| null | Whether a `fintoc`, `plaid`, or `stripe` Integration runs against the Provider's test or live environment. `null` for every other kind. |
-| `accountName` | string \| null | For `stripe`, the business name of the Stripe account, or its Dashboard name when it has no business name, as read at connect. It can be `null` for a Stripe account that states neither. For `notion`, the name of the Notion workspace. `null` for every other kind. |
+| `accountName` | string \| null | For `stripe`, the business name of the Stripe account, or its Dashboard name when it has no business name, as read at connect. It can be `null` for a Stripe account that states neither. For `notion`, the name of the Notion workspace. For `google_drive`, the title of the Sheet when it was connected. `null` for every other kind. |
 | `country` | string \| null | For `stripe`, the country of the Stripe account, as an ISO 3166-1 alpha-2 code such as `US`, read at connect. `null` for every other kind. |
 | `defaultCurrency` | string \| null | For `stripe`, the default currency of the Stripe account, as an uppercase ISO 4217 code such as `USD`, read at connect. `null` for every other kind. |
 | `feedableFamilies` | array | The [Document Families](/api-reference/source-feeds#document-families) this Integration's provider can feed: `["dte", "honorarium"]` for `sii_mirror`, `["dte"]` for `bsale` and `wasabil`, `["expense"]` for `xpendit`. Empty for every kind that feeds no documents. |
@@ -100,8 +103,8 @@ The access token is stored encrypted and is never returned on any read.
 | `routedEntities` | array | `{ id, name }` of each Entity the Integration's feeds reach, in name order. Empty while no feed routes it. |
 | `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads for the Entity that keeps it. `null` for every other kind, and when no Book was picked. |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
-| `scopes` | string[] | The permissions the Provider granted. Set for `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, and `stripe`; empty for every other kind. |
-| `tokenExpiresAt` | ISO 8601 timestamp \| null | When the stored access of a `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, or `stripe` Integration expires. `null` for every other kind. |
+| `scopes` | string[] | The permissions the Provider granted. Set for `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, and `stripe`; empty for every other kind. |
+| `tokenExpiresAt` | ISO 8601 timestamp \| null | When the stored access of a `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, or `stripe` Integration expires. `null` for every other kind. |
 | `purpose` | string \| null | What the account is for, in your own words, such as "Facturas de proveedores de Acme". It helps a person or an agent pick the right account when the Organization holds several. Up to 500 characters. `null` until you [set it](#put-/integrations/integrationid/purpose). |
 | `grantHealth` | `working` \| `failed` \| `unknown` \| null | For `gmail` and `outlook`, whether the account's access still works, checked on each list. `failed` means the access expired or was revoked: disconnect the Integration and connect the account again. `unknown` means Sintropix couldn't check it right now. For `mailbox`, `working` when Sintropix reaches its inbox and `unknown` otherwise; a Mailbox holds no access that can expire, so it's never `failed`. `null` for every other kind. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
@@ -112,14 +115,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers, the bank Providers, Xpendit, Buk, and Rho. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
+This route connects the document Providers, the bank Providers, Xpendit, Buk, and Rho. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `rho` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `stripe`, and `notion` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `rho` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `google_drive`, `stripe`, and `notion` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -304,7 +307,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `GET /api/organizations/:organizationId/integrations`
 
-List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Stripe, or Notion authorization connected from the app, and every Mailbox. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
+List every Integration of the Organization, in the order they were connected, including any Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, or Notion authorization connected from the app, and every Mailbox. Each item carries its Source Feeds, the Bank Accounts it feeds, and the Entities its feeds reach. A Google Sheets Integration carries its last General Ledger Export.
 
 An API key confined to one Entity gets every Integration of the Organization, with only the Source Feeds and Bank Accounts of its own Entity. `routedEntities` still names every Entity a feed reaches.
 
@@ -985,6 +988,134 @@ A refused export:
   "failure": "sheet_not_writable"
 }
 ```
+
+## Google Sheets for Erwin and the MCP
+
+A `google_drive` Integration shares one Google Sheet with Erwin and with the assistants you connect to the [MCP server](/guides/mcp-server). Use it for what lives outside your books, such as a collections tracker or a budget your team keeps in Sheets. Sintropix stores none of the Sheet's content: each read asks Google for the Sheet as it is now, with every tab. Sintropix never writes to it.
+
+This is a different use of a Sheet than the [General Ledger export](#google-sheets), and one Sheet can be in both.
+
+### Connect a Sheet for Erwin and the MCP
+
+You connect it from the app, because Google asks for consent in a browser:
+
+1. Open **Configuración → Integraciones**, click **Conectar integración**, and pick **Google Drive**.
+2. Continue on Google and allow access. Google opens its file picker, which lists only spreadsheets. Pick the Sheet.
+
+Sintropix gets access to the Sheet you pick and to nothing else in your Drive. When you return, it checks the Sheet and opens the Integration's panel. It refuses the connection, and stores nothing, when:
+
+- You left the picker without picking a Sheet.
+- The file you picked isn't a spreadsheet, or Google can't reach it with the account you authorized.
+- The Sheet's owner doesn't let readers download it. Ask the owner to allow downloads, then connect it again.
+- The Sheet is already connected, in this or another Organization.
+
+Each Integration holds the one Sheet you picked. To share another Sheet, connect it as another Integration.
+
+The panel's **Archivos para Erwin y el MCP** section lists the Sheet with its purpose. Write a purpose that says what the Sheet holds and when to use it, for example "Cobranza mensual por cliente". Erwin and the assistants use it to pick the right Sheet. While a Sheet has no purpose, they read the description the Sheet has in Google Drive instead.
+
+### Who can read the files
+
+Reading a shared Sheet is more than reading your books, so it follows the same rule as [reading email](#who-can-read-email):
+
+| Caller | List and read files |
+| --- | --- |
+| `staff` or `client` | Yes |
+| `viewer` | No |
+| An API key confined to one Entity | No |
+
+A refused caller gets `403` with `PERMISSION_DENIED_ERROR`. Setting a file's purpose is a write, so a `viewer` can't do it either. An OAuth connection, such as the MCP server's, reads files with the Role of the person who approved it.
+
+Sintropix logs each file it hands out under the request's [Audit Envelope](/api-reference/audit-trail). Reading a file with an API key needs `x-audit-actor` and `x-audit-reason`, as a write does. Listing the files isn't logged.
+
+### GET `/integrations/:integrationId/files`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/files`
+
+List the files of the Integration that Erwin and the MCP read. A Sheet that Google no longer reaches, because it was deleted, trashed, or the account lost access, stays chosen but is left out of the list.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `files` | array | The files Google still reaches. See below. |
+
+Each element of `files`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | uuid | The file's id in Sintropix. Use it to read the file or set its purpose. |
+| `integrationId` | uuid | The Integration. |
+| `name` | string | The file's name in Google Drive, read now. |
+| `purpose` | string \| null | What the file is for, in your own words. `null` until you [set it](#put-/integrations/integrationid/files/fileid/purpose). |
+| `description` | string \| null | The file's description in Google Drive, read now. `null` when it has none. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "files": [
+    {
+      "id": "0192a8b4-0000-7000-8000-0000000000f1",
+      "integrationId": "0192a8b4-0000-7000-8000-000000000001",
+      "name": "Cobranza Ñuñoa",
+      "purpose": null,
+      "description": "Cobranza mensual por cliente"
+    }
+  ]
+}
+```
+
+### GET `/integrations/:integrationId/files/:fileId`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/files/:fileId`
+
+Download the file as it is now in Google Drive, as an Excel workbook (`.xlsx`) with every tab. The response's `Content-Type` is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, and its `Content-Disposition` names the file. Google exports at most 10 MB, so a larger Sheet is refused.
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files/$FILE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Compare October collections with the bank" \
+  -o cobranza.xlsx
+```
+
+### PUT `/integrations/:integrationId/files/:fileId/purpose`
+
+`PUT /api/organizations/:organizationId/integrations/:integrationId/files/:fileId/purpose`
+
+Set or clear the purpose of a file. In the app, edit it in place in the **Archivos para Erwin y el MCP** section of the Integration's panel.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `purpose` | string \| null | Yes | 1 to 500 characters after trimming. `null` clears it. A blank string is refused with `400`. Unknown keys are refused with `400`. |
+
+**Response**: the file as Sintropix keeps it: `id`, `organizationId`, `integrationId`, `providerRef` (the file's id in Google Drive), `purpose`, `createdAt`, and `updatedAt`.
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/files/$FILE_ID/purpose" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Say what the collections Sheet is for" \
+  -H "Content-Type: application/json" \
+  -d '{ "purpose": "Cobranza por cliente: cruza con los abonos del banco" }'
+```
+
+### File errors
+
+| Status | Code | When it happens |
+| --- | --- | --- |
+| `403` | `PERMISSION_DENIED_ERROR` | A `viewer`, or an API key confined to one Entity, lists or reads files, or a `viewer` sets a file's purpose |
+| `404` | `INTEGRATION_NOT_FOUND_ERROR` | The Integration doesn't exist in the Organization |
+| `404` | `INTEGRATION_FILE_NOT_FOUND_ERROR` | The id names no file of that Integration. `params.integrationId` and `params.fileId` |
+| `422` | `INTEGRATION_FILES_NOT_SUPPORTED_ERROR` | The Integration isn't `google_drive`, so it has no files. `params.kind` names its kind |
+| `424` | `INTEGRATION_FILE_GONE_ERROR` | Google no longer reaches the file: it was deleted or trashed, or the account lost access. Restore or share it again, or connect another Sheet. `params.integrationId` and `params.fileId` |
+| `424` | `INTEGRATION_FILE_TOO_LARGE_ERROR` | The Sheet is larger than the 10 MB Google exports. `params.integrationId` and `params.fileId` |
+| `424` | `INTEGRATION_GRANT_FAILED_ERROR` | Google no longer honors the access. Disconnect the Integration and connect the Sheet again |
 
 ## Xpendit
 
