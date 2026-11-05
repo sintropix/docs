@@ -54,7 +54,7 @@ In the app, type `@` and pick a name, or type the name in full: `@erwin`, a Memb
 
 List the Members a message can mention, ordered by name. Leave yourself out when you offer the list to the author.
 
-**Response** `200`: an array of `{ userId, name }`.
+**Response** `200`: an array of `{ userId, name, image }`, where `image` is the id of the Member's profile photo, or `null` when they have none. The app shows it beside each name in the list.
 
 ```bash
 curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/chat/members" \
