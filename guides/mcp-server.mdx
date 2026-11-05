@@ -102,6 +102,24 @@ Feedback changes nothing in your books, so a **Solo lectura** connection sends i
 
 The inputs follow the same rules as [`POST /api/feedback`](/api-reference/feedback#post-/feedback). The tool answers `feedbackId`, the id of the stored Feedback. If an input breaks a rule, the tool answers an error that names each field and says what to fix, for example `kind must be one of: bug, improvement, papercut, nit, missing_capability`, and sends nothing.
 
+### When a tool fails
+
+A tool call that fails answers its error as JSON text with three fields:
+
+- `message`: what went wrong.
+- `requestId`: the id of the Sintropix API request that refused the call. It's absent when the failure didn't come from an API refusal.
+- `feedbackInvitation`: a sentence that asks the assistant to report the problem with `leave_feedback`, citing that `requestId`.
+
+```json
+{
+  "message": "The ERP refused GET /entities/{entityId}/reports/income-statement with 400. Validation failed",
+  "requestId": "9fddebf9-d98b-473e-9aec-abe88cc0428a",
+  "feedbackInvitation": "If this error looks wrong or blocks you, send requestId 9fddebf9-d98b-473e-9aec-abe88cc0428a with leave_feedback to tell the Sintropix developers."
+}
+```
+
+The assistant can pass that `requestId` to `leave_feedback`. Input that breaks a tool's own rules, such as a `kind` that isn't one of the five, is refused before the tool runs. That error stays plain text, with no `requestId` or `feedbackInvitation`.
+
 ## Example questions
 
 - "Which of my companies can you see?"

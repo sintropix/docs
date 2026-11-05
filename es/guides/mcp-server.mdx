@@ -102,6 +102,24 @@ El feedback no cambia nada en tus libros, así que una conexión de **Solo lectu
 
 Las entradas siguen las mismas reglas que [`POST /api/feedback`](/es/api-reference/feedback#post-/feedback). La herramienta responde `feedbackId`, el id del feedback guardado. Si una entrada no cumple una regla, la herramienta responde un error que nombra cada campo y dice qué corregir, por ejemplo `kind must be one of: bug, improvement, papercut, nit, missing_capability`, y no envía nada.
 
+### Cuando una herramienta falla
+
+Una llamada a una herramienta que falla responde su error como texto JSON con tres campos:
+
+- `message`: qué salió mal.
+- `requestId`: el id de la solicitud a la API de Sintropix que rechazó la llamada. No aparece cuando la falla no vino de un rechazo de la API.
+- `feedbackInvitation`: una frase que invita al asistente a reportar el problema con `leave_feedback`, citando ese `requestId`.
+
+```json
+{
+  "message": "The ERP refused GET /entities/{entityId}/reports/income-statement with 400. Validation failed",
+  "requestId": "9fddebf9-d98b-473e-9aec-abe88cc0428a",
+  "feedbackInvitation": "If this error looks wrong or blocks you, send requestId 9fddebf9-d98b-473e-9aec-abe88cc0428a with leave_feedback to tell the Sintropix developers."
+}
+```
+
+El asistente puede pasarle ese `requestId` a `leave_feedback`. Una entrada que rompe las reglas propias de la herramienta, como un `kind` que no es uno de los cinco, se rechaza antes de que la herramienta corra. Ese error sigue siendo texto plano, sin `requestId` ni `feedbackInvitation`.
+
 ## Preguntas de ejemplo
 
 - "¿Qué empresas puedes ver?"

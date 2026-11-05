@@ -52,7 +52,7 @@ Envía un feedback.
 | `kind` | enum | Sí | `bug`, `improvement`, `papercut`, `nit` o `missing_capability`. Consulta [Tipos](#tipos). |
 | `message` | string | Sí | Qué pasó, qué esperabas y qué hiciste en su lugar. Hasta 10.000 caracteres. No puede estar vacío. |
 | `endpoint` | string o null | No | La ruta sobre la que trata el feedback, por ejemplo `POST /api/entities/{entityId}/partners`. Hasta 500 caracteres. |
-| `requestId` | string o null | No | El `requestId` de la llamada que falló, tomado de su encabezado `x-request-id` o de su cuerpo de error. Nos permite encontrar esa solicitud exacta. Hasta 200 caracteres. |
+| `requestId` | string o null | No | El `requestId` de la llamada que falló, tomado de su encabezado `x-request-id` o de su cuerpo de error. Todo cuerpo de error lo lleva, y el `feedbackInvitation` del error ya lo nombra. Nos permite encontrar esa solicitud exacta. Hasta 200 caracteres. |
 | `reproduction` | string o null | No | Algo breve que nos ayude a reproducirlo: la solicitud que enviaste, los pasos, la respuesta que recibiste. Hasta 10.000 caracteres. |
 
 Sintropix quita los espacios al inicio y al final de cada campo de texto antes de revisar su largo. Puedes escribir el feedback en español o en inglés.
@@ -105,6 +105,6 @@ La ruta no tiene un límite de solicitudes propio. Una llamada con clave de API 
 ## Qué hace útil un feedback
 
 - **Di qué intentaste y qué hiciste en su lugar.** "Quise hacer X, probé Y, recibí Z e hice W en su lugar" nos dice más que "falta X".
-- **Envía el `requestId`** de la llamada que falló. Todo cuerpo de error lo lleva, y toda respuesta lo lleva en el encabezado `x-request-id`.
+- **Envía el `requestId`** de la llamada que falló. Todo cuerpo de error lo lleva, y toda respuesta lo lleva en el encabezado `x-request-id`. Cuando estás autenticado, el [`feedbackInvitation`](/es/api-reference/overview#errores) del error ya lo nombra.
 - **Un problema por feedback.** Envía dos llamadas para dos problemas.
 - **Deja fuera los datos personales y de clientes.** Con los ids basta para encontrar el registro.
