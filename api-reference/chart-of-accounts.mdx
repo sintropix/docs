@@ -22,9 +22,22 @@ The Organization owns one flat group chart. It is a list of Group Accounts (**Cu
 - To map a Ledger Account to another Group Account, `PATCH` it with a new `groupAccountId`.
 - A Ledger Account that changes `type` must name a Group Account of the new type in the same request.
 - You can always change a Group Account's code and name. Its type can't change, and it can't be deleted, while a Ledger Account maps to it.
+- A result Group Account can name the [Dimensions its lines require](#required-dimensions). Its type can't change while it requires one.
 - An Entity that has Ledger Accounts can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization).
 
 In the app, **Plan de cuentas** lives in the Organization's settings. It opens on **Grupo**, which lists each Group Account with the Ledger Accounts of each Entity nested under it. Pick an Entity in the switcher to see its own chart, with a **Cuenta de grupo** column. Pick the Organization's own row, with its logo and name, to go back to the group chart.
+
+### Required Dimensions
+
+A Group Account of a result type (`income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense`) can require Dimensions: none, one, or many of the Organization's [Dimensions](/api-reference/dimensions). None is the default. The rule holds for every Ledger Account that maps to the Group Account, in every Entity of the Organization. A balance-sheet Group Account requires none, because its lines carry no Dimension Values.
+
+While a Group Account requires a Dimension, every line you write on one of its Ledger Accounts must carry a value of that Dimension. Otherwise the request is refused with `DIMENSION_VALUE_REQUIRED_ERROR`. See [Required Dimensions](/api-reference/dimensions#required-dimensions) for where Sintropix checks it and what it leaves out.
+
+- To set the rule, [`PATCH`](#patch-/api/organizations/organizationid/group-accounts/groupaccountid) the Group Account with `requiredDimensionIds`. The array states the whole set and replaces the current one. Send `[]` to require none.
+- The rule looks forward only. Requiring a Dimension, or mapping a Ledger Account to a Group Account that requires one, checks no line already posted.
+- Deleting a Dimension removes it from every Group Account that requires it.
+
+In the app, **Grupo** shows an **Exige** column on each result Group Account. Click it to pick the Dimensions the Group Account requires. Each pick saves at once. A balance-sheet Group Account shows no picker.
 
 The group chart routes live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). They need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization, and the listing shows only that Entity's Ledger Accounts.
 
@@ -37,6 +50,7 @@ The group chart routes live under the Organization, not under an Entity. Read th
 | `code` | string | Code, unique in the Organization |
 | `name` | string | Name |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
+| `requiredDimensionIds` | UUID[] | Dimensions every line on its Ledger Accounts must carry a value of. Always `[]` on a balance-sheet Group Account. Returned by `GET` and `PATCH` |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
@@ -58,6 +72,7 @@ Each item of `ledgerAccounts` carries `id`, `entityId`, `code`, and `name`, orde
     "code": "1101",
     "name": "Caja",
     "type": "asset",
+    "requiredDimensionIds": [],
     "createdAt": "2026-02-01T12:00:00.000Z",
     "updatedAt": "2026-02-01T12:00:00.000Z",
     "ledgerAccounts": [
@@ -115,7 +130,7 @@ curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-
 
 ## PATCH /api/organizations/:organizationId/group-accounts/:groupAccountId
 
-Rename, recode, or retype a Group Account. Send at least one field. The new code and name show on every Ledger Account that maps to it.
+Rename, recode, or retype a Group Account, or set the Dimensions it requires. Send at least one field. The new code and name show on every Ledger Account that maps to it.
 
 - **Path params:** `organizationId` (UUID), `groupAccountId` (UUID)
 - **Body:**
@@ -124,9 +139,10 @@ Rename, recode, or retype a Group Account. Send at least one field. The new code
 | --- | --- | --- | --- |
 | `code` | string | No | New code, unique in the Organization |
 | `name` | string | No | New name |
-| `type` | enum | No | New type. Refused while a Ledger Account maps to the Group Account |
+| `type` | enum | No | New type. Refused while a Ledger Account maps to the Group Account or it requires a Dimension |
+| `requiredDimensionIds` | UUID[] | No | The whole set of [Dimensions the Group Account requires](#required-dimensions), replacing the current set. `[]` requires none. Each must be a Dimension of the Organization. Only a result Group Account can name one |
 
-- **Success response:** the updated Group Account object
+- **Success response:** the updated Group Account object, with `requiredDimensionIds`
 - **Status:** 200
 
 ```bash
@@ -136,6 +152,18 @@ curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group
   -H "x-audit-actor: my-agent" \
   -d '{"name": "Caja y fondos fijos"}'
 ```
+
+To require a cost center on every line of an expense Group Account:
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts/$GROUP_ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"requiredDimensionIds": ["22222222-2222-4222-8222-222222222222"]}'
+```
+
+Naming a Dimension on a balance-sheet Group Account returns `422` with `GROUP_ACCOUNT_REQUIRED_DIMENSION_ON_NON_RESULT_ACCOUNT_ERROR`. A Dimension that doesn't exist in the Organization returns `404` with `GROUP_ACCOUNT_REQUIRED_DIMENSIONS_NOT_FOUND_ERROR`, and `params.dimensionIds` lists every Dimension the request named.
 
 ## DELETE /api/organizations/:organizationId/group-accounts/:groupAccountId
 
@@ -591,7 +619,9 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `GROUP_ACCOUNT_NOT_FOUND_ERROR` | The Group Account doesn't exist in the Organization (`404`) |
 | `GROUP_ACCOUNT_ALREADY_EXISTS_ERROR` | A Group Account with the supplied `id` already exists (`409`) |
 | `GROUP_ACCOUNT_CODE_ALREADY_EXISTS_ERROR` | Group Account code already in use in the Organization (`409`) |
-| `GROUP_ACCOUNT_TYPE_LOCKED_ERROR` | Type change refused: a Ledger Account maps to the Group Account (`409`) |
+| `GROUP_ACCOUNT_TYPE_LOCKED_ERROR` | Type change refused: a Ledger Account maps to the Group Account, or it requires a Dimension (`409`) |
+| `GROUP_ACCOUNT_REQUIRED_DIMENSION_ON_NON_RESULT_ACCOUNT_ERROR` | Only a result Group Account can require Dimensions. `params.groupAccountId` names it (`422`) |
+| `GROUP_ACCOUNT_REQUIRED_DIMENSIONS_NOT_FOUND_ERROR` | A required Dimension doesn't exist in the Organization. `params.dimensionIds` lists every Dimension the request named (`404`) |
 | `GROUP_ACCOUNT_IN_USE_ERROR` | Delete refused: a Ledger Account maps to the Group Account (`409`) |
 
 ## Status codes
@@ -605,4 +635,4 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | 403 | Forbidden |
 | 404 | Resource not found |
 | 409 | Domain rule violation |
-| 422 | Group Account of another type |
+| 422 | Group Account of another type, or required Dimensions on a balance-sheet Group Account |

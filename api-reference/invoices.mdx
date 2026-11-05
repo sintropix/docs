@@ -667,7 +667,7 @@ Each element of `newLedgerEntryLines`:
 | `transactionCurrency` | string | No | ISO 4217 code. Send together with the next two fields, or none of the three. |
 | `transactionAmount` | integer | No | Amount in `transactionCurrency`, minor units. |
 | `transactionFxRate` | string | No | Decimal string such as `"945.12"`. No exponent or sign. |
-| `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. |
+| `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. A line on an account whose Group Account [requires Dimensions](/api-reference/dimensions#required-dimensions) must carry a value of each, unless it carries `deferral` or `accrual`. |
 | `deferral` | object | No | Spread this line's whole amount over whole months from the booking on, instead of recognizing it on the entry date: `{ recognitionAccountId, startMonth, monthCount }`. See [Deferrals](#deferrals). |
 | `accrual` | object | No | Recognize this line's whole amount in whole months before the month of the booking: `{ recognitionAccountId, startMonth, monthCount }`. See [Accruals](#accruals). |
 
@@ -740,6 +740,7 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | `ACCRUAL_RECOGNITION_ACCOUNT_INELIGIBLE_ERROR` | `400` | `recognitionAccountId` is not of a type the accrual can release into. The response carries `params: { ledgerEntryLineId, recognitionAccountId, accruedAccountSubtype }`. |
 | `ACCRUAL_SCHEDULE_REACHES_BOOKING_MONTH_ERROR` | `400` | A month of the accrual is the month of the booking or later. Every month must end before the month of `entry.entryDate`. The response carries `params: { ledgerEntryLineId, entryDate }`. |
 | `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | A Release of a deferred or accrued line falls on or before the ledger lock date. Nothing is booked. The response carries `params: { entryDate, ledgerLockDate }`, where `entryDate` is the date of that Release. |
+| `DIMENSION_VALUE_REQUIRED_ERROR` | `400` | A line without `deferral` or `accrual` sits on an account whose Group Account [requires a Dimension](/api-reference/dimensions#required-dimensions), and carries no value of it. Nothing is booked. The response carries `params: { ledgerAccountIds, missingDimensions }`, where each missing Dimension is `{ dimensionId, name }`. |
 
 ### Detecting concurrent changes with `expectedBookingVersion`
 
