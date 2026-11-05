@@ -1,12 +1,12 @@
 ---
 title: "Read Your Books from Claude or ChatGPT with the Sintropix MCP Server"
 sidebarTitle: "Connect Claude or ChatGPT"
-description: "Connect Claude, ChatGPT, or any MCP client to the Sintropix MCP server to read companies, receivables, payables, the income statement, and the balance sheet, and to leave feedback for the Sintropix developers. Server URL, sign-in, access, and the tools it exposes."
+description: "Connect Claude, ChatGPT, or any MCP client to the Sintropix MCP server to read companies, receivables, payables, the income statement, the balance sheet, and the Google Sheets your Organization shared, and to leave feedback for the Sintropix developers. Server URL, sign-in, access, and the tools it exposes."
 ---
 
 The Sintropix MCP server lets an AI assistant that speaks the Model Context Protocol (MCP), such as Claude or ChatGPT, read your books. You ask in plain language, for example "What do my customers owe me?", and the assistant answers from your Sintropix data.
 
-The server reads your books. It can't create, change, or delete anything in them. The one thing it sends is feedback about Sintropix itself, which changes no data.
+The server reads your books and the Google Sheets your Organization shared with Sintropix. It can't create, change, or delete anything in them. The one thing it sends is feedback about Sintropix itself, which changes no data.
 
 ```text
 https://mcp.sintropix.com/mcp
@@ -44,7 +44,7 @@ See [Connect an app with OAuth](/guides/connected-apps) for the full rules of co
 
 ## Tools
 
-The server exposes six tools. Five read your books, and `leave_feedback` tells the Sintropix developers what got in the assistant's way. Each one answers a question, rather than mirroring an API endpoint. Amounts come back as decimal text in the company's functional currency, and accounts and Partners come back with their names.
+The server exposes eight tools. Five read your books, two read the Google Sheets your Organization shared, and `leave_feedback` tells the Sintropix developers what got in the assistant's way. Each one answers a question, rather than mirroring an API endpoint. Amounts come back as decimal text in the company's functional currency, and accounts and Partners come back with their names.
 
 | Tool | Question it answers | Inputs |
 | --- | --- | --- |
@@ -53,6 +53,8 @@ The server exposes six tools. Five read your books, and `leave_feedback` tells t
 | `get_payables` | Which bills haven't I paid? | `entityId` |
 | `get_income_statement` | What did I earn in a period? | `entityId`, optional `from` and `to` |
 | `get_balance_sheet` | What do I have and owe on a date? | `entityId`, optional `cutoffDate` |
+| `list_integration_files` | Which files did we share? | None |
+| `read_integration_file` | What does this Sheet say now? | `integrationId`, `fileId`, `reason`, optional `tab` |
 | `leave_feedback` | How do I tell Sintropix what got in my way? | `kind`, `message`, optional `endpoint`, `requestId`, and `reproduction` |
 
 ### `list_entities`
@@ -85,6 +87,25 @@ Returns the balance sheet (Balance General) on a date: assets, liabilities, and 
 | --- | --- | --- |
 | `entityId` | UUID | Required |
 | `cutoffDate` | `YYYY-MM-DD` | Today in Chile |
+
+### `list_integration_files`
+
+Lists the Google Sheets that your Organization's people chose to share with Erwin and the MCP, through a [Google Drive Integration](/api-reference/integrations#google-sheets-for-erwin-and-the-mcp). Each item has its `integrationId`, `fileId`, `name`, `purpose`, and `description` (the Sheet's description in Google Drive). The assistant reads the purpose to pick the Sheet that answers your question, and the description when there's no purpose.
+
+A Sheet that Google no longer reaches, because it was deleted or trashed, doesn't appear. A connection whose files can't be listed comes back under `unlisted`, with its `integrationId` and the API's refusal. `INTEGRATION_GRANT_FAILED_ERROR` means someone has to connect the Sheet again in **Configuración → Integraciones**.
+
+### `read_integration_file`
+
+Reads one shared Sheet as it is now in Google Drive. It answers each tab as CSV, with the cells as the Sheet shows them. Each tab has `tab` (its name), `rowCount`, `truncated`, and `csv`. A tab is cut at 2,000 rows, and `truncated` says when it has more.
+
+| Input | Type | Required | Description |
+| --- | --- | --- | --- |
+| `integrationId` | UUID | Yes | From `list_integration_files`. |
+| `fileId` | UUID | Yes | From `list_integration_files`. |
+| `reason` | string | Yes | One line on what you asked that needs the Sheet. Sintropix records it in the [audit trail](/api-reference/audit-trail) with the read. Up to 500 characters. |
+| `tab` | string | No | The name of one tab to read. Without it, the tool reads every tab. A name the Sheet doesn't have is refused with the list of its tabs. |
+
+The assistant treats the cells as data people wrote, never as instructions. `INTEGRATION_FILE_GONE_ERROR` means the Sheet was deleted or its owner took the access away: share it again, or connect another Sheet. `INTEGRATION_FILE_TOO_LARGE_ERROR` means the Sheet is larger than the 10 MB Google exports. A `viewer` can't list or read shared Sheets. See [Who can read the files](/api-reference/integrations#who-can-read-the-files).
 
 ### `leave_feedback`
 
