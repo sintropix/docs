@@ -97,6 +97,7 @@ Los informes son páginas con el período en la cadena de consulta. Omite un par
 | Gestión de clientes | `/{entityId}/customers` | `from`, `to`, `search`, `onlyPending` (`true` por defecto). `/{entityId}/customers/{partnerId}` para un cliente, con `from`, `to` y `tab` (`invoices`, `unbilledReceivableLines`, `movements`). |
 | Flujo de caja | `/{entityId}/cash-flow` | `exerciseStart`, `cutoffDate`, `groupBy` (`month`, `quarter`, `year`). Agrega `drillDown={category}@{columnKey}`, o `drillDown={category}:{accountId}@{columnKey}` para una cuenta, para abrir los asientos de una celda. `columnKey` es el primer día de la columna del período, o `total`. |
 | Activos fijos | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` para un activo |
+| Cierre de mes | `/{entityId}/month-end-workbook` | `month` (`YYYY-MM`). Omítelo para abrir en el último mes terminado. Consulta [Month-end close workbook](/api-reference/reports#month-end-close-workbook). |
 
 `presentationCurrency` y `presentationRate` deben ir juntos, exactamente como en la [API de informes](/api-reference/reports).
 
