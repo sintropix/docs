@@ -53,7 +53,7 @@ Both directions accept `tax_only`. A vendor's [Booking Template](/api-reference/
 
 ### Switch the kind
 
-To make an unbooked Invoice `tax_only`, send `{ "documentKind": "tax_only" }` to [`PATCH /invoices/:invoiceId`](#patch-/invoices/invoiceid). Send `"invoice"` to switch it back. In the app, open the document and pick **Solo impuesto** in **Clase de documento**. The listing then shows the document as, for example, **46 · solo impuesto**, with no payment status.
+To make an unbooked Invoice `tax_only`, send `{ "documentKind": "tax_only" }` to [`PATCH /invoices/:invoiceId`](#patch-/invoices/invoiceid). Send `"invoice"` to switch it back. In the app, open the document and pick **Solo impuesto** in **Clase de documento**. The listing's **Tipo de documento** column then shows the document as, for example, **46 · solo impuesto**, with no payment status. That column is hidden by default; show it from **Visualización**.
 
 The switch is refused when:
 
@@ -65,6 +65,36 @@ The switch is refused when:
 | The Invoice lands a [Sales Summary](/api-reference/sii#sales-summaries). The SII sets its kind. | `409` | `DTE_HELD_BY_SALES_SUMMARY_ERROR` |
 
 A Source Feed sync never changes the kind of an Invoice that already landed. Documents booked as `invoice` before `tax_only` existed keep their kind. To correct one, unbook it, switch it to `tax_only`, and book it again.
+
+## Document names
+
+Every Invoice row carries a `documentName`: the name an accountant uses for the document. For a document backed by a DTE, it is the abbreviation of the DTE's SII type, a hyphen, and the folio, for example `FE-3671911`, `NCE-763`, or `BHE-86`. The folio is the SII's number, so leading zeros in `documentNumber` (`000167`) don't appear in the name.
+
+| SII type code | Abbreviation | SII type code | Abbreviation |
+| --- | --- | --- | --- |
+| `33` | `FE` | `105` | `BLQ` |
+| `34` | `FEE` | `110` | `FXE` |
+| `35` | `BOL` | `111` | `NDXE` |
+| `38` | `BEX` | `112` | `NCXE` |
+| `39` | `BE` | `919` | `RVN` |
+| `41` | `BEE` | `920` | `ORA` |
+| `46` | `FCE` | `922` | `ORD` |
+| `47` | `VE` | `924` | `RVI` |
+| `48` | `CPE` | `BHE` | `BHE` |
+| `56` | `NDE` | `BTE` | `BTE` |
+| `61` | `NCE` |  |  |
+
+A type with no abbreviation in this table uses its own code, such as `52-1200`.
+
+Documents with no DTE behind them are named differently:
+
+| Document | `documentName` | Example |
+| --- | --- | --- |
+| An Invoice of a Chilean Entity with no DTE | `NC` for a `credit_note`, `DOC` for any other kind, a hyphen, and `documentNumber` | `DOC-F-0003` |
+| An [Expense Rendition](#expense-renditions) | `documentNumber` alone, even when a DTE backs it | `RG-81940386` |
+| An Invoice of an Entity whose country has no SII document types | `documentNumber` alone | `INV-2041` |
+
+`documentName` is read-only and derived on every read: change the DTE or `documentNumber` and it follows. In the app, **Compras** and **Ventas** show it in the **Documento** column, and hovering it shows the full type name. [`GET /invoices/pages`](#get-/invoices/pages) searches it and sorts by it.
 
 ## Ontop invoices
 
@@ -271,9 +301,9 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `totalMin` | integer | No | Minimum `total`, in minor units. |
 | `totalMax` | integer | No | Maximum `total`, in minor units. |
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
-| `search` | string | No | Case-insensitive contains-match on `documentNumber`, `partnerName`, and `memo`. A search that reads as an amount also matches `total` and the Open Amount; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
+| `search` | string | No | Case-insensitive contains-match on `documentName`, `documentNumber`, `partnerName`, and `memo`, so `FE-3671911`, `3671911`, and `BHE` all find their documents. A search that reads as an amount also matches `total` and the Open Amount; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
 | `erpThread` | string | No | `with` keeps only documents that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread), the conversation about the record in its **Thread** tab; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
-| `sort` | string | No | `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
+| `sort` | string | No | `documentName`, `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `documentName` or `documentNumber` uses natural order, so `FE-8842` comes before `FE-3671911`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
 **Response**
@@ -291,6 +321,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | Field | Type | Description |
 | --- | --- | --- |
 | `dte` | object or null | The DTE behind the document (fields listed under `PUT /invoices/:invoiceId/dte`). Null when none. |
+| `documentName` | string | The [document name](#document-names), such as `FE-3671911`. |
 | `partnerName` | string | Name of the Partner. |
 | `partnerWebsite` | string or null | Website of the Partner, as a bare domain (`acme.cl`); null when it has none. The Partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo) is read from it. |
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
