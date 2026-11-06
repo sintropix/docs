@@ -450,6 +450,133 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_AC
   -d '{"fingerprint": "'"$FINGERPRINT"'"}'
 ```
 
+## Consolidated balance history
+
+```http
+GET /api/organizations/:organizationId/bank-accounts/balance-series
+```
+
+Returns the closing balance of every `bank` Bank Account of the Organization at each date of a range, valued in one currency. Use it to chart how the group's cash moved over weeks or months, by Entity, by bank, or by account.
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/banks?view=balances"
+  note="That page is Saldos consolidados, the second view of the group's Bancos beside Cuentas. It charts the Entities checked in the group structure, and draws any Entity, bank, or account of its breakdown as its own line."
+/>
+
+The read covers every Entity of the Organization you can reach. It needs the `books` read permission, so every Role can call it. An API key [confined to one Entity](/guides/api-keys) reads that Entity's accounts only.
+
+`card` accounts are left out, as on the Entity's [home report](/api-reference/reports).
+
+### Query parameters
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `currency` | string | Yes | ISO 4217 code every balance is valued in, for example `CLP` |
+| `from` | ISO date | Yes | First date of the series |
+| `to` | ISO date | Yes | Last date of the series. Must be on or after `from`, and at most 731 days after it |
+| `interval` | `day` \| `week` \| `month` | Yes | The step between two dates of the series |
+
+### Dates of the series
+
+The series counts back from `to` one `interval` at a time, so its newest date is always `to`:
+
+- `day` steps back one day.
+- `week` steps back seven days.
+- `month` steps back to the last day of the previous month, so every date between `from` and `to` is a month end.
+
+The steps stop at `from`, and `from` is always the first date, even when it falls between two steps. `dates` is in ascending order.
+
+### Balances and rates
+
+A date's balance is the account's closing balance on that day: every Movement dated on or before it. A date with no Movement repeats the balance before it, and an account with no Movement yet reads `0`.
+
+One rate per currency values every date: the newest published rate, the one the [Bank Accounts list](#list-bank-accounts) and the home report use. A line then shows how the cash moved, not how the rate moved, and its last point matches today's balance. Each account converts on its own, so a total you add up from the accounts can differ by a minor unit per account from a total converted in one step.
+
+An account in a currency with no published rate is left out of `bankAccounts`, and its currency is listed in `unconvertedCurrencies`.
+
+### Response
+
+Returns `200 OK` with:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `currency` | string | The requested `currency` |
+| `dates` | ISO date[] | The dates of the series, oldest first. See [Dates of the series](#dates-of-the-series) |
+| `bankAccounts` | array | One item per `bank` Bank Account, see below |
+| `rates` | array | The [FX Rates](/api-reference/fx-rates#the-fx-rate-object) used to value the balances. Empty when nothing was converted |
+| `rateDate` | ISO date \| null | Oldest publication date among `rates`. `null` when nothing was converted |
+| `unconvertedCurrencies` | string[] | Currencies whose accounts were left out because no rate was published, sorted |
+
+Each item of `bankAccounts`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Bank Account identifier |
+| `entityId` | UUID | Owning Entity |
+| `name` | string | Display name |
+| `accountNumber` | string \| null | The number the bank knows the account by |
+| `bankCode` | string \| null | CMF code of the bank that holds the account. `null` when not set |
+| `currency` | string | The account's own currency |
+| `balances` | integer[] | One closing balance per item of `dates`, in the same order, in minor units of the series' `currency` |
+
+To total an Entity or a bank, add the `balances` of its accounts date by date.
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | OK |
+| 400 | Validation error: a missing parameter, an `interval` outside `day`, `week`, and `month`, `from` after `to`, or a range longer than 731 days |
+| 400 | Unknown `currency` (`UNKNOWN_CURRENCY_ERROR`) |
+
+### Example
+
+Read the last four weeks, one point per week, in CLP:
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/bank-accounts/balance-series?currency=CLP&from=2026-10-08&to=2026-11-05&interval=week" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "currency": "CLP",
+  "dates": ["2026-10-08", "2026-10-15", "2026-10-22", "2026-10-29", "2026-11-05"],
+  "bankAccounts": [
+    {
+      "id": "0190e000-0000-7000-8000-000000000001",
+      "entityId": "0190a000-0000-7000-8000-000000000001",
+      "name": "Primary Checking",
+      "accountNumber": "12345678",
+      "bankCode": "016",
+      "currency": "CLP",
+      "balances": [12500000, 11800000, 14250000, 13900000, 15100000]
+    },
+    {
+      "id": "0190e000-0000-7000-8000-000000000002",
+      "entityId": "0190a000-0000-7000-8000-000000000002",
+      "name": "USD Operating",
+      "accountNumber": null,
+      "bankCode": null,
+      "currency": "USD",
+      "balances": [47170000, 47170000, 42453000, 45283000, 45283000]
+    }
+  ],
+  "rates": [
+    {
+      "baseCurrency": "USD",
+      "quoteCurrency": "CLP",
+      "rateDate": "2026-11-04",
+      "rate": "943.40",
+      "source": "dolar_observado",
+      "createdAt": "2026-11-04T12:05:00.000Z"
+    }
+  ],
+  "rateDate": "2026-11-04",
+  "unconvertedCurrencies": []
+}
+```
+
 ## Rate limits
 
 Bank Account endpoints share the global rate limit of 25,000 requests per hour per API key.
