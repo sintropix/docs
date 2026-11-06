@@ -97,6 +97,7 @@ Reports are pages with the period in the query string. Omit a parameter to get t
 | Customer management | `/{entityId}/customers` | `from`, `to`, `search`, `onlyPending` (`true` by default). `/{entityId}/customers/{partnerId}` for one customer, with `from`, `to`, and `tab` (`invoices`, `unbilledReceivableLines`, `movements`). |
 | Cash Flow | `/{entityId}/cash-flow` | `exerciseStart`, `cutoffDate`, `groupBy` (`month`, `quarter`, `year`). Add `drillDown={category}@{columnKey}`, or `drillDown={category}:{accountId}@{columnKey}` for one account, to open the entries of one cell. `columnKey` is the first day of the period column, or `total`. |
 | Fixed Assets | `/{entityId}/fixed-assets` | `/{entityId}/fixed-assets/{fixedAssetId}` for one asset |
+| Month-end close | `/{entityId}/month-end-workbook` | `month` (`YYYY-MM`). Omit it to open on the last month that has ended. See [Month-end close workbook](/api-reference/reports#month-end-close-workbook). |
 
 `presentationCurrency` and `presentationRate` must be passed together, exactly as in the [Reports API](/api-reference/reports).
 

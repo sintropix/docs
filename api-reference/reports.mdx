@@ -1,7 +1,7 @@
 ---
 title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, journal, open positions (receivables and payables), revenue realization, customer status, and ledger reports. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
 ---
 
 The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
@@ -13,7 +13,7 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 </Note>
 
 <Tip>
-  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, `customers`, and `fixed-assets`. Pass the period as `from` and `to`, as `cutoffDate` alone for the balance sheet, or as `exerciseStart` and `cutoffDate` for the eight-column balance and the cash flow statement. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
+  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, `customers`, `fixed-assets`, and `month-end-workbook`. Pass the period as `from` and `to`, as `cutoffDate` alone for the balance sheet, as `exerciseStart` and `cutoffDate` for the eight-column balance and the cash flow statement, or as `month` (`YYYY-MM`) for the month-end close workbook. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
 </Tip>
 
 ## The Fiscal Year in reports
@@ -970,6 +970,58 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/genera
   **Download it from the app.** On the **Libro mayor** page, click **Exportar a Excel** to download this report for the window on screen as `libro-mayor-{from}-{to}.xlsx`. The sheet opens with the Entity, the window, and the currency. Each account is a block: a **Saldo inicial** row, one row per line (**Fecha**, **Asiento**, **Glosa**, **Contacto**, **RUT**, **Débito**, **Crédito**, **Saldo**), and a **Total** row with the debit total, the credit total, and the closing balance. Every row repeats the account's **Código** and **Cuenta**, so filtering on either column keeps an account's block whole. **Asiento** holds the Ledger Entry id. Amounts are in currency units, not minor units.
 </Tip>
 
+### Open items at a cutoff
+
+`GET /api/entities/:entityId/ledger/reports/open-items`
+
+Returns every item still open on the open-item accounts of the Entity at the end of `cutoffDate`, as it stood that day. Use it to tie an open-item account, such as receivables or payables, to its balance at a past month end.
+
+An item is a line booked on or before `cutoffDate`. Its open amount at the cutoff counts only the [Allocations](/api-reference/allocations) whose counterpart line was also booked on or before `cutoffDate`. So a payment booked after the cutoff doesn't close an item of an earlier month. An item from an earlier Fiscal Year that is still open appears too, even when its account has no line in the current Fiscal Year.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cutoffDate` | ISO date | Yes | The report reads the items as they stood at the end of this day |
+| `basisId` | UUID | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `cutoffDate` | ISO date | As requested |
+| `accounts` | array | One item per open-item account that has at least one open item at the cutoff, sorted by code, with the fields below. An account with no open item doesn't appear |
+
+Each item in `accounts`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Ledger Account id |
+| `code` | string | Ledger Account code |
+| `name` | string | Ledger Account name |
+| `normalSide` | enum | `debit` or `credit` |
+| `lines` | array | The account's open items, sorted by entry date, each with the fields below |
+
+Each item in `lines`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Line id |
+| `entryId` | UUID | Parent entry |
+| `entryDate` | ISO date | Date of the parent entry |
+| `entryMemo` | string or null | Memo of the parent entry |
+| `partnerName` | string or null | Name of the partner on the line |
+| `partnerTaxId` | string or null | Tax id of the partner on the line |
+| `side` | enum | `debit` or `credit` |
+| `functionalAmount` | integer | Nonnegative magnitude of the whole line |
+| `invoiceDocumentNumber` | string or null | Number of the Invoice this line books, if any |
+| `openAmount` | integer | What was still open on the line at the end of `cutoffDate`, on the line's own `side`. Always above `0` |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/reports/open-items?cutoffDate=2026-10-31" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
 ### Partner ledger
 
 `GET /api/entities/:entityId/ledger/partner-ledger`
@@ -1038,6 +1090,21 @@ Each item in `lines`:
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/partner-ledger?accountId=<uuid>&from=2024-01-01&to=2024-12-31" \
   -H "Cookie: <session-cookie>"
 ```
+
+## Month-end close workbook
+
+In the app, **Reportes → Exportar cierre de mes** downloads one Excel close pack of the Entity for a month you pick. Choose the month and click **Descargar Excel**. The file is named `Cierre {Entidad} {mes}.xlsx`. The month list holds the last 24 months, and the page opens on the last month that has ended.
+
+The workbook reads every Basis of the Entity, not only the one selected in the app. An Entity with no Basis gets one set of sheets. It reads the window from the start of the [Fiscal Year](#the-fiscal-year-in-reports) that holds the month to the month's last day. It holds these sheets:
+
+- **Portada**: the Entity's RUT, the month, the Fiscal Year, the Bases, the currency, and an index of the sheets.
+- **For each Basis**: the eight-column balance (**8 Columnas**), the classified balance sheet (**Clasificado**), the income statement month by month with a total (**EERR**), and **Patrimonio**, which checks against the balance sheet.
+- **Bancos y tarjetas**: each `bank` and `card` Bank Account beside its bank balance at the month end, in the account's own currency, with the **Diferencia**. Bank Accounts that share a Ledger Account and a currency add up against that account's one book balance. A Bank Account with nothing booked yet still gets a row.
+- **One analysis sheet for each asset or liability account** that has a balance or open items. An open-item account lists its items open at the month end, including items from an earlier Fiscal Year. Any other account lists its lines of the Fiscal Year with a running balance. Each sheet ends with a check against the eight-column balance. When every Basis reads an account the same way, its sheet appears once, under **Todas las bases**.
+
+A sheet name is at most 31 characters, as Excel requires, so a long account or Basis name is shortened in the name. The sheet itself states the Basis in full.
+
+The workbook is built from API reads you can call yourself: the [eight-column balance](#eight-column-balance), the [balance sheet](#balance-sheet), the [income statement](#income-statement), and the [general ledger of every account](#general-ledger-of-every-account) of each Basis, the [open items at a cutoff](#open-items-at-a-cutoff), and the [book and bank balances](/api-reference/bank-accounts#book-and-bank-balances-at-a-cutoff) of the Bank Accounts. There is no API route that returns the workbook itself.
 
 ## Status codes
 

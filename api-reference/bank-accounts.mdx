@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Accounts API: Manage Accounts and Feeds"
 sidebarTitle: "Bank Accounts"
-description: "Create, update, list, and delete Bank Accounts for an Entity. Manage bank data feeds and trigger manual syncs via the Sintropix ERP HTTP API."
+description: "Create, update, list, and delete Bank Accounts for an Entity. Compare book and bank balances at a cutoff, manage bank data feeds, and trigger manual syncs via the Sintropix ERP HTTP API."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -449,6 +449,72 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_AC
   -H "Content-Type: application/json" \
   -d '{"fingerprint": "'"$FINGERPRINT"'"}'
 ```
+
+## Book and bank balances at a cutoff
+
+```http
+GET /api/entities/:entityId/bank-accounts/balances
+```
+
+Returns, for each Bank Account of the Entity, its balance in the books beside its balance at the bank at the end of `cutoffDate`. Use it to reconcile cash and cards at a month end. Both balances are in the Bank Account's own currency, so you compare them with no rate.
+
+- `bookBalance` sums the lines of the account's mapped Ledger Account in common Entries dated on or before `cutoffDate`. It counts no Basis Entry, so the value is the same in every [Basis](/api-reference/bases#common-only-accounts). For an account in the Entity's functional currency, it sums the functional amounts. For an account in another currency, it sums the `transactionAmount` of the lines in that currency only. A line with no amount in that currency doesn't move it.
+- `bankBalance` sums the account's Movements dated on or before `cutoffDate`, the same way as `balance` in the [list](#list-bank-accounts).
+
+The two reads come from one consistent snapshot. Debits add to `bookBalance` and credits subtract from it, so a `card` account that owes money reads negative on both sides. The difference to reconcile is `bankBalance` minus `bookBalance`.
+
+Bank Accounts that share one Ledger Account and one currency each report that account's whole `bookBalance`. Add their `bankBalance` values and compare the total with the one `bookBalance`. A Bank Account with no Movement up to the cutoff reads `bankBalance: 0`, and one with nothing booked reads `bookBalance: 0`.
+
+### Query parameters
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cutoffDate` | ISO date | Yes | Both balances are read at the end of this day |
+
+The route takes no `basisId`.
+
+### Response
+
+Returns `200 OK` with a bare JSON array, one item per Bank Account of the Entity:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Bank Account identifier |
+| `name` | string | Display name |
+| `currency` | string | The account's own currency, which both balances are in |
+| `ledgerAccountId` | UUID | Mapped Ledger Account |
+| `bookBalance` | integer | Balance in the books at the end of `cutoffDate`, in minor units of `currency` |
+| `bankBalance` | integer | Sum of the Movements at the end of `cutoffDate`, in minor units of `currency` |
+
+### Example
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/balances?cutoffDate=2026-10-31" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+[
+  {
+    "id": "0190e000-0000-7000-8000-000000000001",
+    "name": "Primary Checking",
+    "currency": "CLP",
+    "ledgerAccountId": "0190d000-0000-7000-8000-000000000001",
+    "bookBalance": 15100000,
+    "bankBalance": 15100000
+  },
+  {
+    "id": "0190e000-0000-7000-8000-000000000002",
+    "name": "USD Operating",
+    "currency": "USD",
+    "ledgerAccountId": "0190d000-0000-7000-8000-000000000002",
+    "bookBalance": 4800000,
+    "bankBalance": 4825000
+  }
+]
+```
+
+The [month-end close workbook](/api-reference/reports#month-end-close-workbook) shows these balances on its **Bancos y tarjetas** sheet.
 
 ## Consolidated balance history
 
