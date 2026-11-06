@@ -81,7 +81,7 @@ Connecting, reconnecting, disconnecting, and setting the purpose of an Integrati
 - Can't connect, reconnect, renew, or disconnect an Integration, replace its API key, run a General Ledger Export, read or copy the email of a Gmail, Outlook, or Mailbox account, or read the expenses of an Xpendit account, the preview of a Notion database, or the files of an Integration. It gets `403` with `PERMISSION_DENIED_ERROR`.
 - Adds and removes only the feeds that land in its own Entity.
 
-An Entity whose feed routes an Integration of its Organization, or whose Book a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-/api/entities/entityid/organization).
+An Entity whose feed routes an Integration of its Organization, or whose Basis a Google Sheets Integration exports, can't move to another Organization. See [`PATCH /api/entities/:entityId/organization`](/api-reference/entities#patch-/api/entities/entityid/organization).
 
 ## The Integration object
 
@@ -104,7 +104,7 @@ The access token is stored encrypted and is never returned on any read.
 | `sourceFeeds` | array | The Source Feeds that read through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). Each Entity holds at most one Feed per family. Empty when the Integration feeds no Source. |
 | `fedBankAccounts` | array | `{ id, name, entityId }` of each Bank Account this Integration feeds, in any Entity, in name order. Empty when it feeds none. |
 | `routedEntities` | array | `{ id, name }` of each Entity the Integration's feeds reach, in name order. Empty while no feed routes it. |
-| `bookId` | uuid \| null | For `google_sheets`, the [Book](/api-reference/books) the export reads for the Entity that keeps it. `null` for every other kind, and when no Book was picked. |
+| `basisId` | uuid \| null | For `google_sheets`, the [Basis](/api-reference/bases) the export reads for the Entity that keeps it. `null` for every other kind, and when no Basis was picked. |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
 | `scopes` | string[] | The permissions the Provider granted. Set for `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, and `stripe`; empty for every other kind. |
 | `tokenExpiresAt` | ISO 8601 timestamp \| null | When the stored access of a `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, or `stripe` Integration expires. `null` for every other kind. |
@@ -173,7 +173,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
   "sourceFeeds": [],
   "fedBankAccounts": [],
   "routedEntities": [],
-  "bookId": null,
+  "basisId": null,
   "lastGeneralLedgerExport": null,
   "createdAt": "2025-01-02T12:00:00.000Z",
   "updatedAt": "2025-01-02T12:00:00.000Z"
@@ -854,7 +854,7 @@ You connect Google Sheets from the app, because Google asks for consent in a bro
 
 1. Open **Configuración → Integraciones**, click **Conectar integración**, and pick **Google Sheets**.
 2. Paste the address of the Sheet, as your browser shows it with the Sheet open. It starts with `https://docs.google.com/spreadsheets/d/`.
-3. If an Entity of the Organization keeps [Books](/api-reference/books), pick the **Libro** the export reads for that Entity.
+3. If an Entity of the Organization keeps [Bases](/api-reference/bases), pick the **Base contable** the export reads for that Entity.
 4. Continue on Google with an account that can edit the Sheet, and keep the permission to edit your spreadsheets checked.
 
 When you return, Sintropix checks that the account can edit the Sheet by creating its tab, and connects the Integration. It refuses the connection, and stores nothing, when:
@@ -870,7 +870,7 @@ Each export rewrites three tabs whole: **Libro mayor**, **Plan de cuentas**, and
 
 Every Entity of the Organization goes into the same tabs, one Entity after another, in name order. Each Entity's rows are in that Entity's own currency.
 
-The export reads the Book you picked for the Entity that keeps it. It reads every other Entity with no Book. If another Entity of the Organization keeps Books, the export fails with `400` and `BOOK_REQUIRED_ERROR`, and `params.entityId` names that Entity. That export records no run.
+The export reads the Basis you picked for the Entity that keeps it. It reads every other Entity with no Basis. If another Entity of the Organization keeps Bases, the export fails with `400` and `BASIS_REQUIRED_ERROR`, and `params.entityId` names that Entity. That export records no run.
 
 #### Libro mayor
 
@@ -961,7 +961,7 @@ Export the General Ledger of every Entity of the Organization to the Integration
 
 The export answers `200` with the General Ledger Export it recorded, whether it succeeded or Google refused it. Check `failure` to tell them apart.
 
-An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. While another export of the same Integration is still writing, including the scheduled one, the request answers `409` with `GENERAL_LEDGER_EXPORT_RUNNING_ERROR`. Retry when it finishes. When an Entity other than the one of the picked Book keeps Books, the request answers `400` with `BOOK_REQUIRED_ERROR` and records no run.
+An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. While another export of the same Integration is still writing, including the scheduled one, the request answers `409` with `GENERAL_LEDGER_EXPORT_RUNNING_ERROR`. Retry when it finishes. When an Entity other than the one of the picked Basis keeps Bases, the request answers `400` with `BASIS_REQUIRED_ERROR` and records no run.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/general-ledger-exports" \
@@ -1930,7 +1930,7 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | --- | --- |
 | `200` | Success on `GET`, `PUT`, `DELETE`, and a General Ledger Export, including one Google refused. |
 | `201` | Integration, Mailbox, or Portal Login created, or an email attachment copied into an Entity. |
-| `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while an Entity other than the one of the picked Book keeps Books (`BOOK_REQUIRED_ERROR`). |
+| `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while an Entity other than the one of the picked Basis keeps Bases (`BASIS_REQUIRED_ERROR`). |
 | `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email, reads a Mailbox's Conversations, or reads the expenses of an Xpendit account or the preview of a Notion database, or an API key confined to one Entity creates a Mailbox (`PERMISSION_DENIED_ERROR`). |
 | `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`), or a Notion database the connection doesn't reach (`INTEGRATION_DATA_SOURCE_NOT_FOUND_ERROR`) not found. |
 | `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the Organization's email domain no longer receives email (`EMAIL_DOMAIN_NOT_OPEN_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise or a replaced Rho token another business (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |

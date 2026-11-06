@@ -130,7 +130,7 @@ Lee un vínculo: los dos asientos a los que pertenecen sus líneas, con todas su
 | `ledgerEntries` | array | Los dos asientos, ordenados por nombre de Entidad, cada uno con los campos de abajo |
 | `intercompanyLinks` | array | Todos los [vínculos](#el-objeto-vínculo-intercompañía) entre los dos asientos, uno o más |
 
-Cada elemento de `ledgerEntries` es el objeto asiento contable (`id`, `entityId`, `entryDate`, `memo`, `notes`, `status`, `reversalOfEntryId`, `bookId`, `createdAt`, `updatedAt`) más:
+Cada elemento de `ledgerEntries` es el objeto asiento contable (`id`, `entityId`, `entryDate`, `memo`, `notes`, `status`, `reversalOfEntryId`, `basisId`, `createdAt`, `updatedAt`) más:
 
 | Campo | Tipo | Descripción |
 | --- | --- | --- |
@@ -157,7 +157,7 @@ El ejemplo muestra solo la línea vinculada de cada asiento. La respuesta lista 
       "notes": null,
       "status": "active",
       "reversalOfEntryId": null,
-      "bookId": null,
+      "basisId": null,
       "createdAt": "2026-10-01T13:15:20.000Z",
       "updatedAt": "2026-10-01T13:15:20.000Z",
       "entityName": "Holding SpA",
@@ -193,7 +193,7 @@ El ejemplo muestra solo la línea vinculada de cada asiento. La respuesta lista 
       "notes": null,
       "status": "active",
       "reversalOfEntryId": null,
-      "bookId": null,
+      "basisId": null,
       "createdAt": "2026-10-02T09:40:02.000Z",
       "updatedAt": "2026-10-02T09:40:02.000Z",
       "entityName": "Operaciones SpA",

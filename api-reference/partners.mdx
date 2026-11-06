@@ -11,7 +11,7 @@ A Partner is any counterparty on your books: a customer, a supplier, an employee
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
 <Note>
-  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /partners/pages` requires a `bookId` query parameter — the `openReceivable` and `openPayable` totals on the page rows are then computed inside that Book. `GET /partners` and the Partner rows returned by create, update, and delete stay outside the rule and surface open totals across every Book. `GET /partners/counts`, `GET /partners/options`, and `GET /partners/:partnerId` carry no open totals and take no `bookId`.
+  **Entities with Bases.** When the Entity has at least one [Basis](/api-reference/bases), `GET /partners/pages` requires a `basisId` query parameter — the `openReceivable` and `openPayable` totals on the page rows are then computed inside that Basis. `GET /partners` and the Partner rows returned by create, update, and delete stay outside the rule and surface open totals across every Basis. `GET /partners/counts`, `GET /partners/options`, and `GET /partners/:partnerId` carry no open totals and take no `basisId`.
 </Note>
 
 <AppLink
@@ -106,7 +106,7 @@ Paginated listing of the Partners the Entity uses, for UI use. Merged Partners a
 | `groupBy` | string | No | `none`, `country`, `defaultPurchaseAccount`, or `defaultPurchaseAccountClassification`. Default `none`. The last two require `role=vendor`. |
 | `sort` | string | No | `name`, `legalName`, `taxId`, `country`, `openReceivable`, `openPayable`, or `defaultPurchaseAccount`. Default `name`. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `asc`. |
-| `bookId` | uuid | Conditional | Required when the Entity has at least one Book; must be omitted otherwise. |
+| `basisId` | uuid | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise. |
 
 **Response**
 

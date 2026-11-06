@@ -52,7 +52,7 @@ A request is refused, and nothing is read, when:
 | `400` | `CONSOLIDATION_SCOPE_EMPTY_ERROR` | `entityIds` names no Entity |
 | `404` | `CONSOLIDATION_SCOPE_ENTITY_NOT_FOUND_ERROR` | An Entity isn't of the Organization. `params.entityId` names it. |
 | `422` | `CONSOLIDATION_SCOPE_FISCAL_YEARS_DIFFER_ERROR` | The Entities start their Fiscal Year in different months. `params.entityIds` and `params.fiscalYearStartMonths` name two of them. |
-| `422` | `CONSOLIDATION_SCOPE_ENTITY_KEEPS_BOOKS_ERROR` | An Entity has at least one [Book](/api-reference/books). `params.entityId` names it. |
+| `422` | `CONSOLIDATION_SCOPE_ENTITY_KEEPS_BASES_ERROR` | An Entity has at least one [Basis](/api-reference/bases). `params.entityId` names it. |
 | `400` | `PRESENTATION_RATE_MISSING_ERROR` | A functional currency of the Scope has no rate. `params.currency` names it. |
 | `400` | `PRESENTATION_RATE_NOT_POSITIVE_ERROR` | A rate is zero or negative. `params.currency` and `params.presentationRate` name it. |
 

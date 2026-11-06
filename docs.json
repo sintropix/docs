@@ -40,7 +40,7 @@
                 "group": "Ledger",
                 "pages": [
                   "api-reference/entities",
-                  "api-reference/books",
+                  "api-reference/bases",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
                   "api-reference/intercompany-links",
@@ -144,7 +144,7 @@
                 "group": "Libro mayor",
                 "pages": [
                   "api-reference/entities",
-                  "api-reference/books",
+                  "api-reference/bases",
                   "api-reference/chart-of-accounts",
                   "api-reference/ledger-entries",
                   "es/api-reference/intercompany-links",
@@ -265,6 +265,10 @@
     "eyebrows": "section"
   },
   "redirects": [
+    {
+      "source": "/api-reference/books",
+      "destination": "/api-reference/bases"
+    },
     {
       "source": "/api-reference/intercompany-entries",
       "destination": "/api-reference/intercompany-links"

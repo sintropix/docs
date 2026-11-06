@@ -130,7 +130,7 @@ Read a Link: the two Entries its lines belong to, with all their lines, and ever
 | `ledgerEntries` | array | The two Entries, ordered by Entity name, each with the fields below |
 | `intercompanyLinks` | array | Every [Link](#the-intercompany-link-object) between the two Entries, one or more |
 
-Each item in `ledgerEntries` is the Ledger Entry object (`id`, `entityId`, `entryDate`, `memo`, `notes`, `status`, `reversalOfEntryId`, `bookId`, `createdAt`, `updatedAt`) plus:
+Each item in `ledgerEntries` is the Ledger Entry object (`id`, `entityId`, `entryDate`, `memo`, `notes`, `status`, `reversalOfEntryId`, `basisId`, `createdAt`, `updatedAt`) plus:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -157,7 +157,7 @@ The example shows only the linked line of each Entry. The response lists every l
       "notes": null,
       "status": "active",
       "reversalOfEntryId": null,
-      "bookId": null,
+      "basisId": null,
       "createdAt": "2026-10-01T13:15:20.000Z",
       "updatedAt": "2026-10-01T13:15:20.000Z",
       "entityName": "Holding SpA",
@@ -193,7 +193,7 @@ The example shows only the linked line of each Entry. The response lists every l
       "notes": null,
       "status": "active",
       "reversalOfEntryId": null,
-      "bookId": null,
+      "basisId": null,
       "createdAt": "2026-10-02T09:40:02.000Z",
       "updatedAt": "2026-10-02T09:40:02.000Z",
       "entityName": "Operaciones SpA",

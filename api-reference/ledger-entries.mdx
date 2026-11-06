@@ -11,7 +11,7 @@ Ledger Entries are the core double-entry transactions in Sintropix. Each entry h
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings; timestamps are ISO 8601 datetimes.
 
 <Note>
-  **Entities with Books.** An Entity may hold zero or more [Books](/api-reference/books). When it has at least one, every Ledger Entry it posts must name a `bookId` on the header (or leave it null to mark the Entry common), and the Open Item Lines read must carry `bookId` as a query parameter. See [Books](/api-reference/books) for the model and the exact rule.
+  **Entities with Bases.** An Entity may hold zero or more [Bases](/api-reference/bases). When it has at least one, every Ledger Entry it posts must name a `basisId` on the header (or leave it null to mark the Entry common), and the Open Item Lines read must carry `basisId` as a query parameter. See [Bases](/api-reference/bases) for the model and the exact rule.
 </Note>
 
 <AppLink
@@ -57,7 +57,7 @@ Each item in `entries` carries the Ledger Entry fields plus three line-derived t
 | `notes` | string or null | Longer notes |
 | `status` | enum | `active`, `deleted`, `reversed`, `scheduled`, or `cancelled` |
 | `reversalOfEntryId` | UUID or null | The entry this one reverses; `null` for ordinary entries |
-| `bookId` | UUID or null | The [Book](/api-reference/books) the entry counts in; `null` for a common entry |
+| `basisId` | UUID or null | The [Basis](/api-reference/bases) the entry counts in; `null` for a common entry |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 | `total` | integer | Sum of the entry's debit lines |
@@ -215,7 +215,7 @@ Create a new Ledger Entry. The entry must have at least two lines and total debi
 | `entryDate` | ISO date | Yes | Transaction date |
 | `memo` | string or null | Yes | Short description |
 | `notes` | string or null | No | Longer notes; trimmed, blank becomes null |
-| `bookId` | UUID or null | Conditional | Book the Entry counts in; `null` marks the Entry common. Must be sent (as an id or as `null`) when the Entity has at least one Book; must be omitted otherwise. |
+| `basisId` | UUID or null | Conditional | Basis the Entry counts in; `null` marks the Entry common. Must be sent (as an id or as `null`) when the Entity has at least one Basis; must be omitted otherwise. |
 | `newLedgerEntryLines` | array | Yes | At least 2 lines, max 10,000, balanced |
 
 Each line in `newLedgerEntryLines`:
@@ -250,7 +250,7 @@ You choose the `id` of every line, the same way you choose the entry `id`. Becau
   "notes": null,
   "status": "active",
   "reversalOfEntryId": null,
-  "bookId": null,
+  "basisId": null,
   "createdAt": "2026-01-15T14:02:11.000Z",
   "updatedAt": "2026-01-15T14:02:11.000Z",
   "ledgerEntryLines": [
@@ -391,7 +391,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$
 
 ## POST /api/entities/:entityId/ledger/entries/:entryId/reverse
 
-Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be on or after the original entry date and after the ledger lock date. The reversal takes the Book of the original; do not send `bookId`.
+Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be on or after the original entry date and after the ledger lock date. The reversal takes the Basis of the original; do not send `basisId`.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
 - **Body:**
@@ -589,7 +589,7 @@ List Open Item lines for an Open-Item Account with pagination. Shows unsettled l
 | `partnerId` | UUID | No | — | Filter by partner |
 | `sort` | enum | No | `entryDate` | `entryDate`, `entryMemo`, `partnerName`, `debit`, `credit`, `openAmount`, or `settlementStatus` |
 | `sortDirection` | enum | No | `asc` | `asc` or `desc` |
-| `bookId` | UUID | Conditional | — | Required when the Entity has at least one Book; must be omitted otherwise |
+| `basisId` | UUID | Conditional | — | Required when the Entity has at least one Basis; must be omitted otherwise |
 
 An account that does not track open items returns `400` with `ACCOUNT_TRACKS_NO_OPEN_ITEMS_ERROR`.
 

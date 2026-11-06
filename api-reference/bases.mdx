@@ -1,0 +1,148 @@
+---
+title: "Sintropix Bases API: Multi-Basis Accounting for One Entity"
+sidebarTitle: "Bases"
+description: "Create and list Bases, the named measurement bases of an Entity, and pass basisId on every basis-scoped read and write once the Entity has at least one Basis."
+---
+
+A Basis is a named measurement basis of one Entity. Use Bases when a company must state the same facts under more than one measure, for example the financial statements its owners read and the return the tax authority reads. The two agree on most Entries; the differences (a depreciation rate, a provision the tax rule refuses, a correction the tax rule adds) are the Entries that name a Basis.
+
+An Entity holds 0 to n Bases. An Entity with no Basis keeps one set of books, exactly as before. An Entity with at least one Basis states its facts under more than one measure, so every basis-scoped read must name which one with a `basisId` query parameter, and every write must state which Basis its Entry counts in.
+
+<Note>
+  Bases were called Books before. The routes moved from `/books` to `/bases`, the `bookId` field and query parameter is now `basisId`, and the `BOOK_*` error codes are now `BASIS_*` (`RECONCILIATION_*_IN_DIFFERENT_BOOKS_ERROR` and `CONSOLIDATION_SCOPE_ENTITY_KEEPS_BOOKS_ERROR` end in `BASES_ERROR`). The old names are no longer accepted. In the app, a Basis is called **Base contable** in Spanish.
+</Note>
+
+## The model
+
+- **Basis.** A named measurement basis of one Entity. Two Entities are free to use the same name.
+- **Common Entry.** A Ledger Entry with no `basisId`. It counts in every Basis of the Entity.
+- **Basis Entry.** A Ledger Entry that names a `basisId`. It counts in that Basis only.
+- **Report.** Reads one Basis: the common Entries plus the Entries of that Basis.
+
+The database enforces the structural half of the rule so a hand-written statement cannot break it:
+
+- A Basis is unique by name inside one Entity.
+- An Entry cannot name a Basis of another Entity (composite foreign key).
+- The Basis of an Entry is set at insert and never moves. Correct a wrong Basis by unbooking and reposting so the trail states the correction.
+- A Reversal stays in the Basis of its original. A common Entry is reversed by a common Entry; a Basis Entry by an Entry of that Basis.
+- An Allocation settles two lines of one Basis, or two common lines. Lines of different Bases state no offset.
+
+## When `basisId` is required
+
+Once an Entity has at least one Basis, every basis-scoped read must carry `basisId`, and the server answers `BASIS_REQUIRED_ERROR` (`400`) without it. An Entity with no Basis must not send `basisId`.
+
+Basis-scoped reads:
+
+- Home dashboard, balance sheet, income statement and its lines, income statement by dimension, cash flow and its entries, open positions, customer status and its detail, journal, revenue realization and its entries, eight-column balance, general ledger, and partner ledger — see [Reports](/api-reference/reports).
+- Open item lines and match-candidates for a Bank Movement — see [Ledger Entries](/api-reference/ledger-entries) and [Bank Movements](/api-reference/bank-movements).
+- The paginated Partner listing (`GET /partners/pages`) — see [Partners](/api-reference/partners).
+
+Two reads stay outside the rule and never name a Basis: the Partner reference list (`GET /partners`), which an Invoice document embeds, and the Partner row returned by a create, an update, or a delete. Both surface open totals across every Basis.
+
+Basis-scoped writes carry `basisId` on the entry header of the Ledger Entry they post: create Ledger Entry, book Invoice, book Bank Movement, and match Bank Movement. A reversal takes the Basis of its original — do not send `basisId` on `POST /ledger/entries/:entryId/reverse`.
+
+## GET /api/entities/:entityId/bases
+
+List the Bases of the Entity in creation order.
+
+- **Path param:** `entityId` (UUID)
+- **Success response:** an array of Basis objects (see [Response shape](#response-shape))
+- **Status:** 200
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/bases \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/bases
+
+Create a Basis under the Entity. The client supplies the idempotency id, so a retry with the same id is answered as a conflict instead of creating a duplicate.
+
+- **Path param:** `entityId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `name` | string | Yes | Basis name, non-empty; unique within the Entity |
+
+- **Success response:** the created Basis (see [Response shape](#response-shape))
+- **Status:** 201
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/bases \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "Tributario"
+  }'
+```
+
+## GET /api/entities/:entityId/bases/:basisId
+
+Read a single Basis.
+
+- **Path params:** `entityId` (UUID), `basisId` (UUID)
+- **Success response:** the Basis (see [Response shape](#response-shape))
+- **Status:** 200
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/bases/$BASIS_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Response shape
+
+Every endpoint on this page that returns a Basis uses this shape:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Basis id |
+| `entityId` | UUID | Owning Entity |
+| `name` | string | Basis name |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "name": "Tributario",
+  "createdAt": "2026-02-01T12:00:00.000Z",
+  "updatedAt": "2026-02-01T12:00:00.000Z"
+}
+```
+
+## Domain error codes
+
+| Code | Meaning |
+| --- | --- |
+| `BASIS_NOT_FOUND_ERROR` | Basis not found under the Entity |
+| `BASIS_ALREADY_EXISTS_ERROR` | The `id` is already used for a Basis |
+| `BASIS_NAME_ALREADY_EXISTS_ERROR` | Another Basis of this Entity already uses the same `name` |
+| `BASIS_REQUIRED_ERROR` | The Entity has Bases but the request named none |
+| `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_BASES_ERROR` | An Allocation would settle lines from two different Bases |
+| `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_BASES_ERROR` | A match would settle a selection spanning two Bases |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET) |
+| 201 | Created (POST) |
+| 400 | Validation error |
+| 401 | Unauthenticated |
+| 403 | Forbidden |
+| 404 | Entity or Basis not found |
+| 409 | Domain rule violation (see `code`) |
+
+## What Bases do not change
+
+- **Chart of accounts.** The Bases of an Entity share its chart.
+- **Currency.** The Bases of an Entity share its functional currency; presentation currency stays a report parameter.
+- **Lock Date.** The Entity's ledger lock date closes every Basis at once.
+- **No primary Basis.** No Basis is the default one; an Entity with Bases names the Basis it reads, every time.
+- **No auto-derived Entries.** A Basis holds what a caller posted in it. Nothing copies, mirrors, or recomputes an Entry from one Basis into another.
+- **No rename, no delete.** A Basis is additive.
