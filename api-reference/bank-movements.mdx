@@ -118,7 +118,7 @@ Erwin only reads Ontop. It never pays, tops up, approves, signs, or changes anyt
 </Note>
 
 <Note>
-  **Entities with Books.** When the Entity has at least one [Book](/api-reference/books), `GET /movements/:movementId/match-candidates` requires a `bookId` query parameter, and every write that posts a Ledger Entry (`POST /book`, `POST /match`) must name the target Book on the entry header. See [Books](/api-reference/books) for the model and the exact rule.
+  **Entities with Bases.** When the Entity has at least one [Basis](/api-reference/bases), `GET /movements/:movementId/match-candidates` requires a `basisId` query parameter, and every write that posts a Ledger Entry (`POST /book`, `POST /match`) must name the target Basis on the entry header. See [Bases](/api-reference/bases) for the model and the exact rule.
 </Note>
 
 <AppLink
@@ -283,7 +283,7 @@ List the open Ledger Entry Lines and the unbooked Invoices that could settle thi
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `bookId` | uuid | Conditional | Required when the Entity has at least one Book; must be omitted otherwise. The candidates are the open lines of that Book, plus the common ones. |
+| `basisId` | uuid | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise. The candidates are the open lines of that Basis, plus the common ones. |
 | `q` | string | No | Search text. Matches the document number, the entry memo, the account code and name, the Partner's name, legal name, and tax ID, and the amount. Names, memos, and account names match ignoring accents. The search runs before the cut, so it reaches candidates past the first 200. |
 
 **Response:** `{ candidates: [...], highConfidenceCandidateId }`. `highConfidenceCandidateId` names the recommended candidate (its `line.id`, or its `invoice.id` for an unbooked Invoice), or is `null` when no single candidate stands out. Each candidate has a `kind`:
@@ -315,7 +315,7 @@ Return the Movement's current booking or match state and the Ledger Lines that d
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `bookId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
+| `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `basisId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
 | `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, `partnerWebsite` (the Partner's website as a bare domain, or `null`), `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`), and `intercompanyLinkId` (the [Intercompany Link](/api-reference/intercompany-links) of the line, or `null`). |
 | `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryDate, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
 | `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount`. `null` when the booking touches no open-item account. |
@@ -440,7 +440,7 @@ Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry
 | `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
 | `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
 | `notes` | string \| null | No | Free-text notes. Blank is stored as `null`. |
-| `bookId` | uuid \| null | Conditional | Book the entry counts in; `null` marks it common. Send (as an id or as `null`) when the Entity has at least one Book; omit otherwise. |
+| `basisId` | uuid \| null | Conditional | Basis the entry counts in; `null` marks it common. Send (as an id or as `null`) when the Entity has at least one Basis; omit otherwise. |
 | `movementPartnerId` | uuid \| null | No | Set the Movement's Partner in the same write. Omit to keep the current Partner; `null` clears it. |
 | `newCounterpartLines` | array of line objects | Yes | At least one counterpart line (see below). |
 | `bankLineFxRate` | decimal string | Conditional | FX rate for the generated bank line. Required exactly when the Bank Account's currency differs from the Entity's functional currency; omit otherwise. |
@@ -498,7 +498,7 @@ The settlement line can settle at most the target's Open Amount. When the Moveme
 | `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
 | `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
 | `notes` | string \| null | No | Free-text notes. |
-| `bookId` | uuid \| null | Conditional | Same rule as `POST /book`. The Book of the entry must match the Book of the line being settled. |
+| `basisId` | uuid \| null | Conditional | Same rule as `POST /book`. The Basis of the entry must match the Basis of the line being settled. |
 | `newCounterpartLines` | array of line objects | Yes | At least one line, each with a `functionalAmount` above `0`. Include the settlement line on the open-item account (and any realized-FX line); the allocation is sized from it. The settlement line cannot exceed the target's Open Amount, and the lines together cannot exceed the Movement. Do not send a line for the rest. Sintropix adds it on the Suspense Account. |
 | `bankLineFxRate` | decimal string | Conditional | Same rule as `POST /book`. |
 | `lineId` | uuid | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. To match an Invoice, pass its control line. |
