@@ -39,6 +39,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - An **entity with no Basis** keeps one set of books, exactly as before.
     - An **entity with at least one Basis** states its facts under more than one measure. Every report reads one Basis (its common entries plus the entries of that Basis), and every basis-scoped read must name which Basis with a `basisId` query parameter.
     - A ledger entry either names a Basis (it counts in that Basis only) or names none (a **common entry**, counting in every Basis).
+    - Invoices and bank movements are facts every Basis shares, so the entries that book them are always common. A Basis entry cannot post to an account of Sub-type `cash`, `receivable`, `payable`, `expense_rendition_payable`, or `credit_card`. See [Common-only accounts](/api-reference/bases#common-only-accounts).
     - A reversal stays in the Basis of its original. An allocation, and every pair inside a match, must stay within a single Basis.
 
     Bases share the entity's chart of accounts, functional currency, and ledger lock date. See the [Bases API](/api-reference/bases) for the model and the exact rule.

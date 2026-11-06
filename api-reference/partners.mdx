@@ -11,7 +11,12 @@ A Partner is any counterparty on your books: a customer, a supplier, an employee
 Amounts are integers in the minor units of the Entity's functional currency. Timestamps are ISO 8601.
 
 <Note>
-  **Entities with Bases.** When the Entity has at least one [Basis](/api-reference/bases), `GET /partners/pages` requires a `basisId` query parameter — the `openReceivable` and `openPayable` totals on the page rows are then computed inside that Basis. `GET /partners` and the Partner rows returned by create, update, and delete stay outside the rule and surface open totals across every Basis. `GET /partners/counts`, `GET /partners/options`, and `GET /partners/:partnerId` carry no open totals and take no `basisId`.
+  **Entities with Bases.** When the Entity has at least one [Basis](/api-reference/bases), the `openReceivable` and `openPayable` totals are computed inside one Basis:
+
+  - **Reads.** `GET /partners`, `GET /partners/pages`, and `GET /partners/:partnerId/booking-template` require a `basisId` query parameter, and answer `400` with `BASIS_REQUIRED_ERROR` without it.
+  - **Writes.** Create, use, update, and delete a Partner, its Bank Details, and its Booking Template require no Basis. They take an optional `basisId` query parameter that only sets the Basis of the totals on the Partner row they answer. Without it, `openReceivable` and `openPayable` on that row are `null`.
+
+  On an Entity with no Basis, omit `basisId`; the totals are always integers. `GET /partners/counts`, `GET /partners/options`, and `GET /partners/:partnerId` carry no open totals and take no `basisId`.
 </Note>
 
 <AppLink
@@ -53,6 +58,12 @@ Each Entity is represented by one Partner of its Organization. That Partner carr
 ## GET `/partners`
 
 List every Partner the Entity uses, each row enriched with this Entity's Open Item totals (unsettled AR and AP balances). The list includes Merged Partners. To keep only active Partners, drop rows where `mergedIntoPartnerId` is not null.
+
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `basisId` | uuid | Conditional | Required when the Entity has at least one [Basis](/api-reference/bases); must be omitted otherwise. The open totals are computed inside that Basis. |
 
 **Response:** an array of Partner objects.
 
@@ -250,7 +261,7 @@ A `country` and `taxId` pair belongs to one Partner of the Organization:
 - When another Partner of the Organization already holds it, the create is refused with `409` and `PARTNER_TAX_IDENTITY_ALREADY_EXISTS_ERROR`. `params.partnerId` names that Partner. [Use it](#put-/partners/partnerid) in this Entity instead. In the app, the refusal offers **Usar** with the existing Partner's name.
 - The Entity's own tax identity belongs to its [representing Partner](#representing-partners), so it is refused with `422` and `PARTNER_REPRESENTS_ENTITY_ERROR`.
 
-**Response** (`201`): the created Partner row, as `GET /partners/pages` would list it.
+**Response** (`201`): the created Partner row, as `GET /partners/pages` would list it. On an Entity with Bases, `openReceivable` and `openPayable` are `null` unless you pass a `basisId` query parameter; see the note at the top of this page.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/partners" \
@@ -585,7 +596,7 @@ The [Audit Trail](/api-reference/audit-trail) credits an automatic booking to th
 
 ### GET `/partners/:partnerId/booking-template`
 
-Read a Partner's template.
+Read a Partner's template. On an Entity with Bases, pass a `basisId` query parameter: it sets the Basis of the open totals on the answered Partner row and is required.
 
 **Response:** `{ "partner": <Partner row>, "documentKind": "invoice" | "tax_only", "lines": [<line>] }`. The Partner row has the shape `GET /partners/pages` lists. `lines` is empty and `documentKind` is `invoice` when the Partner has no template.
 

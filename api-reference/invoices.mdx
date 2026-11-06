@@ -369,7 +369,7 @@ Create an Invoice. The same request can also book it (`bookingEntryWithLines`) a
 | --- | --- | --- |
 | `invoice` | object | The created Invoice row, as `GET /invoices/pages` would list it. |
 | `bookingEntry` | object or null | The Ledger Entry detail (see `GET /invoices/:invoiceId`). Null unless `bookingEntryWithLines` was sent or the vendor's [Booking Template](/api-reference/partners#booking-templates) booked the Invoice. |
-| `partner` | object or null | The Partner with its `openReceivable` and `openPayable` totals after booking. Null unless the Invoice was booked. |
+| `partner` | object or null | The Partner with its `openReceivable` and `openPayable` totals after booking. Null unless the Invoice was booked. On an Entity with [Bases](/api-reference/bases), both totals are `null` unless the request named a `basisId` query parameter, which works as on [`POST /invoices/:invoiceId/book`](#post-/invoices/invoiceid/book). |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
 
 ```bash
@@ -448,6 +448,7 @@ Example response:
 Create up to 100 Invoices in a single request and transaction. Each element carries its own client-supplied `id` (required) so a retry collides on the primary key rather than double-inserting.
 
 - **Body:** `BulkCreateInvoicesDto` — `{ invoices: CreateInvoice[] }` (1 to 100 elements).
+- **Query parameters:** an optional `basisId`, as on `POST /invoices`.
 - **Response:** array of `createInvoiceResultSchema`, in input order.
 
 ```bash
@@ -467,6 +468,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/bulk" \
 Book up to 100 already-created Invoices in a single transaction. Each element carries an `invoiceId` plus the booking instructions used by the single-invoice endpoint, including the optional `expectedBookingVersion`.
 
 - **Body:** `BulkBookInvoicesDto` — `{ bookings: (BookInvoice & { invoiceId })[] }` (1 to 100 elements).
+- **Query parameters:** an optional `basisId`, as on `POST /invoices/:invoiceId/book`.
 - **Response:** array of `bookInvoiceResultSchema`, in input order.
 
 <Info>
@@ -634,7 +636,13 @@ Remove the DTE from an Invoice. The Invoice stays; the tax document and the refe
 
 ## POST `/invoices/:invoiceId/book`
 
-Book an existing Invoice to a Ledger Entry using the supplied booking instructions (target counter account, dimensions, partner).
+Book an existing Invoice to a Ledger Entry using the supplied booking instructions (target counter account, dimensions, partner). The entry names no Basis: an Invoice is a fact every [Basis](/api-reference/bases) of the Entity shares, so its booking is a common Entry. The Releases of a [Deferral](#deferrals) or an [Accrual](#accruals) are common too.
+
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `basisId` | uuid | No | On an Entity with [Bases](/api-reference/bases), the Basis whose open totals the answered `partner` carries. Without it, that Partner's `openReceivable` and `openPayable` are `null`. It does not change the booking. |
 
 **Body**
 
@@ -652,7 +660,6 @@ Fields of `entry`:
 | `entryDate` | string | Yes | `YYYY-MM-DD`. |
 | `memo` | string or null | Yes | Entry memo. |
 | `notes` | string or null | No | Entry notes. |
-| `basisId` | uuid or null | Conditional | [Basis](/api-reference/bases) the entry counts in; `null` marks it common. Send (as an id or as `null`) when the Entity has at least one Basis; omit otherwise. |
 | `newLedgerEntryLines` | array | Yes | 2 to 10,000 lines. Total debits must equal total credits. |
 
 Each element of `newLedgerEntryLines`:
@@ -718,7 +725,7 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | --- | --- | --- |
 | `invoice` | object | The Invoice row, now with `bookingEntryId` set. `controlLineId` and `controlAccountId` are set too, except on a `tax_only` document. |
 | `bookingEntry` | object | The Ledger Entry detail described under `GET /invoices/:invoiceId`. |
-| `partner` | object | The Partner (see [Partners](/api-reference/partners)) with `openReceivable` and `openPayable` after booking. |
+| `partner` | object | The Partner (see [Partners](/api-reference/partners)) with `openReceivable` and `openPayable` after booking. On an Entity with Bases, both are `null` unless the request named a `basisId`. |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
 
 **Domain errors**

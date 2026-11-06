@@ -11,7 +11,7 @@ Ledger Entries are the core double-entry transactions in Sintropix. Each entry h
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings; timestamps are ISO 8601 datetimes.
 
 <Note>
-  **Entities with Bases.** An Entity may hold zero or more [Bases](/api-reference/bases). When it has at least one, every Ledger Entry it posts must name a `basisId` on the header (or leave it null to mark the Entry common), and the Open Item Lines read must carry `basisId` as a query parameter. See [Bases](/api-reference/bases) for the model and the exact rule.
+  **Entities with Bases.** An Entity may hold zero or more [Bases](/api-reference/bases). When it has at least one, a manual or Scheduled Entry may name a `basisId` on the header; without one, or with `null`, the Entry is common. A Basis Entry cannot post to a [common-only account](/api-reference/bases#common-only-accounts). The Ledger Entry listing and the Open Item Lines read must carry `basisId` as a query parameter. See [Bases](/api-reference/bases) for the model and the exact rule.
 </Note>
 
 <AppLink
@@ -37,6 +37,7 @@ List Ledger Entries with pagination, filtering, and sorting. Defaults to live en
 | `sort` | enum | No | `date` | `date`, `memo`, or `amount` |
 | `direction` | enum | No | `desc` | `asc` or `desc` |
 | `statuses` | string | No | `active,reversed` | Comma-separated list of `active`, `deleted`, `reversed`, `scheduled`, `cancelled` |
+| `basisId` | UUID | Conditional | — | Required when the Entity has at least one [Basis](/api-reference/bases); must be omitted otherwise. The page lists the common entries plus the entries of that Basis |
 
 - **Success response:** a page of entries
 - **Status:** 200
@@ -64,6 +65,7 @@ Each item in `entries` carries the Ledger Entry fields plus three line-derived t
 | `lineCount` | integer | Number of lines |
 | `accountNames` | string[] | Distinct names of the accounts the entry touches, debit-side accounts first |
 | `attachmentCount` | integer | Number of [attachments](/api-reference/attachments) on the entry |
+| `basisName` | string or null | Name of the entry's Basis; `null` for a common entry |
 
 The first ten fields are the **Ledger Entry** object; other endpoints on this page return it on its own.
 
@@ -96,6 +98,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `basisName` | string or null | Name of the entry's [Basis](/api-reference/bases); `null` for a common entry |
 | `reversedByEntryId` | UUID or null | The live reversal that points at this entry, if any |
 | `lines` | array | The entry's lines, each with the fields below |
 | `relatedInvoices` | array | Invoices this entry books, each with the invoice fields below |
@@ -215,7 +218,7 @@ Create a new Ledger Entry. The entry must have at least two lines and total debi
 | `entryDate` | ISO date | Yes | Transaction date |
 | `memo` | string or null | Yes | Short description |
 | `notes` | string or null | No | Longer notes; trimmed, blank becomes null |
-| `basisId` | UUID or null | Conditional | Basis the Entry counts in; `null` marks the Entry common. Must be sent (as an id or as `null`) when the Entity has at least one Basis; must be omitted otherwise. |
+| `basisId` | UUID or null | No | [Basis](/api-reference/bases) the Entry counts in. Omit it, or send `null`, to post a common Entry. A Basis Entry cannot post a line to a [common-only account](/api-reference/bases#common-only-accounts) (`409`, `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR`). An Entity with no Basis must omit it. |
 | `newLedgerEntryLines` | array | Yes | At least 2 lines, max 10,000, balanced |
 
 Each line in `newLedgerEntryLines`:
@@ -645,7 +648,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LI
 
 ### PATCH /api/entities/:entityId/ledger/lines/:lineId/account
 
-Reclassify a Ledger Entry Line to a different Ledger Account. The line must have no Allocation and no document link, and its entry must be open.
+Reclassify a Ledger Entry Line to a different Ledger Account. The line must have no Allocation and no document link, and its entry must be open. A line of a Basis Entry cannot move to a [common-only account](/api-reference/bases#common-only-accounts) (`409`, `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR`).
 
 - **Path params:** `entityId` (UUID), `lineId` (UUID)
 - **Body:**
@@ -723,6 +726,7 @@ curl -X PUT https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/lines/$LINE
 | `LEDGER_ENTRY_SCHEDULED_DATE_NOT_FUTURE_ERROR` | Scheduled date must be in the future |
 | `LEDGER_ENTRY_SCHEDULED_NOT_DUE_ERROR` | Scheduled entry is not yet due |
 | `LEDGER_ENTRY_SCHEDULED_TRANSACTION_CURRENCY_ERROR` | Scheduled entries cannot carry foreign currency |
+| `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR` | A line of a Basis Entry posts to an account of a [common-only Sub-type](/api-reference/bases#common-only-accounts). Returned by create, bulk create, Scheduled Entry create, reschedule, and book, and line reclassify. `params: { basisId, ledgerAccountId, ledgerAccountCode, ledgerAccountName, subtype }` names the first such account (`409`) |
 | `DEFERRAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#deferrals) of a Deferral; its date cannot change, and it cannot be rescheduled |
 | `ACCRUAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#accruals) of an Accrual; its date cannot change. `params: { ledgerEntryId }` (`409`) |
 | `DIMENSION_VALUE_SET_VALUES_NOT_FOUND_ERROR` | One or more dimension value ids not found in the Entity's Organization |
