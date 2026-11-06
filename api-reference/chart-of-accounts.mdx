@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Chart of Accounts API: Group Chart, Groups, and Accounts"
 sidebarTitle: "Chart of Accounts"
-description: "Read and edit the Chart of Accounts of an Entity and the group chart of its Organization. Covers Group Accounts, Account Groups, and Ledger Accounts."
+description: "Read and edit the Chart of Accounts of an Entity and the group chart of its Organization. Covers Group Accounts, Group Account Groups, Account Groups, and Ledger Accounts."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -15,7 +15,7 @@ The Chart of Accounts is the full tree of Account Groups and Ledger Accounts for
 
 ## The group chart
 
-The Organization owns one flat group chart. It is a list of Group Accounts (**Cuentas de grupo**), each with a code, a name, and a type. Every Ledger Account of every Entity of the Organization maps to exactly one Group Account of its own type. Because the mapping is total, the group chart adds up the books of every Entity by construction.
+The Organization owns one group chart. It is a list of Group Accounts (**Cuentas de grupo**), each with a code, a name, and a type, that you can arrange in [Group Account Groups](#group-account-groups). Every Ledger Account of every Entity of the Organization maps to exactly one Group Account of its own type. Because the mapping is total, the group chart adds up the books of every Entity by construction.
 
 - A Group Account code is unique in the Organization.
 - A Ledger Account names its Group Account in `groupAccountId` when you [create](#post-/api/entities/entityid/ledger/accounts) it. You can't create one without it.
@@ -25,7 +25,20 @@ The Organization owns one flat group chart. It is a list of Group Accounts (**Cu
 - A result Group Account can name the [Dimensions its lines require](#required-dimensions). Its type can't change while it requires one.
 - An Entity that has Ledger Accounts can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization).
 
-In the app, **Plan de cuentas** lives in the Organization's settings. It opens on **Grupo**, which lists each Group Account with the Ledger Accounts of each Entity nested under it. Pick an Entity in the switcher to see its own chart, with a **Cuenta de grupo** column. Pick the Organization's own row, with its logo and name, to go back to the group chart.
+In the app, **Plan de cuentas** lives in the Organization's settings. It opens on **Grupo**, which shows the tree of Group Account Groups, with each Group Account and the Ledger Accounts of each Entity nested under it. Pick an Entity in the switcher to see its own chart, with a **Cuenta de grupo** column. Pick the Organization's own row, with its logo and name, to go back to the group chart.
+
+### Group Account Groups
+
+A Group Account Group arranges the group chart the way an [Account Group](#post-/api/entities/entityid/ledger/account-groups) arranges an Entity's chart. Each group has a code prefix, a name, a type, and an optional parent group. A group carries no balance and takes no lines. It only sets where its Group Accounts show in the group chart and in the [Consolidated Income Statement](/api-reference/consolidation#consolidated-income-statement). A new Organization has no groups.
+
+- A code prefix is unique in the Organization.
+- A group's type is set when you create it and can't change.
+- A parent group must have the same type. A group can't sit under itself or under a group below it.
+- A Group Account sits in at most one group, of its own type. Name it in `groupId` when you create or `PATCH` the Group Account. Send `groupId: null` to take it out.
+- When a Group Account changes `type`, it leaves its group, unless the same request names a group of the new type.
+- You can't delete a group that holds a Group Account or another group. Move them out first.
+
+In the app, click **Nuevo grupo** on **Grupo** to create a group, or pick a group when you create a Group Account in **Nueva cuenta de grupo**. Each group and Group Account row has a menu with **Mover a grupo**, and with **Eliminar** when the row can be deleted.
 
 ### Required Dimensions
 
@@ -39,7 +52,7 @@ While a Group Account requires a Dimension, every line you write on one of its L
 
 In the app, **Grupo** shows an **Exige** column on each result Group Account. Click it to pick the Dimensions the Group Account requires. Each pick saves at once. A balance-sheet Group Account shows no picker.
 
-The group chart routes live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). They need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization, and the listing shows only that Entity's Ledger Accounts.
+The group chart routes live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). They need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization, and the group chart shows only that Entity's Ledger Accounts.
 
 ### The Group Account object
 
@@ -47,6 +60,7 @@ The group chart routes live under the Organization, not under an Entity. Read th
 | --- | --- | --- |
 | `id` | UUID | Group Account id |
 | `organizationId` | UUID | Owning Organization |
+| `groupId` | UUID or null | [Group Account Group](#group-account-groups) it sits in; null when it sits in none |
 | `code` | string | Code, unique in the Organization |
 | `name` | string | Name |
 | `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
@@ -54,47 +68,75 @@ The group chart routes live under the Organization, not under an Entity. Read th
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 
-## GET /api/organizations/:organizationId/group-accounts
+### The Group Account Group object
 
-List the Group Accounts of the Organization, ordered by code. Each one carries the Ledger Accounts that map to it.
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Group id |
+| `organizationId` | UUID | Owning Organization |
+| `parentGroupId` | UUID or null | Parent group; null for a top-level group |
+| `codePrefix` | string | Code prefix, unique in the Organization |
+| `name` | string | Name |
+| `type` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+## GET /api/organizations/:organizationId/group-chart
+
+Read the whole group chart of the Organization in one document: its Group Account Groups and its Group Accounts. Each Group Account carries the Ledger Accounts that map to it.
 
 - **Path param:** `organizationId` (UUID)
-- **Success response:** array of Group Account objects, each with a `ledgerAccounts` array
+- **Success response:** an object with two arrays, `groups` and `groupAccounts`
 - **Status:** 200
 
-Each item of `ledgerAccounts` carries `id`, `entityId`, `code`, and `name`, ordered by code.
+`groups` holds Group Account Group objects. `groupAccounts` holds Group Account objects ordered by code, each with a `ledgerAccounts` array. Each item of `ledgerAccounts` carries `id`, `entityId`, `code`, and `name`, ordered by code.
 
 ```json
-[
-  {
-    "id": "66666666-6666-4666-8666-666666666666",
-    "organizationId": "99999999-9999-4999-8999-999999999999",
-    "code": "1101",
-    "name": "Caja",
-    "type": "asset",
-    "requiredDimensionIds": [],
-    "createdAt": "2026-02-01T12:00:00.000Z",
-    "updatedAt": "2026-02-01T12:00:00.000Z",
-    "ledgerAccounts": [
-      {
-        "id": "33333333-3333-4333-8333-333333333333",
-        "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        "code": "1101",
-        "name": "Caja"
-      },
-      {
-        "id": "44444444-4444-4444-8444-444444444444",
-        "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-        "code": "1.1.01",
-        "name": "Caja chica"
-      }
-    ]
-  }
-]
+{
+  "groups": [
+    {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "organizationId": "99999999-9999-4999-8999-999999999999",
+      "parentGroupId": null,
+      "codePrefix": "11",
+      "name": "Disponible",
+      "type": "asset",
+      "createdAt": "2026-02-01T12:00:00.000Z",
+      "updatedAt": "2026-02-01T12:00:00.000Z"
+    }
+  ],
+  "groupAccounts": [
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "organizationId": "99999999-9999-4999-8999-999999999999",
+      "groupId": "77777777-7777-4777-8777-777777777777",
+      "code": "1101",
+      "name": "Caja",
+      "type": "asset",
+      "requiredDimensionIds": [],
+      "createdAt": "2026-02-01T12:00:00.000Z",
+      "updatedAt": "2026-02-01T12:00:00.000Z",
+      "ledgerAccounts": [
+        {
+          "id": "33333333-3333-4333-8333-333333333333",
+          "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "code": "1101",
+          "name": "Caja"
+        },
+        {
+          "id": "44444444-4444-4444-8444-444444444444",
+          "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "code": "1.1.01",
+          "name": "Caja chica"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ```bash
-curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts \
+curl https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-chart \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -111,6 +153,7 @@ Create a Group Account.
 | `code` | string | Yes | Code, non-empty and unique in the Organization |
 | `name` | string | Yes | Name, non-empty |
 | `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense` |
+| `groupId` | UUID or null | No | [Group Account Group](#group-account-groups) of the same `type` to put it in. Omit or send null for none |
 
 - **Success response:** the created Group Account object
 - **Status:** 201
@@ -130,7 +173,7 @@ curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-
 
 ## PATCH /api/organizations/:organizationId/group-accounts/:groupAccountId
 
-Rename, recode, or retype a Group Account, or set the Dimensions it requires. Send at least one field. The new code and name show on every Ledger Account that maps to it.
+Rename, recode, or retype a Group Account, move it to another group, or set the Dimensions it requires. Send at least one field. The new code and name show on every Ledger Account that maps to it.
 
 - **Path params:** `organizationId` (UUID), `groupAccountId` (UUID)
 - **Body:**
@@ -139,7 +182,8 @@ Rename, recode, or retype a Group Account, or set the Dimensions it requires. Se
 | --- | --- | --- | --- |
 | `code` | string | No | New code, unique in the Organization |
 | `name` | string | No | New name |
-| `type` | enum | No | New type. Refused while a Ledger Account maps to the Group Account or it requires a Dimension |
+| `type` | enum | No | New type. Refused while a Ledger Account maps to the Group Account or it requires a Dimension. The Group Account leaves its group unless you also send `groupId` |
+| `groupId` | UUID or null | No | [Group Account Group](#group-account-groups) to move it to, of the Group Account's type (the new one, if you change `type`). `null` takes it out of its group |
 | `requiredDimensionIds` | UUID[] | No | The whole set of [Dimensions the Group Account requires](#required-dimensions), replacing the current set. `[]` requires none. Each must be a Dimension of the Organization. Only a result Group Account can name one |
 
 - **Success response:** the updated Group Account object, with `requiredDimensionIds`
@@ -163,6 +207,8 @@ curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group
   -d '{"requiredDimensionIds": ["22222222-2222-4222-8222-222222222222"]}'
 ```
 
+A `groupId` of another type returns `400` with `GROUP_ACCOUNT_GROUP_TYPE_INCOMPATIBLE_ERROR`. A group that doesn't exist in the Organization returns `404` with `GROUP_ACCOUNT_GROUP_NOT_FOUND_ERROR`. The same rules apply on `POST`.
+
 Naming a Dimension on a balance-sheet Group Account returns `422` with `GROUP_ACCOUNT_REQUIRED_DIMENSION_ON_NON_RESULT_ACCOUNT_ERROR`. A Dimension that doesn't exist in the Organization returns `404` with `GROUP_ACCOUNT_REQUIRED_DIMENSIONS_NOT_FOUND_ERROR`, and `params.dimensionIds` lists every Dimension the request named.
 
 ## DELETE /api/organizations/:organizationId/group-accounts/:groupAccountId
@@ -175,6 +221,92 @@ Delete a Group Account that no Ledger Account maps to. Map those accounts to ano
 
 ```bash
 curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts/$GROUP_ACCOUNT_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent"
+```
+
+## POST /api/organizations/:organizationId/group-account-groups
+
+Create a [Group Account Group](#group-account-groups).
+
+- **Path param:** `organizationId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id |
+| `parentGroupId` | UUID or null | No | Parent group, of the same `type`. Omit or send null for a top-level group |
+| `codePrefix` | string | Yes | Code prefix, non-empty and unique in the Organization |
+| `name` | string | Yes | Name, non-empty |
+| `type` | enum | Yes | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, `other_expense`. Can't change later |
+
+- **Success response:** the created Group Account Group object
+- **Status:** 201
+
+```bash
+curl -X POST https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-account-groups \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "77777777-7777-4777-8777-777777777777",
+    "parentGroupId": null,
+    "codePrefix": "11",
+    "name": "Disponible",
+    "type": "asset"
+  }'
+```
+
+A parent of another type returns `400` with `GROUP_ACCOUNT_GROUP_PARENT_TYPE_INCOMPATIBLE_ERROR`. A parent that doesn't exist in the Organization returns `404` with `GROUP_ACCOUNT_GROUP_NOT_FOUND_ERROR`. A code prefix already in use returns `409` with `GROUP_ACCOUNT_GROUP_CODE_PREFIX_ALREADY_EXISTS_ERROR`.
+
+To put a Group Account in the new group, [`PATCH`](#patch-/api/organizations/organizationid/group-accounts/groupaccountid) it with `groupId`:
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-accounts/$GROUP_ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"groupId": "77777777-7777-4777-8777-777777777777"}'
+```
+
+## PATCH /api/organizations/:organizationId/group-account-groups/:groupAccountGroupId
+
+Rename or recode a Group Account Group, or move it under another parent. Send at least one field. Its type can't change.
+
+- **Path params:** `organizationId` (UUID), `groupAccountGroupId` (UUID)
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `parentGroupId` | UUID or null | No | New parent group, of the same `type`. `null` makes it a top-level group |
+| `codePrefix` | string | No | New code prefix, unique in the Organization |
+| `name` | string | No | New name |
+
+- **Success response:** the updated Group Account Group object
+- **Status:** 200
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-account-groups/$GROUP_ACCOUNT_GROUP_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"name": "Efectivo y equivalentes"}'
+```
+
+A parent that is the group itself or a group below it returns `400` with `GROUP_ACCOUNT_GROUP_PARENT_CYCLE_ERROR`. The parent type and code prefix rules of `POST` apply too.
+
+## DELETE /api/organizations/:organizationId/group-account-groups/:groupAccountGroupId
+
+Delete a Group Account Group that holds no Group Account and no other group. Move them to another group, or out of it, first.
+
+- **Path params:** `organizationId` (UUID), `groupAccountGroupId` (UUID)
+- **Success response:** the deleted Group Account Group object
+- **Status:** 200
+
+A group that still holds a Group Account or a group returns `409` with `GROUP_ACCOUNT_GROUP_IN_USE_ERROR`.
+
+```bash
+curl -X DELETE https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/group-account-groups/$GROUP_ACCOUNT_GROUP_ID \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent"
 ```
@@ -625,6 +757,13 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `GROUP_ACCOUNT_REQUIRED_DIMENSION_ON_NON_RESULT_ACCOUNT_ERROR` | Only a result Group Account can require Dimensions. `params.groupAccountId` names it (`422`) |
 | `GROUP_ACCOUNT_REQUIRED_DIMENSIONS_NOT_FOUND_ERROR` | A required Dimension doesn't exist in the Organization. `params.dimensionIds` lists every Dimension the request named (`404`) |
 | `GROUP_ACCOUNT_IN_USE_ERROR` | Delete refused: a Ledger Account maps to the Group Account (`409`) |
+| `GROUP_ACCOUNT_GROUP_NOT_FOUND_ERROR` | The Group Account Group doesn't exist in the Organization. `params.groupAccountGroupId` names it (`404`) |
+| `GROUP_ACCOUNT_GROUP_ALREADY_EXISTS_ERROR` | A Group Account Group with the supplied `id` already exists (`409`) |
+| `GROUP_ACCOUNT_GROUP_CODE_PREFIX_ALREADY_EXISTS_ERROR` | Code prefix already in use in the Organization. `params.codePrefix` names it (`409`) |
+| `GROUP_ACCOUNT_GROUP_PARENT_TYPE_INCOMPATIBLE_ERROR` | The parent group is of another type. `params: { parentGroupId, parentGroupType, groupType }` (`400`) |
+| `GROUP_ACCOUNT_GROUP_PARENT_CYCLE_ERROR` | The parent is the group itself or a group below it. `params: { groupAccountGroupId, parentGroupId }` (`400`) |
+| `GROUP_ACCOUNT_GROUP_TYPE_INCOMPATIBLE_ERROR` | The Group Account is not of the group's type. `params: { groupAccountGroupId, groupAccountGroupType, groupAccountType }` (`400`) |
+| `GROUP_ACCOUNT_GROUP_IN_USE_ERROR` | Delete refused: the group holds a Group Account or another group (`409`) |
 
 ## Status codes
 
@@ -632,7 +771,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | --- | --- |
 | 200 | Success (GET, PATCH, DELETE) |
 | 201 | Created (POST) |
-| 400 | Validation error |
+| 400 | Validation error, or a Group Account Group rule: wrong type, wrong parent type, or a cycle |
 | 401 | Unauthenticated |
 | 403 | Forbidden |
 | 404 | Resource not found |
