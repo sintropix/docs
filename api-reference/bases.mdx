@@ -1,12 +1,12 @@
 ---
 title: "Sintropix Bases API: Multi-Basis Accounting for One Entity"
 sidebarTitle: "Bases"
-description: "Create and list Bases, the named measurement bases of an Entity, and pass basisId on every basis-scoped read and write once the Entity has at least one Basis."
+description: "Create and list Bases, the named measurement bases of an Entity, pass basisId on every basis-scoped read, and post Basis Entries that keep off the facts every Basis shares."
 ---
 
 A Basis is a named measurement basis of one Entity. Use Bases when a company must state the same facts under more than one measure, for example the financial statements its owners read and the return the tax authority reads. The two agree on most Entries; the differences (a depreciation rate, a provision the tax rule refuses, a correction the tax rule adds) are the Entries that name a Basis.
 
-An Entity holds 0 to n Bases. An Entity with no Basis keeps one set of books, exactly as before. An Entity with at least one Basis states its facts under more than one measure, so every basis-scoped read must name which one with a `basisId` query parameter, and every write must state which Basis its Entry counts in.
+An Entity holds 0 to n Bases. An Entity with no Basis keeps one set of books, exactly as before. An Entity with at least one Basis states its facts under more than one measure, so every basis-scoped read must name which one with a `basisId` query parameter. The facts themselves (Invoices and Bank Movements) are common to every Basis; a Basis differs only by the Entries you post in it.
 
 <Note>
   Bases were called Books before. The routes moved from `/books` to `/bases`, the `bookId` field and query parameter is now `basisId`, and the `BOOK_*` error codes are now `BASIS_*` (`RECONCILIATION_*_IN_DIFFERENT_BOOKS_ERROR` and `CONSOLIDATION_SCOPE_ENTITY_KEEPS_BOOKS_ERROR` end in `BASES_ERROR`). The old names are no longer accepted. In the app, a Basis is called **Base contable** in Spanish.
@@ -27,19 +27,58 @@ The database enforces the structural half of the rule so a hand-written statemen
 - A Reversal stays in the Basis of its original. A common Entry is reversed by a common Entry; a Basis Entry by an Entry of that Basis.
 - An Allocation settles two lines of one Basis, or two common lines. Lines of different Bases state no offset.
 
+## Facts are common
+
+An Invoice and a Bank Movement are facts every Basis of the Entity shares. The Entries that book them are always common:
+
+- Booking an Invoice (single or bulk), booking or matching a Bank Movement (single or bulk), and the [Follow-up](/api-reference/follow-ups) acts that do the same take no `basisId`.
+- The match candidates of a Bank Movement are lines of common Entries only.
+- The Releases of a [Deferral](/api-reference/invoices#deferrals) or an [Accrual](/api-reference/invoices#accruals) are common, as the booking they recognize is.
+- Depreciation posts common Entries, so a Fixed Asset is acquired by a line of a common Entry. A line of a Basis Entry is not offered as an acquisition candidate, and configuring one is refused with `400` and `FIXED_ASSET_ACQUISITION_ENTRY_NOT_COMMON`.
+
+A Basis states its differences in Basis Entries you post by hand: a manual Ledger Entry, a bulk create, a Scheduled Entry, or an entry of a Follow-up's `createEntries` act.
+
+## Common-only accounts
+
+Cash, a legal claim, and a debt are the same in every Basis. So a Basis Entry cannot post a line to an account of one of these Sub-types:
+
+- `cash`
+- `receivable`
+- `payable`
+- `expense_rendition_payable`
+- `credit_card`
+
+Every other Sub-type, and an account with no Sub-type, takes Basis lines. `unbilled_receivable` stays open on purpose: an unbilled claim is an estimate, so one Basis may accrue revenue there alone and reverse it later. State any other valuation difference on an account that is not common-only.
+
+The rule is checked on every write that puts a Basis line on an account:
+
+- Creating a Ledger Entry, in bulk or one at a time, creating or rescheduling a Scheduled Entry, and booking one now answer `409` with `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR`. `params` names the first offending account: `{ basisId, ledgerAccountId, ledgerAccountCode, ledgerAccountName, subtype }`. Nothing is written.
+- [Reclassifying a line](/api-reference/ledger-entries#patch-/api/entities/entityid/ledger/lines/lineid/account) of a Basis Entry to a common-only account answers the same error.
+- [Updating an account](/api-reference/chart-of-accounts#patch-/api/entities/entityid/ledger/accounts/accountid) to a common-only Sub-type while a live or scheduled Basis Entry has a line on it answers `409` with `LEDGER_ACCOUNT_COMMON_ONLY_SUBTYPE_HAS_BASIS_LINES_ERROR` (`params: { ledgerAccountId, subtype }`).
+
 ## When `basisId` is required
 
 Once an Entity has at least one Basis, every basis-scoped read must carry `basisId`, and the server answers `BASIS_REQUIRED_ERROR` (`400`) without it. An Entity with no Basis must not send `basisId`.
 
 Basis-scoped reads:
 
-- Home dashboard, balance sheet, income statement and its lines, income statement by dimension, cash flow and its entries, open positions, customer status and its detail, journal, revenue realization and its entries, eight-column balance, general ledger, and partner ledger — see [Reports](/api-reference/reports).
-- Open item lines and match-candidates for a Bank Movement — see [Ledger Entries](/api-reference/ledger-entries) and [Bank Movements](/api-reference/bank-movements).
-- The paginated Partner listing (`GET /partners/pages`) — see [Partners](/api-reference/partners).
+- Home dashboard, balance sheet, income statement and its lines, income statement by dimension, cash flow and its entries, open positions, customer status and its detail, journal, revenue realization and its entries, eight-column balance, general ledger, and partner ledger. See [Reports](/api-reference/reports).
+- The Ledger Entry listing (`GET /ledger/entries`) and the open item lines. See [Ledger Entries](/api-reference/ledger-entries). A read by `ids` takes no `basisId`.
+- The Partner reads that carry open totals: `GET /partners`, `GET /partners/pages`, and `GET /partners/:partnerId/booking-template`. See [Partners](/api-reference/partners).
 
-Two reads stay outside the rule and never name a Basis: the Partner reference list (`GET /partners`), which an Invoice document embeds, and the Partner row returned by a create, an update, or a delete. Both surface open totals across every Basis.
+Writes require no Basis, so a caller that knows none keeps working:
 
-Basis-scoped writes carry `basisId` on the entry header of the Ledger Entry they post: create Ledger Entry, book Invoice, book Bank Movement, and match Bank Movement. A reversal takes the Basis of its original — do not send `basisId` on `POST /ledger/entries/:entryId/reverse`.
+- A manual Ledger Entry, a bulk create, and a Scheduled Entry take an optional `basisId` on the entry header. Omit it, or send `null`, to post a common Entry. A reversal takes the Basis of its original, so do not send `basisId` on `POST /ledger/entries/:entryId/reverse`.
+- Invoice and Bank Movement bookings take no `basisId`. See [Facts are common](#facts-are-common).
+- The Partner writes (create, use, update, and delete a Partner, its Bank Details, and its Booking Template) and the Invoice writes (`POST /invoices`, `/invoices/bulk`, `/invoices/book`, and `/invoices/:invoiceId/book`) take an optional `basisId` query parameter. It only sets the Basis of the open totals of the Partner they answer. Without it, on an Entity with Bases, `openReceivable` and `openPayable` are `null`, never a sum of every Basis.
+
+## In the app
+
+- **Configuración → Bases contables**, at `/{entityId}/settings/bases`, lists the Bases of the Entity. **Nueva base contable** creates one.
+- On an Entity with Bases, the user menu has a **Base contable** group that lists its Bases and picks the one the app reads. Every ledger view (home, journal, reports, the eight-column balance and its export, cash flow, partners, customer status, bank, and general ledger) shows the picked Basis. The pick is kept per Entity in your browser. When you have none saved, the app reads the oldest Basis.
+- On an Entity with Bases, the manual and Scheduled Entry forms offer **Común** or one of the Bases. **Común** is the default. A Basis Entry on a [common-only account](#common-only-accounts) is refused with a message that names the account, and the draft stays.
+- The journal has a **Base contable** column, and the entry detail and Follow-up proposals name the Basis of each entry. Facts show as **Común** in every Basis.
+- An Entity with no Bases looks as before: no picker and no Basis field.
 
 ## GET /api/entities/:entityId/bases
 
@@ -123,6 +162,9 @@ Every endpoint on this page that returns a Basis uses this shape:
 | `BASIS_ALREADY_EXISTS_ERROR` | The `id` is already used for a Basis |
 | `BASIS_NAME_ALREADY_EXISTS_ERROR` | Another Basis of this Entity already uses the same `name` |
 | `BASIS_REQUIRED_ERROR` | The Entity has Bases but the request named none |
+| `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR` | A Basis Entry posts a line to a [common-only account](#common-only-accounts) (`409`) |
+| `LEDGER_ACCOUNT_COMMON_ONLY_SUBTYPE_HAS_BASIS_LINES_ERROR` | An account would take a common-only Sub-type while a Basis Entry has a line on it (`409`) |
+| `FIXED_ASSET_ACQUISITION_ENTRY_NOT_COMMON` | A Fixed Asset's acquisition line belongs to a Basis Entry (`400`) |
 | `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_BASES_ERROR` | An Allocation would settle lines from two different Bases |
 | `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_BASES_ERROR` | A match would settle a selection spanning two Bases |
 
@@ -143,6 +185,6 @@ Every endpoint on this page that returns a Basis uses this shape:
 - **Chart of accounts.** The Bases of an Entity share its chart.
 - **Currency.** The Bases of an Entity share its functional currency; presentation currency stays a report parameter.
 - **Lock Date.** The Entity's ledger lock date closes every Basis at once.
-- **No primary Basis.** No Basis is the default one; an Entity with Bases names the Basis it reads, every time.
+- **No primary Basis.** No Basis is the default one in the API; an Entity with Bases names the Basis it reads, every time. The app reads the oldest Basis only until you pick one.
 - **No auto-derived Entries.** A Basis holds what a caller posted in it. Nothing copies, mirrors, or recomputes an Entry from one Basis into another.
 - **No rename, no delete.** A Basis is additive.
