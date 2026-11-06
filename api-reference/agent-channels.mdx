@@ -144,6 +144,18 @@ Erwin knows every Entity of the bound Organization, by name and tax id. He works
 
 Erwin reaches only the Entities of the bound Organization. An Entity added to the Organization, or moved out of it, applies from his next answer.
 
+### Entities with Bases
+
+When an Entity keeps its books under more than one [Basis](/api-reference/bases), for example **Financiero** and **Tributario**, Erwin knows its Bases from the start of each conversation and treats every figure and every entry as belonging to one of them.
+
+- **Figures.** Each ledger amount he gives you, such as a report total, a ledger balance, open items, or a Partner's open total, comes from one Basis, and he says which. If your question names no Basis, he reads each one and gives each figure with its Basis, for example *"Ventas de octubre: $14.850.000 en Financiero y $9.850.000 en Tributario"*. To get one figure, name the Basis in your question.
+- **Facts are common.** An entry that records a fact, such as a document, a bank line, payroll, or a loan, is a common entry that counts in every Basis. Booking an Invoice or a Bank Movement, a match, and what follows from them always stay common.
+- **Adjustments go in one Basis.** A provision, an estimate, a valuation, or an accrual that only one Basis recognizes goes in the Basis you name, or the one the client's [wiki](/core-concepts) records for that kind of adjustment.
+- **When it's unclear, he asks.** If neither your message nor the wiki settles it, Erwin asks before he writes, for example *"¿En Financiero, en Tributario o común a ambas?"*. He never writes an adjustment as common by default. To skip the question, name the Basis, or say it's common to both.
+- **Accounts a Basis entry can't touch.** A Basis entry can't post to a cash, receivable, payable, expense rendition payable, or credit card account. If an adjustment would, Erwin tells you which account blocks it.
+
+An accrual that only one Basis recognizes is a manual entry of that Basis, which Erwin reverses by hand, since the document behind it is common and can't settle it. A Basis added to the Entity during a conversation applies from his next entry: he checks the Entity's Bases again before he writes an adjustment.
+
 ### Stop or interrupt Erwin
 
 While Erwin works, his answer shows a progress line with a **Detener** button below it. Anyone in the thread can click **Detener**. Erwin stops and doesn't start again. The message then says who stopped him, and that what he already wrote in the ERP stays.
