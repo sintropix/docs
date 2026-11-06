@@ -378,11 +378,19 @@ The **Consolidated Income Statement** is the result of a Scope over a period ins
 - **Eliminaciones.** The reversal of each linked line that the period eliminates.
 - **Consolidado.** The Entities' columns plus Eliminaciones.
 
-The last row, **Resultado del período**, adds up every row and the conversion difference, column by column.
+The `result` adds up every row and the conversion difference, column by column. Each row and each difference also splits its amount by [month](#months).
+
+In the app, the group's statement reads like an Entity's income statement: the same sections, result lines, and signs, with **Diferencia de conversión** just above **Resultado neto** and counting in it. A Link in transit is a memo below **Resultado neto**. **Agrupar por** sets the columns:
+
+- **Mes** (the default), **Trimestre**, or **Año**: the consolidated amount of each month, quarter, or year, and the total.
+- **Sin agrupación**: the consolidated amount in one column.
+- **Entidad**: one column per Entity, then Eliminaciones, then the total.
+
+**Exportar a Excel** downloads the statement with the columns on screen, the Scope's Entities, and the rates used. A Link in transit goes in its own **Fuera del resultado** column, which no total adds up.
 
 <AppLink
-  url="https://app.sintropix.com/organizations/{organizationId}/consolidated-income-statement"
-  note="The page is Estado de resultados, under Grupo in the sidebar, next to Consolidado. A Scope, presentation currency, or rate you set on one of the two pages carries over to the other. Click a cell to open the lines behind it, or the conversion row to open its Links."
+  url="https://app.sintropix.com/organizations/{organizationId}/consolidated-income-statement?groupBy=entity"
+  note="The page is Estado de resultados, under Grupo in the sidebar, next to Consolidado. A Scope, presentation currency, or rate you set on one of the two pages carries over to the other. Click a row to open its Consolidated Ledger, or an Entity or Eliminaciones cell to open it narrowed to that column. Click the conversion or in-transit row to open its Links."
 />
 
 ### When a Link is eliminated in the period
@@ -400,6 +408,18 @@ When only one line of an eliminated Link lands on a result Group Account, its re
 ### In transit
 
 A Link is **in transit** when one of its lines lands on a result Group Account inside the period and its other line is dated after `to`. Nothing eliminates it yet, so the line stays in its Entity's column and in Consolidado. The statement names the Link in `differences` as `inTransit`, a memo that no column adds up.
+
+### Months
+
+Each row of `groupAccountBalances` carries `months`: its amount split by the month it falls in. Each item has the [amount fields](#amounts) plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `month` | ISO date | The first day of the month |
+
+Each item of `differences` carries `months` too, each `{ month, amount }`. A `translation` amount falls in the month of its Link's elimination. An `inTransit` amount falls in the month of the line booked alone.
+
+Only months with an amount are listed, in month order. The months of a row or a difference add up exactly to its amount for the period, column by column. An Entity's month in a foreign currency is the translation of what it moves up to that month's end, less the translation up to the previous month's end, so rounding never makes the months drift from the period.
 
 ### GET /api/organizations/:organizationId/consolidated-income-statement
 
@@ -424,9 +444,9 @@ Besides the [Scope refusals](#scope-currency-and-rates), a period that crosses a
 | `to` | ISO date | As requested |
 | `presentationCurrency` | string | Currency every amount is in |
 | `entities` | array | The Scope's [Entities](#scope-currency-and-rates) |
-| `groupAccountBalances` | array | One row per result Group Account with an amount in any column, with the [amount fields](#amounts) and `groupAccount` |
-| `differences` | array | The `translation` and `inTransit` [differences](#differences), `translation` first. Empty when there are none. |
-| `result` | object | **Resultado del período**: every row plus the conversion difference, column by column, with the [amount fields](#amounts) |
+| `groupAccountBalances` | array | One row per result Group Account with an amount in any column, with the [amount fields](#amounts), `groupAccount`, and [`months`](#months) |
+| `differences` | array | The `translation` and `inTransit` [differences](#differences), `translation` first, each with [`months`](#months). Empty when there are none. |
+| `result` | object | The result for the period (**Resultado neto** in the app): every row plus the conversion difference, column by column, with the [amount fields](#amounts) |
 
 The statement is debit-positive like the other reads, so an income reads negative, an expense reads positive, and a profit reads negative in `result`. To show the statement the usual way, flip the sign of the income rows and of the result. The `translation` amount is part of `eliminationsAmount`, `consolidatedAmount`, and `result`.
 
@@ -456,7 +476,18 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/consolidated-
         { "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "amount": -1155000 }
       ],
       "eliminationsAmount": 1100000,
-      "consolidatedAmount": -55000
+      "consolidatedAmount": -55000,
+      "months": [
+        {
+          "month": "2026-04-01",
+          "entityAmounts": [
+            { "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "amount": 0 },
+            { "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "amount": -1155000 }
+          ],
+          "eliminationsAmount": 1100000,
+          "consolidatedAmount": -55000
+        }
+      ]
     },
     {
       "groupAccount": { "id": "22222222-2222-4222-8222-222222222222", "code": "6100", "name": "Gastos operacionales", "type": "operating_expense" },
@@ -465,7 +496,18 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/consolidated-
         { "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "amount": 0 }
       ],
       "eliminationsAmount": -1000000,
-      "consolidatedAmount": 0
+      "consolidatedAmount": 0,
+      "months": [
+        {
+          "month": "2026-04-01",
+          "entityAmounts": [
+            { "entityId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "amount": 1000000 },
+            { "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "amount": 0 }
+          ],
+          "eliminationsAmount": -1000000,
+          "consolidatedAmount": 0
+        }
+      ]
     }
   ],
   "differences": [
@@ -481,7 +523,8 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/consolidated-
             { "id": "1a2b3c4d-0002-4a00-8a00-000000000002", "entityId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "memo": "Fee abril" }
           ]
         }
-      ]
+      ],
+      "months": [{ "month": "2026-04-01", "amount": -100000 }]
     }
   ],
   "result": {
