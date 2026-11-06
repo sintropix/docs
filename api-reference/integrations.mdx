@@ -401,7 +401,11 @@ The app doesn't offer the [SII Login](#portal-logins) for new connections. SII L
 
 The company Clave reads the RCV registers. The SII opens the PDF and XML of the DTEs only to the legal representative, so add the legal representative's own RUT and Clave to receive those [files](/api-reference/source-feeds#file-attachments). It's optional: the company Clave alone connects the SII.
 
-In the app, open **Conectar integración** and pick **Clave del representante legal**, under the **Impuestos** tag. The option is dimmed until the company's SII is connected. When the Organization has two or more SII Integrations, the dialog first asks which company, by RUT. The option shows a check once the SII mirror holds a Clave or a certificate of the legal representative of every connected company.
+In the app, open **Conectar integración** and pick **Clave del representante legal**, under the **Impuestos** tag. The option is dimmed until the company's SII is connected. When the Organization has two or more SII Integrations, the dialog first asks which company, by RUT. The option shows a check once the SII mirror holds a Clave or a certificate of the legal representative of every connected company. While some company still has none, the dialog offers only those companies.
+
+The panel of the SII shows **RUT del representante legal**: the RUT of the legal representative the SII mirror holds, which you can copy. The panel never shows the Clave. With no legal representative there's no such row.
+
+To change the legal representative or their Clave, open the panel of the SII and pick **Cambiar Clave del representante legal** from its actions menu. You can also click **Clave del representante legal** in **Conectar integración** once it shows its check. With two or more SII Integrations, pick the company's RUT first. The dialog starts with the current representative's RUT, which you can edit, and an empty Clave. Type the Clave and click **Cambiar Clave**. When the SII accepts it, the new RUT and Clave replace the old ones and the panel shows the new RUT. When the SII refuses it, the dialog shows **Clave incorrecta** beside the Clave and keeps the previous representative. When no representative is declared, the same menu offers **Agregar Clave del representante legal** instead.
 
 Disconnecting the SII deletes the legal representative's Clave together with the company Clave.
 
@@ -409,7 +413,7 @@ Disconnecting the SII deletes the legal representative's Clave together with the
 
 `PUT /api/organizations/:organizationId/integrations/:integrationId/sii-representative-clave`
 
-Add the legal representative's Clave to an SII Integration. The SII checks it at once, the same way as the company Clave. Sintropix stores neither the RUT nor the Clave. Sending it again replaces the Clave the SII mirror holds for that person.
+Add the legal representative's Clave to an SII Integration. The SII checks it at once, the same way as the company Clave. Sintropix stores neither the RUT nor the Clave. Each SII Integration holds one legal representative. On an Integration that already has one, the same request replaces it: the new `rut` and `clave` take the place of the old ones once the SII accepts the new Clave, even when `rut` names a different person. A refused Clave keeps the representative the SII mirror held.
 
 **Body**
 
