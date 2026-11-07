@@ -27,6 +27,8 @@ Dos áreas viven fuera de una Entidad:
 - Las páginas de **Configuración** que pertenecen a toda la Organización viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Son la página Empresa, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio y Log. Toma `organizationId` de la Entidad o del registro. Las páginas de la Organización viven a su lado, bajo `https://app.sintropix.com/organizations/{organizationId}`: **Chat** en `/chat`, **Bandeja** en `/notifications`, **Tareas** en `/tasks`, **Intercompañía** en `/intercompany-links`, **Consolidado** en `/consolidated-trial-balance` y **Estado de resultados** en `/consolidated-income-statement`.
 - **Tu cuenta**, los ajustes propios del Usuario que inició sesión, vive bajo `https://app.sintropix.com/account`.
 
+Un enlace de la Organización muestra la misma página a todos los que lo abren. Solo el menú de empresas y los enlaces de vuelta a una Entidad dependen del lector: nombran la Entidad en la que el lector trabajó por última vez cuando pertenece a esta Organización y, si no, la primera Entidad de la Organización.
+
 Los enlaces directos sobreviven al inicio de sesión. Si el usuario no está autenticado, la aplicación muestra el formulario de acceso y luego aterriza en la URL exacta solicitada. Un usuario sin acceso a la Entidad ve una pantalla de "sin acceso" en lugar de una redirección.
 
 ## Abrir un registro en un panel lateral
