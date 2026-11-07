@@ -27,6 +27,8 @@ Two areas live outside an Entity:
 - **Configuración** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio, and Log. Take `organizationId` from the Entity or the record. The Organization's pages live beside them, under `https://app.sintropix.com/organizations/{organizationId}`: **Chat** at `/chat`, **Bandeja** at `/notifications`, **Tareas** at `/tasks`, **Intercompañía** at `/intercompany-links`, **Consolidado** at `/consolidated-trial-balance`, and **Estado de resultados** at `/consolidated-income-statement`.
 - **Tu cuenta**, the signed-in User's own settings, lives under `https://app.sintropix.com/account`.
 
+An Organization link shows the same page to everyone who opens it. Only the company menu and the links back into an Entity depend on the reader: they name the Entity the reader last worked in when it belongs to this Organization, and the Organization's first Entity otherwise.
+
 Deep links survive login. If the user is signed out, the app shows the login form and then lands on the exact URL requested. A user without access to the Entity sees a "no access" screen rather than a redirect.
 
 ## Opening a record in a side panel
