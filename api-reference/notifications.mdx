@@ -1,7 +1,7 @@
 ---
 title: "Notifications API: Mentions, Thread Replies, Tasks, and the Signed-in User's Inbox"
 sidebarTitle: "Notifications"
-description: "Mention Members in the Organization Chat, follow the ERP Threads you take part in, talk about an Invoice, Bank Movement, or Ledger Entry in its ERP Thread, hear about the Tasks assigned to you, then list, count, and mark read the Notifications of the signed-in User in one Organization."
+description: "Mention Members in the Organization Chat, follow the ERP Threads you take part in, talk about an Invoice, Bank Movement, or Ledger Entry in its ERP Thread, hear about the Tasks assigned to you, then list, count, and mark read or unread the Notifications of the signed-in User in one Organization."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -12,10 +12,10 @@ A Notification has one of four kinds:
 
 | `kind` | When you get it | In the **Bandeja** |
 | --- | --- | --- |
-| `mention` | Another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. | "*Autor* te mencionó", over the message that mentions you. |
-| `thread_reply` | Someone replied in an ERP Thread you [take part in](#follow-the-erp-threads-you-take-part-in), without mentioning you. | "*Autor* respondió en un hilo en el que participas", naming the reply's author. |
+| `mention` | Another Member mentioned you in a message of the Organization's Chat or in a reply of an ERP Thread. | "*Autor* te mencionó", over the message that mentions you. In a thread about a record, the record instead. |
+| `thread_reply` | Someone replied in an ERP Thread you [take part in](#follow-the-erp-threads-you-take-part-in), without mentioning you. | "*Autor* respondió en un hilo en el que participas", naming the reply's author. In a thread about a record, the record instead. |
 | `task_assigned` | Another Member assigned you a [Task](/api-reference/tasks). | The Task's text, over "*Autor* te la asignó", or "Te la asignaron" when that Member's account no longer exists. |
-| `task_overdue` | The due date of a Task assigned to you passed and the Task isn't completed. See [Task Notifications](#task-notifications). | The Task's text, over "Venció el *fecha*". |
+| `task_overdue` | The due date of a Task assigned to you passed and the Task isn't completed. See [Task Notifications](#task-notifications). | The Task's text, over "Vencida · *fecha*". |
 
 More kinds may come later, so read `kind` before you read the rest of a Notification.
 
@@ -23,8 +23,27 @@ Every Role can use the routes on this page, `viewer` included. Only `staff` and 
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/notifications"
-  note="It shows the signed-in User's Notifications in the Organization. Opening a Notification marks it read and opens its target: the Chat on that message's ERP Thread, or the Task in Tareas. The old /{entityId}/notifications and /{entityId}/chat URLs no longer open."
+  note="It shows the signed-in User's unread Notifications in the Organization. Add view=all for every Notification, and open={id} to open a row beside the list: the id of an ERP Thread's first message, or a Task id. The old /{entityId}/notifications and /{entityId}/chat URLs no longer open."
 />
+
+## Work through the Bandeja
+
+The **Bandeja** shows one row per ERP Thread and one row per Task, newest first. Several Notifications from the same ERP Thread, or about the same Task, share one row, and the row is unread while any of them is unread.
+
+- **Rows.** A row about a record leads with the record, for example `Factura F-0005 · Exportadora Andes`, with its amount, then the author and text of the latest message. A row about no record says who wrote. In an Organization with more than one Entity, each row about a record also shows the flag and name of the record's Entity. A Task's row shows the Task's text and what happened to it.
+- **Views.** **Sin leer** is the default view and lists only unread rows. **Todos** lists every row. When nothing is unread, **Sin leer** shows "Todo leído."
+- **The open row.** Click a row to open it beside the list. Opening a row doesn't mark it read. An ERP Thread shows its record, with a link to open the record, then its messages and a reply box. Sending a reply marks the thread read and opens the next row. A Task shows its details, which you can edit as in **Tareas**.
+- **Marking.** Click **Marcar leído** to mark the open row read and open the next one. A toast offers **Deshacer**. On a read row, click **Marcar no leído**. If a mark fails, an error toast says so and the row returns to how it was.
+- **Mark everything read.** Open the `···` menu at the top of the list and click **Marcar todo como leído**.
+
+Use these keys while the **Bandeja** is open. They don't work while you type, or while a menu or dialog is open.
+
+| Key | Action |
+| --- | --- |
+| `J` / `K` | Open the next or the previous row. |
+| `E` | Mark the open row read and open the next one. |
+| `U` | Mark the open row unread, or bring back the row you last marked read. |
+| `R` | Write a reply in the open ERP Thread. |
 
 ## Mention a Member
 
@@ -128,7 +147,7 @@ The Invoice and Bank Movement listings filter by `erpThread`: `with` keeps only 
 - **Assigned.** Assigning a Task to another `staff` or `client` Member sends them a `task_assigned` Notification that names who assigned it. Assigning yourself, saving the same assignee again, or unassigning notifies nobody.
 - **Overdue.** Just after midnight in Santiago (Chile) time, Sintropix sends a `task_overdue` Notification for each assigned Task whose due date has passed and that isn't `completed`. Each Task notifies once per due date. If you move the due date and the new one passes too, the assignee is notified again. A change of assignee doesn't send a new overdue Notification.
 
-Opening a Task Notification in the app marks it read and opens the Task in **Tareas**. Deleting the Task deletes its Notifications.
+In the **Bandeja**, a Task's row opens the Task beside the list. Deleting the Task deletes its Notifications.
 
 ## The Notification object
 
@@ -139,6 +158,7 @@ Opening a Task Notification in the app marks it read and opens the Task in **Tar
 | `readAt` | ISO datetime or null | When the User first read it. `null` while unread. |
 | `createdAt` | ISO datetime | When the Notification was written. |
 | `message` | object | On a `mention`, the message that mentioned the User. On a `thread_reply`, the reply. See below. Absent on the Task kinds. |
+| `thread` | object | On a `mention` or a `thread_reply`, the record of the ERP Thread the message sits in. See [The thread object](#the-thread-object). Absent on the Task kinds. |
 | `task` | object | On a `task_assigned` or `task_overdue`, the Task as `{ id, text }`. Absent on the message kinds. |
 | `actorName` | string or null | On a `task_assigned` only: the name of the Member who assigned the Task. `null` when their account no longer exists. |
 | `dueDate` | string | On a `task_overdue` only: the due date that passed, `YYYY-MM-DD`. It keeps that date when the Task's due date later moves. |
@@ -171,9 +191,78 @@ The `message` object carries:
     "mentionedUserIds": ["5e8a1c3f-2b7d-4f9e-8a6c-0d4b2e7f1a93"],
     "mentionedUserNames": ["Camila Rojas"],
     "createdAt": "2026-10-24T15:20:04.498Z"
+  },
+  "thread": {
+    "recordKind": null,
+    "recordId": null,
+    "recordEntityId": null,
+    "recordEntityName": null,
+    "recordEntityCountry": null,
+    "recordDate": null,
+    "recordAmount": null,
+    "recordCurrency": null,
+    "recordPartnerName": null,
+    "recordInvoiceDirection": null,
+    "recordInvoiceDocumentKind": null,
+    "recordInvoiceDocumentNumber": null,
+    "recordBankAccountId": null,
+    "recordBankAccountName": null,
+    "recordMovementSide": null,
+    "recordMovementDescription": null,
+    "recordEntryMemo": null
   }
 }
 ```
+
+### The thread object
+
+The `thread` object describes the [record](#talk-about-a-record-in-its-erp-thread) of the ERP Thread a message sits in. It's the same for a thread's first message and for its replies. Every field is `null` when the thread is about no record, and the fields of the other record kinds are `null` too.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `recordKind` | string or null | `invoice`, `bank_movement`, or `ledger_entry`. |
+| `recordId` | UUID or null | The record's id. |
+| `recordEntityId` | UUID or null | The Entity that keeps the record. |
+| `recordEntityName` | string or null | That Entity's name. |
+| `recordEntityCountry` | string or null | That Entity's country code, for example `CL`. |
+| `recordDate` | string or null | `YYYY-MM-DD`: the issue date of an Invoice, the date of a Bank Movement, or the date of a Ledger Entry. |
+| `recordAmount` | string or null | The total of an Invoice or the amount of a Bank Movement, in minor units of `recordCurrency`, as a string of digits. `null` for a Ledger Entry. |
+| `recordCurrency` | string or null | The Invoice's currency, or the Bank Account's currency for a Bank Movement. |
+| `recordPartnerName` | string or null | The name of the Invoice's or the Bank Movement's Partner. |
+| `recordInvoiceDirection` | string or null | On an Invoice, `receivable` or `payable`. |
+| `recordInvoiceDocumentKind` | string or null | On an Invoice, its `documentKind`. |
+| `recordInvoiceDocumentNumber` | string or null | On an Invoice, its document number. |
+| `recordBankAccountId` | UUID or null | On a Bank Movement, its Bank Account. |
+| `recordBankAccountName` | string or null | On a Bank Movement, its Bank Account's name. |
+| `recordMovementSide` | string or null | On a Bank Movement, its `side`. |
+| `recordMovementDescription` | string or null | On a Bank Movement, its description. |
+| `recordEntryMemo` | string or null | On a Ledger Entry, its memo. |
+
+A reply about an Invoice carries:
+
+```json
+"thread": {
+  "recordKind": "invoice",
+  "recordId": "0192a8b4-0000-7000-8000-000000000042",
+  "recordEntityId": "0192a8b4-0000-7000-8000-000000000010",
+  "recordEntityName": "Andes México",
+  "recordEntityCountry": "MX",
+  "recordDate": "2026-10-30",
+  "recordAmount": "50625000",
+  "recordCurrency": "MXN",
+  "recordPartnerName": "Rebels Golf",
+  "recordInvoiceDirection": "payable",
+  "recordInvoiceDocumentKind": "invoice",
+  "recordInvoiceDocumentNumber": "4246",
+  "recordBankAccountId": null,
+  "recordBankAccountName": null,
+  "recordMovementSide": null,
+  "recordMovementDescription": null,
+  "recordEntryMemo": null
+}
+```
+
+To group Notifications by ERP Thread as the **Bandeja** does, key each one by `message.parentMessageId`, or by `message.id` when `parentMessageId` is `null`.
 
 A Task Notification carries the Task instead of a message:
 
@@ -200,12 +289,13 @@ List your Notifications in the Organization, newest first, one page at a time.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `cursor` | UUID | No | The `nextCursor` of the previous page. Omit it for the first page. |
+| `unreadOnly` | boolean | No | `true` lists only your unread Notifications. Defaults to `false`, every Notification. |
 | `limit` | integer | No | Page size, 1 to 100. Defaults to 50. |
 
 **Response** `200`: `{ notifications, nextCursor }`. `notifications` is an array of Notification objects. `nextCursor` is the id to pass as `cursor` for the next page, or `null` on the last page. A `cursor` that isn't one of your Notifications returns `404` with `NOTIFICATION_NOT_FOUND_ERROR`.
 
 ```bash
-curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/notifications?limit=20" \
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/notifications?unreadOnly=true&limit=20" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -226,9 +316,20 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/notif
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
+## POST `/api/organizations/:organizationId/notifications/:notificationId/unread`
+
+Mark one of your Notifications unread. Its `readAt` goes back to `null`, and it counts in `unread-count` again. Marking an unread Notification unread changes nothing. This is **Marcar no leído**, or the `U` key, in the app.
+
+**Response** `200`: the Notification object. A Notification that doesn't exist, or that belongs to another User, returns `404` with `NOTIFICATION_NOT_FOUND_ERROR`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/notifications/$NOTIFICATION_ID/unread" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
 ## POST `/api/organizations/:organizationId/notifications/read-all`
 
-Mark every unread Notification of yours in the Organization read. This is **Marcar todo como leído** in the app.
+Mark every unread Notification of yours in the Organization read. This is **Marcar todo como leído**, in the `···` menu of the **Bandeja**.
 
 **Response** `200`: an array of the Notification objects this call marked read, newest first. It is empty when nothing was unread.
 
