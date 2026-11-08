@@ -29,7 +29,7 @@ Any authenticated caller can send Feedback, whatever its access:
 - Any [Connected App](/guides/connected-apps), including one granted `read` only.
 - An assistant connected to the [Sintropix MCP server](/guides/mcp-server), with its `leave_feedback` tool. It takes the same fields as this route.
 
-It's the one write a read-only credential can make. A Feedback request needs no `x-audit-actor` or `x-audit-reason` header: Sintropix records who sent it from your credential. A request with no valid credential returns `401`.
+It's the one write a read-only credential can make. A Feedback request needs no `x-audit-actor` or `x-audit-reason` header: Sintropix records who sent it from your credential. If you send `x-audit-actor`, Sintropix keeps it with the Feedback as its declared actor, so the developers see which agent sent it. A request with no valid credential returns `401`.
 
 ## Kinds
 

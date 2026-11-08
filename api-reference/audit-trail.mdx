@@ -1,19 +1,20 @@
 ---
 title: "Sintropix Audit Trail API: Query Forensic Change History"
 sidebarTitle: "Audit Trail"
-description: "Query the forensic audit trail of an Organization, filtered by Entity, or the history of one record. Returns paginated mutation envelopes with actor attribution, diffs, and named resources. GET requests are not audited."
+description: "Query the forensic audit trail of an Organization, filtered by Entity, or the history of one record, or follow it as a feed of new changes. Returns mutation envelopes with actor attribution, diffs, named resources, and the Meaning of each change. GET requests are not audited."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
 The audit trail is a forensic, append-only log of every mutating request against an Organization's data. Each row stores the actor, credential type, declared actor, request id, route, method, and a diff of what changed. GET requests do not produce audit records.
 
-The trail belongs to the Organization. You read it in two ways:
+The trail belongs to the Organization. You read it in three ways:
 
 - The **Log** of the Organization, every write to any of its Entities and to the data the Organization shares, filtered by Entity if you like: [`GET /api/organizations/:organizationId/audit-trail`](#list-the-organization-log).
 - The **Actividad** of one record, its own history: [`GET /api/entities/:entityId/audit-trail`](#list-the-history-of-one-record).
+- The **Audit Trail Feed**, every new envelope of the Organization as it lands, oldest first: [`GET /api/organizations/:organizationId/audit-trail/feed`](#follow-the-audit-trail-feed).
 
-Both routes need `books` read in the Organization. Both return the same [page shape](#response).
+All three routes need `books` read in the Organization. The first two return the same [page shape](#response). The feed returns its own [feed page](#feed-response).
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/settings/log"
@@ -201,6 +202,105 @@ A resource that no longer exists is absent from these lists; treat an id you can
 }
 ```
 
+## Follow the Audit Trail feed
+
+`GET /api/organizations/:organizationId/audit-trail/feed`
+
+The **Audit Trail Feed** lets you follow the Organization's trail forward, so your integration or agent can react to what happens instead of polling every list. Each read returns the envelopes written after a cursor, oldest first, and the cursor to read from next. Each change in the feed carries its [Audit Meaning](#audit-meanings): what the change states, such as `bank_movement.booked`.
+
+The feed never skips an envelope and never repeats one. An envelope appears only once every write that started before it has finished, so an envelope from a slow write shows up late rather than never. The feed can lag a write by a moment for that reason.
+
+An API key [confined to one Entity](/guides/api-keys) reads the envelopes of its own Entity and the **Empresa** envelopes, as in the [Log](#list-the-organization-log). Any other caller reads every envelope of the Organization.
+
+<Note>
+  Changes written before the feed existed are not in it. Read them with the [Organization Log](#list-the-organization-log).
+</Note>
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `after` | string | No | The cursor to read after: the `nextCursor` of your previous read. Treat it as opaque. Omit it on your first read: the feed answers at once with no envelopes and the cursor of now. |
+| `waitSeconds` | integer | No | How long to hold the read open when nothing new is there, 0 to 30. The feed answers as soon as an envelope arrives, or with an empty page when the wait runs out. Defaults to `0`, which answers at once. |
+| `limit` | integer | No | Most envelopes per page, 1 to 100. Defaults to 50. |
+
+**How to follow the feed**
+
+1. Call the feed with no `after`. Keep the `nextCursor` it returns.
+2. Call it again with `after=<nextCursor>` and a `waitSeconds`, for example `30`.
+3. Handle the envelopes on the page, then repeat step 2 with the new `nextCursor`. Every page carries one, empty pages included.
+
+Store the last `nextCursor` you handled. After a restart, resume from it and you receive every envelope you missed, with no gap and no repeat.
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/audit-trail/feed?after=$CURSOR&waitSeconds=30&limit=100" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+### Feed response
+
+The feed answers `200` with this page:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `envelopes` | array | The envelopes after the cursor, oldest first. Empty when nothing new arrived. Each envelope has the [envelope fields](#response) of the Log. |
+| `nextCursor` | string | The `after` of your next read. Always present. |
+
+The feed page has no `namedResources`. Each change in a feed envelope has the [change fields](#response) of the Log, plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `meaning` | string or `null` | The [Audit Meaning](#audit-meanings) of the change, `<subject>.<act>`. `null` only for a table the trail no longer records. |
+
+```json
+{
+  "envelopes": [
+    {
+      "id": 1907,
+      "occurredAt": "2026-11-08T14:02:11.000Z",
+      "requestId": "req_3d9a1f0b7c",
+      "credentialType": "session",
+      "route": "/entities/:entityId/bank-accounts/:bankAccountId/movements/:movementId/book",
+      "method": "POST",
+      "entityId": "3f2c9a1e-7b4d-4c8e-9f0a-2b6d8e1c4a57",
+      "changes": [
+        {
+          "id": 6311,
+          "envelopeId": 1907,
+          "occurredAt": "2026-11-08T14:02:11.000Z",
+          "tableName": "bank_movement",
+          "rowPrimaryKey": { "id": "c4d5e6f7-a8b9-4c0d-9e1f-2a3b4c5d6e7f" },
+          "operation": "update",
+          "before": { "ledger_entry_id": null },
+          "after": { "ledger_entry_id": "d5e6f7a8-b9c0-4d1e-8f2a-3b4c5d6e7f80" },
+          "meaning": "bank_movement.booked"
+        }
+      ]
+    }
+  ],
+  "nextCursor": "88213457.1907"
+}
+```
+
+The example omits envelope fields that read the same as in the [Log example](#response).
+
+### Audit Meanings
+
+An **Audit Meaning** names what a change states about a record, as `<subject>.<act>`. Use it to react to a kind of event without reading the `before` and `after` images yourself.
+
+| Subject | Acts | When |
+| --- | --- | --- |
+| `bank_movement` | `created`, `updated`, `deleted`, `booked`, `unbooked`, `excluded`, `included`, `assigned`, `unassigned` | `booked` and `unbooked` when the Movement is linked to or unlinked from its Ledger Entry. `excluded` and `included` when it is [excluded from the books](/api-reference/bank-movements#exclude-a-movement-from-the-books) or included again. `assigned` and `unassigned` for an [Assign or Unassign](/api-reference/bank-movements#overpayments-and-the-suspense-account) of its Suspense line. |
+| `invoice` | `created`, `updated`, `deleted`, `booked`, `unbooked`, `excluded`, `included` | `booked` and `unbooked` when the Invoice is linked to or unlinked from its booking Entry. `excluded` and `included` when it is excluded from the books or included again. |
+| `allocation` | `created`, `updated`, `deleted` | A change to a `reconciliation_allocation` row. |
+| Any other recorded table, for example `partner` or `ledger_entry` | `created`, `updated`, `deleted` | An `insert`, `update`, or `delete` of the row. |
+
+A few rules decide the act:
+
+- When one update both books and edits a field, it reads `booked` or `unbooked`. An update that excludes or includes reads `excluded` or `included`. Only an update that does neither reads `updated`.
+- `bank_movement.assigned` and `bank_movement.unassigned` sit on a change whose `tableName` is `ledger_entry_line`: the Suspense line of the Movement's Ledger Entry. Assign shrinks or removes that line, and Unassign grows it or brings it back. The Suspense line that a Match creates with the booking reads `ledger_entry_line.created`, not `unassigned`.
+- Every other `ledger_entry_line` change reads `ledger_entry_line.created`, `ledger_entry_line.updated`, or `ledger_entry_line.deleted`.
+
 ## What the trail captures
 
 The audit trail is row-level and automatic: every write is recorded by the database itself, so no endpoint can skip it. Every mutating request produces one **Audit Envelope** grouping its **Audit Changes**:
@@ -232,6 +332,6 @@ A sync you [start on demand](/api-reference/source-feeds#post-/source-feeds/sour
 | Code | Meaning |
 | --- | --- |
 | 200 | Success |
-| 400 | Invalid query parameters (bad type, a malformed `entityIds`, `from` after `to`, or a record history request without `tableName` and `rowId`) |
+| 400 | Invalid query parameters (bad type, a malformed `entityIds`, `from` after `to`, a record history request without `tableName` and `rowId`, a malformed feed `after` cursor, or a `waitSeconds` or `limit` out of range) |
 | 401 | Unauthenticated |
 | 404 | Organization or Entity not found, outside your Organizations, or an Entity your API key is not confined to |
