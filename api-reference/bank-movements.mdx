@@ -6,7 +6,7 @@ description: "List Bank Movements of one Bank Account or of the whole Entity, ge
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_allocation`, `reconciled`, or `excluded`. This page covers listing, editing, booking, and matching Bank Movements, individually or in bulk. It also covers assigning the rest of an overpaid Match, and recording an internal transfer between two Bank Accounts.
+A Bank Movement is a single transaction line pulled from a bank feed or entered manually against a Bank Account. Every Movement carries a workflow `status` that Sintropix computes on read: `unbooked`, `booked_pending_assign`, `reconciled`, or `excluded`. This page covers listing, editing, booking, and matching Bank Movements, individually or in bulk. It also covers assigning the rest of an overpaid Match, and recording an internal transfer between two Bank Accounts.
 
 ## Status
 
@@ -15,11 +15,11 @@ Read endpoints enrich each Movement with a `status` field computed from its book
 | Value | Meaning |
 | --- | --- |
 | `unbooked` | Movement has no Ledger Entry yet. |
-| `booked_pending_allocation` | Movement is booked to a Ledger Entry, but part of the Movement still sits on the [Suspense Account](#overpayments-and-the-suspense-account). |
+| `booked_pending_assign` | Movement is booked to a Ledger Entry, but part of the Movement still sits on the [Suspense Account](#overpayments-and-the-suspense-account). |
 | `reconciled` | Movement is booked, and its Ledger Entry has no Suspense line. |
 | `excluded` | Movement is [excluded from the books](#exclude-a-movement-from-the-books): someone recorded that it will never be booked. |
 
-You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value. Only `unbooked` and `booked_pending_allocation` are pending work. A listing with no `status` filter lists every Movement, `excluded` ones included. Use `status=notExcluded` to list every Movement headed for the books, and `status=excluded` to list only the excluded ones.
+You can also filter (`status=...`) and group (`groupBy=status`) the `GET /movements` listing by this value. Only `unbooked` and `booked_pending_assign` are pending work. A listing with no `status` filter lists every Movement, `excluded` ones included. Use `status=notExcluded` to list every Movement headed for the books, and `status=excluded` to list only the excluded ones.
 
 ## Credit card movements
 
@@ -149,7 +149,7 @@ Every read and write on this page returns Movements in this shape. Amounts are n
 | `followUp` | object \| null | The [Follow-up](/api-reference/follow-ups) on this Movement, which marks its pending work. `null` when there is none. |
 | `excludedAt` | ISO 8601 timestamp \| null | When the Movement was [excluded from the books](#exclude-a-movement-from-the-books). `null` when it isn't excluded. |
 | `exclusionReason` | string \| null | Why it was excluded. `null` exactly when `excludedAt` is null. |
-| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `excluded` | Derived booking status. |
+| `status` | `unbooked` \| `booked_pending_assign` \| `reconciled` \| `excluded` | Derived booking status. |
 | `runningBalance` | integer | Balance of the Bank Account after this Movement, counting every Movement up to it in [date order](#order-of-movements) regardless of filters. |
 | `partnerName` | string \| null | Name of `partnerId`, for display. |
 | `partnerWebsite` | string \| null | Website of `partnerId`, as a bare domain, for showing the Partner's [logo](/api-reference/partners#get-/api/organizations/organizationid/partners/partnerid/logo). |
@@ -175,7 +175,7 @@ Write answers also return the Bank Account with its computed summary:
 | `bankCode` | string \| null | CMF code of the bank that holds the account. |
 | `feed` | object \| null | `{ integrationId, integrationKind, providerAccountId, institutionName, lastSyncedAt, tieOut }` when an [Integration](/api-reference/bank-feeds) feeds the account; `null` otherwise. See [Bank Accounts](/api-reference/bank-accounts) for each field. |
 | `balance` | integer | Signed balance on the Ledger Account's normal side. |
-| `unreconciledCount` | integer | Movements still to reconcile: `unbooked` and `booked_pending_allocation`. Excluded Movements don't count. |
+| `unreconciledCount` | integer | Movements still to reconcile: `unbooked` and `booked_pending_assign`. Excluded Movements don't count. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## GET `/movements`
@@ -189,7 +189,7 @@ List Movements on a Bank Account. Returns a paginated `{ movements, nextCursor }
 | `cursor` | string | No | The `nextCursor` value from the previous page. Cannot be combined with `aroundMovementId`. |
 | `aroundMovementId` | uuid | No | Return the page that contains this Movement instead of continuing a walk. |
 | `limit` | integer | No | Page size, `1` to `100`. Default `50`. |
-| `status` | `unbooked` \| `booked_pending_allocation` \| `reconciled` \| `excluded` \| `unreconciled` \| `notExcluded` | No | Filter by booking status. `unreconciled` keeps every Movement still to reconcile, both `unbooked` and `booked_pending_allocation`. `notExcluded` keeps every status but `excluded`. Omit it to list every status, `excluded` included. |
+| `status` | `unbooked` \| `booked_pending_assign` \| `reconciled` \| `excluded` \| `unreconciled` \| `notExcluded` | No | Filter by booking status. `unreconciled` keeps every Movement still to reconcile, both `unbooked` and `booked_pending_assign`. `notExcluded` keeps every status but `excluded`. Omit it to list every status, `excluded` included. |
 | `followUpKind` | `proposal` \| `question` \| `waiting` \| `none` | No | Filter by the kind of the Movement's [Follow-up](/api-reference/follow-ups). `none` keeps Movements with no Follow-up. |
 | `partnerId` | uuid | No | Filter by counterparty Partner. |
 | `side` | `debit` \| `credit` | No | Filter by direction. |
@@ -500,7 +500,7 @@ The settlement line can settle at most the target's Open Amount. When the Moveme
 | `bankLineFxRate` | decimal string | Conditional | Same rule as `POST /book`. |
 | `lineId` | uuid | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. To match an Invoice, pass its control line. |
 
-**Response:** `{ movement, bankAccount, reconciliation }`. When a rest is left, `reconciliation.entry.lines` includes the Suspense line and `movement.status` is `booked_pending_allocation`.
+**Response:** `{ movement, bankAccount, reconciliation }`. When a rest is left, `reconciliation.entry.lines` includes the Suspense line and `movement.status` is `booked_pending_assign`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/match" \
@@ -534,9 +534,9 @@ The flow for the example above:
 
 | Step | Ledger Entry lines | Movement `status` |
 | --- | --- | --- |
-| Match invoice A (700,000 open) | Bank debit 1,000,000, Clients credit 700,000, Suspense credit 300,000 | `booked_pending_allocation` |
+| Match invoice A (700,000 open) | Bank debit 1,000,000, Clients credit 700,000, Suspense credit 300,000 | `booked_pending_assign` |
 | Assign 300,000 to invoice B | Bank debit 1,000,000, Clients credit 700,000, Clients credit 300,000 | `reconciled` |
-| Unassign the 300,000 line | Back to the first Entry. Invoice B reopens. | `booked_pending_allocation` |
+| Unassign the 300,000 line | Back to the first Entry. Invoice B reopens. | `booked_pending_assign` |
 
 Keep these rules in mind:
 
