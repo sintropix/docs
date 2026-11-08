@@ -95,7 +95,7 @@ A mutating request made with an OAuth access token must send `x-audit-reason` to
 
 [`POST /api/feedback`](/api-reference/feedback) is the one exception: it writes nothing of an Organization, so it needs neither header, and a read-only key or Connected App can send it too.
 
-A mutating request can also send `x-audit-trigger`, the Declared Trigger: what started the agent turn behind the write. Send `schedule` when a schedule started it, or `slack`, `app`, `chat`, or `terminal` when a person's message in that place started it. The header is optional, and a request without it stores no trigger. Any other value returns `400` with code `AUDIT_TRIGGER_UNKNOWN_ERROR` and writes nothing. Its `params` carry `header` and the accepted `triggers`.
+A mutating request can also send `x-audit-trigger`, the Declared Trigger: what started the agent turn behind the write. Send `main` when the agent started the work on its own, such as from a timer, or `slack`, `app`, `chat`, or `terminal` when a person's message in that place started it. The header is optional, and a request without it stores no trigger. Any other value returns `400` with code `AUDIT_TRIGGER_UNKNOWN_ERROR` and writes nothing. `schedule` is no longer accepted. Its `params` carry `header` and the accepted `triggers`.
 
 ## Request Format
 
