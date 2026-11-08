@@ -144,7 +144,7 @@ Each kind adds its own fields:
 
 For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the Integration, so the request can take up to about a minute. A Clave the SII refuses answers `422` with `SII_CLAVE_REFUSED_ERROR`. When the SII gives no answer in time, the request answers `503` with `SII_UNAVAILABLE_ERROR` and creates nothing. Retry in a few minutes. When the SII answers the sign-in with a page Sintropix doesn't recognize, the request answers `424` with `SII_ANSWER_UNRECOGNIZED_ERROR` and creates nothing. `params.siiAnswer` carries the text of the SII's page.
 
-Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`.
+Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. See [An account that's already connected](#an-account-thats-already-connected).
 
 - **Response** (`201`): the Integration object (its `sourceFeeds` and `fedBankAccounts` are empty on creation).
 
@@ -211,6 +211,36 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
     "secretKey": "dlocal_secret_key"
   }'
 ```
+
+### An account that's already connected
+
+An external account, such as a Global66 client, a Fintoc Link, a Bsale instance, or an SII RUT, can be held by only one Integration across Sintropix. A connect or reconnect that names an account another Integration already holds creates nothing. It answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`, and `params` describes the account:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `kind` | string | The Integration kind of the refused connect, such as `global66` or `bsale`. |
+| `providerRef` | string | The Provider's handle for the account, as the [Integration object](#the-integration-object) states it. For some kinds, such as `global66`, it's an opaque value, so don't show it to people. |
+| `institutionName` | string \| null | The bank's display name for a `fintoc` or `plaid` connect; `null` for every other kind. |
+| `connectedInThisOrganization` | boolean | `true` when an Integration of this Organization already holds the account. `false` when another Organization holds it. The other Organization is never named. |
+
+```json
+{
+  "code": "INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR",
+  "params": {
+    "kind": "global66",
+    "providerRef": "1fca61e0b9d24c7a8e35f0a6c2d1b4e95f7a3c8d0e2b6f9a4c1d7e3b5a8f5871",
+    "institutionName": null,
+    "connectedInThisOrganization": true
+  }
+}
+```
+
+What to do depends on where the account is connected:
+
+- **In this Organization** (`connectedInThisOrganization: true`): use the Integration you already have. Find it in [`GET /integrations`](#get-/integrations).
+- **In another Organization** (`connectedInThisOrganization: false`): disconnect it in that Organization first, then connect it here.
+
+In the app, the message names the account the way the **Integraciones** list does, such as *Global66*, the bank of a Fintoc or Plaid link (*Banco de Chile*), or the Provider with its readable reference (*Bsale (Instancia 72433)*). For example: *"Esta cuenta de Global66 ya está conectada en esta empresa. Úsala desde la lista de integraciones."* or *"Esta cuenta de Global66 ya está conectada en otra empresa. Desconéctala allí para conectarla aquí."*
 
 After you connect a bank Provider, list its accounts and feed them into Bank Accounts of any Entity. See [Bank Feeds](/api-reference/bank-feeds). After you connect a document Provider, feed a Source of any Entity with it. See [Source Feeds](/api-reference/source-feeds#post-/source-feeds).
 
