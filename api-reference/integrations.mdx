@@ -1777,7 +1777,7 @@ Disconnecting revokes Sintropix's access at Notion, then removes the Integration
 
 ## Portal Logins
 
-A Portal Login is the login of a portal that no Provider reads. Unlike an Integration, a Portal Login belongs to one Entity, and its routes live under `/api/entities/:entityId/portal-logins`. Sintropix stores the login and the password encrypted and uses them only to read the portal. No read ever returns them, so not even you can see them again in Sintropix. A Portal Login has one of four kinds:
+A Portal Login is the login of a portal that no Provider reads. Unlike an Integration, a Portal Login belongs to one Entity, and its routes live under `/api/entities/:entityId/portal-logins`. Sintropix stores the login and the password encrypted and uses them only to read the portal. Erwin can sign in to the portal with them, for example to [load a card's unbilled movements](/api-reference/bank-movements#from-unbilled-movements) from a bank's site. No read ever returns them, so not even you can see them again in Sintropix. A Portal Login has one of four kinds:
 
 | Kind | Portal | What you store |
 | --- | --- | --- |
