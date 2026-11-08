@@ -204,6 +204,7 @@ When an outside system refuses a request, the API answers `424 Failed Dependency
 - `SOURCE_FEED_SYNC_PROVIDER_FAULT_ERROR`
 - `AUTOMATION_PROVIDER_FAILURE_ERROR` and `AUTOMATION_PROVIDER_UNAUTHORIZED_ERROR`
 - `MAILBOX_LIMIT_REACHED_ERROR`
+- `SII_ANSWER_UNRECOGNIZED_ERROR`, with the SII's own text in `params.siiAnswer`
 
 A refusal answers the same until someone acts, for example by reconnecting the Integration, so don't retry it in a loop. An outside system that doesn't answer at all returns `503` with its own code, and that one is worth retrying later. The API doesn't send `502` or `504` on purpose: if you see one, it comes from the network in front of the API, not from Sintropix.
 
