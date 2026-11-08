@@ -95,7 +95,7 @@ Una solicitud que modifica datos hecha con un token de acceso OAuth también deb
 
 [`POST /api/feedback`](/es/api-reference/feedback) es la única excepción: no escribe nada de una Organización, así que no necesita ninguno de los dos encabezados, y también puede enviarla una clave o una app conectada de solo lectura.
 
-Una solicitud que modifica datos también puede enviar `x-audit-trigger`, el Disparador Declarado: qué inició el turno del agente detrás de la escritura. Envía `schedule` cuando lo inició una programación, o `slack`, `app`, `chat` o `terminal` cuando lo inició el mensaje de una persona en ese lugar. El encabezado es opcional, y una solicitud sin él no guarda disparador. Cualquier otro valor devuelve `400` con el código `AUDIT_TRIGGER_UNKNOWN_ERROR` y no escribe nada. Sus `params` traen `header` y los `triggers` aceptados.
+Una solicitud que modifica datos también puede enviar `x-audit-trigger`, el Disparador Declarado: qué inició el turno del agente detrás de la escritura. Envía `main` cuando el agente inició el trabajo por su cuenta, por ejemplo desde un temporizador, o `slack`, `app`, `chat` o `terminal` cuando lo inició el mensaje de una persona en ese lugar. El encabezado es opcional, y una solicitud sin él no guarda disparador. Cualquier otro valor devuelve `400` con el código `AUDIT_TRIGGER_UNKNOWN_ERROR` y no escribe nada. `schedule` ya no se acepta. Sus `params` traen `header` y los `triggers` aceptados.
 
 ## Formato de las solicitudes
 
