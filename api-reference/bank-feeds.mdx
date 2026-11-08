@@ -49,6 +49,7 @@ An API key confined to one Entity gets its own Entity as the one entry of `entit
 | `accounts` | `array` | Accounts the Provider discovered (see below) |
 | `entities` | `array` | Every Entity of the Organization a discovered account can feed, in name order (see below) |
 | `refreshing` | `boolean \| null` | `true` while the Provider is still refreshing the grant, `false` when every refresh has finished, `null` when the refresh state could not be read |
+| `readsLive` | `boolean` | `true` when the Provider reads the bank at each request, so its accounts carry no `refreshedAt` and never wait for a refresh. `false` for Fintoc and Plaid, which refresh the bank's data on their own schedule |
 
 Each element of `accounts` carries:
 
@@ -62,7 +63,7 @@ Each element of `accounts` carries:
 | `balance.current` | `integer` | Current balance in minor units of `currency` |
 | `balance.available` | `integer \| null` | Available balance in minor units; null when the institution does not report it |
 | `balance.limit` | `integer \| null` | Credit limit in minor units; null when the institution does not report it |
-| `refreshedAt` | `ISO datetime \| null` | When the Provider last refreshed this account |
+| `refreshedAt` | `ISO datetime \| null` | When the Provider last refreshed this account. Always null when `readsLive` is `true`. When `readsLive` is `false`, null means the Provider hasn't read the account yet, and a map is refused until it has |
 | `fedBankAccount` | `object \| null` | The Bank Account this account already feeds, as `{ id, name, entityId }`, or null |
 
 Each element of `entities` carries:
@@ -101,7 +102,8 @@ Each element of `entities` carries:
       ]
     }
   ],
-  "refreshing": false
+  "refreshing": false,
+  "readsLive": false
 }
 ```
 
@@ -155,7 +157,7 @@ The map also refuses these cases, each with the same coded body:
 | --- | --- | --- |
 | `404` | `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR` | `providerAccountId` isn't one of the Integration's discovered accounts |
 | `409` | `BANK_FEED_PROVIDER_REFRESHING_ERROR` | The Provider is still refreshing the account. Retry when `refreshing` is `false` |
-| `409` | `BANK_FEED_PROVIDER_HAS_NO_DATA_ERROR` | The Provider hasn't read the account yet |
+| `409` | `BANK_FEED_PROVIDER_HAS_NO_DATA_ERROR` | The Provider hasn't read the account yet: `readsLive` is `false` and the account's `refreshedAt` is null. A Provider that reads live never answers this code |
 | `409` | `BANK_FEED_CURRENCY_MISMATCH_ERROR` | The Bank Account's currency differs from the discovered account's |
 | `409` | `BANK_FEED_OPENING_BALANCE_MISMATCH_ERROR` | The Bank Account's balance doesn't equal the Provider's balance at the start of `feedStartDate`. The Bank Account must hold every row before that day |
 | `409` | `BANK_ACCOUNT_ALREADY_FED_ERROR` | The Bank Account already has a feed |
