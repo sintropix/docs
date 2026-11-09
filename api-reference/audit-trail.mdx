@@ -339,8 +339,6 @@ Some changes are made by Sintropix on its own, on a schedule, with no request be
 | [Scheduled Entries](/api-reference/ledger-entries#scheduled-entries) | `scheduled-entries-tick` | `scheduled-entries` | **Asientos programados** | The Scheduled Entries it books when their date arrives. |
 | [Overdue Tasks](/api-reference/tasks) | `overdue-tasks-tick` | `overdue-tasks` | **Tareas vencidas** | The `task_overdue` [Notifications](/api-reference/notifications#task-notifications) it sends. |
 | Automations | `automation-run-sweep` | `automation-runs` | **Automatizaciones** | The Runs that an Automation's schedule starts, and their final status. |
-| FX rate sync | `fx-sync` | `fx-sync` | **Sincronización de tipos de cambio** | The global [FX rates](/api-reference/fx-rates). They belong to no Organization, so they don't show in the Log or the feed. |
-| [General Ledger Export](/api-reference/integrations#when-the-export-runs) | `general-ledger-export-sweep` | `general-ledger-export` | **Exportación del libro mayor** | The sheets at Google. It writes nothing that the trail records. |
 
 A run that writes for several Organizations opens a separate envelope for each write, and each envelope belongs to one Organization only. So you see only your own Organization's changes. Every envelope of one run carries the same `declaredTrigger`: group on it to read a run as one.
 
