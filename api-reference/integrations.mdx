@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger to a Google Sheet, connect a Google Sheet or the questions of a Metabase site for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger, or the group's Consolidated Ledger, to a Google Sheet, connect a Google Sheet or the questions of a Metabase site for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -34,7 +34,7 @@ The `gmail` and `outlook` kinds connect an email account: a Gmail account or a M
 
 The `mailbox` kind is an email address that Sintropix holds for the Organization, such as `facturas@acme.sintropix.com`. You create it in Sintropix: there's no outside account to connect. An Organization can hold several Mailboxes, all at its own email domain. See [Mailbox](#mailbox).
 
-The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of every Entity of the Organization to that Sheet, from the Fiscal Year you choose to the current one, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
+The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintropix writes the General Ledger of every Entity of the Organization to that Sheet, or the group's Consolidated Ledger, from the Fiscal Year you choose to the current one, every four hours and whenever you ask. See [Google Sheets](#google-sheets).
 
 The `google_drive` kind connects one Google Sheet that you pick in Google's file picker, so that Erwin and the assistants you connect to the [MCP server](/guides/mcp-server) can read it. Sintropix reaches that Sheet only, not the rest of your Drive, and reads it as it is each time someone asks. It never writes to it. See [Files for Erwin and the MCP](#files-for-erwin-and-the-mcp).
 
@@ -72,10 +72,10 @@ An Integration belongs to the [Organization](/api-reference/organizations), not 
 
 The routes follow the same split:
 
-- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the replacement of an API key, the purpose, the Basis and the start of a Google Sheets export, the SII legal representative's Clave, the discovered accounts, the Provider Accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the accounts of a Rho business, the preview of a Notion database, the files Erwin and the MCP read, and disconnect.
+- Every Integration route lives under `/api/organizations/:organizationId/integrations`: connect, list, the Fintoc Link Intent, the Plaid Link token, reconnect, the replacement of an API key, the purpose, the Basis, the start, and the mode of a Google Sheets export, the SII legal representative's Clave, the discovered accounts, the Provider Accounts, the General Ledger Export, a Mailbox and its Conversations, the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the accounts of a Rho business, the preview of a Notion database, the files Erwin and the MCP read, and disconnect.
 - Every feed route lives under the Entity it lands in, `/api/entities/:entityId/...`. So does the copy of an [email attachment](#post-/api/entities/entityid/email-attachments) into an Entity. They take an Integration of that Entity's Organization. An Integration of another Organization answers `404` with `INTEGRATION_NOT_FOUND_ERROR`.
 
-Connecting, reconnecting, disconnecting, setting the purpose of an Integration, and changing the Basis or the start of a Google Sheets export need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the preview of a Notion database, or the [files](#who-can-read-the-files) of an Integration. An API key confined to one Entity:
+Connecting, reconnecting, disconnecting, setting the purpose of an Integration, and changing the Basis, the start, or the mode of a Google Sheets export need the `books` write permission in the Organization, which a `client` or `staff` caller holds. A `viewer` can only list Integrations, and can't read the email of a Gmail, Outlook, or Mailbox account, the expenses of an Xpendit account, the preview of a Notion database, or the [files](#who-can-read-the-files) of an Integration. An API key confined to one Entity:
 
 - Lists every Integration of its Organization, but sees only the Sources and Bank Accounts of its own Entity.
 - Can't connect, reconnect, renew, or disconnect an Integration, replace its API key, run a General Ledger Export, read or copy the email of a Gmail, Outlook, or Mailbox account, or read the expenses of an Xpendit account, the preview of a Notion database, or the files of an Integration. It gets `403` with `PERMISSION_DENIED_ERROR`.
@@ -104,11 +104,13 @@ The access token is stored encrypted and is never returned on any read.
 | `sourceFeeds` | array | The Source Feeds that read through this Integration, in the shape documented on [Source Feeds](/api-reference/source-feeds). Each Entity holds at most one Feed per family. Empty when the Integration feeds no Source. |
 | `fedBankAccounts` | array | `{ id, name, entityId }` of each Bank Account this Integration feeds, in any Entity, in name order. Empty when it feeds none. |
 | `routedEntities` | array | `{ id, name }` of each Entity the Integration's feeds reach, in name order. Empty while no feed routes it. |
-| `basisId` | uuid \| null | For `google_sheets`, the [Basis](/api-reference/bases) the export reads for the Entity that keeps it. `null` for every other kind, and when no Basis was picked. [Change it](#put-/integrations/integrationid/basis) at any time. |
-| `basisRequiredEntityIds` | uuid[] | For `google_sheets`, the Entities that keep Bases and whose Basis the Integration doesn't name. While it isn't empty, the export is refused. See [Pick the Basis](#pick-the-basis). Always empty for every other kind. |
+| `basisId` | uuid \| null | For `google_sheets`, the [Basis](/api-reference/bases) the export reads for the Entity that keeps it. `null` for every other kind, when no Basis was picked, and on a `group` export, which reads no Basis. [Change it](#put-/integrations/integrationid/basis) at any time. |
+| `basisRequiredEntityIds` | uuid[] | For `google_sheets`, the Entities that keep Bases and whose Basis the Integration doesn't name. While it isn't empty, the export is refused. See [Pick the Basis](#pick-the-basis). Always empty on a `group` export and for every other kind. |
 | `generalLedgerExportStart` | `current_fiscal_year` \| `since_fiscal_year` \| `all_history` \| null | For `google_sheets`, the first Fiscal Year the export writes. `current_fiscal_year` until you [change it](#put-/integrations/integrationid/general-ledger-start). `null` for every other kind. See [Choose where the export starts](#choose-where-the-export-starts). |
 | `generalLedgerExportSinceYear` | integer \| null | For `google_sheets` with `generalLedgerExportStart` set to `since_fiscal_year`, the calendar year the first exported Fiscal Year starts in, such as `2024`. `null` otherwise. |
+| `generalLedgerExportMode` | `per_entity` \| `group` \| null | For `google_sheets`, what **Libro mayor** holds: each Entity's books (`per_entity`, the default) or the group's Consolidated Ledger (`group`). `null` for every other kind. See [Export the group](#export-the-group). |
 | `generalLedgerExportFirstFiscalYear` | integer \| null | For `google_sheets`, the calendar year in which the earliest Fiscal Year with a live Ledger Entry starts, across every Entity the export writes, such as `2024`. A `since_fiscal_year` start earlier than this year writes the same as `all_history`. `null` before the first live Ledger Entry, and always `null` for every other kind. See [Choose where the export starts](#choose-where-the-export-starts). |
+| `groupExportRefusal` | object \| null | For `google_sheets`, why the Organization's books can't be exported as one group: `{ reason, entityIds }`, where `reason` is `single_entity`, `entity_keeps_bases`, or `fiscal_years_differ`, and `entityIds` names the Entities the reason is about. `null` when the group can be exported, and always `null` for every other kind. See [Export the group](#export-the-group). |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
 | `scopes` | string[] | The permissions the Provider granted. Set for `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, and `stripe`; empty for every other kind. |
 | `tokenExpiresAt` | ISO 8601 timestamp \| null | When the stored access of a `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, or `stripe` Integration expires. `null` for every other kind. |
@@ -182,7 +184,9 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
   "basisRequiredEntityIds": [],
   "generalLedgerExportStart": null,
   "generalLedgerExportSinceYear": null,
+  "generalLedgerExportMode": null,
   "generalLedgerExportFirstFiscalYear": null,
+  "groupExportRefusal": null,
   "lastGeneralLedgerExport": null,
   "createdAt": "2025-01-02T12:00:00.000Z",
   "updatedAt": "2025-01-02T12:00:00.000Z"
@@ -885,7 +889,7 @@ The routes above read a Mailbox with the same contract, with these differences:
 
 ## Google Sheets
 
-A Google Sheets Integration keeps a copy of the Organization's General Ledger in a Google Sheet you own, with every Entity of the Organization in the same tabs. Use it to work on the ledger with Sheets formulas, or to share it with someone who has no access to Sintropix. Sintropix only writes: nothing you change in the Sheet reaches the books.
+A Google Sheets Integration keeps a copy of the Organization's General Ledger in a Google Sheet you own, with every Entity of the Organization in the same tabs. It writes each Entity's books by default, or the group's Consolidated Ledger in one presentation currency when you [export the group](#export-the-group). Use it to work on the ledger with Sheets formulas, or to share it with someone who has no access to Sintropix. Sintropix only writes: nothing you change in the Sheet reaches the books.
 
 Each Integration exports to one Sheet, and each Sheet can be connected only once. One Google account can connect Sheets for several Organizations.
 
@@ -911,7 +915,7 @@ When you return, Sintropix checks that the account can edit the Sheet by creatin
 
 ### What the Sheet holds
 
-Each export rewrites three tabs whole: **Libro mayor**, **Plan de cuentas**, and **Dimensiones**. Sintropix finds each tab by its title, creates a missing one, and leaves the rest of the Sheet alone. If you rename or delete a tab, the next export creates a new one with that title.
+Each export rewrites three tabs whole: **Libro mayor**, **Plan de cuentas**, and **Dimensiones**. A `group` export also writes the cells it owns in **Tipos de cambio**. See [Export the group](#export-the-group). Sintropix finds each tab by its title, creates a missing one, and leaves the rest of the Sheet alone. If you rename or delete a tab, the next export creates a new one with that title.
 
 Every Entity of the Organization goes into the same tabs, one Entity after another, in name order. Each Entity's rows are in that Entity's own currency.
 
@@ -919,11 +923,13 @@ The export reads the Basis you picked for the Entity that keeps it. It reads eve
 
 #### Libro mayor
 
+This section describes **Libro mayor** in a `per_entity` export. A `group` export writes the same tab with more columns and rows. See [Libro mayor in a group export](#libro-mayor-in-a-group-export).
+
 **Libro mayor** holds the General Ledger of each Entity, one [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports) after another, from the [start you choose](#choose-where-the-export-starts) to the current Fiscal Year, on the calendar of Santiago (Chile). By default it holds the current Fiscal Year only. It reads the live Ledger Entries (`active` and `reversed`), the same lines as the [general ledger report](/api-reference/reports#general-ledger). Each Fiscal Year of each Entity is its own section, oldest first, with one row per line, sorted by account code, then by date:
 
 | Column | Content |
 | --- | --- |
-| **Entidad** | The Entity's name |
+| **Entidad legal** | The Entity's name |
 | **Fecha** | The entry date, as a Sheets date |
 | **Asiento** | The Ledger Entry, linked to the entry in the app |
 | **Fecha de creación** | When the entry was written, as a Sheets date and time in Santiago (Chile) |
@@ -931,7 +937,7 @@ The export reads the Basis you picked for the Entity that keeps it. It reads eve
 | **Cuenta** | The Ledger Account name |
 | **Glosa** | The entry memo |
 | **Contacto** | The [Partner](/api-reference/partners) on the line |
-| **RUT** | The Partner's tax id |
+| **ID fiscal** | The Partner's tax id |
 | **País** | The Partner's country, as an ISO 3166-1 alpha-2 code |
 | **Tipo de contacto** | `Proveedor`, `Cliente`, or `Ambos`: what the row's Entity's books say the Partner is to it. Empty when they say neither |
 | One column per [Dimension](/api-reference/dimensions) | The name of the Dimension Value the line carries for that Dimension, or empty. Every Dimension of the Organization takes a column, in name order, even one no line uses |
@@ -986,6 +992,8 @@ This happens, for example, when an Entity creates its first Basis after you conn
 
 Because the Integration names one Basis only, the export stays refused while more than one Entity of the Organization keeps Bases.
 
+A `group` export reads every Entity with no Basis, so it never waits for one. It is [refused](#export-the-group) instead while any Entity keeps Bases.
+
 ### PUT `/integrations/:integrationId/basis`
 
 `PUT /api/organizations/:organizationId/integrations/:integrationId/basis`
@@ -1000,7 +1008,7 @@ Set or change the Basis a Google Sheets Integration exports. An export already w
 
 - **Response:** the Integration object, with its new `basisId` and `basisRequiredEntityIds`.
 
-An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. A Basis that isn't in the Organization answers `404` with `BASIS_NOT_FOUND_ERROR`.
+An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. A `group` Integration answers `422` with `GENERAL_LEDGER_GROUP_EXPORT_TAKES_NO_BASIS_ERROR`: [switch it](#put-/integrations/integrationid/general-ledger-mode) to `per_entity` first. A Basis that isn't in the Organization answers `404` with `BASIS_NOT_FOUND_ERROR`.
 
 ```bash
 curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/basis" \
@@ -1060,9 +1068,134 @@ To export every year:
 { "generalLedgerExportStart": "all_history" }
 ```
 
+### Export the group
+
+By default, a Google Sheets export writes each Entity's books in its own currency (`per_entity`). A `group` export writes the group's [Consolidated Ledger](/api-reference/consolidation#consolidated-ledger) instead: every Entity of the Organization on its [Group Accounts](/api-reference/chart-of-accounts), the intercompany amounts of its [Intercompany Links](/api-reference/intercompany-links) eliminated, and presentation amounts in one currency you choose. Use it to filter and pivot the group's consolidation in Sheets instead of rebuilding it by hand.
+
+To choose the mode, open the Integration's panel and pick **Por entidad** or **Grupo** in the **Exportación** field, or call [`PUT /integrations/:integrationId/general-ledger-mode`](#put-/integrations/integrationid/general-ledger-mode). The panel saves your choice as soon as you pick it, and the next export reads it. Existing Integrations stay on **Por entidad**. The field doesn't show while the Organization has a single Entity.
+
+#### When the group can be exported
+
+The group is every Entity of the Organization, and it follows the same rules as a [Consolidation Scope](/api-reference/consolidation#scope-currency-and-rates). The Integration's `groupExportRefusal` states why it can't be exported, and the Entities the reason names:
+
+| `reason` | When | What to do |
+| --- | --- | --- |
+| `single_entity` | The Organization has fewer than two Entities | Add another Entity |
+| `entity_keeps_bases` | An Entity keeps [Bases](/api-reference/bases). `entityIds` names those Entities | Export `per_entity` and [pick the Basis](#pick-the-basis) |
+| `fiscal_years_differ` | The Entities don't all start their [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports) in the same month. `entityIds` names the Entities that differ | Export `per_entity` |
+
+While `groupExportRefusal` is set, the panel shows **Grupo** disabled with the reason, and choosing `group` through the API answers `422` with `GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR`.
+
+A `group` Integration can become impossible later, for example when an Entity creates its first Basis. Then the Sheet stops updating until you fix the cause or switch back to **Por entidad**:
+
+- The Integrations list shows **El grupo no se puede exportar** on the Integration's row, and its panel says why.
+- The scheduled export skips the Integration and records no run.
+- **Sincronizar ahora**, or [`POST /integrations/:integrationId/general-ledger-exports`](#post-/integrations/integrationid/general-ledger-exports), is refused with `422` and `GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR`.
+
+A `group` export reads every Entity with no Basis, so a `group` Integration names no Basis, and `basisRequiredEntityIds` stays empty.
+
+#### Libro mayor in a group export
+
+A `group` export writes the same **Libro mayor** tab, so formulas and pivot tables that read it keep working when you change the mode. The first row is the header, and no row sums the tab. The tab has every column of the [`per_entity` tab](#libro-mayor), in the same order, plus these:
+
+| Column | Where | Content |
+| --- | --- | --- |
+| **Tipo de línea** | After **Entidad legal** | What the row is: `Saldo inicial`, `Entidad`, `Eliminación`, `Diferencia`, or `Redondeo` |
+| **Código grupo** | After **Cuenta** | The code of the row's Group Account |
+| **Cuenta grupo** | After **Código grupo** | The name of the row's Group Account |
+| **Tipo de cuenta** | After **Cuenta grupo** | The Group Account's type, with the same labels as **Plan de cuentas** |
+| **Vínculo** | After **Glosa** | The id of the Intercompany Link, on **Eliminación** and **Diferencia** rows |
+| **Débito presentación** | At the end | **Débito**, in the presentation currency |
+| **Crédito presentación** | At the end | **Crédito**, in the presentation currency |
+| **Saldo presentación** | At the end | The Group Account's running balance, in the presentation currency |
+
+Each [Fiscal Year](#choose-where-the-export-starts) from the start you chose is consolidated on its own, oldest first. Within a Fiscal Year, each Group Account, in code order, opens with its Entities' **Saldo inicial** rows, then lists its Entities' lines and its eliminations by date. The rows of each kind are:
+
+- **Saldo inicial** and **Entidad**: the Entity's rows, as the `per_entity` tab writes them, with **Saldo** as the running balance of the Entity's own account. Each Entity's result of closed years that no account carries opens the year as a **Saldo inicial** row with **Cuenta grupo** set to *Resultado de ejercicios anteriores sin cerrar*.
+- **Eliminación**: reverses a linked line in full on the later date of its Link, with the line's Entity, account, Contact, and Dimensions, on the other side. It has no **Saldo**, because it isn't in any Entity's books. A Link eliminated before the Fiscal Year is carried in on its first day, with *Saldo inicial* in the **Glosa**.
+- **Diferencia**: one row per Link whose two sides may not cancel in the presentation currency, or that has only one line booked. The **Glosa** states the cause: *sin revaluar*, *conversión*, or *en tránsito*. An *en tránsito* row has no amount. See [Differences](/api-reference/consolidation#differences).
+- **Redondeo**: one row per Fiscal Year that holds what rounding leaves.
+
+**Diferencia** and **Redondeo** rows have *Diferencias TC de grupo* as their **Cuenta grupo** and no **Código grupo**. With them, each Fiscal Year's presentation amounts net to zero at any rate.
+
+The presentation columns are Sheets formulas, not values. Each one divides the row's amount by the **Tasa en uso** of the row's **Moneda** in **Tipos de cambio**, rounded to the decimals of the presentation currency. So when you change a rate, every presentation amount moves at once, with no new export. The formulas separate their arguments with `;`, so they work in a Sheet of any locale.
+
+A `group` tab has more cells than a `per_entity` one, so it reaches the size limit sooner. When it is too large, the export ends with the failure [`too_large`](#the-general-ledger-export-object), as a `per_entity` export does.
+
+#### Tipos de cambio
+
+A `group` export writes **Tipos de cambio** before **Libro mayor**. Unlike the other tabs, Sintropix doesn't rewrite it whole: it writes only the cells it owns, and keeps the ones you type.
+
+| Cell | Content | Who writes it |
+| --- | --- | --- |
+| **B1** | The presentation currency, such as `USD` | You. The first export sets it to `USD` when an Entity keeps its books in USD, or to `CLP` otherwise, and never writes it again |
+| **B2** | The decimals of the presentation currency | Sintropix |
+| **B3** | The currency the suggested rates were computed for. When it differs from **B1**, **C3** asks you to sync again | Sintropix |
+
+From row 6, the tab holds one row for each functional currency of the group. A currency keeps its row from one export to the next, and a new currency takes the row after the last:
+
+| Column | Content | Who writes it |
+| --- | --- | --- |
+| **Moneda funcional** | The functional currency | Sintropix |
+| **Sugerido** | The published [FX rate](/api-reference/fx-rates) on the day of the export. `1` for the presentation currency, and empty when no published rate reaches the pair | Sintropix |
+| **Usado** | The rate you want to use instead | You. Sintropix never overwrites it |
+| **Tasa en uso** | **Usado** when you typed one, otherwise **Sugerido**. The presentation formulas read this column | Sintropix |
+| **Fuente** | Where the suggestion comes from, or a reminder to type the rate in **Usado** when none is published | Sintropix |
+
+A rate is the number of units of the functional currency that one unit of the presentation currency is worth, as in the [consolidated reports](/api-reference/consolidation#scope-currency-and-rates). To present a CLP Entity in USD at 1 USD = 950 CLP, type `950` in **Usado** on the `CLP` row.
+
+To change the presentation currency, type it in **B1** and sync again, so that **Sugerido** is computed for the new currency. Check your **Usado** rates too, because they are still quoted in the old currency. If you delete or rename the tab, the presentation columns show `#REF!` until the next export creates it again, with the default presentation currency and an empty **Usado**.
+
+Switching back to **Por entidad** leaves **Tipos de cambio** as it is, so the rates you typed are back in use if you return to **Grupo**. **Plan de cuentas** and **Dimensiones** are the same in both modes.
+
+### PUT `/integrations/:integrationId/general-ledger-mode`
+
+`PUT /api/organizations/:organizationId/integrations/:integrationId/general-ledger-mode`
+
+Choose whether a Google Sheets Integration exports each Entity's books or the group's Consolidated Ledger. An export already writing keeps the mode it started with. The next export reads the new one.
+
+**Body**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `generalLedgerExportMode` | `per_entity` \| `group` | Yes | What **Libro mayor** holds. See [Export the group](#export-the-group). Unknown keys are refused with `400`. |
+
+- **Response:** the Integration object, with its new `generalLedgerExportMode`.
+- **Permission:** `books` write in the Organization.
+
+| Status | Code | When |
+| --- | --- | --- |
+| `400` | | The mode is unknown, or the body carries unknown keys |
+| `422` | `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR` | The Integration isn't `google_sheets` |
+| `422` | `GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR` | The mode is `group` and the Organization's books can't be exported as one group. `params.integrationId` names the Integration, and `params.reason` and `params.entityIds` say why, as in [`groupExportRefusal`](#when-the-group-can-be-exported) |
+
+A move back to `per_entity` names no Basis. If an Entity keeps Bases by then, the Integration [waits for its Basis](#pick-the-basis).
+
+```bash
+curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/general-ledger-mode" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Export the group's consolidated ledger to the Sheet" \
+  -H "Content-Type: application/json" \
+  -d '{ "generalLedgerExportMode": "group" }'
+```
+
+A refused move:
+
+```json
+{
+  "code": "GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR",
+  "params": {
+    "integrationId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+    "reason": "entity_keeps_bases",
+    "entityIds": ["7c8d9e0f-1a2b-4c3d-9e4f-5a6b7c8d9e0f"]
+  }
+}
+```
+
 ### When the export runs
 
-Sintropix exports every Google Sheets Integration every four hours, except one that [waits for its Basis](#pick-the-basis). To export right away, click **Sincronizar ahora** on the Integration's panel, or call [`POST /integrations/:integrationId/general-ledger-exports`](#post-/integrations/integrationid/general-ledger-exports). The panel shows when the last export ran and how many lines it wrote, or why it failed.
+Sintropix exports every Google Sheets Integration every four hours, except one that [waits for its Basis](#pick-the-basis) and a `group` Integration whose group [can't be exported](#export-the-group). It records no run for those. To export right away, click **Sincronizar ahora** on the Integration's panel, or call [`POST /integrations/:integrationId/general-ledger-exports`](#post-/integrations/integrationid/general-ledger-exports). The panel shows when the last export ran and how many lines it wrote, or why it failed.
 
 ### The General Ledger Export object
 
@@ -1074,7 +1207,7 @@ A General Ledger Export is one run that writes the General Ledger of every Entit
 | `organizationId` | uuid | Owning Organization. |
 | `integrationId` | uuid | The Google Sheets Integration. |
 | `occurredAt` | ISO 8601 timestamp | When the export ran. |
-| `lineCount` | integer \| null | Ledger lines written to **Libro mayor**, across every Entity. The **Saldo inicial** rows don't count. `null` when the export failed. |
+| `lineCount` | integer \| null | Ledger lines written to **Libro mayor**, across every Entity. The **Saldo inicial** rows don't count, and neither do the **Eliminación**, **Diferencia**, and **Redondeo** rows of a `group` export. `null` when the export failed. |
 | `failure` | string \| null | Why the export wrote nothing (see below). `null` when the export succeeded. |
 
 | `failure` | Meaning | What to do |
@@ -1094,7 +1227,7 @@ Export the General Ledger of every Entity of the Organization to the Integration
 
 The export answers `200` with the General Ledger Export it recorded, whether it succeeded or failed, for example because Google refused it or the ledger from the [start](#choose-where-the-export-starts) is `too_large`. Check `failure` to tell them apart.
 
-An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. While another export of the same Integration is still writing, including the scheduled one, the request answers `409` with `GENERAL_LEDGER_EXPORT_RUNNING_ERROR`. Retry when it finishes. While the Integration [waits for its Basis](#pick-the-basis), the request answers `400` with `GENERAL_LEDGER_EXPORT_BASIS_REQUIRED_ERROR` and records no run. `params.integrationId` names the Integration, and `params.entityIds` names the Entities that keep Bases and whose Basis it doesn't name.
+An Integration that isn't `google_sheets` answers `422` with `GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`. While another export of the same Integration is still writing, including the scheduled one, the request answers `409` with `GENERAL_LEDGER_EXPORT_RUNNING_ERROR`. Retry when it finishes. While the Integration [waits for its Basis](#pick-the-basis), the request answers `400` with `GENERAL_LEDGER_EXPORT_BASIS_REQUIRED_ERROR` and records no run. `params.integrationId` names the Integration, and `params.entityIds` names the Entities that keep Bases and whose Basis it doesn't name. A `group` Integration whose group [can't be exported](#export-the-group) answers `422` with `GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR` and records no run. `params.integrationId` names the Integration, and `params.reason` and `params.entityIds` say why, as in `groupExportRefusal`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/general-ledger-exports" \
@@ -2068,6 +2201,6 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`), a Notion database the connection doesn't reach (`INTEGRATION_DATA_SOURCE_NOT_FOUND_ERROR`), or a Basis outside the Organization (`BASIS_NOT_FOUND_ERROR`) not found. |
 | `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the Organization's email domain no longer receives email (`EMAIL_DOMAIN_NOT_OPEN_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise or a replaced Rho token another business (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, Metabase, or Rho refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, `metabase`, or `rho` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a Basis or export start change names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, Metabase, or Rho refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, `metabase`, or `rho` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a Basis, export start, or export mode change names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), a `group` export is chosen or run while the Organization's books can't be exported as one group (`GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR`), a Basis change names a `group` Integration (`GENERAL_LEDGER_GROUP_EXPORT_TAKES_NO_BASIS_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
 | `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`), the SII answered a Clave check with a page Sintropix doesn't recognize (`SII_ANSWER_UNRECOGNIZED_ERROR`, with the SII's text in `params.siiAnswer`), or the Mailbox limit of the email plan is reached (`MAILBOX_LIMIT_REACHED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`), or a Mailbox can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |
