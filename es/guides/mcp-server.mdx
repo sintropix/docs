@@ -1,12 +1,12 @@
 ---
 title: "Lee tus libros desde Claude o ChatGPT con el servidor MCP de Sintropix"
 sidebarTitle: "Conectar Claude o ChatGPT"
-description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados, el balance general y las planillas de Google que compartió tu Organization, y para dejar feedback a los desarrolladores de Sintropix. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
+description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados, el balance general y los archivos que compartió tu Organization, como planillas de Google y preguntas de Metabase, y para dejar feedback a los desarrolladores de Sintropix. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
 ---
 
 El servidor MCP de Sintropix permite que un asistente de IA compatible con el Model Context Protocol (MCP), como Claude o ChatGPT, lea tus libros. Preguntas en lenguaje natural, por ejemplo "¿Cuánto me deben mis clientes?", y el asistente responde con tus datos de Sintropix.
 
-El servidor lee tus libros y las planillas de Google que tu Organization compartió con Sintropix. No puede crear, cambiar ni eliminar nada en ellos. Lo único que envía es feedback sobre Sintropix, que no cambia ningún dato.
+El servidor lee tus libros y los archivos que tu Organization compartió con Sintropix, como planillas de Google y preguntas de Metabase. No puede crear, cambiar ni eliminar nada en ellos. Lo único que envía es feedback sobre Sintropix, que no cambia ningún dato.
 
 ```text
 https://mcp.sintropix.com/mcp
@@ -44,7 +44,7 @@ Consulta [Conectar una app con OAuth](/es/guides/connected-apps) para ver todas 
 
 ## Herramientas
 
-El servidor expone ocho herramientas. Cinco leen tus libros, dos leen las planillas de Google que compartió tu Organization, y `leave_feedback` les cuenta a los desarrolladores de Sintropix qué se interpuso en el camino del asistente. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
+El servidor expone ocho herramientas. Cinco leen tus libros, dos leen los archivos que compartió tu Organization, y `leave_feedback` les cuenta a los desarrolladores de Sintropix qué se interpuso en el camino del asistente. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
 
 | Herramienta | Pregunta que responde | Entradas |
 | --- | --- | --- |
@@ -54,7 +54,7 @@ El servidor expone ocho herramientas. Cinco leen tus libros, dos leen las planil
 | `get_income_statement` | ¿Cuánto gané en un período? | `entityId`, `from` y `to` opcionales |
 | `get_balance_sheet` | ¿Qué tengo y qué debo en una fecha? | `entityId`, `cutoffDate` opcional |
 | `list_integration_files` | ¿Qué archivos compartimos? | Ninguna |
-| `read_integration_file` | ¿Qué dice ahora este archivo? | `integrationId`, `fileId`, `reason` y `tab` opcional |
+| `read_integration_file` | ¿Qué dice ahora este archivo? | `integrationId`, `fileId`, `reason`, y `parameters` y `tab` opcionales |
 | `leave_feedback` | ¿Cómo le cuento a Sintropix qué se interpuso en mi camino? | `kind`, `message`, `endpoint`, `requestId` y `reproduction` opcionales |
 
 ### `list_entities`
@@ -90,22 +90,23 @@ Devuelve el balance general en una fecha: activos, pasivos y patrimonio, cada un
 
 ### `list_integration_files`
 
-Lista los archivos que las personas de tu Organization eligieron compartir con Erwin y el MCP: la planilla de Google de cada [Integration de Google Drive](/api-reference/integrations#files-for-erwin-and-the-mcp) y las preguntas elegidas en cada [Integration de Metabase](/api-reference/integrations#metabase). Cada elemento trae su `integrationId`, `fileId`, `name`, `purpose` y `description` (la descripción del archivo en Google Drive o en Metabase). El asistente lee el propósito para elegir el archivo que responde tu pregunta, y la descripción cuando no hay propósito.
+Lista los archivos que las personas de tu Organization eligieron compartir con Erwin y el MCP: la planilla de Google de cada [Integration de Google Drive](/api-reference/integrations#files-for-erwin-and-the-mcp) y las preguntas elegidas en cada [Integration de Metabase](/api-reference/integrations#metabase). Cada elemento trae su `integrationId`, `fileId`, `name`, `purpose`, `description` (la descripción del archivo en Google Drive o en Metabase) y `parameters`: los filtros que puede enviar una lectura, cada uno como `{ slug, name, type }`, por ejemplo `{ "slug": "canal", "name": "Canal", "type": "string/=" }`. Una planilla no tiene parámetros. El asistente lee el propósito para elegir el archivo que responde tu pregunta, y la descripción cuando no hay propósito.
 
 Un archivo al que el proveedor ya no llega, como una planilla que se borró o está en la papelera, o una pregunta de Metabase archivada, no aparece. Una conexión cuyos archivos no se pueden listar vuelve en `unlisted`, con su `integrationId` y el rechazo de la API. `INTEGRATION_GRANT_FAILED_ERROR` significa que alguien tiene que volver a conectar la planilla en **Configuración → Integraciones**.
 
 ### `read_integration_file`
 
-Lee un archivo compartido tal como está ahora en su proveedor: una planilla tal como está en Google Drive, o una pregunta de Metabase, que se ejecuta en Metabase al leerla. La herramienta no envía filtros, así que la pregunta se ejecuta sin ellos. Responde cada pestaña como CSV, con las celdas como las muestra la planilla. Cada pestaña trae `tab` (su nombre), `rowCount`, `truncated` y `csv`. Una pestaña se corta en 2.000 filas, y `truncated` indica cuando tiene más.
+Lee un archivo compartido tal como está ahora en su proveedor: una planilla tal como está en Google Drive, o una pregunta de Metabase, que se ejecuta en Metabase al leerla. Para una pregunta, el asistente envía en `parameters` los filtros que necesita tu consulta, y la pregunta se ejecuta con ellos. Responde cada pestaña como CSV, con las celdas como las muestra la planilla. Cada pestaña trae `tab` (su nombre), `rowCount`, `truncated` y `csv`. Una pestaña se corta en 2.000 filas, y `truncated` indica cuando tiene más.
 
 | Entrada | Tipo | Obligatoria | Descripción |
 | --- | --- | --- | --- |
 | `integrationId` | UUID | Sí | De `list_integration_files`. |
 | `fileId` | UUID | Sí | De `list_integration_files`. |
 | `reason` | string | Sí | Una línea sobre lo que pediste que necesita la planilla. Sintropix la registra en el [historial de auditoría](/api-reference/audit-trail) junto con la lectura. Hasta 500 caracteres. |
+| `parameters` | object | No | Un valor para cada filtro que se aplica, bajo su `slug` de `list_integration_files`, por ejemplo `{ "canal": "online", "anio": "2026" }`. Un filtro que se omite no se aplica. Por defecto, ninguno. |
 | `tab` | string | No | El nombre de una pestaña. Sin él, la herramienta lee todas las pestañas. Un nombre que la planilla no tiene se rechaza con la lista de sus pestañas. |
 
-El asistente trata las celdas como datos que escribieron personas, nunca como instrucciones. `INTEGRATION_FILE_GONE_ERROR` significa que la planilla se borró o que su dueño quitó el acceso: vuelve a compartirla o conecta otra planilla. `INTEGRATION_FILE_TOO_LARGE_ERROR` significa que la planilla pesa más de los 10 MB que Google exporta. Un `viewer` no puede listar ni leer planillas compartidas. Consulta [Quién puede leer los archivos](/api-reference/integrations#who-can-read-the-files).
+El asistente trata las celdas como datos que escribieron personas, nunca como instrucciones. `INTEGRATION_FILE_GONE_ERROR` significa que la planilla se borró o que su dueño quitó el acceso: vuelve a compartirla o conecta otra planilla. `INTEGRATION_FILE_TOO_LARGE_ERROR` significa que la planilla pesa más de los 10 MB que Google exporta. `INTEGRATION_FILE_PARAMETER_UNKNOWN_ERROR` (`422`) significa que `parameters` trae un slug que el archivo no acepta: envía solo los slugs que entrega `list_integration_files`. Un `viewer` no puede listar ni leer planillas compartidas. Consulta [Quién puede leer los archivos](/api-reference/integrations#who-can-read-the-files).
 
 ### `leave_feedback`
 
