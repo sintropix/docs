@@ -1020,7 +1020,7 @@ By default, **Libro mayor** holds the current Fiscal Year only, and it moves to 
 
 The export never writes a year with nothing in it before the books start: a start earlier than the Fiscal Year of the first live Ledger Entry begins at that Fiscal Year instead. A start after the current Fiscal Year writes the current Fiscal Year only.
 
-A longer history makes a larger Sheet. When the tabs an export would write hold more than 5 million cells, the export writes nothing, keeps the Sheet as the previous export left it, and ends with the failure `too_large`. The panel says *El libro mayor desde ese inicio no cabe en la planilla, así que se mantuvo la sincronización anterior. Elige un ejercicio más reciente.* Pick a later start and export again.
+A longer history makes a larger Sheet. When the General Ledger from the start you chose is too large for one spreadsheet, the export writes nothing, keeps the Sheet as the previous export left it, and ends with the failure `too_large`. The panel says *El libro mayor desde ese inicio no cabe en la planilla, así que se mantuvo la sincronización anterior. Elige un ejercicio más reciente.* Pick a later start and export again.
 
 ### PUT `/integrations/:integrationId/general-ledger-start`
 
@@ -1079,7 +1079,7 @@ A General Ledger Export is one run that writes the General Ledger of every Entit
 | `sheet_not_writable` | The account can no longer edit the Sheet | Give the account edit access, then export again |
 | `provider_unreachable` | Google couldn't be reached | Export again in a few minutes |
 | `provider_failure` | Google failed | Export again in a few minutes |
-| `too_large` | The tabs from the Integration's start would hold more than 5 million cells. The export wrote nothing and the Sheet keeps the previous export | [Choose a later start](#choose-where-the-export-starts), then export again |
+| `too_large` | The General Ledger from the Integration's start is too large for one spreadsheet. The export wrote nothing and the Sheet keeps the previous export | [Choose a later start](#choose-where-the-export-starts), then export again |
 
 ### POST `/integrations/:integrationId/general-ledger-exports`
 
