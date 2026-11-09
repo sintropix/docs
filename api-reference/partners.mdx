@@ -32,7 +32,7 @@ The routes under `/api/entities/:entityId/partners` serve the Partners that Enti
 
 | Shared by every Entity of the Organization | Kept by this Entity alone |
 | --- | --- |
-| `name`, `legalName`, `country`, `taxId`, `website`, [Aliases](#aliases), and [Bank Details](#bank-details) | `defaultPurchaseAccountId`, `booksAutomatically`, and the [Booking Template](#booking-templates) |
+| `name`, `legalName`, `country`, `taxId`, `website`, `renewalDate`, [Aliases](#aliases), and [Bank Details](#bank-details) | `defaultPurchaseAccountId`, `booksAutomatically`, and the [Booking Template](#booking-templates) |
 
 For example, when one Entity corrects a supplier's legal name, every other Entity sees the new name. When it sets a Default Purchase Account for that supplier, the other Entities keep their own.
 
@@ -54,6 +54,12 @@ Each Entity is represented by one Partner of its Organization. That Partner carr
 - An Entity never uses the Partner that represents it. A write that names it in that Entity is refused with `422` and `PARTNER_REPRESENTS_ENTITY_ERROR`, with `params.partnerId` and `params.entityId`. This applies to creating or using the Partner, and to naming it on a Ledger Line, an Invoice, a Bank Movement, or a Payment Order.
 - A bank feed lands a Movement whose counterparty is the Entity itself with no Partner. A [Source Feed](/api-reference/source-feeds) document addressed to the Entity itself is rejected alone, with `PARTNER_REPRESENTS_ENTITY_ERROR`, and the rest of the sync lands.
 - Its `country` and `taxId` are the Entity's. Correct them on the [Entity](/api-reference/entities#patch-/api/entities/entityid). Changing them on the Partner is refused with `422` and `PARTNER_REPRESENTS_ENTITY_TAX_IDENTITY_ERROR`.
+
+### Renewal date
+
+A Partner can carry a `renewalDate`, for example the date a contract or subscription with it renews. Like the website, it belongs to the Partner, so every Entity of the Organization sees the same date. Set it on [create](#post-/partners) or [update](#patch-/partners/partnerid), and send `null` to clear it. The [Audit Trail](/api-reference/audit-trail) records every change.
+
+In the app, **Contactos** has a **Fecha de renovación** column that is hidden by default. Turn it on from **Visualización**, then click a cell to edit the date inline. A date the editor can't read isn't saved, and the stored date stays. The form for a new Partner doesn't ask for it.
 
 ## GET `/partners`
 
@@ -80,6 +86,7 @@ List every Partner the Entity uses, each row enriched with this Entity's Open It
 | `country` | string or null | ISO 3166-1 alpha-2 code of the tax registration. |
 | `taxId` | string or null | Tax registration number. Chilean RUTs are stored as digits, hyphen, check digit (`76123456-0`). |
 | `website` | string or null | The Partner's website, stored as a bare lowercase domain (`acme.cl`). Sintropix reads the Partner's [logo](#get-/api/organizations/organizationid/partners/partnerid/logo) from it. |
+| `renewalDate` | string or null | The date the agreement with the Partner renews, as `YYYY-MM-DD`. `null` when it isn't set. Sintropix stores it for you and doesn't act on it: it sends no reminder. |
 | `aliases` | string[] | Other names that find this Partner, in name order. See [Aliases](#aliases). |
 | `mergedIntoPartnerId` | uuid or null | The Partner this one was [merged](#merge-partners) into. Null for an active Partner. |
 | `openReceivable` | integer | Unsettled amount this Partner owes the Entity: the Open Amount of its debit lines on receivable (`asset`) accounts. |
@@ -231,7 +238,7 @@ In the app, the Partner pickers and Partner filters read their options this way.
 
 Read one Partner the Entity uses, with this Entity's settings for it. Use it, for example, to read the `defaultPurchaseAccountId` a bill booking should propose.
 
-**Response:** the Partner's shared fields (`id`, `organizationId`, `representsEntityId`, `name`, `legalName`, `country`, `taxId`, `website`, `aliases`, `mergedIntoPartnerId`, `createdAt`, and `updatedAt`), plus this Entity's `entityId`, `defaultPurchaseAccountId`, and `booksAutomatically`. It carries no open totals and no roles. Each field is described under [`GET /partners`](#get-/partners).
+**Response:** the Partner's shared fields (`id`, `organizationId`, `representsEntityId`, `name`, `legalName`, `country`, `taxId`, `website`, `renewalDate`, `aliases`, `mergedIntoPartnerId`, `createdAt`, and `updatedAt`), plus this Entity's `entityId`, `defaultPurchaseAccountId`, and `booksAutomatically`. It carries no open totals and no roles. Each field is described under [`GET /partners`](#get-/partners).
 
 A Partner the Entity doesn't use answers `404` with `PARTNER_NOT_FOUND_ERROR`.
 
@@ -254,6 +261,7 @@ Create a Partner in the Organization and start using it in this Entity.
 | `country` | string or null | No | ISO 3166-1 alpha-2 code known to Sintropix. An unknown code is refused with `400` and `PARTNER_COUNTRY_UNKNOWN_ERROR`. |
 | `taxId` | string or null | No | Tax registration number, at most 50 characters. When `country` is `CL` the value must be a valid RUT; separators and dots are accepted and it is stored in canonical form (`76.123.456-0` becomes `76123456-0`). |
 | `website` | string or null | No | A domain or a URL, at most 2048 characters. Sintropix keeps only the host, lowercased and without `www.`: `https://www.Acme.cl/contacto` is stored as `acme.cl`. A value that is not a domain is refused with `400`, with the validation issue `WEBSITE_INVALID_ERROR`. |
+| `renewalDate` | string or null | No | The renewal date, as `YYYY-MM-DD`. A value that isn't a valid date is refused with `400`. |
 | `defaultPurchaseAccountId` | uuid or null | No | The account this Entity proposes for the Partner's purchase invoices. It must be an expense-type Ledger Account or a fixed-asset account; any other account is refused with `400` and `PARTNER_DEFAULT_PURCHASE_ACCOUNT_INELIGIBLE_ERROR`. Setting it gives the Partner the `vendor` role here. |
 
 A `country` and `taxId` pair belongs to one Partner of the Organization:
@@ -323,7 +331,7 @@ curl -X PUT "https://api.sintropix.com/api/entities/$ENTITY_ID/partners/$PARTNER
 
 ## PATCH `/partners/:partnerId`
 
-Update Partner attributes. A change to `name`, `legalName`, `country`, `taxId`, `website`, or `aliases` reaches every Entity of the Organization. A change to `defaultPurchaseAccountId` or `booksAutomatically` reaches this Entity only.
+Update Partner attributes. A change to `name`, `legalName`, `country`, `taxId`, `website`, `renewalDate`, or `aliases` reaches every Entity of the Organization. A change to `defaultPurchaseAccountId` or `booksAutomatically` reaches this Entity only.
 
 **Body:** any subset of the fields below. At least one is required; unknown keys are rejected with `400`. Send `null` to clear a nullable field.
 
@@ -334,6 +342,7 @@ Update Partner attributes. A change to `name`, `legalName`, `country`, `taxId`, 
 | `country` | string or null | No | ISO 3166-1 alpha-2 code. |
 | `taxId` | string or null | No | Same rules as on create, including the RUT rule when the resulting country is `CL`. |
 | `website` | string or null | No | Same rule as on create. |
+| `renewalDate` | string or null | No | Same rule as on create. Send `null` to clear it. |
 | `defaultPurchaseAccountId` | uuid or null | No | Expense-type or fixed-asset account. |
 | `booksAutomatically` | boolean | No | Turn automatic booking from the [Booking Template](#booking-templates) on or off in this Entity. `true` requires a saved template (`409`). Not accepted on create: a new Partner starts with `false`. |
 | `aliases` | string[] | No | The full list of [Aliases](#aliases). Each Alias is at most 200 characters. An existing Alias you leave out is removed. Send `[]` to remove all. Not accepted on create. |
@@ -398,7 +407,7 @@ This route lives under the Organization, not under an Entity. It needs the `book
 | `nextCursor` | uuid or null | Pass as `cursor` to fetch the next page. Null on the last page. |
 | `totalCount` | integer | Partners matching the search, across all pages. |
 
-Each element of `partners` has the Partner's shared fields: `id`, `organizationId`, `representsEntityId`, `name`, `legalName`, `country`, `taxId`, `website`, `aliases`, `mergedIntoPartnerId`, `createdAt`, and `updatedAt`. It also has `entities`, the `{ id, name }` of each Entity that uses the Partner, in name order. A representing Partner never lists the Entity it represents. A row carries no open totals and no per-Entity settings: read those from the Entity routes.
+Each element of `partners` has the Partner's shared fields: `id`, `organizationId`, `representsEntityId`, `name`, `legalName`, `country`, `taxId`, `website`, `renewalDate`, `aliases`, `mergedIntoPartnerId`, `createdAt`, and `updatedAt`. It also has `entities`, the `{ id, name }` of each Entity that uses the Partner, in name order. A representing Partner never lists the Entity it represents. A row carries no open totals and no per-Entity settings: read those from the Entity routes.
 
 ```bash
 curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partners?search=google" \
@@ -467,7 +476,7 @@ Every Entity that used the merged Partner now uses the kept Partner. In each of 
 
 Lines on or before an Entity's Lock Date stay on the merged Partner, because the Lock Date freezes them. The Partner Ledger shows that history under the merged Partner's name.
 
-The kept Partner takes these shared fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, and `website`. When the merged Partner [represents](#representing-partners) an Entity, the kept Partner takes that role with the tax identity.
+The kept Partner takes these shared fields from the merged Partner only where its own value is empty: the tax identity (`country` and `taxId`), `legalName`, `website`, and `renewalDate`. When the merged Partner [represents](#representing-partners) an Entity, the kept Partner takes that role with the tax identity.
 
 In each Entity, the kept Partner takes the merged Partner's `defaultPurchaseAccountId` when it has none there. It takes the merged Partner's Booking Template, with its `documentKind`, and `booksAutomatically` only when it has no template in that Entity. Otherwise, Sintropix removes the merged Partner's template.
 
