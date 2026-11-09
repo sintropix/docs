@@ -68,7 +68,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 | Ledger Account | `/{entityId}/general-ledger?selectedAccountId={accountId}` | Movements of one account. The chart itself is **Plan de cuentas**, at `/organizations/{organizationId}/settings/chart-of-accounts`. It opens on the group chart (**Grupo**). Add `entity={entityId}` for one Entity's chart, and `open={accountId}` to open an account in it. |
 | Open Item | `/{entityId}/receivables?open={entryId}` or `/{entityId}/payables?open={entryId}` | Pass the id of the Ledger Entry that carries the item. `/{entityId}/open-items` shows all. |
 | Allocation | `/{entityId}/entries/{entryId}` | Allocations have no page. Link the Ledger Entry being settled. |
-| Dimension | `/organizations/{organizationId}/settings/dimensions?dimension={dimensionId}` | Drop `dimension` for the list of every Dimension. |
+| Dimension | `/organizations/{organizationId}/settings/dimensions` | Every Dimension of the Organization, with its values. Add `dimensionSearch` (text) to narrow it to the Dimensions and values that match, for example a Dimension's name or a value's code. |
 | Source | `/{entityId}/sources/{sourceId}` | Documents imported by that Source. Sources are configured at `/{entityId}/settings/sources`. |
 | Payment Batch | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lists every batch. It takes `search` (matches name and label) and `label` (keeps the batches with that exact label). |
 | Source Feed | `/{entityId}/settings/sources` | Feeds are managed inside their Source's settings. |
