@@ -108,6 +108,7 @@ The access token is stored encrypted and is never returned on any read.
 | `basisRequiredEntityIds` | uuid[] | For `google_sheets`, the Entities that keep Bases and whose Basis the Integration doesn't name. While it isn't empty, the export is refused. See [Pick the Basis](#pick-the-basis). Always empty for every other kind. |
 | `generalLedgerExportStart` | `current_fiscal_year` \| `since_fiscal_year` \| `all_history` \| null | For `google_sheets`, the first Fiscal Year the export writes. `current_fiscal_year` until you [change it](#put-/integrations/integrationid/general-ledger-start). `null` for every other kind. See [Choose where the export starts](#choose-where-the-export-starts). |
 | `generalLedgerExportSinceYear` | integer \| null | For `google_sheets` with `generalLedgerExportStart` set to `since_fiscal_year`, the calendar year the first exported Fiscal Year starts in, such as `2024`. `null` otherwise. |
+| `generalLedgerExportFirstFiscalYear` | integer \| null | For `google_sheets`, the calendar year in which the earliest Fiscal Year with a live Ledger Entry starts, across every Entity the export writes, such as `2024`. A `since_fiscal_year` start earlier than this year writes the same as `all_history`. `null` before the first live Ledger Entry, and always `null` for every other kind. See [Choose where the export starts](#choose-where-the-export-starts). |
 | `lastGeneralLedgerExport` | object \| null | For `google_sheets`, the last [General Ledger Export](#the-general-ledger-export-object). `null` until the first export runs, and always `null` for every other kind. |
 | `scopes` | string[] | The permissions the Provider granted. Set for `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, and `stripe`; empty for every other kind. |
 | `tokenExpiresAt` | ISO 8601 timestamp \| null | When the stored access of a `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, or `stripe` Integration expires. `null` for every other kind. |
@@ -180,6 +181,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
   "basisRequiredEntityIds": [],
   "generalLedgerExportStart": null,
   "generalLedgerExportSinceYear": null,
+  "generalLedgerExportFirstFiscalYear": null,
   "lastGeneralLedgerExport": null,
   "createdAt": "2025-01-02T12:00:00.000Z",
   "updatedAt": "2025-01-02T12:00:00.000Z"
@@ -1015,8 +1017,10 @@ By default, **Libro mayor** holds the current Fiscal Year only, and it moves to 
 | Start | In the panel | What **Libro mayor** holds |
 | --- | --- | --- |
 | `current_fiscal_year` | **Ejercicio en curso** | The current Fiscal Year only. The default for every Google Sheets Integration |
-| `since_fiscal_year` | **Desde el ejercicio YYYY** | Every Fiscal Year from the one that starts in `generalLedgerExportSinceYear` to the current one. The panel offers the last 10 years. The API takes any four-digit year |
+| `since_fiscal_year` | **Desde el ejercicio YYYY** | Every Fiscal Year from the one that starts in `generalLedgerExportSinceYear` to the current one. The panel offers each year from last year down to `generalLedgerExportFirstFiscalYear`. The API takes any four-digit year |
 | `all_history` | **Todo el historial** | Every Fiscal Year from the first one with a live Ledger Entry to the current one |
+
+The panel offers only the years that hold entries. It doesn't offer the current year as a **Desde el ejercicio** start, because that writes the same as **Ejercicio en curso**. When no Fiscal Year before the current one holds a live Ledger Entry, the panel shows only **Ejercicio en curso** and **Todo el historial**. A start you saved earlier that falls outside those years stays listed and selected.
 
 The export never writes a year with nothing in it before the books start: a start earlier than the Fiscal Year of the first live Ledger Entry begins at that Fiscal Year instead. A start after the current Fiscal Year writes the current Fiscal Year only.
 
