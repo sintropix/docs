@@ -20,7 +20,7 @@ What an Integration can feed depends on its kind:
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 | `google_drive` | Nothing. Erwin and the MCP server read the Google Sheet you picked instead. See [Files for Erwin and the MCP](#files-for-erwin-and-the-mcp) |
-| `metabase` | Nothing. The assistants you connect to the MCP server read the Metabase questions you choose instead. See [Metabase](#metabase) |
+| `metabase` | Nothing. Erwin and the MCP server read the Metabase questions you choose instead. See [Metabase](#metabase) |
 
 An Organization can hold more than one Integration at a time (for example, a Bsale document feed alongside a Fintoc bank and a Mercado Pago authorization). Each external account can be connected only once.
 
@@ -38,7 +38,7 @@ The `google_sheets` kind connects one Google Sheet through Google OAuth. Sintrop
 
 The `google_drive` kind connects one Google Sheet that you pick in Google's file picker, so that Erwin and the assistants you connect to the [MCP server](/guides/mcp-server) can read it. Sintropix reaches that Sheet only, not the rest of your Drive, and reads it as it is each time someone asks. It never writes to it. See [Files for Erwin and the MCP](#files-for-erwin-and-the-mcp).
 
-The `metabase` kind connects a [Metabase Cloud](https://www.metabase.com/cloud) site with an API key. You choose which of its questions the assistants you connect to the MCP server can read, and Sintropix runs a question in Metabase each time someone reads it. It never changes anything in Metabase. See [Metabase](#metabase).
+The `metabase` kind connects a [Metabase Cloud](https://www.metabase.com/cloud) site with an API key. You choose which of its questions Erwin and the assistants you connect to the MCP server can read, and Sintropix runs a question in Metabase each time someone reads it. It never changes anything in Metabase. See [Metabase](#metabase).
 
 The `xpendit` kind connects the enterprise of an Xpendit account, the expense tool, with its API key. You can read the expenses and funds of each of its Subsidiaries, and route each Subsidiary to a Source of Expense Renditions. See [Xpendit](#xpendit).
 
@@ -114,6 +114,7 @@ The access token is stored encrypted and is never returned on any read.
 | `tokenExpiresAt` | ISO 8601 timestamp \| null | When the stored access of a `mercadopago`, `mercadolibre`, `polar`, `google_sheets`, `google_drive`, or `stripe` Integration expires. `null` for every other kind. |
 | `purpose` | string \| null | What the account is for, in your own words, such as "Facturas de proveedores de Acme". It helps a person or an agent pick the right account when the Organization holds several. Up to 500 characters. `null` until you [set it](#put-/integrations/integrationid/purpose). |
 | `grantHealth` | `working` \| `failed` \| `unknown` \| null | For `gmail` and `outlook`, whether the account's access still works, checked on each list. `failed` means the access expired or was revoked: disconnect the Integration and connect the account again. `unknown` means Sintropix couldn't check it right now. For `mailbox`, `working` when Sintropix reaches its inbox and `unknown` otherwise; a Mailbox holds no access that can expire, so it's never `failed`. `null` for every other kind. |
+| `holdsFiles` | boolean | Whether the Integration's kind holds [files for Erwin and the MCP](#files-for-erwin-and-the-mcp): `true` for `google_drive` and `metabase`, `false` for every other kind. Only an Integration with `holdsFiles: true` answers the [file routes](#get-/integrations/integrationid/files). |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## POST `/integrations`
@@ -1129,12 +1130,12 @@ A refused export:
 
 Some Integrations share files with Erwin and with the assistants you connect to the [MCP server](/guides/mcp-server). You choose the files, and they read each one as it is now at its Provider, as an Excel workbook. Use it for what lives outside your books, such as a collections tracker your team keeps in Sheets or a sales report in Metabase. Sintropix stores none of a file's content, and it never writes to the Provider.
 
-Two kinds of Integration hold files:
+Two kinds of Integration hold files. Each Integration in [`GET /integrations`](#get-/integrations) says whether it holds files in `holdsFiles`:
 
 | Kind | Its files | How you choose them |
 | --- | --- | --- |
 | `google_drive` | One Google Sheet, read with every tab | You pick the Sheet when you connect. See [Connect a Sheet for Erwin and the MCP](#connect-a-sheet-for-erwin-and-the-mcp) |
-| `metabase` | The Metabase questions you choose. Sintropix runs a question in Metabase each time someone reads it. The MCP server reads them; Erwin doesn't read Metabase questions yet | In the Integration's panel, with **Elegir preguntas**, or through [`POST /integrations/:integrationId/files`](#post-/integrations/integrationid/files). See [Metabase](#metabase) |
+| `metabase` | The Metabase questions you choose. Sintropix runs a question in Metabase each time someone reads it, with the filters the reader sends | In the Integration's panel, with **Elegir preguntas**, or through [`POST /integrations/:integrationId/files`](#post-/integrations/integrationid/files). See [Metabase](#metabase) |
 
 The panel's **Archivos para Erwin y el MCP** section lists the chosen files, each with its purpose. Write a purpose that says what the file holds and when to use it, for example "Cobranza mensual por cliente". Erwin and the assistants use it to pick the right file. While a file has no purpose, they read the description the file has at its Provider instead: the Sheet's description in Google Drive, or the question's description in Metabase.
 
@@ -1360,7 +1361,7 @@ curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integr
 | `403` | `PERMISSION_DENIED_ERROR` | A `viewer`, or an API key confined to one Entity, lists or reads files, or a `viewer` chooses or unchooses a file or sets its purpose |
 | `404` | `INTEGRATION_NOT_FOUND_ERROR` | The Integration doesn't exist in the Organization |
 | `404` | `INTEGRATION_FILE_NOT_FOUND_ERROR` | The id names no chosen file of that Integration. `params.integrationId` and `params.fileId` |
-| `422` | `INTEGRATION_FILES_NOT_SUPPORTED_ERROR` | The Integration isn't `google_drive` or `metabase`, so it has no files. `params.kind` names its kind |
+| `422` | `INTEGRATION_FILES_NOT_SUPPORTED_ERROR` | The Integration isn't `google_drive` or `metabase`, so it has no files and its `holdsFiles` is `false`. `params.kind` names its kind |
 | `422` | `INTEGRATION_FILE_PARAMETER_UNKNOWN_ERROR` | A read sends a filter the file doesn't take. `params.integrationId`, `params.fileId`, and `params.parameter`, the slug |
 | `424` | `INTEGRATION_FILE_GONE_ERROR` | The Provider no longer reaches the file: a Sheet was deleted or trashed, or the account lost access, or a Metabase question was archived or deleted, or the key's group can no longer view it. Restore or share it again, or choose another file. `params.integrationId` and `params.fileId` |
 | `424` | `INTEGRATION_FILE_TOO_LARGE_ERROR` | The Sheet is larger than the 10 MB Google exports. `params.integrationId` and `params.fileId` |
@@ -1585,7 +1586,7 @@ To rotate the key, create a new one in Buk and [replace it](#put-/integrations/i
 
 ## Metabase
 
-A `metabase` Integration connects one [Metabase Cloud](https://www.metabase.com/cloud) site, where you keep the reports of your business, with an API key. You choose which of its questions the assistants you connect to the [MCP server](/guides/mcp-server) can read. Erwin doesn't read Metabase questions yet. Each read runs the question in Metabase at that moment and hands out its rows as an Excel workbook. Sintropix stores none of the results and never changes anything in Metabase. The Integration feeds nothing.
+A `metabase` Integration connects one [Metabase Cloud](https://www.metabase.com/cloud) site, where you keep the reports of your business, with an API key. You choose which of its questions Erwin and the assistants you connect to the [MCP server](/guides/mcp-server) can read. Each read runs the question in Metabase at that moment and hands out its rows as an Excel workbook. Sintropix stores none of the results and never changes anything in Metabase. The Integration feeds nothing.
 
 Only Metabase Cloud connects, at an address that ends in `metabaseapp.com`. A self-hosted Metabase can't connect.
 
@@ -1630,7 +1631,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 ### Choose the questions
 
-A new Metabase Integration has no question chosen, so the MCP server reads nothing from it yet. In the Integration's panel, click **Elegir preguntas**. The dialog lists every question the key can view, except archived ones, with a search by name or description. Switch on each question the MCP server may read, and click **Listo**.
+A new Metabase Integration has no question chosen, so Erwin and the MCP server read nothing from it yet. In the Integration's panel, click **Elegir preguntas**. The dialog lists every question the key can view, except archived ones, with a search by name or description. Switch on each question Erwin and the MCP server may read, and click **Listo**.
 
 The panel's **Archivos para Erwin y el MCP** section then lists each chosen question with its purpose, or with its description in Metabase while it has no purpose, and its filters, such as *Filtros: Canal · Año*. Write a purpose for a question whose name and description don't say when to use it.
 
