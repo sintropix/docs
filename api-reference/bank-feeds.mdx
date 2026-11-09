@@ -278,6 +278,37 @@ A Global66 Integration reads the wallets of the Global66 client you connected. E
 
 Each sync checks the landed Movements against that same balance, so a wallet's [tie-out](/api-reference/bank-accounts#tie-out) compares the Bank Account with the balance Global66 lists.
 
+**Deposit and transfer details**
+
+Global66's movement list doesn't say who sent a deposit, who received a transfer, or what each fee was. For a deposit, a transfer sent or returned, and a payment between Global66 accounts, a sync reads that detail from Global66 once and adds it to the Movement's Additional Information. A currency exchange gets no detail lines, because its row already states everything about it.
+
+- A sync reads at most 20 details. A new feed's older Movements get their lines over the next syncs.
+- When Global66 refuses a detail, the Movement keeps the lines it landed with, and a later sync reads the detail again. A refused detail never fails the sync.
+- Once read, the lines stay. A later sync doesn't read the detail again and doesn't rewrite them.
+- When the remitter's or beneficiary's document is a RUT, that RUT sets the Movement's Partner, only when the Movement has none. This happens only on the sync that reads the detail. If you create the Partner later, set it on the Movement yourself.
+- When the RUT is the Entity's own, the Movement is a transfer between your own accounts, and the line `Traspaso entre cuentas propias` reads `Sí`.
+- No account number is written to a line.
+
+The Additional Information holds these detail lines, in this order, each only when Global66 states it:
+
+| Label | Value |
+| --- | --- |
+| `Estado en Global66` | The movement's status at Global66, or `Sin estado` when Global66 states none. Every read detail writes this line |
+| `Remitente` | Who sent the money. On a payment received from another Global66 account, the account that paid you |
+| `Documento del remitente` | The remitter's document type and number, such as `RUT 76123456-7` |
+| `Banco del remitente` | The remitter's bank |
+| `Beneficiario` | Who received the money, on a transfer you sent |
+| `Documento del beneficiario` | The beneficiary's document type and number |
+| `Banco del beneficiario` | The beneficiary's bank |
+| `País del beneficiario` | The beneficiary's country code, such as `CO` |
+| `Traspaso entre cuentas propias` | `Sí`, when the counterparty's RUT is the Entity's own |
+| `Propósito` | The purpose of the transfer |
+| `Numeral cambiario de origen` | The exchange numeral (numeral cambiario) on the sending side |
+| `Numeral cambiario de destino` | The exchange numeral on the receiving side |
+| `Desglose de comisiones` | Each fee with its amount and currency, separated by `·`, such as `COSTO TIPO CAMBIO 1200 CLP · IMPUESTO IVA 228 CLP` |
+| `Envío devuelto` | On a returned transfer, the amount sent and the amount received, such as `500000 CLP → 2100000 COP` |
+| `Tipo de cambio del envío devuelto` | On a returned transfer, its exchange rate |
+
 ### Mercado Pago
 
 A Mercado Pago feed mirrors the account's available money. Each sync reads Mercado Pago's release report, which lists every movement of that money: payments net of fees, purchases paid from the balance, payouts, refunds, credit repayments, and holds.
