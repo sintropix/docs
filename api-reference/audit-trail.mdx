@@ -115,11 +115,11 @@ Each **envelope**:
 | `apiKeyId` | UUID or `null` | The API key used, for `api_key` requests. |
 | `connectedAppClientId` | string or `null` | The OAuth `client_id` of the connected app, for `oauth` requests. |
 | `connectedAppName` | string or `null` | The name the connected app declared for itself, as it read at the time of the write, for `oauth` requests. |
-| `declaredActor` | string or `null` | Value of the `x-audit-actor` header on API-key mutations. |
+| `declaredActor` | string or `null` | Value of the `x-audit-actor` header on API-key mutations. On a change made by Sintropix itself, the part of Sintropix that made it, such as `bank-feed` for a [background job](#background-jobs). |
 | `declaredReason` | string or `null` | Value of the `x-audit-reason` header (trimmed) explaining why the change was made. Required on API-key and OAuth-token mutations; optional on browser sessions. `null` on rows written before the header existed. |
-| `declaredTrigger` | `slack` \| `app` \| `chat` \| `terminal` \| `main` \| `schedule` \| `null` | Value of the `x-audit-trigger` header: what started the agent turn behind the write. `main` means Erwin started it on his own, from a timer, a notice, or a routine. `slack`, `app`, `chat`, and `terminal` name where a person's message started it. `schedule` appears only on older rows, written when one of Erwin's former schedules started the turn. A request can no longer send it. `null` when the request sent no trigger, on changes made by Sintropix itself, and on rows written before the header existed. |
-| `route` | string | The endpoint pattern that produced the mutation. For a change made by a scheduled job, the job's name. See [Scheduled jobs](#scheduled-jobs). |
-| `method` | string | HTTP method, for example `POST`. `CRON` for a change made by a scheduled job. |
+| `declaredTrigger` | `slack` \| `app` \| `chat` \| `terminal` \| `main` \| `schedule` \| `null` | Value of the `x-audit-trigger` header: what started the agent turn behind the write. `main` means Erwin started it on his own, from a timer, a notice, or a routine. `slack`, `app`, `chat`, and `terminal` name where a person's message started it. `schedule` appears only on older rows, written when one of Erwin's former schedules started the turn. A request can no longer send it. On a change made by a [background job](#background-jobs), the run that made it, as `<route>@<start instant>`. `null` when the request sent no trigger, on other changes made by Sintropix itself, and on rows written before the header existed. |
+| `route` | string | The endpoint pattern that produced the mutation. For a change made by a scheduled job, the job's name. See [Background jobs](#background-jobs). |
+| `method` | string | HTTP method, for example `POST`. `JOB` for a change made by a scheduled job. Older rows of the Source Feed sync show `CRON`. |
 | `params` | object | Path parameters of the request. |
 | `organizationId` | UUID or `null` | The Organization of the write. |
 | `entityId` | UUID or `null` | The entity scope of the change. |
@@ -308,25 +308,47 @@ The audit trail is row-level and automatic: every write is recorded by the datab
 
 - **Actor:** `actorUserId` plus the name and role the authenticated user had at the write. A deleted user keeps that name and role in the trail, and the **Log** shows **(eliminado)** after their name.
 - **Credential type:** `session` for browser sessions, `api_key` for API key requests, `system` for changes made by Sintropix itself
-- **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor. A [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync that writes the Standing or Tax Period of a landed DTE carries `source-feed`, credited to the system. An [Email Arrival](#email-arrivals) carries the name of the email Provider that delivered the email, credited to the system.
+- **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor. A [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync that writes the Standing or Tax Period of a landed DTE carries `source-feed`, credited to the system. An [Email Arrival](#email-arrivals) carries the name of the email Provider that delivered the email, credited to the system. A [background job](#background-jobs) carries the name of the job.
 - **Declared reason:** the value of the `x-audit-reason` header (trimmed, up to 500 characters) explaining why the change was made; required on API-key mutations, optional on browser sessions
 - **Declared trigger:** the value of the optional `x-audit-trigger` header (stored as a claim), naming what started the agent turn behind the write. Every write Erwin makes carries the trigger of his turn: `main` when he started the work on his own, from a timer, a notice, or a routine, or `slack`, `app`, `chat`, or `terminal` when a person's message there started it. An envelope whose `declaredActor` starts with `erwin` and whose `declaredTrigger` is `main` is a change Erwin made on his own. Older rows show `schedule` for the same case
 - **Request id:** a server-generated unique id grouping all changes in one request
-- **Route and HTTP method:** the endpoint that produced the mutation, or the scheduled job that made it
+- **Route and HTTP method:** the endpoint that produced the mutation, or the background job that made it
 - **Entity id:** the entity scope the change occurred within
 - **Diff:** for inserts and deletes, the full row image; for updates, only the columns that moved with before and after values
 
 GET requests are not audited. Unbooking (soft delete) is no longer traceless: the removed entry's full image survives as Audit Changes.
 
-### Scheduled jobs
+### Background jobs
 
-Some changes are made by Sintropix on a schedule, with no request behind them. Their envelopes carry `credentialType: "system"`, and `route` and `method` name the job instead of an endpoint:
+Some changes are made by Sintropix on its own, on a schedule, with no request behind them. Each write of a background job lands in the trail like any other: it shows in the **Log**, in the **Actividad** of the record it changed, and in the [Audit Trail Feed](#follow-the-audit-trail-feed). Its envelope carries:
 
-| Job | `method` | `route` | What it changes |
-| --- | --- | --- | --- |
-| Scheduled [Source Feed](/api-reference/source-feeds) sync | `CRON` | `source-feed-sync-sweep` | The [Standing and Tax Period](/api-reference/source-feeds#standing-and-tax-period) of landed DTEs, and the booking of new Invoices from the vendor's [Booking Template](/api-reference/partners#booking-templates). |
+| Field | Value |
+| --- | --- |
+| `credentialType` | `system` |
+| `actor`, `actorUserId` | `null` |
+| `declaredActor` | The job, from the table below |
+| `declaredTrigger` | The run, as `<route>@<start instant>`, for example `scheduled-entries-tick@2026-11-09T19:24:26.364Z` |
+| `route` | The job's route, from the table below |
+| `method` | `JOB` |
+| `params` | `{}` |
 
-A sync you [start on demand](/api-reference/source-feeds#post-/source-feeds/sourcefeedid/sync) keeps the route and method of that request.
+| Job | `route` | `declaredActor` | The app shows | What it changes |
+| --- | --- | --- | --- | --- |
+| Scheduled [Bank Feed](/api-reference/bank-feeds) sync | `bank-feed-sync-sweep` | `bank-feed` | **Sincronización bancaria** | The Bank Movements it imports into fed Bank Accounts. |
+| Scheduled [Source Feed](/api-reference/source-feeds) sync | `source-feed-sync-sweep` | `source-feed` | **Sincronización de documentos** | The Invoices, DTEs, and Partners it lands, and the [Standing and Tax Period](/api-reference/source-feeds#standing-and-tax-period) of landed DTEs. |
+| [Scheduled Entries](/api-reference/ledger-entries#scheduled-entries) | `scheduled-entries-tick` | `scheduled-entries` | **Asientos programados** | The Scheduled Entries it books when their date arrives. |
+| [Overdue Tasks](/api-reference/tasks) | `overdue-tasks-tick` | `overdue-tasks` | **Tareas vencidas** | The `task_overdue` [Notifications](/api-reference/notifications#task-notifications) it sends. |
+| Automations | `automation-run-sweep` | `automation-runs` | **Automatizaciones** | The Runs that an Automation's schedule starts, and their final status. |
+| FX rate sync | `fx-sync` | `fx-sync` | **Sincronización de tipos de cambio** | The global [FX rates](/api-reference/fx-rates). They belong to no Organization, so they don't show in the Log or the feed. |
+| [General Ledger Export](/api-reference/integrations#when-the-export-runs) | `general-ledger-export-sweep` | `general-ledger-export` | **Exportación del libro mayor** | The sheets at Google. It writes nothing that the trail records. |
+
+A run that writes for several Organizations opens a separate envelope for each write, and each envelope belongs to one Organization only. So you see only your own Organization's changes. Every envelope of one run carries the same `declaredTrigger`: group on it to read a run as one.
+
+A booking from a vendor's [Booking Template](/api-reference/partners#booking-templates) during the Source Feed sync keeps the `booking-template` declared actor and carries the run's `declaredTrigger`. A sync you [start on demand](/api-reference/source-feeds#post-/source-feeds/sourcefeedid/sync) keeps the route, method, and actor of that request.
+
+<Note>
+  Background jobs didn't always write envelopes. Before, only the Source Feed sync's Standing and Tax Period updates and its Booking Template bookings had one, with the method `CRON`. Older changes of the other jobs have no envelope, so they are not in the Log, the Actividad, or the feed.
+</Note>
 
 ### Email Arrivals
 
@@ -338,6 +360,7 @@ When an email arrives at a Gmail, Outlook, or Mailbox Integration, Sintropix rec
 | `actor`, `actorUserId` | `null` |
 | `declaredActor` | The name of the email Provider that delivered the email |
 | `method`, `route` | `POST` to the Provider's webhook route, where the Provider told Sintropix of the email |
+| `declaredTrigger` | The delivery, as `<route>@<instant>`: the webhook route and when Sintropix received the delivery |
 | `entityId` | `null`. An Email Arrival belongs to the Organization, so it shows under **Empresa** |
 
 The change's `after` image holds the Email Arrival's headers in `snake_case`: `integration_id`, `email_id`, `from_address`, `to_addresses`, `subject`, `received_at`, and `attachment_count`. It never holds the body.
