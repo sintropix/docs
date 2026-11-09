@@ -9,8 +9,8 @@ import AppLink from "/snippets/app-link.mdx"
 Dimensions are reporting axes you define for an Organization. Each Dimension holds Dimension Values that tag Ledger Entry Lines. Only lines on Result Accounts (income and expense types) can carry Dimension Values. This page covers full CRUD for both Dimensions and their Values.
 
 <AppLink
-  url="https://app.sintropix.com/organizations/{organizationId}/settings/dimensions?dimension={dimensionId}"
-  note="The page lives in the Organization's Configuración, under Dimensiones. Take organizationId from any Entity of the Organization."
+  url="https://app.sintropix.com/organizations/{organizationId}/settings/dimensions"
+  note="The page lives in the Organization's Configuración, under Dimensiones. Take organizationId from any Entity of the Organization. Add dimensionSearch={text} to narrow the page to the Dimensions and values that match, for example a Dimension's name or a value's code."
 />
 
 ## Dimensions belong to the Organization
@@ -23,6 +23,20 @@ A Dimension and its Values belong to the [Organization](/api-reference/organizat
 - You can't delete a Value while a line of any Entity of the Organization carries it.
 - The [Income Statement by Dimension](/api-reference/reports#income-statement-by-dimension) stays per Entity: it lists the Organization's Values and adds up that Entity's lines.
 - An Entity whose lines carry a Value can't [move to another Organization](/api-reference/entities#patch-/api/entities/entityid/organization).
+
+## Manage Dimensions in the app
+
+In the app, Dimensions are managed in **Configuración** → **Dimensiones**, as **Grupo**. An entity's **Configuración** doesn't list the page, because Dimensions belong to the whole Organization. An Organization with one entity has no Grupo, so that entity's **Configuración** lists **Dimensiones**.
+
+The page is one tree. Each Dimension is a row you fold with its chevron, and its values are listed under it.
+
+- **Add a Dimension.** Click **Nueva dimensión**, type the name, and press Enter. The row of its first value opens.
+- **Add a value.** Click **+ Nuevo valor** at the end of the Dimension. Type the code, press Tab, and type the name. Press Enter to save, and the row stays open for the next value. Press Esc to close it.
+- **Edit.** Edit a value's code and name together in its row, or a Dimension's name in its row. To place a value under another value, use **Mover a otro valor**.
+- **Search.** The search box keeps the Dimensions whose name matches, with all their values, and the values whose code or name matches, under their Dimension.
+- **Delete.** **Eliminar** asks you to confirm. If the Dimension still has values, or a line carries the value, the dialog shows why it can't be deleted, and nothing is removed.
+
+If a change is refused, for example a code the Dimension already has, the reason shows under the row and your draft stays, so you can fix it.
 
 ## Required Dimensions
 
