@@ -61,7 +61,7 @@ Every route on this page returns Feeds in this shape.
 | `awaitingCount` | integer | Documents the provider counts but does not list yet, so a later sync lands them. Today only `sii_mirror` boletas; see [SII Mirror boletas](#sii-mirror-boletas). |
 | `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
 | `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
-| `report` | object | `{ tieOutLines, rejected, ignored?, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef, month? }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `range.month` (`YYYY-MM`) is present on the tie-out lines of an [expense Feed](#sync-an-expense-feed), one per month of creation. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`, `currency_mismatch`, `expense_category_unassigned`, or `person_unknown`). An expense Feed's rejections have `dteTypeCode: null` and the expense number as `folio`. `ignored[]` lists the documents the run ignored, each with its reason; see [Ignored documents](#ignored-documents). `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `expenseDivergences[]` is present only on an expense Feed's run and lists landed expenses that changed in the tool; see [Changed expenses](#changed-expenses). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (`sii_mirror` and `xpendit`); see [File attachments](#file-attachments). |
+| `report` | object | `{ tieOutLines, rejected, ignored?, unreadPeriods?, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef, month? }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `range.month` (`YYYY-MM`) is present on the tie-out lines of an [expense Feed](#sync-an-expense-feed), one per month of creation. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`, `currency_mismatch`, `expense_category_unassigned`, or `person_unknown`). An expense Feed's rejections have `dteTypeCode: null` and the expense number as `folio`. `ignored[]` lists the documents the run ignored, each with its reason; see [Ignored documents](#ignored-documents). `unreadPeriods[]` lists the past months of an SII book the mirror hasn't read yet (`{ taxPeriod, direction }`, where `taxPeriod` is `YYYY-MM` and `direction` is `issued` or `received`); see [Unread months](#unread-months). It is absent on runs recorded before Sintropix listed unread months. `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `expenseDivergences[]` is present only on an expense Feed's run and lists landed expenses that changed in the tool; see [Changed expenses](#changed-expenses). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (`sii_mirror` and `xpendit`); see [File attachments](#file-attachments). |
 | `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
@@ -368,13 +368,35 @@ A sync reads every month of both books from the link date to the day it runs, an
 
 ### The current month
 
-The mirror may not have read the current month yet, for example in the first hours of a month. A sync then reads the current month, on the Chilean calendar, as empty: it states no tie-out line for it and does not fail. A past month the mirror holds no answer for still fails the sync with `424`, because that is a real gap.
+The mirror may not have read the current month yet, for example in the first hours of a month. A sync then reads the current month, on the Chilean calendar, as empty: it states no tie-out line for it and does not fail. A past month the mirror holds no answer for is [unread](#unread-months).
 
 ### Recent months
 
 The SII can still change a month for a while after it closes, so the mirror reads its newest months again on every pass. A sync needs the current month, on the Chilean calendar, and the 2 months before it to hold an answer the mirror read in the last 24 hours. If one of them doesn't, the sync fails with `424`.
 
-An older month only needs an answer, of any age. A Feed with an early link date keeps syncing, and an older month lands as the mirror last read it. A past month with no answer at all still fails the sync, whatever its age.
+An older month only needs an answer, of any age. A Feed with an early link date keeps syncing, and an older month lands as the mirror last read it. A past month with no answer at all is [unread](#unread-months), whatever its age.
+
+### Unread months
+
+When a Feed's link date is earlier than the months the mirror has read for its RUT, the sync reaches past months the mirror holds no answer for yet. A sync treats each such month as **unread**:
+
+- It states no tie-out line for the unread month and does not fail. The run ends with `outcome: "success"`.
+- Every month it did read still lands.
+- `report.unreadPeriods` lists each unread month, once per book: `received` for purchases and BHE recibidas, `issued` for sales and BTE emitidas. For a `dte` Feed, a month is unread only when the mirror holds neither the summary nor the detail of that RCV book.
+- Each sync tells the mirror the first month of the Feed, so the mirror reads the missing months on its next passes. Sync again later, and those months land.
+
+```json
+"unreadPeriods": [
+  { "taxPeriod": "2026-07", "direction": "received" },
+  { "taxPeriod": "2026-07", "direction": "issued" }
+]
+```
+
+A preview reports unread months the same way.
+
+In the app, the Feed's last sync says **Aún no leído del SII**, followed by the unread months as ranges, such as *jul 2026 – ago 2026*, and *Se está leyendo y aparecerá en una próxima sincronización.* The run detail lists each unread month with its book, **Recibidos** or **Emitidos**.
+
+Two gaps still fail the sync with `424`: an RCV month that holds the summary but not the detail, and a [recent month](#recent-months) the mirror hasn't read in the last 24 hours.
 
 ## File attachments
 
