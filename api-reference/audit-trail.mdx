@@ -308,7 +308,7 @@ The audit trail is row-level and automatic: every write is recorded by the datab
 
 - **Actor:** `actorUserId` plus the name and role the authenticated user had at the write. A deleted user keeps that name and role in the trail, and the **Log** shows **(eliminado)** after their name.
 - **Credential type:** `session` for browser sessions, `api_key` for API key requests, `system` for changes made by Sintropix itself
-- **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor. A [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync that writes the Standing or Tax Period of a landed DTE carries `source-feed`, credited to the system. An [Email Arrival](#email-arrivals) carries `Resend` for a Mailbox or `Composio` for Gmail and Outlook, credited to the system.
+- **Declared actor:** the value of the `x-audit-actor` header on API-key mutations (stored as a claim, not a verified identity). Changes Erwin makes while a person chats with him in the app carry `erwin`, with that person as the actor. A [Source Feed](/api-reference/source-feeds#standing-and-tax-period) sync that writes the Standing or Tax Period of a landed DTE carries `source-feed`, credited to the system. An [Email Arrival](#email-arrivals) carries the name of the email Provider that delivered the email, credited to the system.
 - **Declared reason:** the value of the `x-audit-reason` header (trimmed, up to 500 characters) explaining why the change was made; required on API-key mutations, optional on browser sessions
 - **Declared trigger:** the value of the optional `x-audit-trigger` header (stored as a claim), naming what started the agent turn behind the write. Every write Erwin makes carries the trigger of his turn: `main` when he started the work on his own, from a timer, a notice, or a routine, or `slack`, `app`, `chat`, or `terminal` when a person's message there started it. An envelope whose `declaredActor` starts with `erwin` and whose `declaredTrigger` is `main` is a change Erwin made on his own. Older rows show `schedule` for the same case
 - **Request id:** a server-generated unique id grouping all changes in one request
@@ -336,8 +336,8 @@ When an email arrives at a Gmail, Outlook, or Mailbox Integration, Sintropix rec
 | --- | --- |
 | `credentialType` | `system` |
 | `actor`, `actorUserId` | `null` |
-| `declaredActor` | `Resend` for a Mailbox, `Composio` for Gmail and Outlook |
-| `method`, `route` | `POST`, and `/api/integrations/resend/webhook` or `/api/integrations/composio/webhook`: where the Provider told Sintropix of the email |
+| `declaredActor` | The name of the email Provider that delivered the email |
+| `method`, `route` | `POST` to the Provider's webhook route, where the Provider told Sintropix of the email |
 | `entityId` | `null`. An Email Arrival belongs to the Organization, so it shows under **Empresa** |
 
 The change's `after` image holds the Email Arrival's headers in `snake_case`: `integration_id`, `email_id`, `from_address`, `to_addresses`, `subject`, `received_at`, and `attachment_count`. It never holds the body.
