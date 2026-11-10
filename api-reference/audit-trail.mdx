@@ -41,8 +41,8 @@ With no filter, the page lists every envelope of the Organization. That includes
 | `includeOrganizationEnvelopes` | boolean | No | `true` keeps the envelopes that name no Entity (**Empresa**). Defaults to `false`. |
 | `cursor` | integer | No | Page cursor (positive integer). Pass the `nextCursor` from the previous page to fetch the next one. |
 | `limit` | integer | No | Page size, 1 to 100. Defaults to 50. |
-| `from` | ISO date | No | Filter envelopes on or after this date. Must be before or equal to `to` when both are given. |
-| `to` | ISO date | No | Filter envelopes on or before this date. |
+| `from` | day or instant | No | Keep envelopes at or after this bound. A day starts at its midnight. See [Date range](#date-range). Must not be after `to` when both are given. |
+| `to` | day or instant | No | Keep envelopes at or before this bound. A day includes the whole day. See [Date range](#date-range). |
 | `actorUserId` | UUID | No | Filter to a specific user. |
 
 **How the Entity filter matches**
@@ -77,8 +77,8 @@ Returns the audit envelopes that changed one row of the Entity, the same history
 | `rowId` | UUID | Yes | The id of the row. |
 | `cursor` | integer | No | Page cursor (positive integer). Pass the `nextCursor` from the previous page to fetch the next one. |
 | `limit` | integer | No | Page size, 1 to 100. Defaults to 50. |
-| `from` | ISO date | No | Filter envelopes on or after this date. Must be before or equal to `to` when both are given. |
-| `to` | ISO date | No | Filter envelopes on or before this date. |
+| `from` | day or instant | No | Keep envelopes at or after this bound. A day starts at its midnight. See [Date range](#date-range). Must not be after `to` when both are given. |
+| `to` | day or instant | No | Keep envelopes at or before this bound. A day includes the whole day. See [Date range](#date-range). |
 | `actorUserId` | UUID | No | Filter to a specific user. |
 
 **Accepted `tableName` values**
@@ -89,6 +89,31 @@ Some parents also pull in their child rows: `tableName=ledger_entry` returns cha
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=invoice&rowId=$INVOICE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## Date range
+
+Both routes take the same `from` and `to` bounds. Each bound is one of two forms:
+
+- **A day**, as `YYYY-MM-DD`, for example `2026-11-10`. A day is the whole day on the Organization's calendar, in the America/Santiago time zone. `from` starts at that day's midnight. `to` ends at the next midnight, so it keeps the whole day.
+- **An instant with an offset**, for example `2026-11-10T00:30:00-03:00` or `2026-11-10T03:30:00Z`. An instant is that exact moment, and the range includes it.
+
+So `from=2026-11-10&to=2026-11-10` returns every envelope of November 10 in Santiago. You can mix the forms, for example `from=2026-11-10&to=2026-11-10T12:00:00-03:00`.
+
+When either bound is a day, the two bounds are compared by their day in Santiago, and `from` must not fall on a later day than `to`. When both are instants, `from` must not be after `to`.
+
+The routes answer `400` for:
+
+- an instant with no offset, such as `2026-11-10T00:30:00`
+- a day that doesn't exist, such as `2026-02-30`
+- any other value, such as `yesterday`
+- a `from` after `to`
+
+The error message names both accepted forms: `Expected a day (YYYY-MM-DD) or an instant with an offset (2026-11-10T00:30:00-03:00)`.
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/audit-trail?from=2026-11-10&to=2026-11-10" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
@@ -370,6 +395,6 @@ The headers are the email's content, so the Log, the feed, and a record's histor
 | Code | Meaning |
 | --- | --- |
 | 200 | Success |
-| 400 | Invalid query parameters (bad type, a malformed `entityIds`, `from` after `to`, a record history request without `tableName` and `rowId`, a malformed feed `after` cursor, or a `waitSeconds` or `limit` out of range) |
+| 400 | Invalid query parameters (bad type, a malformed `entityIds`, a `from` or `to` that is neither a day nor an instant with an offset, `from` after `to`, a record history request without `tableName` and `rowId`, a malformed feed `after` cursor, or a `waitSeconds` or `limit` out of range) |
 | 401 | Unauthenticated |
 | 404 | Organization or Entity not found, outside your Organizations, or an Entity your API key is not confined to |
