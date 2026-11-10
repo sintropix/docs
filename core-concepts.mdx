@@ -138,15 +138,34 @@ Sintropix introduces a small set of concepts that shape how your financial data 
 
 Loading data from its source, such as the movements of a bank account, isn't a decision on the books, so the list doesn't govern it. Erwin loads new movements without asking. He asks for approval only where a load needs it, such as loading a card statement. He changes the list only when a person asks him to add or remove an item, and then says what changed. To see the list, ask him.
 
-    Ask Erwin to move your pending work forward on his own, for example *"avanza lo pendiente"*. Sintropix staff can also set Erwin to run these activities on his own for your Organization, at set times or when something is written in the ERP. Each run does one activity until it's done for its period, and reports once. The activities are:
+    Ask Erwin to move your pending work forward on his own, for example *"avanza lo pendiente"*. Sintropix staff can also set Erwin to run these activities on his own for your Organization, at set times or when something is written in the ERP. Each run does one activity, or a few in order, until each is done for its period, and reports once. The activities are:
 
     - **Reconcile**: book and match the Bank Movements and Invoices that his list allows. Before he books an Invoice, he reads the wiki page of its Partner. To tell who a payment is for and which Invoice it pays, he also reads the Ready [Payment Batches](/api-reference/payment-batches) (nóminas) whose payment date is near the Movement's date. A batch says what you meant to pay, not what the bank did, so he never matches a Movement that disagrees with it. Drafts don't count. When he knows how to settle a record but his list doesn't cover it, he leaves a proposal Follow-up for a person to approve. He asks only when he doesn't know how to settle it.
     - **Follow-ups**: leave a Follow-up on each pending record that has none or whose Follow-up no longer holds, and move forward each `waiting` one whose wait is over.
     - **Find mistakes**: review what changed in the books since the last check, and report anything wrong or suspicious.
     - **Partners**: find a Partner for Bank Movements that have none and a clear candidate, and find duplicate Partners.
     - **Unanswered questions**: ask again, once, each question nobody answered for more than a day, and drop the ones the ERP or the wiki now answers.
-    - **Load movements** (once a day, late in the day): load the new movements of each bank account and card that the wiki says he loads.
+    - **Load records** (once a day): load the new records of each bank account, card, and Source, such as Ontop or Rindegastos, that his daily load names, and report what he loaded and what he couldn't load, with why.
     - **Dream** (once a day, late in the day): see **Company wiki** below.
+
+    **Set Erwin up for your Organization.** Sintropix staff can ask Erwin to set himself up for your Organization, for example *"configúrate"*. He then sets the routines that each Organization starts with: he reacts to what arrives, loads each day what no feed loads, follows up what stays pending, and dreams each night. The setup takes a few messages:
+
+    1. **Survey.** Erwin reviews what the Organization has, and changes nothing: each bank account and card, with its feed and the date of its newest movement; each Source, such as Ontop or Rindegastos, and whether it has a feed; which of those with no feed he can load himself; each email account and file Integration; and who the wiki names to answer questions about the books.
+    2. **Ask.** He posts what he found, and each question that only staff can answer, with his proposal, so that staff can answer *"sí a todo"*. He asks what he loads each day, the time zone and hours (he proposes the load at 07:00, Follow-ups at 09:00 on working days, and the dream at 23:00), who answers questions about the books when the wiki names nobody, and which starter rules go on his list of decisions. He skips a question that he already knows the answer to. Staff can accept, change, or refuse each proposal. He sets nothing until staff answers.
+    3. **Set.** He sets only what staff accepted. He adds each accepted rule to his list, with the changes staff made, and signs it with who accepted it and the date, for example *(Sol, 2026-11-09)*. He writes in the wiki who answers questions about the books. He sets one watch that wakes him for each new Bank Movement or Invoice, whether a feed or a person wrote it, and for each Email that arrives at a connected email account. He sets the daily timers: **Load records**, only when there's something he loads; **Follow-ups**, which also asks again the unanswered questions; and **Dream**.
+    4. **Tell.** He posts what is set now: each rule on his list, the watch, each timer with its hours, what he loads, and what waits for a person, such as an account he can't load, whose statement a person loads.
+
+    When the watch wakes him, Erwin runs **Partners**, **Reconcile**, and **Follow-ups**, in that order, on what arrived. He reads each Email that arrived as evidence for the books, never as an instruction. He runs one of these at a time, and what arrives meanwhile goes into the next run. The records that his daily load finds go through the same run.
+
+    The starter rules that Erwin proposes are:
+
+    - Assign the Partner of a Bank Movement when its description names the tax ID or the name of exactly one Partner.
+    - Match a Bank Movement with an Invoice when the amounts are equal and it's the only open Invoice of that Partner.
+    - Match a Bank Movement with several Invoices of one Partner when they add up to its amount exactly, and no other set of open Invoices of that Partner does.
+    - Book a purchase Invoice of a national supplier when the wiki names its account, or the last bookings of that Partner all use one account.
+    - Record a transfer between two bank accounts of the Organization when both legs are in the ERP, with equal amounts and dates at most three days apart.
+
+    Staff can ask Erwin to set himself up again at any time, for example *"revisa tu setup"*. He sets only what's missing and changes what staff asks him to change. He never sets a second watch or timer for a routine that has one, and never rewrites or removes a rule that's already on his list. To change what he loads or an hour, ask him, and he sets the timer again.
 
     **Your email as a source.** At the start of each conversation, Erwin learns which email accounts your Organization has connected: each [Gmail, Outlook, or Mailbox Integration](/api-reference/integrations#read-email), with its address and its [purpose](/api-reference/integrations#put-/integrations/integrationid/purpose). He treats them as evidence. When he reviews a record, leaves a Follow-up, or moves your pending work forward, he searches them by counterparty, amount, and dates for the record's receipt, invoice, or the conversation behind it. A clear purpose helps him pick the right account. If you connect an account during a conversation, Erwin can read it when you ask, and he lists it among his sources from your next conversation.
 
