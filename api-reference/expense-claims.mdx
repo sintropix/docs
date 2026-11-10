@@ -242,7 +242,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claims/$
 An **Expense Category** names what an expense was spent on, such as "Alimentación", "Movilización", or "Hospedaje". Each Entity keeps its own list. A category can carry an expense account: a claim that names the category proposes that account, so the submitter picks what the expense was, not where it books.
 
 - A category's name is unique within its Entity. Sintropix trims surrounding spaces, so `" Taxi "` and `"Taxi"` are one name.
-- A category starts with no account. Assign one before a claim names it.
+- A category starts with no account. Assign one before a claim names it. An [expense Feed](/api-reference/source-feeds#expense-accounts-from-xpendits-codes) can assign it for you from the account code of the category in Xpendit.
 - You can rename a category and assign it another account, but you can't clear an account once it's assigned.
 - The account must be an expense account of the Entity: of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`.
 - You can delete a category while no Expense Claim names it. Once a claim names it, whatever the claim's status, the category stays: rename it instead.
@@ -339,7 +339,7 @@ Delete a category that no Expense Claim names, such as one created by mistake. T
 - An unknown id receives `404` with `EXPENSE_CATEGORY_NOT_FOUND_ERROR`.
 
 <Note>
-  A category that an [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) brought comes back the next time the Feed reads an expense of that category. It returns with no expense account, so the expense is rejected with `expense_category_unassigned` until you assign one again. In the app, the delete confirmation of such a category says so.
+  A category that an [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) brought comes back the next time the Feed reads an expense of that category. It returns with no expense account, unless its [code in Xpendit](/api-reference/source-feeds#expense-accounts-from-xpendits-codes) names an expense account of the Entity. Until it has one, the expense is rejected with `expense_category_unassigned`. In the app, the delete confirmation of such a category says so.
 </Note>
 
 **Response** (`200`): the deleted Expense Category object.
