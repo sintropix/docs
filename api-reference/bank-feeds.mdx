@@ -45,7 +45,7 @@ An API key confined to one Entity gets its own Entity as the one entry of `entit
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `status` | `active`, `inactive`, or `login_required` | Provider's judgment of the grant. `login_required` means the institution rejected the stored grant and you must [reconnect](/api-reference/integrations#post-/integrations/integrationid/reconnect) |
+| `status` | `active`, `inactive`, or `login_required` | Provider's judgment of the grant. `login_required` means the institution rejected the stored grant, and `accounts` is empty. For Fintoc, [reconnect](/api-reference/integrations#post-/integrations/integrationid/reconnect). For Plaid, disconnect the Integration and connect the bank again. See [Plaid](#plaid) |
 | `accounts` | `array` | Accounts the Provider discovered (see below) |
 | `entities` | `array` | Every Entity of the Organization a discovered account can feed, in name order (see below) |
 | `refreshing` | `boolean \| null` | `true` while the Provider is still refreshing the grant, `false` when every refresh has finished, `null` when the refresh state could not be read |
@@ -369,7 +369,13 @@ A sync updates the description and these lines on every Movement it landed, book
   Feed dates follow the calendar of Santiago (Chile), not US time. A transaction can post late on a US day that is already the next day in Santiago, or post after you map with a date before the feed start date. Such a transaction never lands, but the account's balance at Plaid counts it, so every later sync leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out) by its amount. To fix it, [remove the feed](/api-reference/bank-accounts#delete-a-bank-account-feed) and map the account again with a feed start date on or before that transaction.
 </Warning>
 
-**Errors.** When the bank login expires at the bank, a sync answers `424` with `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`. When the bank login was removed at Plaid, it answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-/integrations/integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-/integrations/integrationid/reconnect).
+**Errors.** When the bank asks for a new sign-in, because the bank login expired or the account holder withdrew consent, the discovered accounts answer `status: "login_required"` with no accounts. A sync answers `409` with `INTEGRATION_NOT_ACTIVE_ERROR`, and `params.status` is `login_required`. When the bank login was removed at Plaid, a sync answers `410` with `INTEGRATION_GRANT_GONE_ERROR`. In both cases, [disconnect the Integration](/api-reference/integrations#delete-/integrations/integrationid) and connect it again. Plaid Integrations don't [reconnect](/api-reference/integrations#post-/integrations/integrationid/reconnect).
+
+In the app, the bank's panel and a sync say *"El banco pide iniciar sesión de nuevo."* To feed the accounts again:
+
+1. In **Integraciones**, disconnect the bank.
+2. Connect the bank again with Plaid Link.
+3. Link each account to its Bank Account with **Asociar existente**, so the feed continues on the same Bank Account.
 
 ### Polar
 
