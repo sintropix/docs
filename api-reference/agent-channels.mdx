@@ -12,7 +12,7 @@ The Organization's own Chat in the app needs no Agent Channel: every Organizatio
 
 A place has no default Entity: the agent works on the Entity each request is about. See [Which company Erwin works on](#which-company-erwin-works-on).
 
-A [recurring task or a notice](#recurring-tasks-and-notices) belongs to the Organization of the thread that asked for it, and Erwin posts it only in that thread. If you rebind the channel to a different Organization, Erwin no longer posts there, so an old task never reports on the new Organization.
+A [recurring task or a notice](#recurring-tasks-and-notices) belongs to the Organization of the thread that asked for it, and Erwin posts it only in that thread or in its channel. If you rebind the channel to a different Organization, Erwin no longer posts there, so an old task never reports on the new Organization.
 
 <Warning>
   Staff-only. The routes below require the `staff` Role in the Organization. A `client` or `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key confined to one Entity also receives `403`, because these routes act on the whole Organization. See [Access and roles](/api-reference/overview#access-and-roles).
@@ -29,6 +29,7 @@ In the app, staff manages the same bindings in **Configuración → Canales del 
 | `platform` | `slack` | The outside platform. One value today; WhatsApp adds a value when it arrives. |
 | `channelId` | string | The id the platform gives the place (for Slack, the channel id such as `C0123ABC`). Unique per `platform`. |
 | `label` | string | The name staff reads the place by, for example `#bulk-contabilidad`. Free text. |
+| `purpose` | string \| null | What the channel is for and who talks there, in staff's words, for example *"Contabilidad de Acme: Ana responde por los libros"*. Erwin reads it to choose the channel where he [starts a thread](#erwin-starts-a-thread). Up to 500 characters. `null` when staff wrote none. |
 | `createdAt`, `updatedAt` | ISO 8601 timestamp | Row timestamps. |
 
 ## POST `/organizations/:organizationId/agent-channels`
@@ -42,6 +43,7 @@ Bind a place to the Organization.
 | `platform` | `slack` | Yes | The outside platform. |
 | `channelId` | string | Yes | The id the platform gives the place. Trimmed, non-empty. |
 | `label` | string | Yes | Human-readable name for the place. Trimmed, non-empty. |
+| `purpose` | string \| null | No | What the channel is for. Trimmed, up to 500 characters. A blank string or `null` stores `null`. |
 
 **Response** (`201`): the created Agent Channel object.
 
@@ -53,7 +55,8 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/agent
   -d '{
     "platform": "slack",
     "channelId": "C0123ABC",
-    "label": "#bulk-contabilidad"
+    "label": "#bulk-contabilidad",
+    "purpose": "Contabilidad de Acme: Ana responde por los libros"
   }'
 ```
 
@@ -72,13 +75,16 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/agent-channel
 
 ## PATCH `/organizations/:organizationId/agent-channels/:agentChannelId`
 
-Rename an Agent Channel. `label` is the only editable field. `platform` and `channelId` are set at create time and never move; to point the binding at a different place, delete this row and create a new one.
+Rename an Agent Channel, or set its purpose. `label` and `purpose` are the only editable fields. `platform` and `channelId` are set at create time and never move; to point the binding at a different place, delete this row and create a new one.
 
 **Body**
 
+Send `label`, `purpose`, or both. A body with neither, or with any other key, is refused with `400`.
+
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `label` | string | Yes | New label. Trimmed, non-empty. |
+| `label` | string | No | New label. Trimmed, non-empty. |
+| `purpose` | string \| null | No | New purpose. Trimmed, up to 500 characters. A blank string or `null` clears it. |
 
 **Response:** the updated Agent Channel object.
 
@@ -89,6 +95,8 @@ curl -X PATCH "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/agen
   -H "Content-Type: application/json" \
   -d '{ "label": "#contabilidad-clientes" }'
 ```
+
+In the app, staff writes the purpose in the **Propósito** column of **Configuración → Canales del agente**, in the channel's row.
 
 ## DELETE `/organizations/:organizationId/agent-channels/:agentChannelId`
 
@@ -166,7 +174,11 @@ To change course without stopping, send a new message in the thread, for example
 
 When Erwin needs a fact from a person, he ends his answer with one short question and stops. To answer, reply in the thread. Anyone in the thread can answer, and Erwin continues from your reply.
 
-Erwin doesn't @-mention people in Slack. He refers to them by name, so his messages don't notify anyone directly. The only exception is a [sign-in by hand](#sign-in-to-a-bank-by-hand), which expires in five minutes.
+Erwin doesn't @-mention people in his replies. He refers to them by name, because the people of a thread already read it. He tags a person only on a message they aren't waiting for:
+
+- The first message of a thread [he starts](#erwin-starts-a-thread) tags the person it's for.
+- A [reminder or a notice](#recurring-tasks-and-notices) tags the person who asked for it.
+- A [sign-in by hand](#sign-in-to-a-bank-by-hand) tags a person, because it expires in five minutes.
 
 <Note>
   Older question cards may still show a **Responder** button. It no longer works: reply in the thread instead.
@@ -180,6 +192,14 @@ Santander Personas takes an automated sign-in, so Erwin signs in to it by himsel
 
 For Santander, Erwin reads the label of the Entity's Santander login Credential to know which site to open. Include `Persona` or `Empresa` in the label, for example `Santander Persona` or `Santander Empresa`. Without either word, Erwin looks for the answer in the client's [wiki](/core-concepts). If the wiki doesn't say, he asks which one before he starts, and writes your answer in the wiki so he doesn't ask again.
 
+### Erwin starts a thread
+
+Erwin can start a new thread in a channel bound to his Organization, without anyone mentioning him first. For example, he asks the person who answers about the books a question, or posts a reminder someone asked to get in the channel. The first message tags the person it's for. Reply in that thread to continue: Erwin answers there, as in a thread you started.
+
+Erwin starts threads only in channels bound to his own Organization. To choose the channel and the person, he reads each channel's label and [purpose](#the-agent-channel-object), and the channel's members with their Role in the Organization. Write a purpose for each channel so he picks the right one.
+
+When you mention Erwin in a new thread, he reacts first, then answers in the thread. If he can't take the thread within 2 minutes, the thread shows a short message that he couldn't answer. Mention him again to retry.
+
 ### Read the Organization's Slack channels
 
 Erwin can read the Slack channels bound to his Organization, even where nobody mentioned him. He uses them as context for a task, in Slack and in the in-app chat. He reads only the channels he's a member of, and never a channel bound to another Organization.
@@ -191,12 +211,12 @@ Ask Erwin in a thread for work later, and he sets it up for that thread:
 - **A task at a time or on a schedule**, such as *"todos los lunes a las 9 mándame el resumen de bancos aquí"* or *"el 5 de diciembre revisa las facturas pendientes"*.
 - **A notice when something is written in the ERP**, such as *"avísame cuando entre el pago de Toku y su factura"* or *"avísame cuando se carguen los movimientos de Santander"*.
 
-Erwin first confirms in the thread what he set, and until when, or tells you why he couldn't. When the time comes, or the ERP records what you asked about, he posts in that same thread. Reply there to continue: he knows why he wrote.
+Erwin first confirms in the thread what he set, and until when, or tells you why he couldn't. When the time comes, or the ERP records what you asked about, he posts it where you chose, and tags you. Reply there to continue: he knows why he wrote.
 
 - **Time zone.** A task fires on the clock of the time zone you name, including daylight saving time. Without one, it uses `America/Santiago`.
 - **At most once an hour.** A recurring task runs at most once an hour. For something you need to know sooner, ask for a notice instead.
 - **A notice reads what happens after you ask.** It never fires for something already written before you asked. Each notice has an end date that fits the request. When it passes, the notice ends. To keep watching, ask again.
-- **In the thread only.** A task or a notice posts in the thread that asked for it, never as a new message in the channel. To get one in another thread, ask for it there.
+- **In the thread or in the channel.** A task or a notice arrives in the thread that asked for it, or as a new thread in that thread's channel. Say which when you ask, for example *"avísame en el canal"*. If you don't, Erwin asks you first. To get one in another channel, ask for it there.
 
 To change or cancel one, ask in the same thread, for example *"cancela el aviso de Toku"*. Erwin confirms the change there.
 
@@ -256,7 +276,7 @@ In a bound Slack channel, anyone in the channel can pick the model the Sintropix
 /model opus
 ```
 
-A change applies only to threads that start after it. A thread keeps the model it started with, so an open conversation never switches models midway. A [recurring task or notice](#recurring-tasks-and-notices) runs in the thread that asked for it, on that thread's model.
+A change applies only to threads that start after it. A thread keeps the model it started with, so an open conversation never switches models midway. A [recurring task or notice](#recurring-tasks-and-notices) that arrives in a thread runs on that thread's model. One that arrives as a new thread in the channel runs on the channel's model at that moment.
 
 The choice belongs to one channel. Other channels bound to the same Organization keep their own model. In the Chat, the choice belongs to the Organization's Chat and applies to the ERP Threads Erwin starts answering after it. Erwin answers `/model` in the ERP Thread you sent it in, and answers any other new messages there as usual. An unknown name changes nothing, and the agent replies with the list of options. In an unbound channel or a direct message, the agent replies that no one speaks there and changes nothing.
 
