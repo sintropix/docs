@@ -313,6 +313,7 @@ Returns `201 Created` with:
 | 404 | Bank Account not found or not fed |
 | 409 | The Provider restated a Movement the feed already landed, and a person must accept the Provider's version (`BANK_FEED_SYNC_RESTATEMENT_ERROR`). Nothing landed. See [Restatement](#restatement) |
 | 409 | The sync found a restatement, but another sync landed after it read the Provider (`BANK_FEED_SYNC_RACED_ERROR`). Nothing landed. Sync again |
+| 409 | The bank asks for a new sign-in (`INTEGRATION_NOT_ACTIVE_ERROR`, with `params.integrationId` and `params.status: "login_required"`). Nothing landed. Reconnect a Fintoc Integration, or disconnect a Plaid Integration and connect it again. See [Bank Feeds](/api-reference/bank-feeds#plaid) |
 | 424 | The Provider refused the read or the landing (`BANK_FEED_PROVIDER_FAILURE_ERROR` and the other codes in [Provider refusals](/api-reference/overview#provider-refusals)) |
 | 503 | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR`). Retry later |
 
