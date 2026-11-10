@@ -49,7 +49,9 @@ Base path: `GET /api/entities/:entityId/reports`
 
 `GET /api/entities/:entityId/reports/home`
 
-Returns the home dashboard snapshot: cash position, daily balances for the last 60 days, monthly income for the last 6 months, receivables/payables open positions, and unbooked invoice counts.
+Returns the home dashboard snapshot: cash position, daily balances for the last 60 days, monthly income for the last 6 closed months, receivables/payables open positions, and unbooked invoice counts.
+
+Income is often recognized on a month's last day, so the month in progress would read near zero until it ends. `monthlyIncome` therefore holds closed months only: the 6 calendar months that ended before today, on the Santiago calendar (`America/Santiago`). During November 2026, it holds May to October 2026. November first appears on December 1. To compare the last closed month with the one before it, use the last two items of `monthlyIncome`. In the app, the income card on **Inicio** does the same: during November it reads **Ingresos de octubre** and compares it with September.
 
 **Query params**
 
@@ -65,8 +67,7 @@ Returns the home dashboard snapshot: cash position, daily balances for the last 
 | `cash.rateDate` | ISO date or null | Oldest publication date among the FX rates used; `null` when nothing was converted |
 | `cash.unconvertedCurrencies` | string[] | Currencies left out because no rate was published |
 | `dailyBalances` | array | Exactly 60 items of `{ date, total }`, one per calendar day |
-| `monthlyIncome` | array | Exactly 6 items of `{ monthKey, total }`; `monthKey` is `YYYY-MM` |
-| `priorMonthToDateIncomeTotal` | integer | Income in the prior month up to the same day of the month |
+| `monthlyIncome` | array | Exactly 6 items of `{ monthKey, total }`, oldest first, one per closed month; `monthKey` is `YYYY-MM`. A month with no income has `total: 0` |
 | `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines. It counts only debit lines, the normal side of a receivable |
 | `payable` | object | `{ total, count }`: open payable amount and the number of open lines. It counts only credit lines, the normal side of a payable. It includes what is owed on [Rendición por pagar](/api-reference/chart-of-accounts#expense-rendition-payable) accounts |
 | `salesToBook` | integer | Unbooked sales invoices. Invoices [excluded from the books](/api-reference/invoices#exclude-an-invoice-from-the-books) don't count. |
