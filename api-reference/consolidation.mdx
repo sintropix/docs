@@ -37,7 +37,9 @@ Every consolidated read takes the same query parameters for its Scope and its pr
 | `presentationCurrency` | string | Yes | Currency every amount is in, for example `CLP` |
 | `presentationRates` | string | Conditional | One `CURRENCY:rate` for each functional currency of the Scope other than `presentationCurrency`, where one unit of the presentation currency equals `rate` units of `CURRENCY`. Repeat the parameter once per currency. The rate is a positive decimal string. |
 
-Every presentation amount is the functional amount divided by its Entity's rate, rounded to the minor unit of the presentation currency. An Entity whose functional currency is the presentation currency isn't converted. One rate applies to every line of that currency, whatever its date.
+Every presentation amount is the functional amount divided by its Entity's rate, rounded half up to the minor unit of the presentation currency. An Entity whose functional currency is the presentation currency isn't converted. One rate applies to every line of that currency, whatever its date.
+
+Each line is converted and rounded once, on its own: what a Ledger Account carries into the Fiscal Year, a line of the year, and an elimination. Every other amount is a sum of those rounded lines. So a Trial Balance cell, a month of the Income Statement, and the closing balance of the Consolidated Ledger behind them always add up the same lines to the same amount.
 
 <Note>
   The rate goes in the direction of `presentationCurrency`. To read a USD Entity in CLP at 1 USD = 1.000 CLP, send `presentationCurrency=CLP&presentationRates=USD:0.001`, because 1 CLP equals 0.001 USD. To read a CLP Entity in USD at the same rate, send `presentationCurrency=USD&presentationRates=CLP:1000`.
@@ -109,7 +111,7 @@ The `unrevalued` and `translation` amounts sit in the Eliminaciones and Consolid
 
 The **Consolidated Trial Balance** is the balance of every Group Account of a Scope at a date. It has one row per Group Account, with one column per Entity of the Scope, then Eliminaciones, then Consolidado:
 
-- **An Entity's cell** is the closing balance at `date` of the Entity's Ledger Accounts mapped to that Group Account, converted to the presentation currency.
+- **An Entity's cell** is the balance at `date` of the Entity's Ledger Accounts mapped to that Group Account, in the presentation currency: what those accounts carry into the Fiscal Year plus their lines of the year up to `date`, each [converted once](#scope-currency-and-rates). It equals the closing balance of the [Consolidated Ledger](#consolidated-ledger) behind it.
 - **Eliminaciones** is the reversal of each linked line that the date eliminates.
 - **Consolidado** is the Entities' cells plus Eliminaciones.
 
@@ -137,7 +139,7 @@ Read the Consolidated Trial Balance of a Scope at a date.
 
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
-| `date` | ISO date | Yes | Date of the balance. Each Entity's cell is its closing balance at this date. |
+| `date` | ISO date | Yes | Date of the balance. Each Entity's cell counts its lines up to this date. |
 
 - **Success response:** the Consolidated Trial Balance
 - **Status:** 200
@@ -150,7 +152,7 @@ Read the Consolidated Trial Balance of a Scope at a date.
 | `entities` | array | The Scope's [Entities](#scope-currency-and-rates) |
 | `groupAccountBalances` | array | One row per Group Account with an amount, with the [amount fields](#amounts) and `groupAccount` |
 | `unclosedPriorResult` | object | The result of the closed Fiscal Years that no retained earnings account carries (**Resultados anteriores por cerrar**), with the [amount fields](#amounts) |
-| `conversionRounding` | object | The rounding that converting each balance to the minor unit of the presentation currency leaves, with the [amount fields](#amounts) |
+| `conversionRounding` | object | What rounding each converted line to the minor unit of the presentation currency leaves in each Entity's column, with the [amount fields](#amounts) |
 | `differences` | array | The [differences](#differences) at `date`. Empty when there are none. |
 
 ### Trial Balance example
@@ -285,7 +287,7 @@ Besides the [Scope refusals](#scope-currency-and-rates), a period that crosses a
 | --- | --- | --- |
 | `lines` | array | Lines on this page, in date order, each with the fields below |
 | `nextCursor` | string or null | Pass as `cursor` to fetch the next page; `null` on the last page |
-| `openingBalance` | integer | Balance at `from` of the lines the walk keeps: the Entities' converted openings less the eliminations completed before `from` |
+| `openingBalance` | integer | Balance at `from` of the lines the walk keeps: the sum of what they carry into the Fiscal Year and of their lines dated before `from`, each converted once. So the walk closes on the same balance whatever `from` you pick inside the Fiscal Year. |
 | `closingBalance` | integer | `openingBalance` plus the whole period, not only this page |
 | `lineCount` | integer | Number of lines in the whole period |
 
@@ -374,7 +376,7 @@ The elimination line is dated March 3, the day Inc booked its side of the Link.
 
 The **Consolidated Income Statement** is the result of a Scope over a period inside one [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports). It has one row per Group Account of a result type (`income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense`), and these columns:
 
-- **One column per Entity of the Scope.** What the Entity's Ledger Accounts mapped to that Group Account move in the period, converted to the presentation currency.
+- **One column per Entity of the Scope.** What the Entity's Ledger Accounts mapped to that Group Account move in the period: the sum of their lines, each [converted once](#scope-currency-and-rates).
 - **Eliminaciones.** The reversal of each linked line that the period eliminates.
 - **Consolidado.** The Entities' columns plus Eliminaciones.
 
@@ -419,7 +421,9 @@ Each row of `groupAccountBalances` carries `months`: its amount split by the mon
 
 Each item of `differences` carries `months` too, each `{ month, amount }`. A `translation` amount falls in the month of its Link's elimination. An `inTransit` amount falls in the month of the line booked alone.
 
-Only months with an amount are listed, in month order. The months of a row or a difference add up exactly to its amount for the period, column by column. An Entity's month in a foreign currency is the translation of what it moves up to that month's end, less the translation up to the previous month's end, so rounding never makes the months drift from the period.
+Only months with an amount are listed, in month order. A month is the sum of its lines, each converted once, so the months of a row or a difference add up exactly to its amount for the period, column by column.
+
+A row stays in the statement when any of its months has an amount, even when its months cancel over the period. For example, an expense booked in March and reversed in April shows both months, and the row's amount for the period is `0`.
 
 ### GET /api/organizations/:organizationId/consolidated-income-statement
 
@@ -445,7 +449,7 @@ Besides the [Scope refusals](#scope-currency-and-rates), a period that crosses a
 | `presentationCurrency` | string | Currency every amount is in |
 | `entities` | array | The Scope's [Entities](#scope-currency-and-rates) |
 | `accountGroups` | array | The Organization's [Group Account Groups](/api-reference/chart-of-accounts#group-account-groups) of the result types, each `{ id, parentGroupId, codePrefix, name }`. Nest each row under the group its `groupAccount.groupId` names. Empty when the Organization has none |
-| `groupAccountBalances` | array | One row per result Group Account with an amount in any column, with the [amount fields](#amounts), `groupAccount`, and [`months`](#months) |
+| `groupAccountBalances` | array | One row per result Group Account with an amount in any column of any month, with the [amount fields](#amounts), `groupAccount`, and [`months`](#months) |
 | `differences` | array | The `translation` and `inTransit` [differences](#differences), `translation` first, each with [`months`](#months). Empty when there are none. |
 | `result` | object | The result for the period (**Resultado neto** in the app): every row plus the conversion difference, column by column, with the [amount fields](#amounts) |
 
