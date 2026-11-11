@@ -146,6 +146,8 @@ He doesn't react to a message meant for another person, to people talking to eac
 
 Erwin reads the files you send in the thread, including in a Slack Connect channel shared with another company. He also reads the full address of each link you paste, even when Slack shows it shortened, so you can paste a Sintropix [app link](/guides/app-links) to point him to a record. He sees your message's formatting too, such as bold text and lists.
 
+An answer longer than one Slack message holds continues in the next messages of the thread, so you get the whole answer, in order. Each cut falls where a line ends. A table or a code block that falls on a cut can show broken in the next message.
+
 ### Which company Erwin works on
 
 Erwin knows every Entity of the bound Organization, by name and tax id. He works on the one you mean, as your messages and the records show it. When a request fits more than one Entity and the records don't settle it, he asks. To skip the question, name the company in your message, for example *"Carga la cartola de Acme Inversiones"*.
@@ -194,7 +196,7 @@ For Santander, Erwin reads the label of the Entity's Santander login Credential 
 
 ### Erwin starts a thread
 
-Erwin can start a new thread in a channel bound to his Organization, without anyone mentioning him first. For example, he asks the person who answers about the books a question, or posts a reminder someone asked to get in the channel. The first message tags the person it's for. Reply in that thread to continue: Erwin answers there, as in a thread you started.
+Erwin can start a new thread in a channel bound to his Organization, without anyone mentioning him first. For example, he asks the person who answers about the books a question, or posts a reminder someone asked to get in the channel. The first message tags the person it's for. If it's longer than one Slack message holds, the rest follows as replies in that thread. Reply in that thread to continue: Erwin answers there, as in a thread you started.
 
 Erwin starts threads only in channels bound to his own Organization. To choose the channel and the person, he reads each channel's label and [purpose](#the-agent-channel-object), and the channel's members with their Role in the Organization. Write a purpose for each channel so he picks the right one.
 
