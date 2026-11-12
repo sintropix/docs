@@ -1,99 +1,224 @@
 ---
 title: "Sintropix FX Rates API: Read and Sync Currency Rates"
 sidebarTitle: "FX Rates"
-description: "Read a single FX rate, list the most recent published rates, and trigger a rate sync from Banco Central de Chile through the Sintropix ERP API."
+description: "Look up an Entity's FX rate from its country's official Rate Source, list recent rates of Banco Central de Chile or Banco de México, suggest presentation rates, and trigger a rate sync through the Sintropix ERP API."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-The FX Rates API exposes the currency conversion rates Sintropix uses across every Entity. Rates are mirrored as published by Banco Central de Chile; the sync endpoint refreshes the stored rates and is restricted to staff. The read endpoints are Entity-independent because rates are global.
+The FX Rates API exposes the official currency rates Sintropix uses to value foreign-currency amounts. Rates are mirrored as published by each Rate Source. You look up a rate for an Entity, and the Entity's country decides which Rate Source answers. The sync endpoint refreshes the stored rates and is restricted to staff.
 
-Sintropix tracks eight currency pairs, all quoted in CLP. Each pair comes from one Banco Central series, named in the rate's `source`:
+## Rate Sources
 
-| Pair | `source` |
-| --- | --- |
-| `USD/CLP` | `dolar_observado` |
-| `EUR/CLP`, `GBP/CLP` | `tipo_cambio_observado` |
-| `MXN/CLP`, `COP/CLP`, `ARS/CLP`, `BRL/CLP`, `PEN/CLP` | `tipo_cambio_referencial` |
+A **Rate Source** is the official authority whose rates an Entity reads. The Entity's country picks it:
 
-A line in one of these currencies, booked in a CLP Entity, gets the pair's rate as its default. A pair outside this list has no stored rate, so a lookup for it returns `404`.
+| Entity country | Rate Source | `rateSource` |
+| --- | --- | --- |
+| Chile (`CL`) | Banco Central de Chile | `banco_central_de_chile` |
+| Mexico (`MX`) | Banco de México | `banco_de_mexico` |
 
-Rates are stored exactly as Banco Central de Chile publishes them, with at most two decimals. For currencies worth less than one Chilean peso, such as COP and ARS, the rate is below one (for example `"0.24"`), and the published rounding carries through to the converted amount.
+An Entity in any other country has no Rate Source, so a lookup for it returns `404` with `FX_RATE_SOURCE_NOT_FOUND_ERROR`. Type the rate yourself on the line instead.
+
+There is no fallback from one Rate Source to another. If the Entity's Rate Source doesn't publish a pair, the lookup returns `404` with `FX_RATE_NOT_FOUND_ERROR`, even when the other source publishes it. For example, a Chilean Entity gets no MXN rate from Banco de México.
+
+### Rate series
+
+Each stored rate comes from one series of its Rate Source, named in the rate's `series`:
+
+| Rate Source | Pair | `series` |
+| --- | --- | --- |
+| Banco Central de Chile | `USD/CLP` | `dolar_observado` |
+| Banco Central de Chile | `EUR/CLP`, `GBP/CLP` | `tipo_cambio_observado` |
+| Banco Central de Chile | `MXN/CLP`, `COP/CLP`, `ARS/CLP`, `BRL/CLP`, `PEN/CLP` | `tipo_cambio_referencial` |
+| Banco de México | `USD/MXN` | `tipo_cambio_solventar_obligaciones` |
+| Banco de México | `EUR/USD`, `GBP/USD`, `CLP/USD`, `PEN/USD`, `COP/USD`, `BRL/USD`, `ARS/USD` | `equivalencia_monedas_dolar` |
+
+A rate's `rateDate` is the day the series dates the value for:
+
+- **Banco Central de Chile:** the publication date.
+- **`tipo_cambio_solventar_obligaciones`:** the day the rate applies, which is the day after Banco de México publishes it in the Diario Oficial de la Federación (DOF). Rates for the coming days are available ahead of time.
+- **`equivalencia_monedas_dolar`:** the day the DOF publishes the monthly table of each currency's equivalence to the dollar. A lookup uses that table until the next one is published.
+
+Rates are stored with the decimals the Rate Source publishes. Banco Central de Chile publishes at most two decimals, so for currencies worth less than one Chilean peso, such as COP and ARS, the rate is below one (for example `"0.24"`), and the published rounding carries through to the converted amount. Every rate is per one unit of the base currency.
+
+### How a lookup links two currencies
+
+A lookup links the transaction currency to the Entity's functional currency with rates from the Entity's Rate Source only:
+
+- **Direct:** one stored pair, for example `USD/CLP` for a USD amount in a CLP Entity.
+- **Inverted:** one stored pair read the other way, for example `USD/CLP` divided out to value CLP in a Chilean Entity that keeps its books in USD.
+- **Through one other currency:** two stored pairs, for example `EUR/USD` then `USD/MXN` for a EUR amount in a Mexican MXN Entity.
+
+The answer names each stored rate it used in `legs`, and its `rateDate` is the oldest `rateDate` among them. A direct rate is the published value, digit for digit. A rate through two pairs keeps every digit of their product, and an inverted rate is rounded to 20 decimals. A lookup where the transaction currency is the functional currency has no rate and returns `404`.
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/settings/fx-rates"
-  note="The page lives in the Organization's Configuración, under Tipos de cambio, and shows the same global rates in every Organization."
+  note="The page lives in the Organization's Configuración, under Tipos de cambio. Pick the Rate Source in Fuente oficial; the page defaults to Banco Central de Chile, and ?rateSource=banco_de_mexico opens it on Banco de México."
 />
 
+In the app, the rate field of an Invoice, an entry line, and a Movement's reconciliation is prefilled with the Entity's rate. The hint under the field names the series and date of each rate it used. When there is no rate, the field shows why, and you type the rate.
+
 ## The FX Rate object
+
+One stored rate, as its Rate Source publishes it.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `baseCurrency` | string | ISO 4217 code of the base currency, for example `USD`. |
 | `quoteCurrency` | string | ISO 4217 code of the quote currency, for example `CLP`. |
-| `rateDate` | string (`YYYY-MM-DD`) | The publication date of the rate. |
+| `rateDate` | string (`YYYY-MM-DD`) | The day the series dates the rate for. See [Rate series](#rate-series). |
 | `rate` | decimal string | One major unit of `baseCurrency` equals `rate` major units of `quoteCurrency`, for example `"943.25"`, or `"0.24"` for `COP/CLP`. Always a string, never a float. |
-| `source` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` | Which Banco Central series the rate came from. |
+| `series` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` \| `tipo_cambio_solventar_obligaciones` \| `equivalencia_monedas_dolar` | Which series the rate came from. |
 | `createdAt` | ISO 8601 timestamp | When the rate was stored. |
 
-## GET `/fx-rates`
+## GET `/entities/:entityId/fx-rate`
 
-Return the FX rate for a currency pair on a given date. The `date` is the date being valued (an Invoice's issue date, for example), not necessarily a publication date: the response is the most recent rate published on or before it, and `rateDate` tells you which day that was.
+Return the rate that values one unit of a transaction currency in the Entity's functional currency on a given date. The `date` is the date being valued (an Invoice's issue date, for example), not necessarily a `rateDate`: the answer uses the most recent rates dated on or before it.
+
+The route is an Entity route, so you need access to the Entity.
 
 **Query parameters**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `baseCurrency` | string | Yes | Base currency code, for example `USD`. |
-| `quoteCurrency` | string | Yes | Quote currency code, for example `CLP`. |
+| `transactionCurrency` | string | Yes | Currency of the amount to value, for example `USD`. |
 | `date` | string (`YYYY-MM-DD`) | Yes | The date to value. |
 
-- **Response:** an FX Rate object.
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `transactionCurrency` | string | The requested currency. |
+| `functionalCurrency` | string | The Entity's functional currency. |
+| `rate` | decimal string | One unit of `transactionCurrency` equals `rate` units of `functionalCurrency`. Use it as the line's `transactionFxRate`. |
+| `rateDate` | string (`YYYY-MM-DD`) | The oldest `rateDate` among `legs`. |
+| `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` | The Entity's Rate Source. |
+| `legs` | array | The one or two stored rates the answer used, in order. Each has `baseCurrency`, `quoteCurrency`, `rateDate`, `rate`, and `series` as in [the FX Rate object](#the-fx-rate-object), and `inverted`: `true` when the lookup divided by the rate instead of multiplying. |
 
 ```bash
-curl "https://api.sintropix.com/api/fx-rates?baseCurrency=USD&quoteCurrency=CLP&date=2025-12-31" \
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/fx-rate?transactionCurrency=EUR&date=2026-11-10" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
+For a Mexican Entity that keeps its books in MXN, EUR goes through the dollar:
+
 ```json
 {
-  "baseCurrency": "USD",
-  "quoteCurrency": "CLP",
-  "rateDate": "2025-12-31",
-  "rate": "943.25",
-  "source": "dolar_observado",
-  "createdAt": "2025-12-31T12:05:00.000Z"
+  "transactionCurrency": "EUR",
+  "functionalCurrency": "MXN",
+  "rate": "21.40126292",
+  "rateDate": "2026-11-03",
+  "rateSource": "banco_de_mexico",
+  "legs": [
+    { "baseCurrency": "EUR", "quoteCurrency": "USD", "rateDate": "2026-11-03", "rate": "1.1563", "series": "equivalencia_monedas_dolar", "inverted": false },
+    { "baseCurrency": "USD", "quoteCurrency": "MXN", "rateDate": "2026-11-10", "rate": "18.5084", "series": "tipo_cambio_solventar_obligaciones", "inverted": false }
+  ]
+}
+```
+
+**Errors**
+
+A refusal answers `404` with a `code` and `params` you can show to the reader:
+
+| Code | When | `params` |
+| --- | --- | --- |
+| `FX_RATE_SOURCE_NOT_FOUND_ERROR` | The Entity's country has no Rate Source. | `entityId`, `country`, `transactionCurrency`, `functionalCurrency`, `date` |
+| `FX_RATE_NOT_FOUND_ERROR` | The Entity's Rate Source links no rate for the pair on or before `date`, or `transactionCurrency` is the functional currency. | `rateSource`, `transactionCurrency`, `functionalCurrency`, `date` |
+
+```json
+{
+  "statusCode": 404,
+  "code": "FX_RATE_NOT_FOUND_ERROR",
+  "params": {
+    "rateSource": "banco_central_de_chile",
+    "transactionCurrency": "KYD",
+    "functionalCurrency": "CLP",
+    "date": "2026-11-10"
+  },
+  "requestId": "..."
 }
 ```
 
 ## GET `/fx-rates/recent`
 
-List the most recent published rates across all tracked currency pairs: up to 100 rates, newest `rateDate` first.
+List the most recent rates of one Rate Source: up to 100 rates, newest `rateDate` first. This route is Entity-independent.
+
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` | Yes | The Rate Source to list. |
 
 - **Response:** array of FX Rate objects.
 
+```bash
+curl "https://api.sintropix.com/api/fx-rates/recent?rateSource=banco_de_mexico" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## GET `/organizations/:organizationId/fx-rates/presentation-rates`
+
+Suggest a presentation rate for each functional currency of some Entities of the Organization, to read them in one presentation currency. Pass the suggestions as `presentationRates` to a [consolidated report](/api-reference/consolidation#scope-currency-and-rates), or use the one for a single Entity in its [reports](/api-reference/reports).
+
+Each functional currency is valued at the Rate Source of the Entities that keep it. The route needs the `books` read permission, so every Role can call it. An API key [confined to one Entity](/guides/api-keys) reads that Entity only.
+
+**Query parameters**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `presentationCurrency` | string | Yes | The currency to present in, for example `USD`. |
+| `date` | string (`YYYY-MM-DD`) | Yes | The date to value. |
+| `entityIds` | UUID | No | An Entity to include. Repeat the parameter once per Entity. Without it, the route reads every Entity of the Organization you can reach. |
+
+**Response:** an array with one item per functional currency of the Entities, sorted by currency:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `functionalCurrency` | string | A functional currency of the Entities. |
+| `suggestedRate` | object \| null | The suggestion, or `null` when there is none (see below). |
+| `suggestedRate.presentationCurrency` | string | The requested presentation currency. |
+| `suggestedRate.functionalCurrency` | string | Same as `functionalCurrency`. |
+| `suggestedRate.presentationRate` | decimal string | One unit of the presentation currency equals `presentationRate` units of the functional currency. |
+| `suggestedRate.rateDate` | string (`YYYY-MM-DD`) | The oldest `rateDate` among the rates it used. |
+| `suggestedRate.rateSource` | `banco_central_de_chile` \| `banco_de_mexico` | The Rate Source it read. |
+
+`suggestedRate` is `null` when:
+
+- the functional currency is the presentation currency;
+- the Entities that keep the currency sit under different Rate Sources, for example a Chilean and a Mexican Entity that both keep USD books, so Sintropix doesn't pick one;
+- those Entities' country has no Rate Source; or
+- their Rate Source links no rate for the pair on or before `date`.
+
+In those cases, type the rate yourself.
+
 ## POST `/fx-rates/sync` (staff only)
 
-Force a sync of published rates from Banco Central de Chile. The response summarizes what was fetched and stored. Every tracked series is fetched independently, so one failing series does not withhold the others.
+Force a sync of published rates from every Rate Source. The response summarizes what was fetched and stored. Every series is fetched independently, so one failing series does not withhold the others.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `startDate` | string (`YYYY-MM-DD`) | No | First publication date to fetch. Must be given together with `endDate`, and be on or before it. |
-| `endDate` | string (`YYYY-MM-DD`) | No | Last publication date to fetch. Must be given together with `startDate`. |
+| `startDate` | string (`YYYY-MM-DD`) | No | First `rateDate` to fetch. Must be given together with `endDate`, and be on or before it. |
+| `endDate` | string (`YYYY-MM-DD`) | No | Last `rateDate` to fetch. Must be given together with `startDate`. |
 
-An empty body (or no body) syncs the default trailing window: the last 10 days ending today, on the Chilean calendar.
+A given range applies to every Rate Source. An empty body (or no body) syncs each Rate Source's default window:
 
-**Response:** `{ series: [...] }`, one entry per tracked series in fetch order:
+- **Banco Central de Chile:** the last 10 days ending today, on the Chilean calendar.
+- **Banco de México:** the last 10 days ending today, plus the next 7 days, on the Mexico City calendar.
+
+When a Rate Source now publishes a different value for a stored rate, the sync replaces the stored value and reports it in `revisedRates`.
+
+**Response:** `{ series: [...] }`, one entry per series and pair, Banco Central de Chile first:
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `baseCurrency` | string | Base currency of the series. |
 | `quoteCurrency` | string | Quote currency of the series. |
-| `source` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` | The series' source. |
-| `fetched` | integer | Rows seen in the provider window. |
+| `series` | string | The series, as in [the FX Rate object](#the-fx-rate-object). |
+| `fetched` | integer | Rows seen in the window. |
 | `inserted` | integer | Rows that were genuinely new. Already-stored rates are not counted. |
+| `revisedRates` | array | Stored rates whose value changed, each `{ rateDate, previousRate, rate }`. Empty when none changed. |
 | `failureMessage` | string | Present only when the series failed; `fetched` and `inserted` are then `0`. |
 
 - **Status:** `200`.
@@ -110,9 +235,10 @@ curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
 ```json
 {
   "series": [
-    { "baseCurrency": "USD", "quoteCurrency": "CLP", "source": "dolar_observado", "fetched": 22, "inserted": 3 },
-    { "baseCurrency": "EUR", "quoteCurrency": "CLP", "source": "tipo_cambio_observado", "fetched": 22, "inserted": 3 },
-    { "baseCurrency": "MXN", "quoteCurrency": "CLP", "source": "tipo_cambio_referencial", "fetched": 0, "inserted": 0, "failureMessage": "Upstream request timed out" }
+    { "baseCurrency": "USD", "quoteCurrency": "CLP", "series": "dolar_observado", "fetched": 22, "inserted": 3, "revisedRates": [] },
+    { "baseCurrency": "EUR", "quoteCurrency": "CLP", "series": "tipo_cambio_observado", "fetched": 22, "inserted": 3, "revisedRates": [] },
+    { "baseCurrency": "MXN", "quoteCurrency": "CLP", "series": "tipo_cambio_referencial", "fetched": 0, "inserted": 0, "revisedRates": [], "failureMessage": "Upstream request timed out" },
+    { "baseCurrency": "USD", "quoteCurrency": "MXN", "series": "tipo_cambio_solventar_obligaciones", "fetched": 31, "inserted": 4, "revisedRates": [{ "rateDate": "2025-12-15", "previousRate": "18.1234", "rate": "18.1243" }] }
   ]
 }
 ```
@@ -126,8 +252,8 @@ curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
 | Status | Meaning |
 | --- | --- |
 | `200` | Success. |
-| `400` | Validation error on query or body, or missing `x-audit-actor` or `x-audit-reason` on an API-key sync call. |
+| `400` | Validation error on query or body, such as a missing or unknown `rateSource`, or missing `x-audit-actor` or `x-audit-reason` on an API-key sync call. |
 | `403` | `POST /sync` called by a User with no `staff` Role in any Organization. |
-| `404` | No rate found for the requested currency pair on or before the given date (`FX_RATE_NOT_FOUND_ERROR`). |
+| `404` | An Entity lookup found no rate (`FX_RATE_NOT_FOUND_ERROR`), or the Entity's country has no Rate Source (`FX_RATE_SOURCE_NOT_FOUND_ERROR`). See [Errors](#errors). |
 
-A sync doesn't fail when Banco Central de Chile does: a series it can't fetch comes back with `failureMessage` in the `200` response.
+A sync doesn't fail when a Rate Source does: a series it can't fetch comes back with `failureMessage` in the `200` response.

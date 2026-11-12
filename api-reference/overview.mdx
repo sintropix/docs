@@ -36,7 +36,7 @@ POST /api/entities/{entityId}/invoices
 GET  /api/entities/{entityId}/reports/balance-sheet
 ```
 
-A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (Superadmin only), [`/api/feedback`](/api-reference/feedback), and `/api/health`.
+A handful of routes are Entity-independent: [`/api/entities`](/api-reference/entities) (list and create), [`/api/organizations`](/api-reference/organizations), [`/api/fx-rates`](/api-reference/fx-rates) (recent rates and sync; an Entity's rate is under `/api/entities/{entityId}/fx-rate`), [`/api/countries` and `/api/currencies`](/api-reference/reference-data), [`/api/onboarding/*`](/api-reference/onboarding) (Superadmin only), [`/api/feedback`](/api-reference/feedback), and `/api/health`.
 
 Data an Organization's Entities share lives under the Organization instead, such as its [Partners](/api-reference/partners#partners-belong-to-the-organization), [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization), and [Integrations](/api-reference/integrations#integrations-belong-to-the-organization):
 

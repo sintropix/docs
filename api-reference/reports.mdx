@@ -64,8 +64,8 @@ Income is often recognized on a month's last day, so the month in progress would
 | Field | Type | Description |
 | --- | --- | --- |
 | `cash.total` | integer | Consolidated cash position as of today, in the functional currency |
-| `cash.rateDate` | ISO date or null | Oldest publication date among the FX rates used; `null` when nothing was converted |
-| `cash.unconvertedCurrencies` | string[] | Currencies left out because no rate was published |
+| `cash.rateDate` | ISO date or null | Oldest `rateDate` among the [FX rates](/api-reference/fx-rates) used, all from the Entity's [Rate Source](/api-reference/fx-rates#rate-sources); `null` when nothing was converted |
+| `cash.unconvertedCurrencies` | string[] | Currencies left out because the Entity's Rate Source has no rate for them, or the Entity's country has no Rate Source |
 | `dailyBalances` | array | Exactly 60 items of `{ date, total }`, one per calendar day |
 | `monthlyIncome` | array | Exactly 6 items of `{ monthKey, total }`, oldest first, one per closed month; `monthKey` is `YYYY-MM`. A month with no income has `total: 0` |
 | `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines. It counts only debit lines, the normal side of a receivable |
