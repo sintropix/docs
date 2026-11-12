@@ -87,7 +87,7 @@ The trail records changes to the tables of the books and the records around them
 
 Some parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry, to its `ledger_entry_line` rows, and to the Dimension tags of those lines (`ledger_entry_line_dimension_value`); `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links; `tableName=bank_movement` returns changes to that movement and to its `bank_movement_attachment` links; `tableName=partner` returns changes to that Partner, its `partner_alias` rows, its `entity_partner` links, and the Partners merged into it. The invoice and bank movement histories also carry the `attachment` rows of the files linked in the same request. For `tableName=partner_bank_details`, pass the Partner's id as `rowId`. For an [Expense Rendition](/api-reference/expense-claims), `tableName=invoice` also returns the history of the Expense Claim it came from: who submitted it and who approved it.
 
-### Dimension tags in an Entry's history
+### Dimension tags in the history of an Entry
 
 A tag row names its line and its Value, so its `before` and `after` images carry `line_id` and `dimension_value_id`. The Entry's history includes the tags written when the entry is booked and every later [retag of a line](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values). It also includes the tag a line drops when you reclassify it to a balance account, and the tags of a line the entry no longer holds.
 
