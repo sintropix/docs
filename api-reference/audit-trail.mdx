@@ -83,9 +83,15 @@ Returns the audit envelopes that changed one row of the Entity, the same history
 
 **Accepted `tableName` values**
 
-The trail records changes to the tables of the books and the records around them, for example `ledger_entry`, `ledger_entry_line`, `invoice`, `invoice_attachment`, `attachment`, `partner`, `partner_alias`, `partner_bank_details`, `entity_partner`, `bank_movement`, `bank_movement_attachment`, `bank_account`, `reconciliation_allocation`, `fixed_asset`, `fixed_asset_class`, `fixed_asset_depreciation_entry`, `intercompany_link`, `expense_claim`, and `task`. Any string is accepted; one that names no audited row matches nothing.
+The trail records changes to the tables of the books and the records around them, for example `ledger_entry`, `ledger_entry_line`, `ledger_entry_line_dimension_value`, `invoice`, `invoice_attachment`, `attachment`, `partner`, `partner_alias`, `partner_bank_details`, `entity_partner`, `bank_movement`, `bank_movement_attachment`, `bank_account`, `reconciliation_allocation`, `fixed_asset`, `fixed_asset_class`, `fixed_asset_depreciation_entry`, `intercompany_link`, `expense_claim`, and `task`. Any string is accepted; one that names no audited row matches nothing.
 
-Some parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry and to its `ledger_entry_line` rows; `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links; `tableName=bank_movement` returns changes to that movement and to its `bank_movement_attachment` links; `tableName=partner` returns changes to that Partner, its `partner_alias` rows, its `entity_partner` links, and the Partners merged into it. The invoice and bank movement histories also carry the `attachment` rows of the files linked in the same request. For `tableName=partner_bank_details`, pass the Partner's id as `rowId`. For an [Expense Rendition](/api-reference/expense-claims), `tableName=invoice` also returns the history of the Expense Claim it came from: who submitted it and who approved it.
+Some parents also pull in their child rows: `tableName=ledger_entry` returns changes to that entry, to its `ledger_entry_line` rows, and to the Dimension tags of those lines (`ledger_entry_line_dimension_value`); `tableName=invoice` returns changes to that invoice and to its `invoice_attachment` links; `tableName=bank_movement` returns changes to that movement and to its `bank_movement_attachment` links; `tableName=partner` returns changes to that Partner, its `partner_alias` rows, its `entity_partner` links, and the Partners merged into it. The invoice and bank movement histories also carry the `attachment` rows of the files linked in the same request. For `tableName=partner_bank_details`, pass the Partner's id as `rowId`. For an [Expense Rendition](/api-reference/expense-claims), `tableName=invoice` also returns the history of the Expense Claim it came from: who submitted it and who approved it.
+
+### Dimension tags in an Entry's history
+
+A tag row names its line and its Value, so its `before` and `after` images carry `line_id` and `dimension_value_id`. The Entry's history includes the tags written when the entry is booked and every later [retag of a line](/api-reference/ledger-entries#put-/api/entities/entityid/ledger/lines/lineid/dimension-values). It also includes the tag a line drops when you reclassify it to a balance account, and the tags of a line the entry no longer holds.
+
+A retag replaces the line's tags, so it shows as a `delete` of each old tag and an `insert` of each new one, in one envelope. To read a retag as a change of Value, pair the `delete` and the `insert` of the same `line_id` and Dimension. The **Actividad** tab of the Entry reads it that way, for example *Centro de costo — 4010 Ventas: VEN Ventas → OPS Operaciones*. A retag that writes back the same tags shows no item there.
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/audit-trail?tableName=invoice&rowId=$INVOICE_ID" \
@@ -176,6 +182,7 @@ Keys inside `before`, `after`, and `rowPrimaryKey` are the stored column names i
 | `bankAccounts` | array | `{ id, name, currency }` where `currency` is an ISO 4217 code. |
 | `sources` | array | `{ id, name }` |
 | `ledgerEntryLines` | array | `{ id, accountName, entryMemo, entryDate }` where `entryMemo` may be `null` and `entryDate` is `YYYY-MM-DD`. |
+| `dimensionValues` | array | `{ id, code, name, dimensionName }` of each [Dimension Value](/api-reference/dimensions) the changes point at, where `dimensionName` is the name of the Value's Dimension. |
 
 A resource that no longer exists is absent from these lists; treat an id you cannot resolve as unknown.
 
@@ -221,7 +228,8 @@ A resource that no longer exists is absent from these lists; treat an id you can
     "partners": [{ "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "name": "Acme Limited" }],
     "bankAccounts": [],
     "sources": [],
-    "ledgerEntryLines": []
+    "ledgerEntryLines": [],
+    "dimensionValues": []
   },
   "nextCursor": 1841
 }
