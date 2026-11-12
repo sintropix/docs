@@ -1269,7 +1269,7 @@ From row 6, the tab holds one row for each functional currency of the group. A c
 | Column | Content | Who writes it |
 | --- | --- | --- |
 | **Moneda funcional** | The functional currency | Sintropix |
-| **Sugerido** | The published [FX rate](/api-reference/fx-rates) on the day of the export. `1` for the presentation currency, and empty when no published rate reaches the pair | Sintropix |
+| **Sugerido** | The [suggested presentation rate](/api-reference/fx-rates#get-/organizations/organizationid/fx-rates/presentation-rates) on the day of the export, from the [Rate Source](/api-reference/fx-rates#rate-sources) of the Entities that keep the currency. `1` for the presentation currency. Empty when those Entities sit under different Rate Sources, or their Rate Source has no rate for the pair | Sintropix |
 | **Usado** | The rate you want to use instead | You. Sintropix never overwrites it |
 | **Tasa en uso** | **Usado** when you typed one, otherwise **Sugerido**. The presentation formulas read this column | Sintropix |
 | **Fuente** | Where the suggestion comes from, or a reminder to type the rate in **Usado** when none is published | Sintropix |
