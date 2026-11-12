@@ -710,13 +710,13 @@ You can't disconnect a Mailbox, because removing it would delete its email. [`DE
 
 ## Read email
 
-You read the email of a `gmail`, `outlook`, or `mailbox` Integration with the same routes: search it, read an email or its whole Conversation as plain text, and copy an attachment into an Entity. Erwin can read all of them too, so you can ask him to find a supplier's invoice in any of the Organization's email accounts. He also searches them on his own as evidence when he reviews a record or leaves a Follow-up, and their [purpose](#put-/integrations/integrationid/purpose) tells him which account to look in. See [Erwin](/core-concepts). A Mailbox reads with a few differences, listed in [Read a Mailbox's email](#read-a-mailbox’s-email).
+You read the email of a `gmail`, `outlook`, or `mailbox` Integration with the same routes: search it, read an email or its whole Conversation as plain text, read an attachment as text, and copy an attachment into an Entity. Erwin can read all of them too, so you can ask him to find a supplier's invoice in any of the Organization's email accounts. He also searches them on his own as evidence when he reviews a record or leaves a Follow-up, and their [purpose](#put-/integrations/integrationid/purpose) tells him which account to look in. See [Erwin](/core-concepts). A Mailbox reads with a few differences, listed in [Read a Mailbox's email](#read-a-mailbox’s-email).
 
 ### Who can read email
 
 Reading the email of the Organization's accounts is more than reading its books, so it has its own rule:
 
-| Caller | Search and read email | Copy an attachment into an Entity |
+| Caller | Search and read email, and read an attachment as text | Copy an attachment into an Entity |
 | --- | --- | --- |
 | `staff` or `client` | Yes | Yes |
 | `viewer` | No | No |
@@ -724,7 +724,7 @@ Reading the email of the Organization's accounts is more than reading its books,
 
 A refused caller gets `403` with `PERMISSION_DENIED_ERROR`. The same rule covers the list of [Email Arrivals](#email-arrivals).
 
-Sintropix logs each email whose content it hands out and each attachment it copies, under the request's [Audit Envelope](/api-reference/audit-trail). A search isn't logged, because it returns only headers and a short snippet. Reading an email with an API key needs `x-audit-actor` and `x-audit-reason`, as a write does.
+Sintropix logs each email whose content it hands out and each attachment it reads as text or copies, under the request's [Audit Envelope](/api-reference/audit-trail). A search isn't logged, because it returns only headers and a short snippet. Reading an email or an attachment with an API key needs `x-audit-actor` and `x-audit-reason`, as a write does.
 
 ### The Email object
 
@@ -736,7 +736,7 @@ Sintropix logs each email whose content it hands out and each attachment it copi
 | `from` | object \| null | `{ name, address }` of the sender. `name` can be `null`. |
 | `to`, `cc` | array | `{ name, address }` of each recipient. |
 | `subject` | string | The subject. |
-| `attachments` | array | `{ id, filename, contentType, byteSize }` of each attachment. Use `id` to [copy it](#post-/api/entities/entityid/email-attachments). |
+| `attachments` | array | `{ id, filename, contentType, byteSize }` of each attachment. Use `id` to [read it as text](#get-/integrations/integrationid/emails/emailid/attachments/attachmentid/text) or [copy it](#post-/api/entities/entityid/email-attachments). |
 | `snippet` | string | On a search only: the first words of the body. |
 | `body` | string | On a read only: the body as plain text. HTML is removed. A body over 20,000 characters is cut and ends with `[The body goes on; it was cut here.]`. |
 
@@ -819,6 +819,58 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
 
 An email the account doesn't hold answers `404` with `INTEGRATION_EMAIL_NOT_FOUND_ERROR`.
 
+### GET `/integrations/:integrationId/emails/:emailId/attachments/:attachmentId/text`
+
+`GET /api/organizations/:organizationId/integrations/:integrationId/emails/:emailId/attachments/:attachmentId/text`
+
+Read one attachment of an email as text, without storing it. Use it for a file you only need to read, such as a bank's HTML notice or a CSV statement. To attach a file to a record, or to open a PDF or an image, [copy it](#post-/api/entities/entityid/email-attachments) instead.
+
+The route reads these files:
+
+| File | Content types | Extensions | What `text` holds |
+| --- | --- | --- | --- |
+| HTML | `text/html`, `application/xhtml+xml` | `.html`, `.htm` | The page's text. Its head, styles, and scripts are left out. |
+| Plain text | `text/plain` | `.txt` | The file as it is. |
+| CSV | `text/csv` | `.csv` | The file as it is. |
+| XML | `application/xml`, `text/xml` | `.xml` | The file as it is. |
+
+Sintropix goes by the attachment's `contentType` first. When that isn't one of the types above, such as `application/octet-stream`, it goes by the file name's extension. So an HTML notice sent as a generic binary file is read. The file is decoded in the charset its content type names, or as UTF-8 when it names none.
+
+**Limits**
+
+- **Size.** The file can be up to 5 MB. A larger file answers `422` with `INTEGRATION_EMAIL_ATTACHMENT_TOO_LARGE_ERROR`.
+- **Length.** A text over 50,000 characters is cut and ends with `[The file goes on; it was cut here.]`.
+- **Type.** Any other file, such as a PDF or an image, answers `422` with `INTEGRATION_EMAIL_ATTACHMENT_NOT_TEXT_ERROR`.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The attachment's `id`. |
+| `filename` | string | The attachment's file name. |
+| `contentType` | string | The content type the email states, such as `application/octet-stream`. |
+| `byteSize` | integer | The file size in bytes. |
+| `text` | string | The file's text. |
+
+```bash
+curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/$INTEGRATION_ID/emails/$EMAIL_ID/attachments/1/text" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Read the bank's charge notice for October"
+```
+
+```json
+{
+  "id": "1",
+  "filename": "aviso-cargo.html",
+  "contentType": "application/octet-stream",
+  "byteSize": 304,
+  "text": "Aviso de cargo\nFecha\n2026-11-09\nMonto\n$120.000\nCuenta 12-345-678"
+}
+```
+
+An attachment the email doesn't hold answers `404` with `INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`.
+
 ### POST `/api/entities/:entityId/email-attachments`
 
 Copy one attachment of an email into an Entity, then attach it to a record of that Entity. The copy lands where an [upload](/api-reference/attachments#two-phase-upload-flow) lands before it is confirmed:
@@ -872,7 +924,7 @@ The routes above read a Mailbox with the same contract, with these differences:
 - **What a search covers.** Received, archived, and sent email. Spam and deleted email are left out. A new email can take about a minute to show up in a search. When more than 10,000 Conversations match, the search covers the 10,000 with the newest match, so narrow the criteria.
 - **Recipients.** The `to` of a received email lists the addresses the email was delivered to, not its full To line.
 - **Attachment types.** `contentType` comes from the file name's extension. It's empty when Sintropix doesn't accept that type.
-- **Copy.** Only the attachments of a received email can be copied. An attachment of an email the Mailbox sent answers `404` (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`).
+- **Copy and text read.** Only the attachments of a received email can be copied or read as text. An attachment of an email the Mailbox sent answers `404` (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`).
 - **Refusals.** A Mailbox holds no access that can expire, so it never answers `INTEGRATION_GRANT_FAILED_ERROR`. When the Mailbox can't be read, the routes answer `424` (`INTEGRATION_PROVIDER_FAILURE_ERROR`) or `503` (`INTEGRATION_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_NOT_CONFIGURED_ERROR`). Retry later.
 
 ### Email Arrivals
@@ -955,10 +1007,12 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/email-arrival
 
 | Status | Code | When it happens |
 | --- | --- | --- |
-| `403` | `PERMISSION_DENIED_ERROR` | A `viewer`, or an API key confined to one Entity, reads or copies email, or lists Email Arrivals |
+| `403` | `PERMISSION_DENIED_ERROR` | A `viewer`, or an API key confined to one Entity, reads or copies email, reads an attachment as text, or lists Email Arrivals |
 | `404` | `INTEGRATION_NOT_FOUND_ERROR` | The Integration doesn't exist in the Organization, or, on a copy, in the Entity's Organization |
 | `404` | `INTEGRATION_EMAIL_NOT_FOUND_ERROR` | The account holds no email with that id. `params.integrationId` and `params.emailId` |
 | `404` | `INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR` | The email holds no attachment with that id. `params.integrationId`, `params.emailId`, and `params.attachmentId` |
+| `422` | `INTEGRATION_EMAIL_ATTACHMENT_NOT_TEXT_ERROR` | On a text read, the file isn't HTML, plain text, CSV, or XML. `params.integrationId`, `params.emailId`, `params.attachmentId`, and `params.contentType`, the type the email states |
+| `422` | `INTEGRATION_EMAIL_ATTACHMENT_TOO_LARGE_ERROR` | On a text read, the file is over 5 MB. `params.integrationId`, `params.emailId`, `params.attachmentId`, `params.byteSize`, and `params.maxByteSize` |
 | `422` | `INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR` | The Integration isn't `gmail`, `outlook`, or `mailbox`. `params.kind` names its kind |
 | `424` | `INTEGRATION_GRANT_FAILED_ERROR` | The account's access expired or was revoked, as `grantHealth: "failed"` shows in the list. Disconnect the Integration and connect the account again |
 | `424` | `INTEGRATION_PROVIDER_FAILURE_ERROR` | Google or Microsoft refused the request, or the Mailbox can't be read right now |
