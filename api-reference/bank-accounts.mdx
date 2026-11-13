@@ -66,6 +66,7 @@ Each Bank Account in the list carries:
 | `currency` | string | ISO 4217 currency code |
 | `accountNumber` | string \| null | The number the bank knows the account by. `null` when not set. To be the **Cuenta de cargo** of a [Payment Batch](/api-reference/payment-batches#download-the-bank-file)'s BCI bank file, an account in `CLP` needs it. |
 | `bankCode` | string \| null | The bank that holds the account, as its CMF code from [`GET /banks`](/api-reference/reference-data#get-/banks), for example `016` for BCI. `null` when not set. The app draws the account's logo from it, and only an account with `bankCode` `016` can be the **Cuenta de cargo** of a BCI bank file. |
+| `accountKind` | `checking` \| `sight` \| `savings` \| null | The kind of account: `checking` (cuenta corriente), `sight` (cuenta vista), or `savings` (cuenta de ahorro). `null` when not set. A bank file names it where a [transfer to an own account](/api-reference/payment-batches#transfers-to-an-own-bank-account) lands. |
 | `feed` | object \| null | Active feed, if any (see below) |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
@@ -96,6 +97,7 @@ The `feed` object, when present, contains:
     "currency": "CLP",
     "accountNumber": "12345678",
     "bankCode": "001",
+    "accountKind": "checking",
     "feed": {
       "integrationId": "0192a8b4-0000-7000-8000-000000000001",
       "integrationKind": "fintoc",
@@ -142,6 +144,7 @@ Creates a new Bank Account.
 | `currency` | string | Yes | ISO 4217 currency code |
 | `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. Omit or send `null` to leave it unset. |
 | `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-/banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. Omit or send `null` to leave it unset. |
+| `accountKind` | `checking` \| `sight` \| `savings` \| null | No | The kind of account. Omit or send `null` to leave it unset. In the app, **Tipo de cuenta** is offered for `bank` accounts only. |
 
 ### Response
 
@@ -183,7 +186,7 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts \
 PATCH /api/entities/:entityId/bank-accounts/:bankAccountId
 ```
 
-Updates the name, the account number, and the bank of an existing Bank Account. Only `name`, `accountNumber`, and `bankCode` are editable through this endpoint.
+Updates the name, the account number, the bank, and the account kind of an existing Bank Account. Only `name`, `accountNumber`, `bankCode`, and `accountKind` are editable through this endpoint.
 
 ### Body parameters
 
@@ -192,6 +195,7 @@ Updates the name, the account number, and the bank of an existing Bank Account. 
 | `name` | string | Yes | New display name (non-empty) |
 | `accountNumber` | string \| null | No | The number the bank knows the account by. Trimmed; a blank value is refused. `null` clears it. Omit to keep the current number. |
 | `bankCode` | string \| null | No | CMF code of the bank that holds the account, from [`GET /banks`](/api-reference/reference-data#get-/banks). An unknown code is refused with `400` and `BANK_ACCOUNT_BANK_UNKNOWN_ERROR`. `null` clears it and keeps the account number. Omit to keep the current bank. |
+| `accountKind` | `checking` \| `sight` \| `savings` \| null | No | The kind of account. `null` clears it. Omit to keep the current kind. |
 
 ### Response
 
@@ -222,7 +226,7 @@ curl -s https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_AC
 DELETE /api/entities/:entityId/bank-accounts/:bankAccountId
 ```
 
-Removes a Bank Account. Deletion is allowed only when the account has no Movements and no active feed.
+Removes a Bank Account. Deletion is allowed only when the account has no Movements, no active feed, and no [Payment Order](/api-reference/payment-batches#transfers-to-an-own-bank-account) that transfers to it.
 
 ### Response
 
@@ -238,7 +242,7 @@ Returns `200 OK` with:
 | --- | --- |
 | 200 | Deleted |
 | 404 | Bank Account not found |
-| 409 | Account has Movements (`BANK_ACCOUNT_HAS_MOVEMENTS_ERROR`) or an active feed (`BANK_ACCOUNT_FED_ERROR`) |
+| 409 | Account has Movements (`BANK_ACCOUNT_HAS_MOVEMENTS_ERROR`), an active feed (`BANK_ACCOUNT_FED_ERROR`), or a Payment Order that transfers to it (`BANK_ACCOUNT_HAS_PAYMENT_ORDERS_ERROR`, with `params.bankAccountId`). Remove the order from its batch first |
 
 ### Example
 
