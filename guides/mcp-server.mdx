@@ -1,7 +1,7 @@
 ---
 title: "Read Your Books from Claude or ChatGPT with the Sintropix MCP Server"
 sidebarTitle: "Connect Claude or ChatGPT"
-description: "Connect Claude, ChatGPT, or any MCP client to the Sintropix MCP server to read companies, receivables, payables, the income statement, the balance sheet, and the files your Organization shared, such as Google Sheets and Metabase questions, and to leave feedback for the Sintropix developers. Server URL, sign-in, access, and the tools it exposes."
+description: "Connect Claude, ChatGPT, or any MCP client to the Sintropix MCP server to read companies, receivables, payables, the income statement, the balance sheet, bank accounts and bank movements, and the files your Organization shared, such as Google Sheets and Metabase questions, and to leave feedback for the Sintropix developers. Server URL, sign-in, access, and the tools it exposes."
 ---
 
 The Sintropix MCP server lets an AI assistant that speaks the Model Context Protocol (MCP), such as Claude or ChatGPT, read your books. You ask in plain language, for example "What do my customers owe me?", and the assistant answers from your Sintropix data.
@@ -44,7 +44,7 @@ See [Connect an app with OAuth](/guides/connected-apps) for the full rules of co
 
 ## Tools
 
-The server exposes eight tools. Five read your books, two read the files your Organization shared, and `leave_feedback` tells the Sintropix developers what got in the assistant's way. Each one answers a question, rather than mirroring an API endpoint. Amounts come back as decimal text in the company's functional currency, and accounts and Partners come back with their names.
+The server exposes ten tools. Seven read your books, two read the files your Organization shared, and `leave_feedback` tells the Sintropix developers what got in the assistant's way. Each one answers a question, rather than mirroring an API endpoint. Amounts come back as decimal text in the company's functional currency, or, for the bank tools, in the currency of each bank account. Accounts, banks, and Partners come back with their names.
 
 | Tool | Question it answers | Inputs |
 | --- | --- | --- |
@@ -53,6 +53,8 @@ The server exposes eight tools. Five read your books, two read the files your Or
 | `get_payables` | Which bills haven't I paid? | `entityId` |
 | `get_income_statement` | What did I earn in a period? | `entityId`, optional `from` and `to` |
 | `get_balance_sheet` | What do I have and owe on a date? | `entityId`, optional `cutoffDate` |
+| `list_bank_accounts` | How much cash do I have, and where? | None |
+| `list_bank_movements` | What came in, what went out, and what's still to reconcile? | `entityId`, optional `bankAccountId`, `status`, `direction`, `from`, `to`, `search`, `partnerId`, `order`, `limit`, and `cursor` |
 | `list_integration_files` | Which files did we share? | None |
 | `read_integration_file` | What does this file say now? | `integrationId`, `fileId`, `reason`, optional `parameters` and `tab` |
 | `leave_feedback` | How do I tell Sintropix what got in my way? | `kind`, `message`, optional `endpoint`, `requestId`, and `reproduction` |
@@ -87,6 +89,57 @@ Returns the balance sheet (Balance General) on a date: assets, liabilities, and 
 | --- | --- | --- |
 | `entityId` | UUID | Required |
 | `cutoffDate` | `YYYY-MM-DD` | Today in Chile |
+
+### `list_bank_accounts`
+
+Answers how much cash you have, and where. It lists the bank accounts and cards of every company the connection reads, and takes no inputs. Each account has:
+
+- `bankAccountId`, `name`, `kind` (`bank` or `card`), `entityId`, and `entity` (the company's name).
+- `bank`: the bank's name, or the Provider that feeds the account when the account has no known bank, such as a wallet. `null` when neither is known.
+- `accountNumber` and `currency`.
+- `balance`: the bank's side, in the account's own currency. It adds up every Movement the bank reported, money in positive and money out negative, so what a card owes reads negative. It differs from the Ledger Account on the balance sheet while Movements wait to be reconciled.
+- `movementsToReconcile`: how many of the account's Movements aren't reconciled with the books yet. `list_bank_movements` lists them.
+- `feed`: `null` when no [bank feed](/api-reference/bank-feeds) feeds the account, and a person enters or imports its Movements. Otherwise it has `provider`, `lastSyncedAt` (`null` before the first sync), and `tieOut` (`null` before a sync judged it), with `status`, `reportedBalance`, and `since`, when the feed entered that status. See [Tie-out](/api-reference/bank-accounts#tie-out).
+
+| `tieOut.status` | Meaning |
+| --- | --- |
+| `tied_out` | The Movements add up to the `reportedBalance` the bank stated. |
+| `out_of_tie_out` | They don't. `balance` minus `reportedBalance` is the gap: a Movement the feed hasn't brought, such as a fee, or one that landed twice. |
+| `restated` | The bank rewrote Movements that had already landed. A person must review them in the app. |
+
+The answer also has three totals:
+
+- `cashByCurrency`: the bank accounts added up by currency, cards left out.
+- `cardBalanceByCurrency`: the cards added up by currency.
+- `totalValued`: every account, cards included, valued in one currency at the newest published exchange rates. It has `currency`, `total`, `rateDate`, and `unconvertedCurrencies`, the currencies left out because they have no rate.
+
+### `list_bank_movements`
+
+Answers what came in, what went out, and what's still to reconcile. It lists the bank Movements of one company, or of one account, a page at a time.
+
+| Input | Type | Default | Description |
+| --- | --- | --- | --- |
+| `entityId` | UUID | Required | From `list_entities` or `list_bank_accounts`. |
+| `bankAccountId` | UUID | Every account of the company | One account, from `list_bank_accounts`. An account the company doesn't have is refused. |
+| `status` | enum | `all` | `to_reconcile`, `reconciled`, `excluded`, or `all`. `to_reconcile` includes the partial ones. |
+| `direction` | enum | Both | `in`: money into the account, or a payment to a card. `out`: money out, or a charge on a card. |
+| `from` | `YYYY-MM-DD` | None | The first date. |
+| `to` | `YYYY-MM-DD` | None | The last date. |
+| `search` | string | None | Text to find in the description, the start of the bank reference, the Partner's name, or the amount in minor units, such as `Minera` or `1500000`. |
+| `partnerId` | UUID | None | Only the Movements of this Partner. |
+| `order` | enum | `newest_first` | `newest_first`, `oldest_first`, `largest_in_first`, or `largest_out_first`. To rank one direction from largest to smallest, send `largest_in_first` with `direction` `in`, or `largest_out_first` with `direction` `out`. |
+| `limit` | integer | 50 | Movements per answer, from 1 to 100. |
+| `cursor` | string | None | The `nextCursor` of the previous answer. Send it with the same inputs as that call. |
+
+The answer has `entity`, `movements`, and `nextCursor`. When `nextCursor` isn't `null`, there are more Movements. Each Movement has:
+
+- `movementId`, `date`, `bankAccountId`, `bankAccount` (the account's name), and `currency`.
+- `amount`: in the account's currency, positive for money in and negative for money out.
+- `description` (the bank's), `partner`, `partnerId`, and `bankReference`. A `null` `partner` means nobody named the counterparty yet.
+- `status`: `to_reconcile` when nobody booked it yet; `partial` when it's booked but part of the money waits on the Suspense Account for a person to assign it, which also counts as to reconcile; `reconciled` when it's in the books; `excluded` when a person left it out of the books.
+- `balanceAfter`: the account's balance right after the Movement, counting every earlier Movement of the account, whatever the filters.
+
+The tool doesn't group Movements, and it doesn't filter by Follow-up or ERP Thread. To total a period, the assistant adds up the rows. See [Bank movements](/api-reference/bank-movements) for the full listing in the API.
 
 ### `list_integration_files`
 
@@ -149,6 +202,10 @@ The assistant can pass that `requestId` to `leave_feedback`. Input that breaks a
 - "Which bills of Acme SpA are past due?"
 - "What was Acme SpA's net result from January to June?"
 - "Show me Acme SpA's balance sheet at the end of last month."
+- "How much cash do I have across my companies, by currency?"
+- "Which movements in my BCI account are still unreconciled this month?"
+- "What were Acme SpA's biggest outflows last month, and to whom?"
+- "Is my Global66 feed up to date?"
 
 <Card title="Connect an App with OAuth" icon="plug" href="/guides/connected-apps" horizontal>
   Scopes, tokens, approvals, and how to list and revoke connected apps.
