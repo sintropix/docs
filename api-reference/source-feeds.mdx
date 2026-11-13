@@ -6,7 +6,7 @@ description: "Configure, sync, edit, and delete Source Feeds: the recurring pull
 
 import AppLink from "/snippets/app-link.mdx"
 
-A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-/source-feeds/sourcefeedid/sync). An [expense Feed](#expense-feeds) lands the expenses its tool approved as approved Expense Claims.
+A Source Feed is a recurring pull configured against a [Source](/api-reference/sources). It carries the link date (the start of the window Sintropix imports), the [Integration](/api-reference/integrations) it fetches through, and the [Document Family](#document-families) it lands. Syncing a Feed lands new documents into its Source and keeps the [Standing and Tax Period](#standing-and-tax-period) of the documents it already landed up to date with the SII. Sintropix syncs every Feed on its own every 4 hours, and you can also [sync a Feed on demand](#post-/source-feeds/sourcefeedid/sync). A Feed of a `wasabil` Integration also syncs about a minute after Wasabil tells Sintropix it holds a new or changed document. See [Wasabil syncs](#wasabil-syncs). An [expense Feed](#expense-feeds) lands the expenses its tool approved as approved Expense Claims.
 
 <AppLink
   url="https://app.sintropix.com/{entityId}/settings/sources"
@@ -200,6 +200,18 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds/$F
 Delete a Source Feed. The parent Source and any already-imported documents are unaffected.
 
 - **Response:** the deleted Source Feed object.
+
+## Wasabil syncs
+
+When you connect a `wasabil` Integration, Sintropix registers a webhook named **Sintropix** in your Wasabil company. Wasabil calls it when a sales, export, or purchase document changes status, and when Wasabil receives a document. Each call asks for a sync of every Feed of that Integration.
+
+- **When it runs.** Sintropix syncs the Feed once at least 30 seconds after the first call, usually within about a minute. Calls that arrive while the Feed waits join that sync, so a burst of documents lands in a single sync. A call that arrives while the sync runs asks for one more sync.
+- **What it reads.** The sync is the same one the 4-hour schedule runs: it reads the Feed's whole [sync window](#the-sync-window) from Wasabil. It doesn't use the content of Wasabil's call.
+- **Received documents.** Wasabil takes in received documents in batches, so a received document reaches Sintropix only after Wasabil itself holds it.
+- **The 4-hour schedule stays.** If a call is lost or a requested sync fails, the next scheduled sync lands the documents.
+- **Keep the webhook.** Don't delete the **Sintropix** webhook in Wasabil. Without it, the Feeds sync only every 4 hours.
+
+In the [Audit Trail](/api-reference/audit-trail#background-jobs), these syncs carry the route `source-feed-sync-request`.
 
 ## The sync window
 

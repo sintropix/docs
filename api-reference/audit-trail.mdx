@@ -369,6 +369,7 @@ Some changes are made by Sintropix on its own, on a schedule, with no request be
 | --- | --- | --- | --- | --- |
 | Scheduled [Bank Feed](/api-reference/bank-feeds) sync | `bank-feed-sync-sweep` | `bank-feed` | **Sincronización bancaria** | The Bank Movements it imports into fed Bank Accounts. |
 | Scheduled [Source Feed](/api-reference/source-feeds) sync | `source-feed-sync-sweep` | `source-feed` | **Sincronización de documentos** | The Invoices, DTEs, and Partners it lands, and the [Standing and Tax Period](/api-reference/source-feeds#standing-and-tax-period) of landed DTEs. |
+| [Wasabil-requested](/api-reference/source-feeds#wasabil-syncs) Source Feed sync | `source-feed-sync-request` | `source-feed` | **Sincronización de documentos** | The same changes as the scheduled Source Feed sync, for the Feeds of a `wasabil` Integration. |
 | [Scheduled Entries](/api-reference/ledger-entries#scheduled-entries) | `scheduled-entries-tick` | `scheduled-entries` | **Asientos programados** | The Scheduled Entries it books when their date arrives. |
 | [Overdue Tasks](/api-reference/tasks) | `overdue-tasks-tick` | `overdue-tasks` | **Tareas vencidas** | The `task_overdue` [Notifications](/api-reference/notifications#task-notifications) it sends. |
 | Automations | `automation-run-sweep` | `automation-runs` | **Automatizaciones** | The Runs that an Automation's schedule starts, and their final status. |
