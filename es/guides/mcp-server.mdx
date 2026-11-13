@@ -1,7 +1,7 @@
 ---
 title: "Lee tus libros desde Claude o ChatGPT con el servidor MCP de Sintropix"
 sidebarTitle: "Conectar Claude o ChatGPT"
-description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados, el balance general y los archivos que compartió tu Organization, como planillas de Google y preguntas de Metabase, y para dejar feedback a los desarrolladores de Sintropix. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
+description: "Conecta Claude, ChatGPT o cualquier cliente MCP al servidor MCP de Sintropix para leer empresas, cuentas por cobrar, cuentas por pagar, el estado de resultados, el balance general, cuentas bancarias y movimientos bancarios, y los archivos que compartió tu Organization, como planillas de Google y preguntas de Metabase, y para dejar feedback a los desarrolladores de Sintropix. URL del servidor, inicio de sesión, acceso y las herramientas que expone."
 ---
 
 El servidor MCP de Sintropix permite que un asistente de IA compatible con el Model Context Protocol (MCP), como Claude o ChatGPT, lea tus libros. Preguntas en lenguaje natural, por ejemplo "¿Cuánto me deben mis clientes?", y el asistente responde con tus datos de Sintropix.
@@ -44,7 +44,7 @@ Consulta [Conectar una app con OAuth](/es/guides/connected-apps) para ver todas 
 
 ## Herramientas
 
-El servidor expone ocho herramientas. Cinco leen tus libros, dos leen los archivos que compartió tu Organization, y `leave_feedback` les cuenta a los desarrolladores de Sintropix qué se interpuso en el camino del asistente. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa, y las cuentas y los Partners vienen con sus nombres.
+El servidor expone diez herramientas. Siete leen tus libros, dos leen los archivos que compartió tu Organization, y `leave_feedback` les cuenta a los desarrolladores de Sintropix qué se interpuso en el camino del asistente. Cada una responde una pregunta, en lugar de replicar un endpoint de la API. Los montos vienen como texto decimal en la moneda funcional de la empresa o, en las herramientas bancarias, en la moneda de cada cuenta bancaria. Las cuentas, los bancos y los Partners vienen con sus nombres.
 
 | Herramienta | Pregunta que responde | Entradas |
 | --- | --- | --- |
@@ -53,6 +53,8 @@ El servidor expone ocho herramientas. Cinco leen tus libros, dos leen los archiv
 | `get_payables` | ¿Qué facturas no he pagado? | `entityId` |
 | `get_income_statement` | ¿Cuánto gané en un período? | `entityId`, `from` y `to` opcionales |
 | `get_balance_sheet` | ¿Qué tengo y qué debo en una fecha? | `entityId`, `cutoffDate` opcional |
+| `list_bank_accounts` | ¿Cuánto efectivo tengo y dónde? | Ninguna |
+| `list_bank_movements` | ¿Qué entró, qué salió y qué falta conciliar? | `entityId`; `bankAccountId`, `status`, `direction`, `from`, `to`, `search`, `partnerId`, `order`, `limit` y `cursor` opcionales |
 | `list_integration_files` | ¿Qué archivos compartimos? | Ninguna |
 | `read_integration_file` | ¿Qué dice ahora este archivo? | `integrationId`, `fileId`, `reason`, y `parameters` y `tab` opcionales |
 | `leave_feedback` | ¿Cómo le cuento a Sintropix qué se interpuso en mi camino? | `kind`, `message`, `endpoint`, `requestId` y `reproduction` opcionales |
@@ -87,6 +89,57 @@ Devuelve el balance general en una fecha: activos, pasivos y patrimonio, cada un
 | --- | --- | --- |
 | `entityId` | UUID | Obligatoria |
 | `cutoffDate` | `YYYY-MM-DD` | Hoy en Chile |
+
+### `list_bank_accounts`
+
+Responde cuánto efectivo tienes y dónde. Lista las cuentas bancarias y las tarjetas de todas las empresas que lee la conexión, y no tiene entradas. Cada cuenta trae:
+
+- `bankAccountId`, `name`, `kind` (`bank` o `card`), `entityId` y `entity` (el nombre de la empresa).
+- `bank`: el nombre del banco, o el proveedor que alimenta la cuenta cuando la cuenta no tiene un banco conocido, como una billetera. `null` cuando no se conoce ninguno.
+- `accountNumber` y `currency`.
+- `balance`: el lado del banco, en la moneda propia de la cuenta. Suma cada Movimiento que informó el banco, el dinero que entra en positivo y el que sale en negativo, así que lo que debe una tarjeta se lee negativo. Difiere de la Cuenta Contable del balance general mientras haya Movimientos por conciliar.
+- `movementsToReconcile`: cuántos Movimientos de la cuenta aún no se concilian con los libros. `list_bank_movements` los lista.
+- `feed`: `null` cuando ninguna [conexión bancaria](/api-reference/bank-feeds) alimenta la cuenta, y una persona ingresa o importa sus Movimientos. Si no, trae `provider`, `lastSyncedAt` (`null` antes de la primera sincronización) y `tieOut` (`null` antes de que una sincronización lo evaluara), con `status`, `reportedBalance` y `since`, cuando la conexión entró en ese estado. Consulta [Tie-out](/api-reference/bank-accounts#tie-out).
+
+| `tieOut.status` | Significado |
+| --- | --- |
+| `tied_out` | Los Movimientos suman el `reportedBalance` que informó el banco. |
+| `out_of_tie_out` | No lo suman. `balance` menos `reportedBalance` es la diferencia: un Movimiento que la conexión no trajo, como una comisión, o uno que llegó dos veces. |
+| `restated` | El banco reescribió Movimientos que ya habían llegado. Una persona debe revisarlos en la app. |
+
+La respuesta también trae tres totales:
+
+- `cashByCurrency`: las cuentas bancarias sumadas por moneda, sin las tarjetas.
+- `cardBalanceByCurrency`: las tarjetas sumadas por moneda.
+- `totalValued`: todas las cuentas, tarjetas incluidas, valorizadas en una moneda a los tipos de cambio publicados más recientes. Trae `currency`, `total`, `rateDate` y `unconvertedCurrencies`, las monedas que quedan fuera porque no tienen tipo de cambio.
+
+### `list_bank_movements`
+
+Responde qué entró, qué salió y qué falta conciliar. Lista los Movimientos bancarios de una empresa, o de una cuenta, una página a la vez.
+
+| Entrada | Tipo | Valor por defecto | Descripción |
+| --- | --- | --- | --- |
+| `entityId` | UUID | Obligatoria | De `list_entities` o `list_bank_accounts`. |
+| `bankAccountId` | UUID | Todas las cuentas de la empresa | Una cuenta, de `list_bank_accounts`. Una cuenta que la empresa no tiene se rechaza. |
+| `status` | enum | `all` | `to_reconcile`, `reconciled`, `excluded` o `all`. `to_reconcile` incluye los parciales. |
+| `direction` | enum | Ambas | `in`: dinero que entra a la cuenta, o un pago a una tarjeta. `out`: dinero que sale, o un cargo en una tarjeta. |
+| `from` | `YYYY-MM-DD` | Ninguno | La primera fecha. |
+| `to` | `YYYY-MM-DD` | Ninguno | La última fecha. |
+| `search` | string | Ninguno | Texto a buscar en la descripción, el inicio de la referencia bancaria, el nombre del Partner o el monto en unidades mínimas, como `Minera` o `1500000`. |
+| `partnerId` | UUID | Ninguno | Solo los Movimientos de este Partner. |
+| `order` | enum | `newest_first` | `newest_first`, `oldest_first`, `largest_in_first` o `largest_out_first`. Para ordenar una dirección de mayor a menor, envía `largest_in_first` con `direction` `in`, o `largest_out_first` con `direction` `out`. |
+| `limit` | integer | 50 | Movimientos por respuesta, de 1 a 100. |
+| `cursor` | string | Ninguno | El `nextCursor` de la respuesta anterior. Envíalo con las mismas entradas que esa llamada. |
+
+La respuesta trae `entity`, `movements` y `nextCursor`. Cuando `nextCursor` no es `null`, hay más Movimientos. Cada Movimiento trae:
+
+- `movementId`, `date`, `bankAccountId`, `bankAccount` (el nombre de la cuenta) y `currency`.
+- `amount`: en la moneda de la cuenta, positivo para el dinero que entra y negativo para el que sale.
+- `description` (la del banco), `partner`, `partnerId` y `bankReference`. Un `partner` `null` significa que nadie nombró aún la contraparte.
+- `status`: `to_reconcile` cuando nadie lo ha contabilizado; `partial` cuando está contabilizado pero parte del dinero espera en la Cuenta Transitoria a que una persona lo asigne, lo que también cuenta como por conciliar; `reconciled` cuando está en los libros; `excluded` cuando una persona lo dejó fuera de los libros.
+- `balanceAfter`: el saldo de la cuenta justo después del Movimiento, contando cada Movimiento anterior de la cuenta, sin importar los filtros.
+
+La herramienta no agrupa Movimientos, ni filtra por Seguimiento o ERP Thread. Para totalizar un período, el asistente suma las filas. Consulta [Bank movements](/api-reference/bank-movements) para el listado completo en la API.
 
 ### `list_integration_files`
 
@@ -149,6 +202,10 @@ El asistente puede pasarle ese `requestId` a `leave_feedback`. Una entrada que r
 - "¿Qué facturas de Acme SpA están vencidas?"
 - "¿Cuál fue el resultado neto de Acme SpA de enero a junio?"
 - "Muéstrame el balance general de Acme SpA al cierre del mes pasado."
+- "¿Cuánto efectivo tengo entre mis empresas, por moneda?"
+- "¿Qué movimientos de mi cuenta BCI siguen sin conciliar este mes?"
+- "¿Cuáles fueron los mayores egresos de Acme SpA el mes pasado, y a quién?"
+- "¿Está al día mi conexión con Global66?"
 
 <Card title="Conectar una app con OAuth" icon="plug" href="/es/guides/connected-apps" horizontal>
   Scopes, tokens, aprobaciones y cómo listar y revocar apps conectadas.
