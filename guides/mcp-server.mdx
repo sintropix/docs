@@ -22,12 +22,9 @@ https://mcp.sintropix.com/mcp
       <Tab title="Claude">
         On a Free, Pro, Max, or Ultra plan, in claude.ai or Claude Desktop. The Free plan allows one custom connector.
 
-        1. Go to **Customize** > **Connectors**.
+        1. Go to **Settings** > **Customize** and open the **Connectors** tab.
         2. Click **+ Add**, then **Add custom connector**.
-        3. Name it `Sintropix` and paste the server URL `https://mcp.sintropix.com/mcp`. Click **Continue**.
-        4. Keep the authentication settings Claude detected and click **Continue**.
-        5. Under **OAuth client**, choose **Register automatically**. Click **Add**.
-        6. Click **Connect** on the Sintropix connector.
+        3. Name it `Sintropix` and paste the server URL `https://mcp.sintropix.com/mcp`. Click **Continue**. Claude opens Sintropix.
       </Tab>
       <Tab title="Claude Team and Enterprise">
         An Owner or Primary Owner adds the connector once for the whole organization:
@@ -38,7 +35,7 @@ https://mcp.sintropix.com/mcp
         4. Keep the authentication settings Claude detected and click **Continue**.
         5. Under **OAuth client**, choose **Register automatically**. Click **Add**.
 
-        Then each member goes to **Customize** > **Connectors**, finds Sintropix, and clicks **Connect**. Each member signs in as themselves, so the assistant reads with that member's own access.
+        Then each member goes to **Settings** > **Customize**, opens the **Connectors** tab, finds Sintropix, and clicks **Connect**. Each member signs in as themselves, so the assistant reads with that member's own access.
       </Tab>
       <Tab title="Claude Code">
         Add the server from your terminal:
@@ -62,6 +59,9 @@ https://mcp.sintropix.com/mcp
   </Step>
   <Step title="Approve">
     Check the request: the app name, the domain it returns you to (**Te devolverá a**), the Organization, and the access, which is **Solo lectura**. Click **Permitir**. The assistant is now connected.
+  </Step>
+  <Step title="In Claude, always allow the read-only tools">
+    In the Sintropix connector's **Tool permissions**, set **Read-only tools** to **Always allow**. Every Sintropix tool is read-only, so Claude doesn't need to ask you before each call.
   </Step>
 </Steps>
 
