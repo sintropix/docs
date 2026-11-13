@@ -16,7 +16,40 @@ https://mcp.sintropix.com/mcp
 
 <Steps>
   <Step title="Add the server to your assistant">
-    In your assistant's settings, add a custom connector (or custom MCP server) and paste the server URL `https://mcp.sintropix.com/mcp`. The server uses OAuth, so you don't need an API key or any other secret.
+    The server uses OAuth, so you don't need an API key or any other secret. Pick your assistant:
+
+    <Tabs>
+      <Tab title="Claude">
+        On a Free, Pro, Max, or Ultra plan, in claude.ai or Claude Desktop. The Free plan allows one custom connector.
+
+        1. Go to **Settings** > **Customize** and open the **Connectors** tab.
+        2. Click **+ Add**, then **Add custom connector**.
+        3. Name it `Sintropix` and paste the server URL `https://mcp.sintropix.com/mcp`. Click **Continue**. Claude opens Sintropix.
+      </Tab>
+      <Tab title="Claude Team and Enterprise">
+        An Owner or Primary Owner adds the connector once for the whole organization:
+
+        1. Go to **Organization settings** > **Connectors**.
+        2. Click **Add**, hover over **Custom**, and select **Web**.
+        3. Name it `Sintropix` and paste the server URL `https://mcp.sintropix.com/mcp`. Click **Continue**.
+        4. Keep the authentication settings Claude detected and click **Continue**.
+        5. Under **OAuth client**, choose **Register automatically**. Click **Add**.
+
+        Then each member goes to **Settings** > **Customize**, opens the **Connectors** tab, finds Sintropix, and clicks **Connect**. Each member signs in as themselves, so the assistant reads with that member's own access.
+      </Tab>
+      <Tab title="Claude Code">
+        Add the server from your terminal:
+
+        ```bash
+        claude mcp add --transport http sintropix https://mcp.sintropix.com/mcp
+        ```
+
+        Then start Claude Code, run `/mcp`, select `sintropix`, and choose to authenticate.
+      </Tab>
+      <Tab title="Other assistants">
+        In your assistant's settings, add a custom connector (or custom MCP server) and paste the server URL `https://mcp.sintropix.com/mcp`.
+      </Tab>
+    </Tabs>
   </Step>
   <Step title="Sign in to Sintropix">
     The assistant opens Sintropix in your browser. Sign in with your password and second factor. If you haven't set up two-step verification yet, Sintropix asks you to do it first.
@@ -26,6 +59,9 @@ https://mcp.sintropix.com/mcp
   </Step>
   <Step title="Approve">
     Check the request: the app name, the domain it returns you to (**Te devolverá a**), the Organization, and the access, which is **Solo lectura**. Click **Permitir**. The assistant is now connected.
+  </Step>
+  <Step title="In Claude, always allow the read-only tools">
+    In the Sintropix connector's **Tool permissions**, set **Read-only tools** to **Always allow**. Every Sintropix tool is read-only, so Claude doesn't need to ask you before each call.
   </Step>
 </Steps>
 
