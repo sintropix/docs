@@ -154,6 +154,8 @@ For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the 
 
 Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. See [An account that's already connected](#an-account-thats-already-connected).
 
+For `wasabil`, Sintropix also registers a webhook named **Sintropix** in the Wasabil company, so its Feeds [sync about a minute after a new document](/api-reference/source-feeds#wasabil-syncs). When Wasabil refuses the webhook, the connect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and creates nothing. When Wasabil can't be reached, it answers `503` with `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`. Retry later.
+
 - **Response** (`201`): the Integration object (its `sourceFeeds` and `fedBankAccounts` are empty on creation).
 
 ```bash
@@ -397,6 +399,7 @@ Remove an Integration. A [Mailbox](#a-mailbox-stays) can't be removed. Every fee
 - For a `plaid` Integration, Sintropix first removes the bank login at Plaid. If Plaid already removed it, the disconnect still succeeds. If Plaid fails or can't be reached, the disconnect answers `424` or `503` and the Integration stays. Retry later.
 - For a `sii_mirror` Integration, the SII mirror first deletes the company Clave and the legal representative's Clave, and stops reading that RUT. If the mirror is busy with that RUT or can't be reached, the disconnect answers `503` with `SII_UNAVAILABLE_ERROR`, and the Integration and both Claves stay. Retry in a few minutes.
 - For a `stripe` Integration, Sintropix first uninstalls the Sintropix Stripe App from the account. If the account already uninstalled it, the disconnect still succeeds. If Stripe fails, the disconnect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and the Integration stays. Retry later.
+- For a `wasabil` Integration, Sintropix first deletes its **Sintropix** webhook in Wasabil. If the webhook is already gone, the disconnect still succeeds. If Wasabil fails or can't be reached, the disconnect answers `424` or `503` and the Integration stays. Retry later.
 - For a `notion` Integration, Sintropix first revokes the grant at Notion. If Notion already removed it, the disconnect still succeeds. If Notion fails, the disconnect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and the Integration stays. Retry later.
 - A `mailbox` Integration is refused with `409` (`MAILBOX_NOT_REMOVABLE_ERROR`), because removing it would delete its email. See [A Mailbox stays](#a-mailbox-stays).
 - For every other kind, Sintropix removes the stored credentials or authorization only. The grant on the provider's side is not revoked. For `google_sheets`, the Sheet keeps the last General Ledger written to it.
