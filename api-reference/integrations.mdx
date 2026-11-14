@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger, or the group's Consolidated Ledger, to a Google Sheet, connect a Google Sheet or the questions of a Metabase site for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Brex with a user token to feed its cash and card accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger, or the group's Consolidated Ledger, to a Google Sheet, connect a Google Sheet or the questions of a Metabase site for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token to preview its accounts and feed its bank accounts and credit lines, connect Brex with a user token to feed its cash and card accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -14,9 +14,9 @@ What an Integration can feed depends on its kind:
 | --- | --- |
 | `sii_mirror` | Up to two [Sources](/api-reference/sources), through [Source Feeds](/api-reference/source-feeds): one for DTEs (`dte`) and one for boletas de honorarios (`honorarium`) |
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
-| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar`, `stripe`, `brex` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
+| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar`, `stripe`, `brex`, `rho` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `xpendit` | A [Source](/api-reference/sources) that holds Expense Renditions for each of its Subsidiaries, through a [Source Feed](/api-reference/source-feeds#expense-feeds) of expenses (`expense`). Each sync lands the expenses Xpendit approved as approved [Expense Claims](/api-reference/expense-claims). You can also [read its expenses](#read-what-xpendit-holds) on demand |
-| `mercadolibre`, `buk`, `notion`, `rho` | Nothing yet |
+| `mercadolibre`, `buk`, `notion` | Nothing yet |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
 | `google_sheets` | Nothing. It receives the General Ledger instead. See [Google Sheets](#google-sheets) |
 | `google_drive` | Nothing. Erwin and the MCP server read the Google Sheet you picked instead. See [Files for Erwin and the MCP](#files-for-erwin-and-the-mcp) |
@@ -46,7 +46,7 @@ The `stripe` kind connects a [Stripe](https://stripe.com) account through OAuth,
 
 The `buk` kind connects a Buk tenant, the payroll system, with its address and an API key. It feeds nothing yet. You can [list the Empresas](#get-/integrations/integrationid/provider-accounts) the key reaches. See [Buk](#buk).
 
-The `rho` kind connects a business on [Rho](https://www.rho.co), the US business banking platform, with a read-only API access token. It feeds nothing yet, but you can preview every account of the business with its current balance, Treasury and rewards accounts included. See [Rho](#rho).
+The `rho` kind connects a business on [Rho](https://www.rho.co), the US business banking platform, with a read-only API access token. It feeds a Bank Account from each checking, savings, and rewards account of the business, and a `card` Bank Account from each of its credit lines. You can also preview every account of the business with its current balance, Treasury accounts included. See [Rho](#rho).
 
 The `brex` kind connects a company on [Brex](https://www.brex.com), the US platform for corporate cards and business accounts, with a read-only user token. It feeds a Bank Account from each checking and vault cash account of the company, and a `card` Bank Account from its card account. See [Brex](#brex).
 
@@ -1931,7 +1931,7 @@ To rotate the key, regenerate it in Metabase, then [replace it](#put-/integratio
 
 ## Rho
 
-A `rho` Integration connects one business on [Rho](https://www.rho.co), the US business banking platform, with a read-only API access token. Sintropix only reads Rho: it never moves money. You can [preview every account](#get-/integrations/integrationid/rho-overview) of the business with its current balance, including Treasury and rewards accounts. The Integration feeds no Bank Account yet.
+A `rho` Integration connects one business on [Rho](https://www.rho.co), the US business banking platform, with a read-only API access token. Sintropix only reads Rho: it never moves money. It feeds a Bank Account from each checking, savings, and rewards account of the business, and a `card` Bank Account from each of its credit lines, through a [bank feed](/api-reference/bank-feeds#rho). Treasury accounts don't feed a Bank Account yet. You can also [preview every account](#get-/integrations/integrationid/rho-overview) of the business with its current balance, Treasury accounts included.
 
 ### Create the token in Rho
 
@@ -1939,7 +1939,7 @@ Only an Owner or Admin of the Rho business can create an API access token, and R
 
 1. In Rho, open **Settings → API → Access Tokens** and click **Create token**.
 2. Name it for Sintropix, and use the token for Sintropix only.
-3. Pick these scopes, all read-only: `accounts:read`, `transactions:read`, `statements:read`, and `businesses:read`. Don't pick any `:write` scope: Sintropix only reads.
+3. Pick these scopes, all read-only: `accounts:read`, `transactions:read`, `credit:read`, `cards:read`, `statements:read`, and `businesses:read`. `credit:read` reads the balance and limit of each credit line, and `cards:read` the name and last 4 digits of each card. Don't pick any `:write` scope: Sintropix only reads.
 4. Pick when it expires. Rho allows one year at most, and also expires a token that goes unused for 45 days. Note the date: you replace the token before then.
 5. Leave the list of allowed IP addresses empty.
 6. Confirm with your two-factor code and copy the token. Rho shows it only once.
@@ -1948,13 +1948,13 @@ Only an Owner or Admin of the Rho business can create an API access token, and R
 
 In the app, open **Configuración → Integraciones**, click **Conectar integración**, and pick **Rho**, under the **Banco** tag. Paste the token in **Clave de API** and connect. Through the API, send [`POST /integrations`](#post-/integrations) with `kind: "rho"` and `accessToken`.
 
-Sintropix checks the token with Rho before it stores it: it reads the business and every one of its accounts. The token is stored encrypted.
+Sintropix checks the token with Rho before it stores it: it reads the business, its accounts, its credit lines, and its cards. The token is stored encrypted.
 
 | Outcome | Answer |
 | --- | --- |
 | Rho accepts the token | `201` with the Integration. `providerRef` is the id of the Rho business |
 | Rho refuses the token, for example because it expired or was revoked | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
-| The token lacks `businesses:read` or `accounts:read` | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is stored. The app says *Rho aceptó el token, pero no deja leer las cuentas.* |
+| The token lacks `businesses:read`, `accounts:read`, `credit:read`, or `cards:read` | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is stored. The app says *Rho aceptó el token, pero no deja leer las cuentas, la línea de crédito o las tarjetas.* |
 | Another Integration of the Organization already connects that business | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. `params.providerRef` names the business |
 
 Each Rho business can be connected only once.
@@ -1972,13 +1972,13 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
   }'
 ```
 
-When the connection is stored, the Integration's panel lists the business's accounts under **Cuentas en Rho**.
+When the connection is stored, the Integration's panel lists the accounts you can feed under **Cuentas en Rho**, and previews every account's balance under **Saldos en Rho**. On each account, click **Crear** to create the Bank Account it feeds, or **Asociar existente** to feed one you already have. See [Bank Feeds](/api-reference/bank-feeds#rho).
 
 ### GET `/integrations/:integrationId/rho-overview`
 
 `GET /api/organizations/:organizationId/integrations/:integrationId/rho-overview`
 
-Read the Rho business's name and every one of its accounts, each with its current balance. Sintropix reads Rho live on every request and stores nothing. In the app, the Integration's panel shows the same accounts under **Cuentas en Rho**, each with its name, type, last 4 digits, currency, and balance.
+Read the Rho business's name and every one of its accounts, each with its current balance. Sintropix reads Rho live on every request and stores nothing. In the app, the Integration's panel shows the same accounts under **Saldos en Rho**, each with its name, type, last 4 digits, currency, and balance.
 
 Any member of the Organization can read it, a `viewer` included.
 
@@ -2039,7 +2039,7 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations/
 
 ### Replace the Rho token
 
-Before the token expires, or after you revoke it, create a new token in Rho with the same scopes. Then [replace it](#put-/integrations/integrationid/access-token): in the app, open the Integration's panel and click **Reemplazar clave de API**. The new token must belong to the same business, or the replacement answers `409` with `INTEGRATION_GRANT_MISMATCH_ERROR` and the stored token stays. Then revoke the old token in Rho.
+Before the token expires, or after you revoke it, create a new token in Rho with the same scopes. If your token lacks `credit:read` or `cards:read`, for example because you created it before Rho fed Bank Accounts, create the new one with every scope in [Create the token in Rho](#create-the-token-in-rho): the replacement checks them, as connecting does. Then [replace it](#put-/integrations/integrationid/access-token): in the app, open the Integration's panel and click **Reemplazar clave de API**. The new token must belong to the same business, or the replacement answers `409` with `INTEGRATION_GRANT_MISMATCH_ERROR` and the stored token stays. Then revoke the old token in Rho.
 
 ### Disconnect Rho
 

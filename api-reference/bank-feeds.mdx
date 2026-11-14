@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
 sidebarTitle: "Bank Feeds"
-description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, Stripe, and Brex Integrations, including Brex card accounts."
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, Stripe, Brex, and Rho Integrations, including Brex card accounts and Rho credit lines."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -21,6 +21,7 @@ These Integration kinds can feed a Bank Account:
 | `polar` | Polar | The USD balance of each organization the Polar user can read. See [Polar](#polar) |
 | `stripe` | Stripe | One account per currency of the Stripe account's balance, such as `Stripe USD`. See [Stripe](#stripe) |
 | `brex` | Brex | The company's checking and vault cash accounts, and its card account. See [Brex](#brex) |
+| `rho` | Rho | The business's checking, savings, and rewards accounts, and each of its credit lines as a card. See [Rho](#rho) |
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
@@ -240,7 +241,7 @@ The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discover
 
 ## Card accounts
 
-Some Providers feed a card account, such as the card account of a [Brex](#brex) company. A discovered card account states `kind: "card"`, and its `balance.current` is negative when the card owes money, as every `card` Bank Account's balance is. A charge on the card lands as a credit, and a payment to the card as a debit.
+Some Providers feed a card account, such as the card account of a [Brex](#brex) company or a credit line of a [Rho](#rho) business. A discovered card account states `kind: "card"`, and its `balance.current` is negative when the card owes money, as every `card` Bank Account's balance is. A charge on the card lands as a credit, and a payment to the card as a debit.
 
 - To create a Bank Account from it, send a `ledgerAccountId` from the Entity's `cardLedgerAccounts`. In the app, **Crear** offers those accounts.
 - To map it, pick a `card` Bank Account from `mappableBankAccounts`. Mapping it to a `bank` Bank Account answers `422` with `BANK_ACCOUNT_IS_NOT_CARD_ERROR`.
@@ -491,6 +492,53 @@ The Additional Information holds these lines, in this order, each only when Pola
 
 The Polar Integration renews its authorization on its own before a sync reads.
 
+### Rho
+
+[Rho](https://www.rho.co) is a US business banking platform. A Rho Integration reads the accounts and the credit lines of the Rho business you [connected](/api-reference/integrations#rho). Sintropix only reads Rho: it never moves money.
+
+**Discovered accounts**
+
+- The Integration discovers every account of the business except Treasury accounts: its checking, savings, and rewards accounts, and each of its credit lines, archived ones included. Treasury accounts don't feed a Bank Account yet, so a map or a creation that names one answers `404` with `DISCOVERED_ACCOUNT_NOT_FOUND_ERROR`. The [account preview](/api-reference/integrations#get-/integrations/integrationid/rho-overview) still shows their balance.
+- `type` is the account's type at Rho: `checking`, `savings`, `rewards`, or `credit`. A `credit` account is a credit line, and its `kind` is `card`. Every other account's `kind` is `bank`.
+- `name` is the account's name at Rho, or `Rho` and its type, such as `Rho savings`, when Rho gives it none. A credit line whose credit program is archived at Rho ends in `(archivada)`.
+- On a checking, savings, or rewards account, `number` is the last 4 digits of the account number, and `balance.current` is the current balance. Rho serves no available balance, so `balance.available` and `balance.limit` are null.
+- On a credit line, `number` is the name of its credit program at Rho. `balance.current` is minus what the line owes on its settled transactions, so a line that owes $2,350.00 shows `-235000`. `balance.available` is the available credit, and `balance.limit` the credit limit.
+- Rho is read live, so `readsLive` is `true` and `refreshedAt` is always null.
+
+Feed a checking, savings, or rewards account into a `bank` Bank Account on a Cash Account, and each credit line into a `card` Bank Account on a `credit_card` liability. See [Card accounts](#card-accounts).
+
+**What lands**
+
+- Only settled transactions land. Pending, failed, and awaiting-approval transactions never land.
+- Each transaction lands as its own Movement, dated by the day Rho posted it, on the calendar of Santiago (Chile). A transaction posted before the feed start date doesn't land.
+- On a checking, savings, or rewards account, money that comes in lands as a positive amount, and money that leaves lands as a negative amount.
+- On a credit line, a charge lands as a credit (negative), and a repayment as a debit (positive).
+- A transaction in a currency other than the account's fails the sync with `424` and `BANK_FEED_PROVIDER_FAILURE_ERROR`. So does a sync of an account Rho no longer lists.
+- The description of a Movement is the counterparty's name at Rho, or the transaction's type at Rho when it has none. On a card transaction, it's followed by `· Rho ****` and the card's last 4 digits, such as `Cloud Hosting · Rho ****1111`.
+
+A repayment of a credit line lands twice: as a negative Movement on the account that paid it and as a positive Movement on the credit line. Both carry the same `Movimiento de dinero Rho` line, which tells you they're the two legs of one repayment. Book them as an [internal transfer](/api-reference/bank-movements#record-an-internal-transfer).
+
+The Additional Information holds these lines, in this order, each only when Rho states it:
+
+| Label | Value |
+| --- | --- |
+| `Fuente` | Where Sintropix read the transaction |
+| `ID transacción Rho` | Rho's id for the transaction |
+| `Tipo Rho` | The transaction's type at Rho |
+| `Iniciada Rho` | When the transaction was initiated, as Rho states it |
+| `Movimiento de dinero Rho` | Rho's id for the money movement. The two legs of a repayment share it |
+| `Tarjeta Rho` | On a card transaction, the card's name and last 4 digits, such as `Ana Rojas •••• 1111` |
+| `Titular tarjeta Rho` | On a card transaction, the cardholder's name |
+| `Memo Rho` | The transaction's memo |
+| `Nota Rho` | The transaction's note |
+| `Rastreo Rho` | The transaction's tracking number |
+
+**Balance check.** Each sync checks a checking, savings, or rewards account's landed Movements against its current balance at Rho, and a credit line's against minus what it owes on its settled transactions. When they don't add up, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out). Neither balance counts a pending transaction, so a pending charge never leaves an account out of tie-out.
+
+Feed dates follow the calendar of Santiago (Chile), not US time, so a transaction Rho posts late on a US day can land on the next day.
+
+Rho serves every transaction since the account opened, so any feed start date works and a Rho account never has a [short history](#short-history).
+
 ### Stripe
 
 [Stripe](https://stripe.com) holds the money it collects for you in a balance, one per currency, until it pays it out to your bank. A Stripe feed mirrors one currency of that balance, row by row, from Stripe's balance transactions.
@@ -573,6 +621,7 @@ Every Movement a feed lands carries a `providerTime`: the time the Provider stat
 | Plaid | The time of the transaction, when Plaid states one |
 | dLocal Go | The time of the date that gives the Movement its day: the approval or creation time of a payment, and the payment time of a settlement. dLocal Go states it without a time zone, so Sintropix reads it as UTC |
 | Brex | Always `null`. Brex dates each transaction by its day only |
+| Rho | The time Rho posted the transaction |
 | Cardda | Bank transfers only, from `authorized_at`, or `created_at` when `authorized_at` is absent. Card, commission, and payment rows get `null` |
 
 The time is written once. A sync can give a time to a landed Movement that has none, booked or not, but only while the Provider still dates the row on the Movement's day. It never changes a time a Movement already holds, so a dLocal Go payment whose approval date changes keeps its first time. Movements that landed before Provider time existed have `null` until a sync fills it.
