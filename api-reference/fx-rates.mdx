@@ -340,6 +340,6 @@ curl -X POST "https://api.sintropix.com/api/fx-rates/sync" \
 | `200` | Success. |
 | `400` | Validation error on query or body, such as a missing or unknown `rateSource`, or missing `x-audit-actor` or `x-audit-reason` on an API-key sync call. |
 | `403` | `POST /sync` called by a User with no `staff` Role in any Organization. |
-| `404` | An Entity lookup found no rate (`FX_RATE_NOT_FOUND_ERROR`), or the Entity's country has no Rate Source (`FX_RATE_SOURCE_NOT_FOUND_ERROR`). See [Errors](#errors). |
+| `404` | An Entity lookup found no rate (`FX_RATE_NOT_FOUND_ERROR`), or the Entity's country has no Rate Source (`FX_RATE_SOURCE_NOT_FOUND_ERROR`). See [Errors](#get-/entities/entityid/fx-rate). |
 
 A sync doesn't fail when a publisher does: a series it can't fetch comes back with `failureMessage` in the `200` response.
