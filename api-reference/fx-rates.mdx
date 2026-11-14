@@ -1,7 +1,7 @@
 ---
 title: "Sintropix FX Rates API: Read and Sync Currency Rates"
 sidebarTitle: "FX Rates"
-description: "Look up an Entity's FX rate from its country's official Rate Source, list recent rates of Banco Central de Chile, Banco de México, Banco Central do Brasil, the Superintendencia Financiera de Colombia, or the central banks against the dollar, suggest presentation rates, and trigger a rate sync through the Sintropix ERP API."
+description: "Look up an Entity's FX rate from its country's official Rate Source, list recent rates of Banco Central de Chile, Banco de México, Banco Central do Brasil, the Superintendencia Financiera de Colombia, the Superintendencia de Banca, Seguros y AFP, or the central banks against the dollar, suggest presentation rates, and trigger a rate sync through the Sintropix ERP API."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -18,6 +18,7 @@ A **Rate Source** is the fixed set of official rates an Entity reads, one pair a
 | Mexico (`MX`) | Banco de México | `banco_de_mexico` |
 | Brazil (`BR`) | Banco Central do Brasil | `banco_central_do_brasil` |
 | Colombia (`CO`) | Superintendencia Financiera de Colombia | `superintendencia_financiera_de_colombia` |
+| Peru (`PE`) | Superintendencia de Banca, Seguros y AFP | `superintendencia_de_banca_seguros_y_afp` |
 | United States (`US`), Cayman Islands (`KY`) | Central banks against the dollar | `central_banks_against_usd` |
 
 An Entity in any other country has no Rate Source, so a lookup for it returns `404` with `FX_RATE_SOURCE_NOT_FOUND_ERROR`. Type the rate yourself on the line instead. On a [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines) or an [Invoice booking](/api-reference/invoices#foreign-currency-invoices), that means an `overrideFxRate` with its reason.
@@ -36,9 +37,10 @@ No US authority publishes a daily rate for the currencies Sintropix values, so a
 | CLP | `USD/CLP` | Banco Central de Chile | `dolar_observado` |
 | BRL | `USD/BRL` | Banco Central do Brasil | `ptax_venda` |
 | COP | `USD/COP` | Superintendencia Financiera de Colombia | `tasa_representativa_del_mercado` |
+| PEN | `USD/PEN` | Superintendencia de Banca, Seguros y AFP | `tipo_cambio_promedio_ponderado_venta` |
 | KYD | `KYD/USD` | Cayman Islands Monetary Authority | `cayman_dollar_value` |
 
-GBP is read through the euro, so a GBP amount in a USD Entity uses `EUR/USD` and `EUR/GBP`. These are the only pairs this Rate Source includes. PEN and ARS aren't included yet, so a lookup for them returns `404` with `FX_RATE_NOT_FOUND_ERROR`, and you type the rate: on a manual Ledger Entry or an Invoice booking, as an `overrideFxRate` with its reason. An Entity that keeps its books in KYD can't get a GBP rate, because the link would need three pairs.
+GBP is read through the euro, so a GBP amount in a USD Entity uses `EUR/USD` and `EUR/GBP`. These are the only pairs this Rate Source includes. ARS isn't included yet, so a lookup for it returns `404` with `FX_RATE_NOT_FOUND_ERROR`, and you type the rate: on a manual Ledger Entry or an Invoice booking, as an `overrideFxRate` with its reason. An Entity that keeps its books in KYD can't get a GBP rate, because the link would need three pairs.
 
 For USD/MXN, a US or Cayman Entity reads the Banco de México's FIX, the spot rate of its day. A Mexican Entity keeps the rate for settling obligations (`tipo_cambio_solventar_obligaciones`), as Mexican law requires.
 
@@ -53,14 +55,32 @@ The Superintendencia Financiera de Colombia certifies only the dollar's rate in 
 | MXN | `USD/MXN` | Banco de México | `tipo_cambio_fix` |
 | CLP | `USD/CLP` | Banco Central de Chile | `dolar_observado` |
 | BRL | `USD/BRL` | Banco Central do Brasil | `ptax_venda` |
+| PEN | `USD/PEN` | Superintendencia de Banca, Seguros y AFP | `tipo_cambio_promedio_ponderado_venta` |
 | KYD | `KYD/USD` | Cayman Islands Monetary Authority | `cayman_dollar_value` |
 
 A COP Entity values any currency other than USD in two legs through the dollar. For example, a EUR amount uses `EUR/USD` from the European Central Bank, then the TRM. These are the only pairs this Rate Source includes:
 
 - GBP isn't included, because it would need three pairs (`EUR/GBP`, `EUR/USD`, and the TRM).
-- PEN and ARS aren't included yet.
+- ARS isn't included yet.
 
 A lookup for any of them returns `404` with `FX_RATE_NOT_FOUND_ERROR`, and its `params` name the Rate Source, the currencies, and the date. Type the rate yourself: on a manual Ledger Entry, as an `overrideFxRate` with its reason.
+
+### Superintendencia de Banca, Seguros y AFP
+
+The Superintendencia de Banca, Seguros y AFP (SBS) publishes a weighted average selling rate (tipo de cambio promedio ponderado venta) for the dollar and the euro in soles. An Entity in Peru reads those two rates, GBP through the SBS euro, and each other currency's rate against the dollar from that currency's own central bank:
+
+| Currency | Pair | Publisher | `series` |
+| --- | --- | --- | --- |
+| USD | `USD/PEN` | Superintendencia de Banca, Seguros y AFP | `tipo_cambio_promedio_ponderado_venta` |
+| EUR | `EUR/PEN` | Superintendencia de Banca, Seguros y AFP | `tipo_cambio_promedio_ponderado_venta` |
+| GBP | `EUR/GBP` | European Central Bank | `euro_foreign_exchange_reference_rate` |
+| MXN | `USD/MXN` | Banco de México | `tipo_cambio_fix` |
+| CLP | `USD/CLP` | Banco Central de Chile | `dolar_observado` |
+| BRL | `USD/BRL` | Banco Central do Brasil | `ptax_venda` |
+| COP | `USD/COP` | Superintendencia Financiera de Colombia | `tasa_representativa_del_mercado` |
+| KYD | `KYD/USD` | Cayman Islands Monetary Authority | `cayman_dollar_value` |
+
+A PEN Entity values USD and EUR in one leg. It values GBP in two legs through the euro, `EUR/GBP` from the European Central Bank and then the SBS `EUR/PEN`, and every other currency in two legs through the dollar. For example, a CLP amount uses `USD/CLP` from the Banco Central de Chile, then the SBS `USD/PEN`. These are the only pairs this Rate Source includes. ARS isn't included yet, and a link that would need three pairs, such as GBP in a Peruvian Entity that keeps its books in USD, isn't possible. A lookup for either returns `404` with `FX_RATE_NOT_FOUND_ERROR`. Type the rate yourself: on a manual Ledger Entry or an Invoice booking, as an `overrideFxRate` with its reason.
 
 ### Rate series
 
@@ -68,20 +88,22 @@ Each stored rate comes from one series, named in the rate's `series`. A series h
 
 | Publisher | Pair | `series` | Rate Sources |
 | --- | --- | --- | --- |
-| Banco Central de Chile | `USD/CLP` | `dolar_observado` | `banco_central_de_chile`, `superintendencia_financiera_de_colombia`, `central_banks_against_usd` |
+| Banco Central de Chile | `USD/CLP` | `dolar_observado` | `banco_central_de_chile`, `superintendencia_financiera_de_colombia`, `superintendencia_de_banca_seguros_y_afp`, `central_banks_against_usd` |
 | Banco Central de Chile | `EUR/CLP`, `GBP/CLP` | `tipo_cambio_observado` | `banco_central_de_chile` |
 | Banco Central de Chile | `MXN/CLP`, `COP/CLP`, `ARS/CLP`, `BRL/CLP`, `PEN/CLP` | `tipo_cambio_referencial` | `banco_central_de_chile` |
 | Banco de México | `USD/MXN` | `tipo_cambio_solventar_obligaciones` | `banco_de_mexico` |
 | Banco de México | `EUR/USD`, `GBP/USD`, `CLP/USD`, `PEN/USD`, `COP/USD`, `BRL/USD`, `ARS/USD` | `equivalencia_monedas_dolar` | `banco_de_mexico` |
-| Banco de México | `USD/MXN` | `tipo_cambio_fix` | `superintendencia_financiera_de_colombia`, `central_banks_against_usd` |
-| Banco Central do Brasil | `USD/BRL` | `ptax_venda` | `banco_central_do_brasil`, `superintendencia_financiera_de_colombia`, `central_banks_against_usd` |
+| Banco de México | `USD/MXN` | `tipo_cambio_fix` | `superintendencia_financiera_de_colombia`, `superintendencia_de_banca_seguros_y_afp`, `central_banks_against_usd` |
+| Banco Central do Brasil | `USD/BRL` | `ptax_venda` | `banco_central_do_brasil`, `superintendencia_financiera_de_colombia`, `superintendencia_de_banca_seguros_y_afp`, `central_banks_against_usd` |
 | Banco Central do Brasil | `EUR/BRL`, `GBP/BRL`, `CLP/BRL`, `MXN/BRL`, `PEN/BRL`, `COP/BRL`, `ARS/BRL`, `KYD/BRL` | `ptax_venda` | `banco_central_do_brasil` |
 | European Central Bank | `EUR/USD` | `euro_foreign_exchange_reference_rate` | `superintendencia_financiera_de_colombia`, `central_banks_against_usd` |
-| European Central Bank | `EUR/GBP` | `euro_foreign_exchange_reference_rate` | `central_banks_against_usd` |
-| Superintendencia Financiera de Colombia | `USD/COP` | `tasa_representativa_del_mercado` | `superintendencia_financiera_de_colombia`, `central_banks_against_usd` |
-| Cayman Islands Monetary Authority | `KYD/USD` | `cayman_dollar_value` | `superintendencia_financiera_de_colombia`, `central_banks_against_usd` |
+| European Central Bank | `EUR/GBP` | `euro_foreign_exchange_reference_rate` | `superintendencia_de_banca_seguros_y_afp`, `central_banks_against_usd` |
+| Superintendencia Financiera de Colombia | `USD/COP` | `tasa_representativa_del_mercado` | `superintendencia_financiera_de_colombia`, `superintendencia_de_banca_seguros_y_afp`, `central_banks_against_usd` |
+| Superintendencia de Banca, Seguros y AFP | `USD/PEN` | `tipo_cambio_promedio_ponderado_venta` | `superintendencia_de_banca_seguros_y_afp`, `superintendencia_financiera_de_colombia`, `central_banks_against_usd` |
+| Superintendencia de Banca, Seguros y AFP | `EUR/PEN` | `tipo_cambio_promedio_ponderado_venta` | `superintendencia_de_banca_seguros_y_afp` |
+| Cayman Islands Monetary Authority | `KYD/USD` | `cayman_dollar_value` | `superintendencia_financiera_de_colombia`, `superintendencia_de_banca_seguros_y_afp`, `central_banks_against_usd` |
 
-`ptax_venda` is the sell rate (venda) of the Banco Central do Brasil's daily PTAX closing. The buy rate isn't stored.
+`ptax_venda` is the sell rate (venda) of the Banco Central do Brasil's daily PTAX closing. The buy rate isn't stored. `tipo_cambio_promedio_ponderado_venta` is likewise the SBS selling rate, and its buying rate isn't stored.
 
 A rate's `rateDate` is the day the series dates the value for:
 
@@ -92,6 +114,7 @@ A rate's `rateDate` is the day the series dates the value for:
 - **`ptax_venda`:** the business day of the PTAX closing. The Banco Central do Brasil publishes it around 13:10 Brasília time, so earlier in the day a lookup for today answers the previous business day. Weekends and Brazilian holidays have no PTAX, so a lookup for one of those days answers the last business day before it.
 - **`euro_foreign_exchange_reference_rate`:** the day the European Central Bank publishes the reference rate, around 16:00 Frankfurt time. Days without a reference rate answer the last day before them.
 - **`tasa_representativa_del_mercado`:** the first day the TRM is valid. The TRM computed from one business day's trades is valid from the next day, and the Superintendencia Financiera de Colombia publishes it the evening before, so the rate for tomorrow is available ahead of time. A Friday's TRM stays valid through the weekend and any holidays after it, so a lookup for one of those days answers that TRM. A lookup never uses a TRM dated after the day it values.
+- **`tipo_cambio_promedio_ponderado_venta`:** the business day of the SBS close. The rate becomes available on a later day, so a lookup for today usually answers an earlier business day. Days without a rate, such as weekends and Peruvian holidays, answer the last day before them.
 - **`cayman_dollar_value`:** `1974-04-01`, the date the fixed value of 1.20 US dollars per Cayman dollar applies from. A new official value would be a new rate with its own date.
 
 Rates are stored with the decimals the Rate Source publishes. Banco Central de Chile publishes at most two decimals, so for currencies worth less than one Chilean peso, such as COP and ARS, the rate is below one (for example `"0.24"`), and the published rounding carries through to the converted amount. The Banco Central do Brasil publishes eight decimals, and trailing zeros are dropped, so a published `5,58400000` is stored as `"5.584"`. Every rate is per one unit of the base currency.
@@ -108,10 +131,10 @@ The answer names each stored rate it used in `legs`, and its `rateDate` is the o
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/settings/fx-rates"
-  note="The page lives in the Organization's Configuración, under Tipos de cambio. Pick the Rate Source in Fuente oficial; the page defaults to Banco Central de Chile, ?rateSource=banco_de_mexico opens it on Banco de México, ?rateSource=banco_central_do_brasil opens it on Banco Central do Brasil, ?rateSource=superintendencia_financiera_de_colombia opens it on Superintendencia Financiera de Colombia, and ?rateSource=central_banks_against_usd opens it on Bancos centrales contra el dólar."
+  note="The page lives in the Organization's Configuración, under Tipos de cambio. Pick the Rate Source in Fuente oficial; the page defaults to Banco Central de Chile, ?rateSource=banco_de_mexico opens it on Banco de México, ?rateSource=banco_central_do_brasil opens it on Banco Central do Brasil, ?rateSource=superintendencia_financiera_de_colombia opens it on Superintendencia Financiera de Colombia, ?rateSource=superintendencia_de_banca_seguros_y_afp opens it on Superintendencia de Banca, Seguros y AFP, and ?rateSource=central_banks_against_usd opens it on Bancos centrales contra el dólar."
 />
 
-In the app, the rate field of an Invoice and a Movement's reconciliation is prefilled with the Entity's rate. The hint under the field names the series and date of each rate it used, for example **PTAX venda** for a Brazilian Entity, **TRM vigente desde el** and the date for a Colombian Entity, or the ECB reference rate for EUR in a US Entity. When there is no rate, the field shows why, and you type the rate.
+In the app, the rate field of an Invoice and a Movement's reconciliation is prefilled with the Entity's rate. The hint under the field names the series and date of each rate it used, for example **PTAX venda** for a Brazilian Entity, **TRM vigente desde el** and the date for a Colombian Entity, **Tipo de cambio promedio ponderado venta del** and the date for a Peruvian Entity, or the ECB reference rate for EUR in a US Entity. When there is no rate, the field shows why, and you type the rate.
 
 A manual entry line has no rate field. Sintropix [values the line](/api-reference/ledger-entries#foreign-currency-lines) at the Entity's rate on the Entry Date, and the line shows that rate with its date and series. To use another rate, choose **Usar otro tipo de cambio** and give its reason.
 
@@ -125,7 +148,7 @@ One stored rate, as its Rate Source publishes it.
 | `quoteCurrency` | string | ISO 4217 code of the quote currency, for example `CLP`. |
 | `rateDate` | string (`YYYY-MM-DD`) | The day the series dates the rate for. See [Rate series](#rate-series). |
 | `rate` | decimal string | One major unit of `baseCurrency` equals `rate` major units of `quoteCurrency`, for example `"943.25"`, or `"0.24"` for `COP/CLP`. Always a string, never a float. |
-| `series` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` \| `tipo_cambio_solventar_obligaciones` \| `equivalencia_monedas_dolar` \| `ptax_venda` \| `tipo_cambio_fix` \| `euro_foreign_exchange_reference_rate` \| `cayman_dollar_value` \| `tasa_representativa_del_mercado` | Which series the rate came from. |
+| `series` | `dolar_observado` \| `tipo_cambio_observado` \| `tipo_cambio_referencial` \| `tipo_cambio_solventar_obligaciones` \| `equivalencia_monedas_dolar` \| `ptax_venda` \| `tipo_cambio_fix` \| `euro_foreign_exchange_reference_rate` \| `cayman_dollar_value` \| `tasa_representativa_del_mercado` \| `tipo_cambio_promedio_ponderado_venta` | Which series the rate came from. |
 | `createdAt` | ISO 8601 timestamp | When the rate was stored. |
 
 ## GET `/entities/:entityId/fx-rate`
@@ -149,7 +172,7 @@ The route is an Entity route, so you need access to the Entity.
 | `functionalCurrency` | string | The Entity's functional currency. |
 | `rate` | decimal string | One unit of `transactionCurrency` equals `rate` units of `functionalCurrency`. Use it as the `transactionFxRate` of a bank line. A [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines) and an [Invoice booking](/api-reference/invoices#foreign-currency-invoices) take no rate: Sintropix values their foreign lines at this rate. |
 | `rateDate` | string (`YYYY-MM-DD`) | The oldest `rateDate` among `legs`. |
-| `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `superintendencia_financiera_de_colombia` \| `central_banks_against_usd` | The Entity's Rate Source. |
+| `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `superintendencia_financiera_de_colombia` \| `superintendencia_de_banca_seguros_y_afp` \| `central_banks_against_usd` | The Entity's Rate Source. |
 | `legs` | array | The one or two stored rates the answer used, in order. Each has `baseCurrency`, `quoteCurrency`, `rateDate`, `rate`, and `series` as in [the FX Rate object](#the-fx-rate-object), and `inverted`: `true` when the lookup divided by the rate instead of multiplying. |
 
 ```bash
@@ -204,7 +227,7 @@ List the most recent rates of one Rate Source: up to 100 rates, newest `rateDate
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `superintendencia_financiera_de_colombia` \| `central_banks_against_usd` | Yes | The Rate Source to list. |
+| `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `superintendencia_financiera_de_colombia` \| `superintendencia_de_banca_seguros_y_afp` \| `central_banks_against_usd` | Yes | The Rate Source to list. |
 
 - **Response:** array of FX Rate objects.
 
@@ -237,7 +260,7 @@ Each functional currency is valued at the Rate Source of the Entities that keep 
 | `suggestedRate.functionalCurrency` | string | Same as `functionalCurrency`. |
 | `suggestedRate.presentationRate` | decimal string | One unit of the presentation currency equals `presentationRate` units of the functional currency. |
 | `suggestedRate.rateDate` | string (`YYYY-MM-DD`) | The oldest `rateDate` among the rates it used. |
-| `suggestedRate.rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `superintendencia_financiera_de_colombia` \| `central_banks_against_usd` | The Rate Source it read. |
+| `suggestedRate.rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `superintendencia_financiera_de_colombia` \| `superintendencia_de_banca_seguros_y_afp` \| `central_banks_against_usd` | The Rate Source it read. |
 
 `suggestedRate` is `null` when:
 
@@ -266,6 +289,7 @@ A given range applies to every publisher. An empty body (or no body) syncs each 
 - **Banco Central do Brasil:** the last 10 days ending today, on the São Paulo calendar.
 - **European Central Bank:** the last 10 days ending today, on the Frankfurt calendar.
 - **Superintendencia Financiera de Colombia:** the last 10 days ending today, plus the next 7 days, on the Bogotá calendar.
+- **Superintendencia de Banca, Seguros y AFP:** the last 10 days ending today, on the Lima calendar.
 
 The value of the Cayman dollar is fixed, so the sync doesn't fetch it.
 
