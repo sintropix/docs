@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
 sidebarTitle: "Bank Feeds"
-description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, and Stripe Integrations."
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, Stripe, and Brex Integrations, including Brex card accounts."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -20,6 +20,7 @@ These Integration kinds can feed a Bank Account:
 | `mercadopago` | Mercado Pago | The account's available money |
 | `polar` | Polar | The USD balance of each organization the Polar user can read. See [Polar](#polar) |
 | `stripe` | Stripe | One account per currency of the Stripe account's balance, such as `Stripe USD`. See [Stripe](#stripe) |
+| `brex` | Brex | The company's checking and vault cash accounts, and its card account. See [Brex](#brex) |
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
@@ -59,6 +60,7 @@ Each element of `accounts` carries:
 | `name` | `string` | Account name as the institution reports it |
 | `number` | `string` | Account number as the institution reports it |
 | `type` | `string` | Provider-defined account type, display only |
+| `kind` | `bank` \| `card` | The kind of Bank Account this account feeds. A `card` account feeds only a `card` Bank Account, and a `bank` account only a `bank` one. See [Card accounts](#card-accounts) |
 | `currency` | `string` | ISO 4217 code |
 | `balance.current` | `integer` | Current balance in minor units of `currency` |
 | `balance.available` | `integer \| null` | Available balance in minor units; null when the institution does not report it |
@@ -72,8 +74,9 @@ Each element of `entities` carries:
 | --- | --- | --- |
 | `id` | `uuid` | The Entity |
 | `name` | `string` | The Entity's name |
-| `mappableBankAccounts` | `array` | The Entity's Bank Accounts that can still take a feed. Each carries `id` (`uuid`), `name` (`string`), and `currency` (`string`) |
-| `ledgerAccounts` | `array` | The Entity's Cash Accounts, the asset Ledger Accounts with the Cash sub-type, eligible for mapped creation. Each carries `id` (`uuid`), `code` (`string`), and `name` (`string`) |
+| `mappableBankAccounts` | `array` | The Entity's Bank Accounts that can still take a feed. Each carries `id` (`uuid`), `name` (`string`), `kind` (`bank` or `card`), and `currency` (`string`). Map a discovered account only to one of its own `kind` |
+| `ledgerAccounts` | `array` | The Entity's Cash Accounts, the asset Ledger Accounts with the Cash sub-type, eligible for mapped creation of a `bank` account. Each carries `id` (`uuid`), `code` (`string`), and `name` (`string`) |
+| `cardLedgerAccounts` | `array` | The Entity's liability Ledger Accounts with the `credit_card` sub-type, eligible for mapped creation of a `card` account. Same shape as `ledgerAccounts` |
 
 ```json
 {
@@ -84,6 +87,7 @@ Each element of `entities` carries:
       "name": "Cuenta Corriente",
       "number": "000123456789",
       "type": "checking_account",
+      "kind": "bank",
       "currency": "CLP",
       "balance": { "available": 1250000, "current": 1250000, "limit": null },
       "refreshedAt": "2026-02-01T12:00:00.000Z",
@@ -95,10 +99,13 @@ Each element of `entities` carries:
       "id": "8b0a7d5e-6a3c-4f2b-9e1d-2c4b6a8f0e21",
       "name": "Acme SpA",
       "mappableBankAccounts": [
-        { "id": "0192a8b4-0000-7000-8000-000000000002", "name": "Primary Checking", "currency": "CLP" }
+        { "id": "0192a8b4-0000-7000-8000-000000000002", "name": "Primary Checking", "kind": "bank", "currency": "CLP" }
       ],
       "ledgerAccounts": [
         { "id": "0192a8b4-0000-7000-8000-000000000004", "code": "1102", "name": "Banco" }
+      ],
+      "cardLedgerAccounts": [
+        { "id": "0192a8b4-0000-7000-8000-000000000005", "code": "2105", "name": "Tarjeta de crédito" }
       ]
     }
   ],
@@ -163,14 +170,15 @@ The map also refuses these cases, each with the same coded body:
 | `409` | `BANK_ACCOUNT_ALREADY_FED_ERROR` | The Bank Account already has a feed |
 | `409` | `DISCOVERED_ACCOUNT_ALREADY_FED_ERROR` | The discovered account already feeds a Bank Account |
 | `409` | `BANK_FEED_MAP_RACED_ERROR` | The Provider's account changed while the map read it. Retry |
-| `422` | `BANK_ACCOUNT_IS_CARD_ERROR` | The Bank Account is a `card`. Only a `bank` account takes a feed |
-| `422` | `DISCOVERED_ACCOUNT_IS_CARD_ERROR` | The discovered account is a card account |
+| `422` | `BANK_ACCOUNT_IS_CARD_ERROR` | The Bank Account is a `card`, and the discovered account's `kind` is `bank` |
+| `422` | `BANK_ACCOUNT_IS_NOT_CARD_ERROR` | The discovered account's `kind` is `card`, and the Bank Account is a `bank`. `params.bankAccountId` |
+| `422` | `DISCOVERED_ACCOUNT_IS_CARD_ERROR` | The discovered account is a card account, and its Provider doesn't feed cards, such as a Plaid credit account |
 
 ## Create a Bank Account from a discovered account
 
 `POST /api/entities/:entityId/integrations/:integrationId/bank-accounts`
 
-Create a new Bank Account in the Entity in the path, and feed it from a discovered account, in one operation. The creation is always kind `bank`, so only a Cash Account (an asset Ledger Account with the Cash sub-type) is accepted. Like the map, the first sync runs before the server answers.
+Create a new Bank Account in the Entity in the path, and feed it from a discovered account, in one operation. The new Bank Account takes the discovered account's `kind`. A `bank` account maps to a Cash Account (an asset Ledger Account with the Cash sub-type), one of the Entity's `ledgerAccounts`. A `card` account maps to a liability with the `credit_card` sub-type, one of the Entity's `cardLedgerAccounts`. See [Card accounts](#card-accounts). Like the map, the first sync runs before the server answers.
 
 ### Request body
 
@@ -178,7 +186,7 @@ Create a new Bank Account in the Entity in the path, and feed it from a discover
 | --- | --- | --- | --- |
 | `id` | `uuid` | Yes | Client-supplied id for idempotency |
 | `name` | `string` | Yes | Display name |
-| `ledgerAccountId` | `uuid` | Yes | Cash Account to map |
+| `ledgerAccountId` | `uuid` | Yes | Ledger Account to map: a Cash Account for a `bank` account, or a `credit_card` liability for a `card` account |
 | `providerAccountId` | `string` | Yes | Provider's opaque handle |
 | `feedStartDate` | `ISO date` | Yes | Day the feed begins. Any past day or today, on the calendar of Santiago (Chile). A future day is refused |
 
@@ -230,9 +238,62 @@ Mapping a discovered account to an existing Bank Account never answers `shortHis
 
 The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `400` with `BANK_FEED_START_DATE_IN_FUTURE_ERROR` or `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`. It also refuses the map's cases about the discovered account (`DISCOVERED_ACCOUNT_NOT_FOUND_ERROR`, `BANK_FEED_PROVIDER_REFRESHING_ERROR`, `BANK_FEED_PROVIDER_HAS_NO_DATA_ERROR`, `DISCOVERED_ACCOUNT_ALREADY_FED_ERROR`, `BANK_FEED_MAP_RACED_ERROR`, and `DISCOVERED_ACCOUNT_IS_CARD_ERROR`), and the cases of [creating a Bank Account](/api-reference/bank-accounts#create-a-bank-account), such as an `id` that already exists.
 
+## Card accounts
+
+Some Providers feed a card account, such as the card account of a [Brex](#brex) company. A discovered card account states `kind: "card"`, and its `balance.current` is negative when the card owes money, as every `card` Bank Account's balance is. A charge on the card lands as a credit, and a payment to the card as a debit.
+
+- To create a Bank Account from it, send a `ledgerAccountId` from the Entity's `cardLedgerAccounts`. In the app, **Crear** offers those accounts.
+- To map it, pick a `card` Bank Account from `mappableBankAccounts`. Mapping it to a `bank` Bank Account answers `422` with `BANK_ACCOUNT_IS_NOT_CARD_ERROR`.
+
+A card account of a Provider that doesn't feed cards, such as a Plaid credit account, still answers `DISCOVERED_ACCOUNT_IS_CARD_ERROR`.
+
 To stop a feed or sync it on demand, use the feed routes on the [Bank Accounts](/api-reference/bank-accounts) page. To check whether a feed's Movements add up to the Provider's balance, read its [tie-out](/api-reference/bank-accounts#tie-out). To stop every feed of an Integration at once, [disconnect the Integration](/api-reference/integrations#delete-/integrations/integrationid).
 
 ## What each Provider lands
+
+### Brex
+
+[Brex](https://www.brex.com) is a US platform for corporate cards and business accounts. A Brex Integration reads the cash accounts and the card account of the Brex company you [connected](/api-reference/integrations#brex). Sintropix only reads Brex: it never moves money.
+
+**Discovered accounts**
+
+- The Integration discovers every cash account of the company, except Treasury accounts, and the company's card account. Treasury accounts don't feed a Bank Account yet.
+- A cash account's `type` is its type at Brex, `CHECKING` or `VAULT`, and its `kind` is `bank`. `name` is the account's name at Brex, `number` is the last 4 digits of its account number, `balance.current` is its current balance, and `balance.available` its available balance.
+- The card account's `type` is `CARD` and its `kind` is `card`. `name` is `Brex Card` and `number` is empty. `balance.current` is minus what the card owes, so a card that owes $2,350.00 shows `-235000`. `balance.available` is the available credit, and `balance.limit` the card account's limit.
+- Brex is read live, so `readsLive` is `true` and `refreshedAt` is always null.
+
+Feed the card account into a `card` Bank Account on a `credit_card` liability. See [Card accounts](#card-accounts).
+
+**What lands**
+
+- Only posted transactions land. Brex serves only settled card transactions, so a card charge lands once it settles.
+- Each transaction lands as its own Movement, dated by the day Brex posted it. A transaction posted before the feed start date doesn't land.
+- On a cash account, money that comes in lands as a positive amount, and money that leaves lands as a negative amount.
+- On the card, a charge lands as a credit (negative), and a payment to the card (`COLLECTION` at Brex) as a debit (positive).
+- Brex accounts are in USD. A transaction in another currency fails the sync with `424` and `BANK_FEED_PROVIDER_FAILURE_ERROR`.
+- The description of a cash Movement is Brex's description of the transaction, or its type at Brex when it has none. The description of a card Movement is the merchant's descriptor, followed by `· Brex ****` and the card's last 4 digits when Brex names the card, such as `AMAZON WEB SERVICES · Brex ****4821`.
+
+A payment to the card lands twice: as a negative Movement on the cash account that paid it and as a positive Movement on the card, on the same day and for the same amount. Brex gives the two no shared id, and Sintropix doesn't pair them. Book them as an [internal transfer](/api-reference/bank-movements#record-an-internal-transfer).
+
+The Additional Information holds these lines, in this order, each only when Brex states it:
+
+| Label | Value |
+| --- | --- |
+| `Fuente` | Where Sintropix read the transaction |
+| `ID transacción Brex` | Brex's id for the transaction |
+| `Tipo Brex` | The transaction type at Brex, such as `PURCHASE`, `COLLECTION`, or `PAYMENT` |
+| `Iniciada Brex` | The day the transaction was initiated |
+| `Transferencia Brex` | On a cash transaction, the id of its transfer at Brex |
+| `Tarjeta Brex` | On a card transaction, the card's name and last 4 digits, such as `Marketing •••• 4821` |
+| `Titular tarjeta Brex` | On a card transaction, the cardholder's name |
+
+A card payment names no card, so it carries no `Tarjeta Brex` or `Titular tarjeta Brex` line.
+
+**Balance check.** Each sync checks a cash account's landed Movements against its current balance at Brex, and the card's against minus its current balance. When they don't add up, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out). Brex lists no pending charges. If a card's balance at Brex counts a charge that hasn't settled, the card can show out of tie-out by that charge until it settles and lands.
+
+**One card account.** Brex lists the card transactions of a company without naming their card account. A company with more than one card account can't tie its card out, so its card sync answers `424` with `BANK_FEED_PROVIDER_FAILURE_ERROR`. Its cash accounts still feed.
+
+Brex serves every transaction since the account opened, so any feed start date works and a Brex account never has a [short history](#short-history).
 
 ### Cardda
 
@@ -511,6 +572,7 @@ Every Movement a feed lands carries a `providerTime`: the time the Provider stat
 | Fintoc | The time of the operation, when the bank states one. A row with no time, or with midnight, gets `null`. The operation can fall days before the Movement date |
 | Plaid | The time of the transaction, when Plaid states one |
 | dLocal Go | The time of the date that gives the Movement its day: the approval or creation time of a payment, and the payment time of a settlement. dLocal Go states it without a time zone, so Sintropix reads it as UTC |
+| Brex | Always `null`. Brex dates each transaction by its day only |
 | Cardda | Bank transfers only, from `authorized_at`, or `created_at` when `authorized_at` is absent. Card, commission, and payment rows get `null` |
 
 The time is written once. A sync can give a time to a landed Movement that has none, booked or not, but only while the Provider still dates the row on the Movement's day. It never changes a time a Movement already holds, so a dLocal Go payment whose approval date changes keeps its first time. Movements that landed before Provider time existed have `null` until a sync fills it.
