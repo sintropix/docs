@@ -355,6 +355,14 @@ The SII states boletas (types `39` and `41`) as one consolidated row per type an
 
 A boleta that states the RUT `66666666-6`, or that the Entity issued with no buyer RUT, lands on the final-consumer Partner, named `Consumidor Final` with `taxId` `66666666-6`. A consolidated row that the SII never itemizes counts as `ignored`.
 
+### SII Mirror withheld IVA
+
+On a factura de compra (type `46`) from the purchases register, the sync lands the IVA the buyer withholds in the DTE's `withheldIvaAmount`. The SII states it as the document's other tax, and it is usually the whole `taxAmount`. A partial withholding lands as stated, below `taxAmount`. A nota de crédito (`61`) or nota de débito (`56`) on a 46 lands its `withheldIvaAmount` the same way. A sale lands the withholding the SII states in the sales register.
+
+A [Booking Template](/api-reference/partners#booking-templates) line on `dte_withheld_iva_amount` gets that amount, so a vendor template that credits the withheld IVA books these 46s when they land.
+
+A 46 that already landed with `withheldIvaAmount` null keeps it. A later sync doesn't write the amount: it lists the DTE in `report.divergences` with the field `withheldIvaAmount`.
+
 ### SII Mirror sales summaries
 
 For the sales types the SII states only as a monthly total (`35`, `38`, `47`, `48`, `105`, `919`, `920`, `922`, and `924`), a sync writes a [Sales Summary](/api-reference/sii#sales-summaries) per type and month and lands it as receivable Invoices on the final-consumer Partner, in the Feed's Source:
