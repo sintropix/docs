@@ -135,7 +135,7 @@ Each load reads from 3 days before the newest issue date among the Partner of On
    | `memo` | `Ontop <number> · <contractor>`, or `Ontop <number> · Membresía` for an `OMF` |
    | `metadata` | In this order, when Ontop shows them: `Tipo Ontop`, `Worker ID`, `Contratista`, `Fecha pago contratista`, and each part of the pay that isn't zero (`Compensation`, `Bonus`, `Commissions`, `Reimbursements`, `Total compensation`, `Ontop fees`) |
 
-2. **Book.** Erwin books each new `ONTW` to the account of its contractor's category, and each `ONTF` and `OMF` to the fee account. The entry credits the control account and debits the expense account, on the issue date, at the [FX rate](/api-reference/fx-rates) of USD for that date, or of the last earlier date with a rate. When the wiki has no category for a contractor, Erwin leaves the invoice unbooked with a `question` [Follow-up](/api-reference/follow-ups) that offers one option per category. He never guesses a category from the contractor's role.
+2. **Book.** Erwin books each new `ONTW` to the account of its contractor's category, and each `ONTF` and `OMF` to the fee account. The entry credits the control account and debits the expense account, both in USD for the invoice's total, on the issue date. Sintropix values both lines at the [published rate](/api-reference/fx-rates) of USD for that date, or of the last earlier date with a rate. When the wiki has no category for a contractor, Erwin leaves the invoice unbooked with a `question` [Follow-up](/api-reference/follow-ups) that offers one option per category. He never guesses a category from the contractor's role.
 3. **Match.** Erwin matches each payment to its invoices once all of them are booked and open:
    - A `PAYMENT` of the wallet pairs with the Ontop payment made from the wallet, with the same amount and a date at most 3 days away.
    - A card charge whose description names Ontop pairs with the Ontop payment made by card, or with an `OMF`, with the same amount and a date at most 3 days away.
@@ -391,10 +391,12 @@ Create an Invoice. The same request can also book it (`bookingEntryWithLines`) a
 | `memo` | string or null | No | Free text. |
 | `metadata` | array | No | Up to 50 lines of `{ "label": string, "value": string }`. Labels up to 120 characters, values up to 500, both non-blank. Omit for none. |
 | `sourceId` | uuid or null | No | The Source the document came from. Omit or null when entered directly. |
-| `bookingEntryWithLines` | object | No | Book the Invoice in the same request. Same shape and rules as the body of `POST /invoices/:invoiceId/book`. |
+| `bookingEntryWithLines` | object | No | Book the Invoice in the same request. Same shape and rules as the body of `POST /invoices/:invoiceId/book`, including the [valuation of foreign lines](#foreign-currency-invoices). |
 | `dte` | object | No | The Chilean tax document behind the Invoice. Same shape and rules as the body of `PUT /invoices/:invoiceId/dte`. Omit for a document with no DTE. |
 
-**Response** (`201`)
+**Query parameters:** an optional `basisId`, as on [`POST /invoices/:invoiceId/book`](#post-/invoices/invoiceid/book), and an optional `dryRun` (boolean). `dryRun=true` runs the whole request and keeps nothing, not even the Invoice; see [Dry run](#dry-run).
+
+**Response** (`201`, or `200` for a dry run)
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -402,6 +404,7 @@ Create an Invoice. The same request can also book it (`bookingEntryWithLines`) a
 | `bookingEntry` | object or null | The Ledger Entry detail (see `GET /invoices/:invoiceId`). Null unless `bookingEntryWithLines` was sent or the vendor's [Booking Template](/api-reference/partners#booking-templates) booked the Invoice. |
 | `partner` | object or null | The Partner with its `openReceivable` and `openPayable` totals after booking. Null unless the Invoice was booked. On an Entity with [Bases](/api-reference/bases), both totals are `null` unless the request named a `basisId` query parameter, which works as on [`POST /invoices/:invoiceId/book`](#post-/invoices/invoiceid/book). |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
+| `dryRun` | boolean | `true` on a [dry run](#dry-run). Absent otherwise. |
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices" \
@@ -479,8 +482,8 @@ Example response:
 Create up to 100 Invoices in a single request and transaction. Each element carries its own client-supplied `id` (required) so a retry collides on the primary key rather than double-inserting.
 
 - **Body:** `BulkCreateInvoicesDto` — `{ invoices: CreateInvoice[] }` (1 to 100 elements).
-- **Query parameters:** an optional `basisId`, as on `POST /invoices`.
-- **Response:** array of `createInvoiceResultSchema`, in input order.
+- **Query parameters:** an optional `basisId` and an optional `dryRun`, as on `POST /invoices`.
+- **Response:** array of `createInvoiceResultSchema`, in input order. On a [dry run](#dry-run), the status is `200` and each element carries `dryRun: true`.
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/bulk" \
@@ -499,8 +502,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/bulk" \
 Book up to 100 already-created Invoices in a single transaction. Each element carries an `invoiceId` plus the booking instructions used by the single-invoice endpoint, including the optional `expectedBookingVersion`.
 
 - **Body:** `BulkBookInvoicesDto` — `{ bookings: (BookInvoice & { invoiceId })[] }` (1 to 100 elements).
-- **Query parameters:** an optional `basisId`, as on `POST /invoices/:invoiceId/book`.
-- **Response:** array of `bookInvoiceResultSchema`, in input order.
+- **Query parameters:** an optional `basisId` and an optional `dryRun`, as on `POST /invoices/:invoiceId/book`.
+- **Response:** array of `bookInvoiceResultSchema`, in input order. On a [dry run](#dry-run), each element carries `dryRun: true`.
 
 <Info>
   Bulk endpoints run as one database transaction. If any element fails validation or a domain rule, the whole batch is rejected and the response identifies the offending element by its zero-based `elementIndex` (`bulkElementFailureSchema`). An `INVOICE_BOOKING_CHANGED_ERROR` on one element rolls back the whole request; retry the batch without that element (or with its refreshed `expectedBookingVersion`) to book its siblings.
@@ -674,6 +677,7 @@ Book an existing Invoice to a Ledger Entry using the supplied booking instructio
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `basisId` | uuid | No | On an Entity with [Bases](/api-reference/bases), the Basis whose open totals the answered `partner` carries. Without it, that Partner's `openReceivable` and `openPayable` are `null`. It does not change the booking. |
+| `dryRun` | boolean | No | `true` runs the whole booking and keeps nothing. See [Dry run](#dry-run). |
 
 **Body**
 
@@ -691,27 +695,32 @@ Fields of `entry`:
 | `entryDate` | string | Yes | `YYYY-MM-DD`. |
 | `memo` | string or null | Yes | Entry memo. |
 | `notes` | string or null | No | Entry notes. |
-| `newLedgerEntryLines` | array | Yes | 2 to 10,000 lines. Total debits must equal total credits. |
+| `newLedgerEntryLines` | array | Yes | 2 to 10,000 lines. Total debits must equal total credits once every line is valued. |
 
-Each element of `newLedgerEntryLines`:
+Each element of `newLedgerEntryLines` is either **domestic**, in the Entity's functional currency, or **foreign**, in another currency. Sintropix values a foreign line; you never send its functional amount or its rate. See [Foreign-currency invoices](#foreign-currency-invoices).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Caller-generated line id. Must not already exist. See [Ledger Entries](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries). |
 | `accountId` | uuid | Yes | Ledger Account of the Entity. |
-| `functionalAmount` | integer | Yes | Magnitude in the functional currency, minor units, zero or more. |
 | `side` | string | Yes | `debit` or `credit`. |
+| `functionalAmount` | integer | Domestic only | Magnitude in the functional currency, minor units, zero or more. Required on a domestic line, refused on a foreign line. |
+| `transactionCurrency` | string | Foreign only | ISO 4217 code of a foreign line. Sending it makes the line foreign. It can't be the Entity's functional currency. |
+| `transactionAmount` | integer | Foreign only | Amount in `transactionCurrency`, minor units, zero or more. Required on a foreign line. |
+| `overrideFxRate` | decimal string | No | Foreign only. A rate of your own, such as `"950.25"`, instead of the published one. Greater than zero, with no sign or exponent. Requires `overrideFxRateReason`. |
+| `overrideFxRateReason` | string | No | Foreign only. Why the line uses its own rate, 1 to 500 characters after trimming. Requires `overrideFxRate`. |
 | `partnerId` | uuid or null | No | Counterparty. Lines other than the control line default to the Invoice's Partner when omitted. |
-| `transactionCurrency` | string | No | ISO 4217 code. Send together with the next two fields, or none of the three. |
-| `transactionAmount` | integer | No | Amount in `transactionCurrency`, minor units. |
-| `transactionFxRate` | string | No | Decimal string such as `"945.12"`. No exponent or sign. |
 | `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. A line on an account whose Group Account [requires Dimensions](/api-reference/dimensions#required-dimensions) must carry a value of each, unless it carries `deferral` or `accrual`. |
 | `deferral` | object | No | Spread this line's whole amount over whole months from the booking on, instead of recognizing it on the entry date: `{ recognitionAccountId, startMonth, monthCount }`. See [Deferrals](#deferrals). |
 | `accrual` | object | No | Recognize this line's whole amount in whole months before the month of the booking: `{ recognitionAccountId, startMonth, monthCount }`. See [Accruals](#accruals). |
 
-A line carries `deferral`, `accrual`, or neither. A line with both is refused with `400`, and so is a line of amount `0` that carries either one.
+<Note>
+  A line takes only the fields above. Any other field, `transactionFxRate` included, is refused with a `400` that names it. Don't send a currency field set to `null` on a domestic line; leave it out.
+</Note>
 
-The Control Line (the line whose `id` is `controlLineId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side. Its account becomes the Invoice's `controlAccountId`.
+A line carries `deferral`, `accrual`, or neither. A line with both is refused with `400`. A deferred or accrued line that asks for `0` (a `functionalAmount` of `0` on a domestic line, a `transactionAmount` of `0` on a foreign one) is refused with `400` too. A foreign deferred or accrued line whose amount Sintropix values at `0` is refused with `409` (`DEFERRAL_LINE_VALUED_AT_ZERO_ERROR` or `ACCRUAL_LINE_VALUED_AT_ZERO_ERROR`), because it has nothing to release.
+
+The Control Line (the line whose `id` is `controlLineId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. On an Invoice in the functional currency, the Control Line is domestic. On an Invoice in another currency, it is foreign: its `transactionCurrency` is the Invoice's `currency` and its `transactionAmount` the Invoice's `total`. Sintropix checks the Control Line after it values the lines. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side. Its account becomes the Invoice's `controlAccountId`.
 
 A `tax_only` document has no Control Line. Its entry must still balance, and none of its lines may sit on an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. For example, a factura de compra 46 of CLP 190,000 IVA for a purchase abroad:
 
@@ -750,6 +759,58 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 }
 ```
 
+### Foreign-currency invoices
+
+A booking line in another currency states its currency and its amount, and Sintropix works out its functional amount. It values each foreign line the way it values a [manual entry's foreign line](/api-reference/ledger-entries#foreign-currency-lines):
+
+1. **Rate.** The line takes the latest rate the Entity's [Rate Source](/api-reference/fx-rates#rate-sources) published on or before `entry.entryDate`.
+2. **Own rate.** When the evidence names another rate, such as a contract rate, send `overrideFxRate` with `overrideFxRateReason`. An override is also the only way to book a currency the Rate Source doesn't publish.
+3. **Rounding.** Lines of one currency, rate, and side round as a group, as on a manual entry.
+4. **Balance.** The entry must balance once every line is valued. Check that with a [dry run](#dry-run) before you write.
+
+On an Invoice in another currency, the Control Line is in the Invoice's currency, for its total. The other lines can be domestic, or foreign in any currency. Deferrals and Accruals take the functional amount each line was valued at.
+
+When the valued lines don't balance, the booking is refused with `409` and `LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR`. Its `valuedLines` lists every line as Sintropix valued it, so you can size the domestic lines. A booking whose lines are all domestic and don't balance still answers `400`.
+
+This booking, dated 7 November 2026, books a USD 1,000.00 bill from a foreign vendor in a Chilean Entity. Both lines are in USD, so both are valued at the same rate and the entry balances. At Banco Central de Chile's 943.25, each line books CLP 943,250:
+
+```json
+{
+  "controlLineId": "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d",
+  "entry": {
+    "id": "8b9c0d1e-2f3a-4b4c-9d5e-6f7a8b9c0d1e",
+    "entryDate": "2026-11-07",
+    "memo": "Invoice 2026-118 Cloud Vendor Inc.",
+    "newLedgerEntryLines": [
+      { "id": "9c0d1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e2f", "accountId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "side": "debit", "transactionCurrency": "USD", "transactionAmount": 100000 },
+      { "id": "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d", "accountId": "3e7a9c1b-2d4f-4a6e-8b0c-1d2e3f4a5b6c", "side": "credit", "partnerId": "0b6c0f2e-5a4d-4e8f-b1c3-7d9e2a4f6c88", "transactionCurrency": "USD", "transactionAmount": 100000 }
+    ]
+  }
+}
+```
+
+To book the expense in CLP instead, send it as a domestic line with `functionalAmount`. Read the Control Line's valued amount from a dry run first, so the two lines balance.
+
+### Dry run
+
+Add `?dryRun=true` to `POST /invoices/:invoiceId/book`, `POST /invoices/book`, `POST /invoices`, or `POST /invoices/bulk` to read what Sintropix would book, without booking it. It works the same way as the [dry run of a manual entry](/api-reference/ledger-entries#dry-run):
+
+- A dry run runs the whole request, with every check, then rolls it back. It answers `200` with the answer the request would give plus `dryRun: true` (on each element of a bulk answer), or with the refusal the request would give.
+- It keeps nothing: no booking, and on a create, no Invoice. The Invoice, entry, and line ids stay free, so you can send the same body without `dryRun` to write it.
+- It counts as a write for permissions. It needs the write's permission and [audit headers](/api-reference/overview), and a read-only key gets `403`.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/book?dryRun=true" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d @booking.json
+```
+
+### In the app
+
+When you classify an Invoice in its panel, or create and book one in the new Invoice dialog, each line takes a currency. On an Invoice in another currency, the split starts in the Invoice's currency, filled with its total. As you type, the screen runs a dry run and shows what Sintropix would book: each line's figure, the rate with its date and series, the totals, and what's left to classify. **Usar otro tipo de cambio** sets one rate and its required **Motivo** for every line of that currency in the booking, and shows the published rate it replaces and the difference on the document. A currency the Rate Source doesn't publish is refused on its line: *Sin tipo de cambio para KYD al 2026-11-07 en la fuente …: usa otro tipo de cambio con su motivo.*
+
 **Response** (`200`)
 
 | Field | Type | Description |
@@ -758,8 +819,11 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | `bookingEntry` | object | The Ledger Entry detail described under `GET /invoices/:invoiceId`. |
 | `partner` | object | The Partner (see [Partners](/api-reference/partners)) with `openReceivable` and `openPayable` after booking. On an Entity with Bases, both are `null` unless the request named a `basisId`. |
 | `totalCount`, `unbookedCount`, `outstandingTotal` | integer | The direction-wide totals described under `GET /invoices/pages`. |
+| `dryRun` | boolean | `true` on a [dry run](#dry-run). Absent otherwise. |
 
 **Domain errors**
+
+Besides the codes below, a booking with a foreign line can answer the [valuation refusals](/api-reference/ledger-entries#foreign-currency-lines) of a manual entry, all `409`: `LEDGER_ENTRY_LINE_FX_RATE_NOT_FOUND_ERROR`, `LEDGER_ENTRY_LINE_FX_RATE_SOURCE_NOT_FOUND_ERROR`, `LEDGER_ENTRY_LINE_VALUED_AMOUNT_OUT_OF_RANGE_ERROR`, and `LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR`.
 
 | Code | Status | Meaning |
 | --- | --- | --- |
@@ -771,10 +835,12 @@ Example body for a CLP purchase invoice of 1,190,000 (1,000,000 net plus 19% VAT
 | `DEFERRAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR` | `409` | A line of a `tax_only` document carries `deferral`. An `invoice` or a credit note can be deferred. The response carries `params: { invoiceId, documentKind }`, with `documentKind` `tax_only`. |
 | `DEFERRAL_ACCOUNT_SUBTYPE_MISMATCH_ERROR` | `400` | The deferred line's account does not have the sub-type the Invoice's direction needs: `prepaid_expense` for `payable`, `deferred_revenue` for `receivable`. The response carries `params: { ledgerEntryLineId, ledgerAccountId, expectedSubtype }`. |
 | `DEFERRAL_LINE_SIDE_MISMATCH_ERROR` | `400` | The deferred line is not on the side opposite the Control Line: a payable invoice defers a `debit` line and a receivable invoice a `credit` line, and a credit note the other way round. The response carries `params: { ledgerEntryLineId, expectedSide }`. |
+| `DEFERRAL_LINE_VALUED_AT_ZERO_ERROR` | `409` | A foreign deferred line values to `0` in the functional currency, so it has nothing to release. Raise its amount or remove the `deferral`. The response carries `params: { ledgerEntryLineId }`. |
 | `DEFERRAL_RECOGNITION_ACCOUNT_INELIGIBLE_ERROR` | `400` | `recognitionAccountId` is not of a type the deferral can release into. The response carries `params: { ledgerEntryLineId, recognitionAccountId, deferredAccountSubtype }`. |
 | `ACCRUAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR` | `409` | A line of a `tax_only` document carries `accrual`. An `invoice` or a credit note can be accrued. The response carries `params: { invoiceId, documentKind }`, with `documentKind` `tax_only`. |
 | `ACCRUAL_ACCOUNT_SUBTYPE_MISMATCH_ERROR` | `400` | The accrued line's account does not have the sub-type the Invoice's direction needs: `unbilled_payable` for `payable`, `unbilled_receivable` for `receivable`. The response carries `params: { ledgerEntryLineId, ledgerAccountId, expectedSubtype }`. |
 | `ACCRUAL_LINE_SIDE_MISMATCH_ERROR` | `400` | The accrued line is not on the side opposite the Control Line: a payable invoice accrues a `debit` line and a receivable invoice a `credit` line, and a credit note the other way round. The response carries `params: { ledgerEntryLineId, expectedSide }`. |
+| `ACCRUAL_LINE_VALUED_AT_ZERO_ERROR` | `409` | A foreign accrued line values to `0` in the functional currency, so it has nothing to release. Raise its amount or remove the `accrual`. The response carries `params: { ledgerEntryLineId }`. |
 | `ACCRUAL_RECOGNITION_ACCOUNT_INELIGIBLE_ERROR` | `400` | `recognitionAccountId` is not of a type the accrual can release into. The response carries `params: { ledgerEntryLineId, recognitionAccountId, accruedAccountSubtype }`. |
 | `ACCRUAL_SCHEDULE_REACHES_BOOKING_MONTH_ERROR` | `400` | A month of the accrual is the month of the booking or later. Every month must end before the month of `entry.entryDate`. The response carries `params: { ledgerEntryLineId, entryDate }`. |
 | `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | A Release of a deferred or accrued line falls on or before the ledger lock date. Nothing is booked. The response carries `params: { entryDate, ledgerLockDate }`, where `entryDate` is the date of that Release. |
@@ -823,7 +889,7 @@ These rules apply:
 - The line sits on the side opposite the Control Line: a `debit` on a payable invoice, a `credit` on a receivable invoice. A credit note flips it: a `credit` on a payable credit note, a `debit` on a receivable one.
 - An `invoice` or a credit note can be deferred. A `tax_only` document can't.
 - A line carries a `deferral` or an [`accrual`](#accruals), never both.
-- Only the functional amount is deferred. A foreign-currency line is released at the amount booked on the Invoice, and the Releases carry no transaction currency.
+- Only the functional amount is deferred. A foreign-currency line is released at the functional amount Sintropix valued it at, and the Releases carry no transaction currency.
 - Defer the net line only. The IVA line and the control line follow the Invoice as usual.
 - Several lines of the same booking can each carry their own `deferral`.
 
@@ -963,7 +1029,7 @@ These rules apply:
 - The line sits on the side opposite the Control Line: a `debit` on a payable invoice, a `credit` on a receivable invoice. A credit note flips it: a `credit` on a payable credit note, a `debit` on a receivable one.
 - An `invoice` or a credit note can be accrued. A `tax_only` document can't.
 - A line carries an `accrual` or a [`deferral`](#deferrals), never both.
-- Only the functional amount is accrued, and the Releases carry no transaction currency.
+- Only the functional amount is accrued. A foreign-currency line is released at the functional amount Sintropix valued it at, and the Releases carry no transaction currency.
 - Accrue the net line only. The IVA line and the Control Line follow the Invoice on its own date.
 - Several lines of the same booking can each carry their own `accrual`.
 

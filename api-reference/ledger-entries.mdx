@@ -344,7 +344,7 @@ A foreign line states its currency and its amount. Sintropix works out its funct
 | `published` | The rate of the Entity's Rate Source on or before the Entry Date, dated in `transactionFxRateDate` |
 | `overridden` | A rate the caller stated with `overrideFxRate` and its reason |
 | `settled_item` | The carrying rate of the open line the line settles, dated in `transactionFxRateDate`. The routes on this page don't post it |
-| `stated` | A rate the caller stated without a check: every foreign line booked before Sintropix valued foreign lines, and the lines that [invoice booking](/api-reference/invoices) and the [bank routes](/api-reference/bank-movements) still post with `transactionFxRate` |
+| `stated` | A rate the caller stated without a check: every foreign line booked before Sintropix valued foreign lines, and the lines that the [bank routes](/api-reference/bank-movements) still post with `transactionFxRate`. [Invoice booking](/api-reference/invoices#foreign-currency-invoices) values its lines like this page does |
 
 The valuation adds these refusals, all `409`:
 
