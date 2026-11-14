@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Integrations API: Link External Systems to an Organization"
 sidebarTitle: "Integrations"
-description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger, or the group's Consolidated Ledger, to a Google Sheet, connect a Google Sheet or the questions of a Metabase site for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
+description: "Create, list, reconnect, and delete Integrations: the Organization's linked credentials for external systems that feed data into its Entities through Source Feeds and bank feeds. Give each one a purpose, create a Mailbox at the Organization's email domain, search and read the email of a Gmail, Outlook, or Mailbox account, connect the SII with the company Clave, export the General Ledger, or the group's Consolidated Ledger, to a Google Sheet, connect a Google Sheet or the questions of a Metabase site for Erwin and the MCP to read, connect Xpendit with an API key and read its expenses, connect Rho with an access token and preview its accounts, connect Brex with a user token to feed its cash and card accounts, connect Stripe with read-only access, and store Portal Logins for a bank, Getnet, or Clay, which no Provider reads."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -14,7 +14,7 @@ What an Integration can feed depends on its kind:
 | --- | --- |
 | `sii_mirror` | Up to two [Sources](/api-reference/sources), through [Source Feeds](/api-reference/source-feeds): one for DTEs (`dte`) and one for boletas de honorarios (`honorarium`) |
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
-| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar`, `stripe` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
+| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar`, `stripe`, `brex` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `xpendit` | A [Source](/api-reference/sources) that holds Expense Renditions for each of its Subsidiaries, through a [Source Feed](/api-reference/source-feeds#expense-feeds) of expenses (`expense`). Each sync lands the expenses Xpendit approved as approved [Expense Claims](/api-reference/expense-claims). You can also [read its expenses](#read-what-xpendit-holds) on demand |
 | `mercadolibre`, `buk`, `notion`, `rho` | Nothing yet |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
@@ -47,6 +47,8 @@ The `stripe` kind connects a [Stripe](https://stripe.com) account through OAuth,
 The `buk` kind connects a Buk tenant, the payroll system, with its address and an API key. It feeds nothing yet. You can [list the Empresas](#get-/integrations/integrationid/provider-accounts) the key reaches. See [Buk](#buk).
 
 The `rho` kind connects a business on [Rho](https://www.rho.co), the US business banking platform, with a read-only API access token. It feeds nothing yet, but you can preview every account of the business with its current balance, Treasury and rewards accounts included. See [Rho](#rho).
+
+The `brex` kind connects a company on [Brex](https://www.brex.com), the US platform for corporate cards and business accounts, with a read-only user token. It feeds a Bank Account from each checking and vault cash account of the company, and a `card` Bank Account from its card account. See [Brex](#brex).
 
 The `notion` kind connects a Notion workspace through OAuth, with read-only access to the pages and databases you share at consent. It feeds nothing yet, but you can preview each database it reaches. See [Notion](#notion).
 
@@ -93,7 +95,7 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `google_drive` \| `metabase` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` | The external system. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `google_drive` \| `metabase` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` \| `brex` | The external system. |
 | `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets` and `google_drive`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `buk`, the tenant, the subdomain of its `buk.cl` address; for `metabase`, the host of the Metabase Cloud site, such as `acme.metabaseapp.com`; for `notion`, the id of the Notion workspace; for `rho`, the id of the Rho business). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. Only `bsale` and `wasabil` state it; `null` for every other kind. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
@@ -127,20 +129,20 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers, the bank Providers, Xpendit, Buk, Metabase, and Rho. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
+This route connects the document Providers, the bank Providers, Xpendit, Buk, Metabase, Rho, and Brex. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `metabase` \| `rho` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `google_drive`, `stripe`, and `notion` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `metabase` \| `rho` \| `brex` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `google_drive`, `stripe`, and `notion` are not accepted here. |
 
 Each kind adds its own fields:
 
 | Kind | Fields | Description |
 | --- | --- | --- |
-| `bsale`, `wasabil`, `xpendit`, `rho` | `accessToken` (string) | The provider's API access token. For `xpendit`, the API key of the enterprise. For `rho`, an API access token of the Rho business. See [Create the token in Rho](#create-the-token-in-rho). Whitespace is trimmed and must be non-empty. |
+| `bsale`, `wasabil`, `xpendit`, `rho`, `brex` | `accessToken` (string) | The provider's API access token. For `xpendit`, the API key of the enterprise. For `rho`, an API access token of the Rho business. See [Create the token in Rho](#create-the-token-in-rho). For `brex`, a user token of the Brex company. See [Create the token in Brex](#create-the-token-in-brex). Whitespace is trimmed and must be non-empty. |
 | `buk` | `tenant` (string), `accessToken` (string) | The address of your Buk, such as `acme.buk.cl` or a full `https://acme.buk.cl/...` address, and its API key. Sintropix keeps only the subdomain, and sends the key only to that `buk.cl` address. An address outside `buk.cl` is refused with `400`. The key must be non-empty after trimming. |
 | `metabase` | `host` (string), `accessToken` (string) | The address of your Metabase Cloud site, such as `acme.metabaseapp.com`, just `acme`, or any `https://acme.metabaseapp.com/...` address, and a Metabase API key. Sintropix keeps the host, `acme.metabaseapp.com`, and sends the key only to that host. An address outside `metabaseapp.com` is refused with `400`, so a self-hosted Metabase can't connect. The key must be non-empty after trimming. See [Metabase](#metabase). |
 | `sii_mirror` | `rut` (string), `clave` (string) | The company's RUT and its SII password (Clave). The RUT takes the same format and check-digit rule as a [Portal Login](#post-/portal-logins) `rut`. The Clave must be non-empty. See [SII](#sii). |
@@ -152,7 +154,7 @@ Each kind adds its own fields:
 
 For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the Integration, so the request can take up to about a minute. A Clave the SII refuses answers `422` with `SII_CLAVE_REFUSED_ERROR`. When the SII gives no answer in time, the request answers `503` with `SII_UNAVAILABLE_ERROR` and creates nothing. Retry in a few minutes. When the SII answers the sign-in with a page Sintropix doesn't recognize, the request answers `424` with `SII_ANSWER_UNRECOGNIZED_ERROR` and creates nothing. `params.siiAnswer` carries the text of the SII's page.
 
-Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration of the Organization already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. So does an SII RUT, a Fintoc Link, or a Plaid Item that another Organization holds. See [An account that's already connected](#an-account-thats-already-connected).
+Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho or Brex refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho or Brex token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration of the Organization already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. So does an SII RUT, a Fintoc Link, or a Plaid Item that another Organization holds. See [An account that's already connected](#an-account-thats-already-connected).
 
 For `wasabil`, Sintropix also registers a webhook named **Sintropix** in the Wasabil company, so its Feeds [sync about a minute after a new document](/api-reference/source-feeds#wasabil-syncs). When Wasabil refuses the webhook, the connect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and creates nothing. When Wasabil can't be reached, it answers `503` with `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`. Retry later.
 
@@ -1687,7 +1689,7 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 `PUT /api/organizations/:organizationId/integrations/:integrationId/access-token`
 
-Replace the API key of an Xpendit, Buk, Metabase, or Rho Integration, for example after you rotate the key. For Xpendit, the new key must open the same enterprise. For Buk, Sintropix checks the new key at the same tenant. For Metabase, Sintropix checks the new key at the same site, with the same rules as at connect, and the chosen questions and their purposes stay. For Rho, the new token must open the same business. The Integration keeps its id and its Feeds. In the app, open the Integration's panel and click **Reemplazar clave de API**.
+Replace the API key of an Xpendit, Buk, Metabase, Rho, or Brex Integration, for example after you rotate the key. For Xpendit, the new key must open the same enterprise. For Buk, Sintropix checks the new key at the same tenant. For Metabase, Sintropix checks the new key at the same site, with the same rules as at connect, and the chosen questions and their purposes stay. For Rho, the new token must open the same business. The Integration keeps its id and its Feeds. In the app, open the Integration's panel and click **Reemplazar clave de API**.
 
 **Body**
 
@@ -1699,10 +1701,10 @@ Sintropix checks the new key with the Provider first. If it fails any check, the
 
 | Status | Code | When it happens |
 | --- | --- | --- |
-| `409` | `INTEGRATION_GRANT_MISMATCH_ERROR` | The key opens another Xpendit enterprise or another Rho business. `params.integrationId` |
-| `422` | `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR` | Xpendit, Buk, Metabase, or Rho refuses the key |
-| `422` | `INTEGRATION_CONNECT_REJECTED_ERROR` | The Rho token lacks a scope Sintropix needs, or the Metabase key is in the Administrators group or reaches no question |
-| `422` | `INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR` | The Integration isn't `xpendit`, `buk`, `metabase`, or `rho`. `params.integrationId` and `params.kind` |
+| `409` | `INTEGRATION_GRANT_MISMATCH_ERROR` | The key opens another Xpendit enterprise, another Rho business, or another Brex company. `params.integrationId` |
+| `422` | `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR` | Xpendit, Buk, Metabase, Rho, or Brex refuses the key |
+| `422` | `INTEGRATION_CONNECT_REJECTED_ERROR` | The Rho or Brex token lacks a scope Sintropix needs, or the Metabase key is in the Administrators group or reaches no question |
+| `422` | `INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR` | The Integration isn't `xpendit`, `buk`, `metabase`, `rho`, or `brex`. `params.integrationId` and `params.kind` |
 
 - **Response** (`200`): the Integration object.
 
@@ -2043,6 +2045,60 @@ Before the token expires, or after you revoke it, create a new token in Rho with
 
 [`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid), or disconnecting from the Integration's panel, removes the token Sintropix stores. Rho keeps the token working until you revoke it there too, under **Settings → API → Access Tokens**.
 
+## Brex
+
+A `brex` Integration connects one company on [Brex](https://www.brex.com), the US platform for corporate cards and business accounts, with a read-only user token. Sintropix only reads Brex: it never moves money. It feeds a Bank Account from each checking and vault cash account of the company, and a `card` Bank Account from its card account, through a [bank feed](/api-reference/bank-feeds#brex). Treasury accounts don't feed a Bank Account yet.
+
+### Create the token in Brex
+
+Only an account admin or a card admin of the Brex company can create a user token.
+
+1. In Brex, open **Developer → Settings** and click **Create Token**. The first time, Brex asks you to accept its API agreement.
+2. Name it for Sintropix, and use the token for Sintropix only.
+3. Give it read-only (**Read**) access to **Accounts** (cash and card), **Transactions** (cash and card), **Cards**, **Users**, and **Company**. Don't give it any **Write** access: Sintropix only reads.
+4. Click **Allow Access** and copy the token. Brex shows it only once.
+
+Brex expires a token that goes unused for 90 days. Each sync of a fed account uses the token, so it stays valid while the Integration feeds an account.
+
+### Connect Brex
+
+In the app, open **Configuración → Integraciones**, click **Conectar integración**, and pick **Brex**, under the **Banco** tag. Paste the token in **Clave de API** and connect. Through the API, send [`POST /integrations`](#post-/integrations) with `kind: "brex"` and `accessToken`.
+
+Sintropix checks the token with Brex before it stores it: it reads the company, its cash and card accounts and their transactions, its cards, and its users. The token is stored encrypted.
+
+| Outcome | Answer |
+| --- | --- |
+| Brex accepts the token | `201` with the Integration. `providerRef` is the id of the Brex company |
+| Brex refuses the token, for example because it expired or was revoked | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
+| The token lacks read access to one of the lists Sintropix reads | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is stored. The app says *Brex aceptó el token, pero no deja leer las cuentas, las tarjetas o los usuarios.* |
+| Another Integration of the Organization already connects that company | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. `params.providerRef` names the company |
+| Brex can't be reached, or it limits the token's requests | `503` with `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`. Retry later |
+
+Each Brex company can be connected only once.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Connect the Brex company to feed its accounts" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "5d6e7f80-91a2-4b3c-8d4e-5f60718293a4",
+    "kind": "brex",
+    "accessToken": "bxt_your_token"
+  }'
+```
+
+When the connection is stored, the Integration's panel lists the company's cash and card accounts with their balances. For each one, click **Crear** to create the Bank Account it feeds, or **Asociar existente** to feed one you already have. The card account is created as a `card` Bank Account on a liability. Through the API, read the [discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) and feed them as described in [Bank Feeds](/api-reference/bank-feeds#brex).
+
+### Replace the Brex token
+
+After you revoke the token, or after it expires, create a new token in Brex with the same access. Then [replace it](#put-/integrations/integrationid/access-token): in the app, open the Integration's panel and click **Reemplazar clave de API**. The new token must belong to the same company, or the replacement answers `409` with `INTEGRATION_GRANT_MISMATCH_ERROR` and the stored token stays. Then revoke the old token in Brex.
+
+### Disconnect Brex
+
+[`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid), or disconnecting from the Integration's panel, removes the token Sintropix stores and stops every feed of the Integration. Brex keeps the token working until you revoke it there too, under **Developer → Settings**.
+
 ## Stripe
 
 A `stripe` Integration connects one Stripe account with read-only access. Sintropix only reads: it never charges, refunds, or withdraws money. It can feed a Bank Account with each currency of the account's Stripe payments balance, through a [bank feed](/api-reference/bank-feeds).
@@ -2346,8 +2402,8 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `400` | Validation error (including a Portal Login RUT that fails its check digit, `RUT_INVALID_ERROR`, or a Bank Login `bankCode` the Banks catalog doesn't hold, `CREDENTIAL_BANK_UNKNOWN_ERROR`), missing `x-audit-actor` on a key-authenticated mutation, or a General Ledger Export while the Integration names no Basis of an Entity that keeps Bases (`GENERAL_LEDGER_EXPORT_BASIS_REQUIRED_ERROR`). |
 | `403` | A caller other than `staff` creates a Fintoc Link Intent or reconnects a Fintoc Integration, or an API key confined to one Entity connects, renews, or disconnects an Integration or runs a General Ledger Export, or a `viewer` or an API key confined to one Entity reads or copies email, lists Email Arrivals, reads a Mailbox's Conversations, or reads the expenses of an Xpendit account or the preview of a Notion database, or an API key confined to one Entity creates a Mailbox (`PERMISSION_DENIED_ERROR`). |
 | `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`), a Notion database the connection doesn't reach (`INTEGRATION_DATA_SOURCE_NOT_FOUND_ERROR`), or a Basis outside the Organization (`BASIS_NOT_FOUND_ERROR`) not found. |
-| `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the Organization's email domain no longer receives email (`EMAIL_DOMAIN_NOT_OPEN_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise or a replaced Rho token another business (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
+| `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the Organization's email domain no longer receives email (`EMAIL_DOMAIN_NOT_OPEN_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise a replaced Rho token another business, or a replaced Brex token another company (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, Metabase, or Rho refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, `metabase`, or `rho` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a Basis, export start, or export mode change names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), a `group` export is chosen or run while the Organization's books can't be exported as one group (`GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR`), a Basis change names a `group` Integration (`GENERAL_LEDGER_GROUP_EXPORT_TAKES_NO_BASIS_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, Metabase, Rho, or Brex refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, `metabase`, `rho`, or `brex` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a Basis, export start, or export mode change names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), a `group` export is chosen or run while the Organization's books can't be exported as one group (`GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR`), a Basis change names a `group` Integration (`GENERAL_LEDGER_GROUP_EXPORT_TAKES_NO_BASIS_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
 | `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`), the SII answered a Clave check with a page Sintropix doesn't recognize (`SII_ANSWER_UNRECOGNIZED_ERROR`, with the SII's text in `params.siiAnswer`), or the Mailbox limit of the email plan is reached (`MAILBOX_LIMIT_REACHED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`), or a Mailbox can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |
