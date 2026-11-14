@@ -213,6 +213,19 @@ When you connect a `wasabil` Integration, Sintropix registers a webhook named **
 
 In the [Audit Trail](/api-reference/audit-trail#background-jobs), these syncs carry the route `source-feed-sync-request`.
 
+### Wasabil withheld IVA
+
+Wasabil no longer states the IVA the buyer withholds, so a `wasabil` Feed lands every DTE with `withheldIvaAmount` null. The signed XML of the document still states it. When the sync [attaches the XML](#file-attachments) of a factura de compra (type `46`), or of a nota de crédito (`61`) or nota de débito (`56`) on a 46, it writes the withheld IVA that the XML states into the DTE's `withheldIvaAmount`.
+
+- **What counts.** The sync adds up the IVA withholdings in the XML's other taxes and retentions (`ImptoReten`): the whole IVA (SII code `15`) and the partial IVA withholdings. Other retained taxes don't count. An XML that states no IVA withholding leaves `withheldIvaAmount` null.
+- **The right document only.** The XML must state the same type and folio as the DTE. An XML of another document writes nothing.
+- **Never overwrites.** The sync writes the amount only while `withheldIvaAmount` is null, whether the Invoice is booked or not. An amount already on the DTE stays.
+- **No divergence.** A later sync, where Wasabil states no withholding, keeps the amount the XML wrote and doesn't list it in `report.divergences`.
+
+The amount is written after the document lands, so it doesn't book the Invoice at landing. A [Booking Template](/api-reference/partners#booking-templates) line on `dte_withheld_iva_amount` has no amount yet, and the 46 lands unbooked. To book a Wasabil vendor's 46s when they land, use `dte_tax_amount` for the withheld IVA line.
+
+In the [Audit Trail](/api-reference/audit-trail), each write is its own entry, credited to the system with the declared actor `source-feed`.
+
 ## The sync window
 
 A sync reads the documents dated from the Feed's link date on. How far past the day it runs depends on the provider:
