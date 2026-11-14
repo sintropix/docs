@@ -80,7 +80,7 @@ The `feed` object, when present, contains:
 | Field | Type | Description |
 | --- | --- | --- |
 | `integrationId` | UUID | The [Integration](/api-reference/integrations) that feeds the account |
-| `integrationKind` | `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` \| `polar` \| `stripe` \| `brex` | The kind of that Integration |
+| `integrationKind` | `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` \| `polar` \| `stripe` \| `brex` \| `rho` | The kind of that Integration |
 | `providerAccountId` | string | Provider-side account handle |
 | `institutionName` | string \| null | The bank's display name for a `fintoc` or `plaid` feed; `null` for every other kind |
 | `lastSyncedAt` | ISO datetime \| null | Last sync that landed, whether or not it tied out. `null` until the first sync lands |
