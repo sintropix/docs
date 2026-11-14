@@ -1,10 +1,10 @@
 ---
 title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, monthly cash burn and runway for an entity or the whole organization, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
 ---
 
-The Reports API surfaces financial and operational read models for a single entity. All endpoints are `GET` only. Pass the entity id as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
+The Reports API surfaces financial and operational read models for a single entity, plus the cash burn and runway of a whole Organization. All endpoints are `GET` only. Pass the entity id, or the Organization id for the Organization report, as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
 
@@ -533,6 +533,152 @@ An entry that lands on several accounts of the line appears once per account.
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/cash-flow/entries?exerciseStart=2026-01-01&cutoffDate=2026-03-31&category=supplier_payments" \
   -H "Cookie: <session-cookie>"
+```
+
+### Cash burn and runway
+
+`GET /api/entities/:entityId/reports/cash-burn`
+
+Returns the Entity's burn, month by month, and its runway, on a cash basis. Use it to answer how much cash the Entity spends each month and how many months its cash lasts at that pace.
+
+Each month is one period of the [cash flow statement](#cash-flow-statement) grouped by `month`, so every figure ties to that statement. A positive flow is cash in, as in the statement. A positive burn is cash spent.
+
+- **Net burn** (`netBurn`) is the cash the month spent outside the financing of its capital: `-(operating + investing + unclassified + interest)`. Borrowings received and repaid, dividends, and equity contributions stay out, so a capital raise or a loan doesn't hide the burn. The interest paid counts as burn. Unclassified cash counts too, so spending you haven't classified yet doesn't drop out. `fxEffect` and `cashInTransit` are not burn.
+- **Gross burn** (`grossBurn`) is the cash out of the month, before any cash in: the sum of the accounts of the operating activity and of the `interest` category whose flows net to cash out in the month. It is never negative.
+- **Runway** (`runway.months`) is the `closingCash` of the last month served, divided by the average net burn of the last 3 full months on or before it. It is in months, to one decimal, rounded down. When that average is zero or less, the cash doesn't run out, and `months` is `null`.
+
+Every month satisfies `netChange = (financing - interest) - netBurn` and `closingCash = openingCash + netChange + fxEffect + cashInTransit`.
+
+The report reads months on the Santiago calendar (`America/Santiago`). It serves no month after the month of today. The month of today runs to today, so it isn't a full month, and the runway averages the 3 months before it. Those months can start before `fromMonth`; the runway reads them anyway.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `fromMonth` | string | Yes | First month, `YYYY-MM` with a month from `01` to `12` |
+| `toMonth` | string | Yes | Last month, `YYYY-MM`. Must be on or after `fromMonth`, and the range spans at most 60 months |
+| `basisId` | UUID | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise |
+
+A month that isn't a calendar month, such as `2025-00`, a `toMonth` before `fromMonth`, or a range of more than 60 months returns `400`.
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `functionalCurrency` | string | The Entity's functional currency, which every amount is in |
+| `months` | array | One item per month of the range up to the month of today, in date order, each with the fields below |
+| `runway` | object | The runway at the end of the last month served, with the fields below |
+
+Each item in `months`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `monthKey` | string | The month, `YYYY-MM` |
+| `exerciseStart` | ISO date | First day of the month |
+| `cutoffDate` | ISO date | Last day of the month, or today for the month of today |
+| `isFullMonth` | boolean | `false` for the month of today, which runs only to today |
+| `openingCash` | integer | Balance of the Cash Accounts before the month |
+| `closingCash` | integer | Balance of the Cash Accounts at `cutoffDate` |
+| `netChange` | integer | `operating + investing + financing + unclassified` |
+| `fxEffect` | integer | As in the cash flow statement; not burn |
+| `cashInTransit` | integer | As in the cash flow statement; not burn |
+| `operating` | integer | Total of the operating activity |
+| `investing` | integer | Total of the investing activity |
+| `financing` | integer | Total of the financing activity, `interest` included |
+| `interest` | integer | The `interest` category of the financing activity |
+| `unclassified` | integer | Unclassified cash. A nonzero value means part of the burn sits on accounts with no cash flow category or on the Suspense Account |
+| `netBurn` | integer | Net burn of the month; positive is cash spent |
+| `grossBurn` | integer | Gross burn of the month; never negative |
+
+`runway`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `fromMonth` | string | First of the 3 full months averaged, `YYYY-MM` |
+| `toMonth` | string | Last of the 3 full months averaged, `YYYY-MM` |
+| `closingCash` | integer | `closingCash` of the last month served |
+| `averageNetBurn` | integer | Average `netBurn` of the 3 months, rounded to the minor unit |
+| `months` | number or null | Months of runway, to one decimal, rounded down; `null` when `averageNetBurn` is zero or less |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/cash-burn?fromMonth=2026-05&toMonth=2026-11" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+On 2026-11-14, the last month served is November, which runs to the 14th, so the runway averages August to October:
+
+```json
+{
+  "functionalCurrency": "CLP",
+  "months": [
+    {
+      "monthKey": "2026-08",
+      "exerciseStart": "2026-08-01",
+      "cutoffDate": "2026-08-31",
+      "isFullMonth": true,
+      "openingCash": 39300000,
+      "closingCash": 54220000,
+      "netChange": 14920000,
+      "fxEffect": 0,
+      "cashInTransit": 0,
+      "operating": -4900000,
+      "investing": 0,
+      "financing": 19820000,
+      "interest": -180000,
+      "unclassified": 0,
+      "netBurn": 5080000,
+      "grossBurn": 10880000
+    }
+  ],
+  "runway": {
+    "fromMonth": "2026-08",
+    "toMonth": "2026-10",
+    "closingCash": 38740000,
+    "averageNetBurn": 4720000,
+    "months": 8.2
+  }
+}
+```
+
+In August, the CLP 20,000,000 loan is financing and stays out of burn, while its CLP 180,000 of interest counts in `netBurn`. The other months are left out of the example.
+
+### Cash burn and runway of the Organization
+
+`GET /api/organizations/:organizationId/reports/cash-burn`
+
+Returns the [cash burn and runway](#cash-burn-and-runway) of every Entity of the Organization together, valued in one currency, with each Entity's months beside them.
+
+The read covers every Entity of the Organization you can reach. It needs the `books` read permission, so every Role can call it. An API key [confined to one Entity](/guides/api-keys) reads that Entity only.
+
+One rate per currency values every month: the newest rate from the [Rate Source](/api-reference/fx-rates#rate-sources) of each Entity, the one [Saldos consolidados](/api-reference/bank-accounts#consolidated-balance-history) uses. Each flow of an Entity's month converts and rounds once, and every total is summed from those. So each converted month keeps the identities of a month, and each month opens with the `closingCash` of the month before. Each consolidated month is the sum of its Entities' converted months, and the runway is computed from the consolidated months.
+
+An Entity whose functional currency its Rate Source has no rate for, or whose country has no Rate Source, is left out of the totals and of `entities`, and its currency is listed in `unconvertedCurrencies`.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `fromMonth` | string | Yes | As in [cash burn and runway](#cash-burn-and-runway) |
+| `toMonth` | string | Yes | As in [cash burn and runway](#cash-burn-and-runway) |
+| `currency` | string | Yes | ISO 4217 code every amount is valued in, for example `CLP`. An unknown currency returns `400` with `UNKNOWN_CURRENCY_ERROR` |
+
+**Response**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `currency` | string | The requested `currency` |
+| `months` | array | The consolidated months, with the fields of an item in [`months`](#cash-burn-and-runway) |
+| `runway` | object | The consolidated runway, with the fields of [`runway`](#cash-burn-and-runway) |
+| `entities` | array | One item per Entity in the totals: `{ entityId, entityName, functionalCurrency, months }`. Its `months` are converted into `currency` |
+| `rates` | array | The [FX Rates](/api-reference/fx-rates#the-fx-rate-object) used. Empty when nothing was converted |
+| `rateDate` | ISO date or null | Oldest `rateDate` among `rates`; `null` when nothing was converted |
+| `unconvertedCurrencies` | string[] | Currencies whose Entities were left out because no rate values them, sorted |
+
+An Organization where you hold no Membership returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/reports/cash-burn?fromMonth=2026-05&toMonth=2026-11&currency=CLP" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
 ```
 
 ### Journal report
@@ -1115,4 +1261,4 @@ The workbook is built from API reads you can call yourself: the [eight-column ba
 | 400 | Invalid query parameters |
 | 401 | Unauthenticated |
 | 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`) |
-| 404 | Entity or referenced resource not found, or the Entity is outside your Organizations |
+| 404 | Entity, Organization, or referenced resource not found, or the Entity is outside your Organizations |
