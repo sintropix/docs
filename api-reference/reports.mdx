@@ -4,6 +4,8 @@ sidebarTitle: "Reports"
 description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, monthly cash burn and runway for an entity or the whole organization, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
 ---
 
+import AppLink from "/snippets/app-link.mdx"
+
 The Reports API surfaces financial and operational read models for a single entity, plus the cash burn and runway of a whole Organization. All endpoints are `GET` only. Pass the entity id, or the Organization id for the Organization report, as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
@@ -13,7 +15,7 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 </Note>
 
 <Tip>
-  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, `customers`, `fixed-assets`, and `month-end-workbook`. Pass the period as `from` and `to`, as `cutoffDate` alone for the balance sheet, as `exerciseStart` and `cutoffDate` for the eight-column balance and the cash flow statement, or as `month` (`YYYY-MM`) for the month-end close workbook. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
+  **Open in the app.** Every report here is a page in the Sintropix web app under `https://app.sintropix.com/{entityId}/`: `balance`, `eight-column-balance`, `income-statement`, `income-statement-by-dimension`, `cash-flow`, `kpis`, `general-ledger`, `journal`, `partner-ledger`, `receivables`, `payables`, `revenue-realization`, `customers`, `fixed-assets`, and `month-end-workbook`. Pass the period as `from` and `to`, as `cutoffDate` alone for the balance sheet, as `exerciseStart` and `cutoffDate` for the eight-column balance and the cash flow statement, as `fromMonth` and `toMonth` (`YYYY-MM`) for the KPIs, or as `month` (`YYYY-MM`) for the month-end close workbook. When you report a figure to a user, link the page it came from. See [Link to the App](/guides/app-links#reports) for every parameter.
 </Tip>
 
 ## The Fiscal Year in reports
@@ -642,6 +644,11 @@ On 2026-11-14, the last month served is November, which runs to the 14th, so the
 
 In August, the CLP 20,000,000 loan is financing and stays out of burn, while its CLP 180,000 of interest counts in `netBurn`. The other months are left out of the example.
 
+<AppLink
+  url="https://app.sintropix.com/{entityId}/kpis?fromMonth={fromMonth}&toMonth={toMonth}"
+  note="The page is KPIs, under Reportes in the sidebar, next to Flujo de caja. It shows three cards: Runway, in months, or Rentable when the average net burn of the last 3 full months is zero or less; Caja actual, the cash of today; and Burn neto promedio. Below them, a chart shows the net burn of each month, its average as a dashed line, and the closing cash, projected at that burn for up to 12 months ahead and labeled with the month the cash reaches zero. Turn on Burn bruto to add the gross burn. The page reads the last 12 full months unless you pick another range, of at most 59 months, ending on the last full month at the latest. Click a month to open its cash flow statement. When part of the burn is unclassified cash, the page flags the amount above the cards and on each month that has it, with a link to Plan de cuentas."
+/>
+
 ### Cash burn and runway of the Organization
 
 `GET /api/organizations/:organizationId/reports/cash-burn`
@@ -680,6 +687,11 @@ An Organization where you hold no Membership returns `404` with `ORGANIZATION_NO
 curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/reports/cash-burn?fromMonth=2026-05&toMonth=2026-11&currency=CLP" \
   -H "x-api-key: $SINTROPIX_API_KEY"
 ```
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/kpis?fromMonth={fromMonth}&toMonth={toMonth}&currency={currency}"
+  note="The page is Consolidado on the KPIs page: pick it in the Entity menu of KPIs, which offers it when the Organization has more than one Entity. It shows the cards and the chart of the Entity's page for every Entity together, keeps the range you had, and opens in the currency of the Entity you came from. Pick another currency in the currency chip. Under the chart, it names the date of the rates, each currency with no rate, and the Entities that leaves out. Pick an Entity in the same menu to go back to its KPIs."
+/>
 
 ### Journal report
 
