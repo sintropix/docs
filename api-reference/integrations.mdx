@@ -146,13 +146,13 @@ Each kind adds its own fields:
 | `sii_mirror` | `rut` (string), `clave` (string) | The company's RUT and its SII password (Clave). The RUT takes the same format and check-digit rule as a [Portal Login](#post-/portal-logins) `rut`. The Clave must be non-empty. See [SII](#sii). |
 | `fintoc` | `exchangeToken` (string) | The token the Fintoc widget mints after you [create a link intent](#post-/integrations/fintoc/link-intents) and the user completes the widget. |
 | `plaid` | `publicToken` (string) | The public token Plaid Link mints after you [create a Link token](#post-/integrations/plaid/link-tokens) and the user signs in to the bank. Connecting the same Plaid Item twice is refused with `409`. |
-| `global66` | `clientId` (string), `clientSecret` (string) | Your Global66 client credentials. The Integration [discovers every active wallet](/api-reference/bank-feeds#global66) of that client, so you don't name the accounts. A client id can be connected only once: connecting it again answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. |
+| `global66` | `clientId` (string), `clientSecret` (string) | Your Global66 client credentials. The Integration [discovers every active wallet](/api-reference/bank-feeds#global66) of that client, so you don't name the accounts. A client id can be connected only once in an Organization: connecting it again there answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. |
 | `cardda` | `apiKey` (string) | The Cardda API key. It selects the company, and the Integration discovers that company's one CLP wallet. |
 | `dlocal` | `apiKey` (string), `secretKey` (string) | The dLocal Go API key and its paired secret key. They name the merchant, and the Integration discovers its one balance. |
 
 For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the Integration, so the request can take up to about a minute. A Clave the SII refuses answers `422` with `SII_CLAVE_REFUSED_ERROR`. When the SII gives no answer in time, the request answers `503` with `SII_UNAVAILABLE_ERROR` and creates nothing. Retry in a few minutes. When the SII answers the sign-in with a page Sintropix doesn't recognize, the request answers `424` with `SII_ANSWER_UNRECOGNIZED_ERROR` and creates nothing. `params.siiAnswer` carries the text of the SII's page.
 
-Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. See [An account that's already connected](#an-account-thats-already-connected).
+Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration of the Organization already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. So does an SII RUT, a Fintoc Link, or a Plaid Item that another Organization holds. See [An account that's already connected](#an-account-thats-already-connected).
 
 For `wasabil`, Sintropix also registers a webhook named **Sintropix** in the Wasabil company, so its Feeds [sync about a minute after a new document](/api-reference/source-feeds#wasabil-syncs). When Wasabil refuses the webhook, the connect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and creates nothing. When Wasabil can't be reached, it answers `503` with `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`. Retry later.
 
@@ -229,14 +229,26 @@ curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integ
 
 ### An account that's already connected
 
-An external account, such as a Global66 client, a Fintoc Link, a Bsale instance, or an SII RUT, can be held by only one Integration across Sintropix. A connect or reconnect that names an account another Integration already holds creates nothing. It answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`, and `params` describes the account:
+An external account, such as a Global66 client, a Bsale instance, or a Wasabil company, connects once in an Organization. You can connect the same account in several Organizations: each one connects it with its own credentials or consent, and each reads it on its own.
+
+A few kinds stay in one Organization across Sintropix, because the Provider keeps one connection per account, and a disconnect or an export in one Organization would end or overwrite it for the other:
+
+| Kind | Why it stays in one Organization |
+| --- | --- |
+| `sii_mirror` | The SII keeps one company Clave per RUT. Disconnecting it in one Organization would drop it for the other. |
+| `fintoc` | Connecting the same bank login again returns the same Fintoc Link, and a disconnect deletes the Link. |
+| `plaid` | A disconnect removes the Item at Plaid. |
+| `stripe` | An account has one install of the Sintropix Stripe App, and a disconnect uninstalls it. |
+| `google_sheets` | The [General Ledger export](#google-sheets) rewrites its tabs whole, so two Organizations would overwrite each other's books. |
+
+A connect or reconnect that names an account another Integration of this Organization already holds, or an account of one of these kinds that another Organization holds, creates nothing. It answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`, and `params` describes the account:
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `kind` | string | The Integration kind of the refused connect, such as `global66` or `bsale`. |
 | `providerRef` | string | The Provider's handle for the account, as the [Integration object](#the-integration-object) states it. For some kinds, such as `global66`, it's an opaque value, so don't show it to people. |
 | `institutionName` | string \| null | The bank's display name for a `fintoc` or `plaid` connect; `null` for every other kind. |
-| `connectedInThisOrganization` | boolean | `true` when an Integration of this Organization already holds the account. `false` when another Organization holds it. The other Organization is never named. |
+| `connectedInThisOrganization` | boolean | `true` when an Integration of this Organization already holds the account. `false` when another Organization holds an account of a kind that stays in one Organization. The other Organization is never named. |
 
 ```json
 {
@@ -253,9 +265,9 @@ An external account, such as a Global66 client, a Fintoc Link, a Bsale instance,
 What to do depends on where the account is connected:
 
 - **In this Organization** (`connectedInThisOrganization: true`): use the Integration you already have. Find it in [`GET /integrations`](#get-/integrations).
-- **In another Organization** (`connectedInThisOrganization: false`): disconnect it in that Organization first, then connect it here.
+- **In another Organization** (`connectedInThisOrganization: false`): the account is of a kind that stays in one Organization. Disconnect it in that Organization first, then connect it here.
 
-In the app, the message names the account the way the **Integraciones** list does, such as *Global66*, the bank of a Fintoc or Plaid link (*Banco de Chile*), or the Provider with its readable reference (*Bsale (Instancia 72433)*). For example: *"Esta cuenta de Global66 ya está conectada en esta empresa. Úsala desde la lista de integraciones."* or *"Esta cuenta de Global66 ya está conectada en otra empresa. Desconéctala allí para conectarla aquí."*
+In the app, the message names the account the way the **Integraciones** list does, such as *Global66*, the bank of a Fintoc or Plaid link (*Banco de Chile*), or the Provider with its readable reference (*Bsale (Instancia 72433)*). For example: *"Esta cuenta de Global66 ya está conectada en esta empresa. Úsala desde la lista de integraciones."* When another Organization holds the account, the message ends with *"ya está conectada en otra empresa. Desconéctala allí para conectarla aquí."*
 
 After you connect a bank Provider, list its accounts and feed them into Bank Accounts of any Entity. See [Bank Feeds](/api-reference/bank-feeds). After you connect a document Provider, feed a Source of any Entity with it. See [Source Feeds](/api-reference/source-feeds#post-/source-feeds).
 
@@ -440,7 +452,7 @@ Through the API, send `kind: "sii_mirror"` with `rut` and `clave` to [`POST /int
 | The SII refuses the Clave | `422` with `SII_CLAVE_REFUSED_ERROR`. Nothing is stored |
 | The SII gives no answer in time, or the mirror is busy with that RUT | `503` with `SII_UNAVAILABLE_ERROR`. Nothing is stored. Retry in a few minutes |
 | The SII answers with a page Sintropix doesn't recognize | `424` with `SII_ANSWER_UNRECOGNIZED_ERROR`. `params.siiAnswer` carries the SII's own text, such as a notice that asks you to act in the SII. Nothing is stored |
-| Another Integration already reads that RUT | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` |
+| Another Integration, in this or another Organization, already reads that RUT | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` |
 
 The connect asks for no Entity, and the Entity's tax id doesn't need to match the RUT. Route the documents with a [Source Feed](/api-reference/source-feeds#sii-mirror-feeds) on the Entity they belong to. Each document a feed lands names the connected RUT, with the Entity's name, as the company's side: the issuer of a sale and the receiver of a purchase.
 
@@ -1046,7 +1058,7 @@ When you return, Sintropix checks that the account can edit the Sheet by creatin
 - The address isn't the address of a Google Sheet.
 - Google can't find the Sheet with the account you authorized.
 - The account can view the Sheet but can't edit it. Share the Sheet with that account as an editor, then connect it again.
-- Another Integration already exports to that Sheet.
+- Another Integration, in this or another Organization, already exports to that Sheet.
 
 ### What the Sheet holds
 
@@ -1421,7 +1433,7 @@ Sintropix gets access to the Sheet you pick and to nothing else in your Drive. W
 - You left the picker without picking a Sheet.
 - The file you picked isn't a spreadsheet, or Google can't reach it with the account you authorized.
 - The Sheet's owner doesn't let readers download it. Ask the owner to allow downloads, then connect it again.
-- The Sheet is already connected, in this or another Organization.
+- The Sheet is already connected in this Organization. Another Organization can connect the same Sheet for its own reads.
 
 Each Integration holds the one Sheet you picked. To share another Sheet, connect it as another Integration.
 
@@ -1656,7 +1668,7 @@ Sintropix checks the key with Xpendit before it stores it:
 | --- | --- |
 | Xpendit accepts the key | `201` with the Integration. `providerRef` is the id of the enterprise |
 | Xpendit refuses the key | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
-| Another Integration already connects that enterprise | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. `params.providerRef` names the enterprise |
+| Another Integration of the Organization already connects that enterprise | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. `params.providerRef` names the enterprise |
 
 ```bash
 curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
@@ -1879,7 +1891,7 @@ Sintropix checks the key with Metabase before it stores it. The key is stored en
 | The address isn't a `metabaseapp.com` address | `400`. Nothing leaves Sintropix. The app says *Escribe la dirección de tu Metabase Cloud, por ejemplo tuempresa.metabaseapp.com.* |
 | Metabase refuses the key | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
 | No site lives at the address, the key is in the Administrators group, or the key reaches no question | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is stored. The app says *Metabase no tiene esa dirección, la clave es de un administrador o no llega a ninguna pregunta.* Check the address and the group of the key in Metabase |
-| Another Integration already connects that site | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` |
+| Another Integration of the Organization already connects that site | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` |
 
 Each Metabase site can be connected only once.
 
@@ -1941,7 +1953,7 @@ Sintropix checks the token with Rho before it stores it: it reads the business a
 | Rho accepts the token | `201` with the Integration. `providerRef` is the id of the Rho business |
 | Rho refuses the token, for example because it expired or was revoked | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
 | The token lacks `businesses:read` or `accounts:read` | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is stored. The app says *Rho aceptó el token, pero no deja leer las cuentas.* |
-| Another Integration already connects that business | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. `params.providerRef` names the business |
+| Another Integration of the Organization already connects that business | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. `params.providerRef` names the business |
 
 Each Rho business can be connected only once.
 
@@ -2044,7 +2056,7 @@ You connect Stripe from the app, because Stripe asks for consent in a browser:
 
 When you return, the Integration's panel shows what the connection reaches: the account's business name, **País**, **Moneda por defecto**, and **Modo** (**En vivo** or **Prueba**). The Integration object carries the same facts in `accountName`, `country`, `defaultCurrency`, and `mode`.
 
-If you cancel on Stripe, nothing is connected. Each Stripe account can be connected only once.
+If you cancel on Stripe, nothing is connected. Each Stripe account can be connected only once, in one Organization.
 
 ### Disconnect Stripe
 
