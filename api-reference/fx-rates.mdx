@@ -19,7 +19,7 @@ A **Rate Source** is the fixed set of official rates an Entity reads, one pair a
 | Brazil (`BR`) | Banco Central do Brasil | `banco_central_do_brasil` |
 | United States (`US`), Cayman Islands (`KY`) | Central banks against the dollar | `central_banks_against_usd` |
 
-An Entity in any other country has no Rate Source, so a lookup for it returns `404` with `FX_RATE_SOURCE_NOT_FOUND_ERROR`. Type the rate yourself on the line instead.
+An Entity in any other country has no Rate Source, so a lookup for it returns `404` with `FX_RATE_SOURCE_NOT_FOUND_ERROR`. Type the rate yourself on the line instead. On a [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines), that means an `overrideFxRate` with its reason.
 
 There is no fallback from one Rate Source to another. If the Entity's Rate Source doesn't include a pair, the lookup returns `404` with `FX_RATE_NOT_FOUND_ERROR`, even when another source has it. For example, a Chilean Entity gets no MXN rate from Banco de México.
 
@@ -36,7 +36,7 @@ No US authority publishes a daily rate for the currencies Sintropix values, so a
 | BRL | `USD/BRL` | Banco Central do Brasil | `ptax_venda` |
 | KYD | `KYD/USD` | Cayman Islands Monetary Authority | `cayman_dollar_value` |
 
-GBP is read through the euro, so a GBP amount in a USD Entity uses `EUR/USD` and `EUR/GBP`. These are the only pairs this Rate Source includes. PEN, COP, and ARS aren't included yet, so a lookup for them returns `404` with `FX_RATE_NOT_FOUND_ERROR`, and you type the rate. An Entity that keeps its books in KYD can't get a GBP rate, because the link would need three pairs.
+GBP is read through the euro, so a GBP amount in a USD Entity uses `EUR/USD` and `EUR/GBP`. These are the only pairs this Rate Source includes. PEN, COP, and ARS aren't included yet, so a lookup for them returns `404` with `FX_RATE_NOT_FOUND_ERROR`, and you type the rate: on a manual Ledger Entry, as an `overrideFxRate` with its reason. An Entity that keeps its books in KYD can't get a GBP rate, because the link would need three pairs.
 
 For USD/MXN, a US or Cayman Entity reads the Banco de México's FIX, the spot rate of its day. A Mexican Entity keeps the rate for settling obligations (`tipo_cambio_solventar_obligaciones`), as Mexican law requires.
 
@@ -86,7 +86,9 @@ The answer names each stored rate it used in `legs`, and its `rateDate` is the o
   note="The page lives in the Organization's Configuración, under Tipos de cambio. Pick the Rate Source in Fuente oficial; the page defaults to Banco Central de Chile, ?rateSource=banco_de_mexico opens it on Banco de México, ?rateSource=banco_central_do_brasil opens it on Banco Central do Brasil, and ?rateSource=central_banks_against_usd opens it on Bancos centrales contra el dólar."
 />
 
-In the app, the rate field of an Invoice, an entry line, and a Movement's reconciliation is prefilled with the Entity's rate. The hint under the field names the series and date of each rate it used, for example **PTAX venda** for a Brazilian Entity, or the ECB reference rate for EUR in a US Entity. When there is no rate, the field shows why, and you type the rate.
+In the app, the rate field of an Invoice and a Movement's reconciliation is prefilled with the Entity's rate. The hint under the field names the series and date of each rate it used, for example **PTAX venda** for a Brazilian Entity, or the ECB reference rate for EUR in a US Entity. When there is no rate, the field shows why, and you type the rate.
+
+A manual entry line has no rate field. Sintropix [values the line](/api-reference/ledger-entries#foreign-currency-lines) at the Entity's rate on the Entry Date, and the line shows that rate with its date and series. To use another rate, choose **Usar otro tipo de cambio** and give its reason.
 
 ## The FX Rate object
 
@@ -120,7 +122,7 @@ The route is an Entity route, so you need access to the Entity.
 | --- | --- | --- |
 | `transactionCurrency` | string | The requested currency. |
 | `functionalCurrency` | string | The Entity's functional currency. |
-| `rate` | decimal string | One unit of `transactionCurrency` equals `rate` units of `functionalCurrency`. Use it as the line's `transactionFxRate`. |
+| `rate` | decimal string | One unit of `transactionCurrency` equals `rate` units of `functionalCurrency`. Use it as the `transactionFxRate` of an Invoice or bank line. A [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines) takes no rate: Sintropix values its foreign lines at this rate. |
 | `rateDate` | string (`YYYY-MM-DD`) | The oldest `rateDate` among `legs`. |
 | `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `central_banks_against_usd` | The Entity's Rate Source. |
 | `legs` | array | The one or two stored rates the answer used, in order. Each has `baseCurrency`, `quoteCurrency`, `rateDate`, `rate`, and `series` as in [the FX Rate object](#the-fx-rate-object), and `inverted`: `true` when the lookup divided by the rate instead of multiplying. |

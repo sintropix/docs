@@ -109,7 +109,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | `accrualRelease` | object or null | Set when this entry is a [Release](/api-reference/invoices#accruals) of an Accrual: `{ accrualId, invoiceId, invoiceDocumentNumber, invoiceDirection }`. `null` for other entries |
 | `accruals` | array | The [Accruals](/api-reference/invoices#reading-an-accrual) whose accrued line this entry books; empty for other entries. Unbooking or reversing this entry also undoes their Releases |
 
-Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which other endpoints return on their own) plus the names the detail view shows:
+Each item in `lines` is a **Ledger Entry Line** (the first sixteen fields, which other endpoints return on their own) plus the names and valuation figures the detail view shows:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -123,8 +123,14 @@ Each item in `lines` is a **Ledger Entry Line** (the first eleven fields, which 
 | `transactionCurrency` | string or null | Foreign currency code, if the line is denominated in another currency |
 | `transactionAmount` | integer or null | Amount in the foreign currency |
 | `transactionFxRate` | decimal string or null | Rate used for conversion |
+| `transactionFxRateOrigin` | enum or null | Where the rate came from: `published`, `settled_item`, `overridden`, or `stated`. See [Foreign-currency lines](#foreign-currency-lines). `null` on a line in the functional currency |
+| `transactionFxRateDate` | ISO date or null | Date of the published rate the line used. `null` on an `overridden` or `stated` line, and on a line in the functional currency |
+| `overrideFxRateReason` | string or null | Why the line uses its own rate; set exactly when the origin is `overridden` |
+| `replacedFxRate` | decimal string or null | The published rate an override replaced; `null` when none was published, or the line isn't overridden |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
+| `roundingAdjustment` | integer or null | On a `published` or `overridden` line, the line's `functionalAmount` less its own rounding of `transactionAmount` × `transactionFxRate`: the minor units the rounding of its group placed on it. `null` on other lines |
+| `overrideFunctionalDifference` | integer or null | On an `overridden` line that replaced a published rate, the line's `functionalAmount` less `transactionAmount` × `replacedFxRate`. `null` on other lines |
 | `accountCode` | string | Code of the account |
 | `accountName` | string | Name of the account |
 | `accountType` | enum | `asset`, `liability`, `equity`, `income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense` |
@@ -207,9 +213,10 @@ curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$ENTRY_ID 
 
 ## POST /api/entities/:entityId/ledger/entries
 
-Create a new Ledger Entry. The entry must have at least two lines and total debits must equal total credits. The client supplies the idempotency id.
+Create a new Ledger Entry. The entry must have at least two lines and total debits must equal total credits. The client supplies the idempotency id. Sintropix values each foreign-currency line itself; see [Foreign-currency lines](#foreign-currency-lines). To read that valuation without writing, send [`?dryRun=true`](#dry-run).
 
 - **Path param:** `entityId` (UUID)
+- **Query param:** `dryRun` (boolean, optional). `true` runs the write and rolls it back. See [Dry run](#dry-run).
 - **Body:**
 
 | Field | Type | Required | Description |
@@ -219,30 +226,31 @@ Create a new Ledger Entry. The entry must have at least two lines and total debi
 | `memo` | string or null | Yes | Short description |
 | `notes` | string or null | No | Longer notes; trimmed, blank becomes null |
 | `basisId` | UUID or null | No | [Basis](/api-reference/bases) the Entry counts in. Omit it, or send `null`, to post a common Entry. A Basis Entry cannot post a line to a [common-only account](/api-reference/bases#common-only-accounts) (`409`, `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR`). An Entity with no Basis must omit it. |
-| `newLedgerEntryLines` | array | Yes | At least 2 lines, max 10,000, balanced |
+| `newLedgerEntryLines` | array | Yes | At least 2 lines, max 10,000, balanced once valued |
 
-Each line in `newLedgerEntryLines`:
+Each line in `newLedgerEntryLines` is either **domestic**, in the Entity's functional currency, or **foreign**, in another currency:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | UUID | Yes | Client-supplied line id. Must not already exist. |
 | `accountId` | UUID | Yes | Ledger Account id |
-| `functionalAmount` | integer | Yes | Nonnegative magnitude |
 | `side` | enum | Yes | `debit` or `credit` |
+| `functionalAmount` | integer | Domestic only | Nonnegative magnitude in the functional currency. Required on a domestic line, refused on a foreign line |
+| `transactionCurrency` | string | Foreign only | Currency code of a foreign line. Sending it makes the line foreign. It cannot be the Entity's functional currency |
+| `transactionAmount` | integer | Foreign only | Nonnegative amount in the minor units of `transactionCurrency`. Required on a foreign line |
+| `overrideFxRate` | decimal string | No | Foreign only. A rate of your own, such as `"950.25"`, instead of the published one. Greater than zero, with no sign or exponent. Requires `overrideFxRateReason` |
+| `overrideFxRateReason` | string | No | Foreign only. Why the line uses its own rate, 1 to 500 characters after trimming. Requires `overrideFxRate` |
 | `partnerId` | UUID or null | No | Counterparty partner |
-| `transactionCurrency` | string | No | Foreign currency code |
-| `transactionAmount` | integer | No | Foreign amount |
-| `transactionFxRate` | decimal string | No | Rate as plain decimal string |
 | `dimensionValueIds` | UUID[] | No | Default `[]`; tags for this line. Each must be a Value of the Entity's Organization; see [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization). A line on an account whose Group Account [requires Dimensions](/api-reference/dimensions#required-dimensions) must carry a value of each |
 
 <Note>
-  The transaction trio (currency, amount, rate) must be provided together or omitted together. The rate is a plain decimal string, never a float.
+  A line takes only the fields above. Any other field, `transactionFxRate` included, is refused with a `400` that names it. Don't send a currency field set to `null` on a domestic line; leave it out.
 </Note>
 
 You choose the `id` of every line, the same way you choose the entry `id`. Because you know each line id before the write, a later request can name a line before it exists. For example, a [Follow-up](/api-reference/follow-ups) Plan can book an Invoice and then match a Movement to its Control Line. A line id that already exists answers `409 LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` with `params: { lineIds }`, and Sintropix writes nothing.
 
-- **Success response:** the Ledger Entry fields plus `ledgerEntryLines`, an array of Ledger Entry Line objects (see the entry detail endpoint) each extended with `dimensionValueIds` (UUID[])
-- **Status:** 201
+- **Success response:** the Ledger Entry fields plus `ledgerEntryLines`, an array of Ledger Entry Line objects (see the entry detail endpoint) each extended with `dimensionValueIds` (UUID[]), `roundingAdjustment`, and `overrideFunctionalDifference`. A dry run adds `dryRun: true`
+- **Status:** 201, or 200 for a dry run
 
 ```json
 {
@@ -268,9 +276,15 @@ You choose the `id` of every line, the same way you choose the entry `id`. Becau
       "transactionCurrency": null,
       "transactionAmount": null,
       "transactionFxRate": null,
+      "transactionFxRateOrigin": null,
+      "transactionFxRateDate": null,
+      "overrideFxRateReason": null,
+      "replacedFxRate": null,
       "createdAt": "2026-01-15T14:02:11.000Z",
       "updatedAt": "2026-01-15T14:02:11.000Z",
-      "dimensionValueIds": []
+      "dimensionValueIds": [],
+      "roundingAdjustment": null,
+      "overrideFunctionalDifference": null
     },
     {
       "id": "88888888-8888-4888-8888-888888888888",
@@ -283,9 +297,15 @@ You choose the `id` of every line, the same way you choose the entry `id`. Becau
       "transactionCurrency": null,
       "transactionAmount": null,
       "transactionFxRate": null,
+      "transactionFxRateOrigin": null,
+      "transactionFxRateDate": null,
+      "overrideFxRateReason": null,
+      "replacedFxRate": null,
       "createdAt": "2026-01-15T14:02:11.000Z",
       "updatedAt": "2026-01-15T14:02:11.000Z",
-      "dimensionValueIds": []
+      "dimensionValueIds": [],
+      "roundingAdjustment": null,
+      "overrideFunctionalDifference": null
     }
   ]
 }
@@ -308,11 +328,126 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries \
   }'
 ```
 
+### Foreign-currency lines
+
+A foreign line states its currency and its amount. Sintropix works out its functional amount; you never send that amount or the rate.
+
+1. **Rate.** Sintropix values the line at the latest rate the Entity's [Rate Source](/api-reference/fx-rates#rate-sources) published on or before the `entryDate`, the same rate an [FX rate lookup](/api-reference/fx-rates) for that date answers. The line records the rate in `transactionFxRate`, its date in `transactionFxRateDate`, and `transactionFxRateOrigin: "published"`.
+2. **Own rate.** When the evidence names another rate, such as a contract rate, send `overrideFxRate` with `overrideFxRateReason`. The line takes `transactionFxRateOrigin: "overridden"`, keeps the reason, and keeps the published rate it replaced in `replacedFxRate`. An override is also the only way to book a currency the Rate Source doesn't publish.
+3. **Rounding.** Lines of one currency, rate, and side round as a group. Each line rounds down, and the minor units still missing from the group's rounded total go one each to the lines with the most units, a tie going to the first in request order. On an ordinary entry, the rounding unit lands on the largest line, and no line goes negative. Each line's `roundingAdjustment` shows where a unit landed.
+4. **Balance.** The entry must balance once every line is valued. Check that with a [dry run](#dry-run) before you write.
+
+`transactionFxRateOrigin` tells you where a line's rate came from:
+
+| Value | Meaning |
+| --- | --- |
+| `published` | The rate of the Entity's Rate Source on or before the Entry Date, dated in `transactionFxRateDate` |
+| `overridden` | A rate the caller stated with `overrideFxRate` and its reason |
+| `settled_item` | The carrying rate of the open line the line settles, dated in `transactionFxRateDate`. The routes on this page don't post it |
+| `stated` | A rate the caller stated without a check: every foreign line booked before Sintropix valued foreign lines, and the lines that [invoice booking](/api-reference/invoices) and the [bank routes](/api-reference/bank-movements) still post with `transactionFxRate` |
+
+The valuation adds these refusals, all `409`:
+
+| Code | When | `params` |
+| --- | --- | --- |
+| `LEDGER_ENTRY_LINE_FX_RATE_NOT_FOUND_ERROR` | The Rate Source published no rate for the pair on or before the date, and the line has no override | `{ lineId, transactionCurrency, functionalCurrency, date, rateSource }` |
+| `LEDGER_ENTRY_LINE_FX_RATE_SOURCE_NOT_FOUND_ERROR` | The Entity's country has no Rate Source, and the line has no override | `{ lineId, transactionCurrency, functionalCurrency, date, country }` |
+| `LEDGER_ENTRY_LINE_VALUED_AMOUNT_OUT_OF_RANGE_ERROR` | The line values past the largest functional amount the ledger accepts. Check its amount or its rate | `{ lineId }` |
+| `LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR` | The valued lines don't balance | `{ debitTotal, creditTotal, gap, valuedLines }` |
+
+In `LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR`, `gap` is `debitTotal` less `creditTotal`, in minor units of the functional currency. `valuedLines` lists every line as Sintropix valued it, in request order: `{ lineId, side, functionalAmount, transactionFxRate, transactionFxRateDate, transactionFxRateOrigin }`, with the three rate fields `null` on a domestic line. Use it to size the counterpart lines. An entry whose lines are all domestic and don't balance still answers `400`, before any valuation.
+
+This entry, dated 7 November, books USD 1,000.00 in a Chilean Entity. Banco Central de Chile's latest rate on or before that date is 943.25, published for 6 November, so the USD line is valued at CLP 943,250:
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "3a3a3a3a-3a3a-4a3a-8a3a-3a3a3a3a3a3a",
+    "entryDate": "2026-11-07",
+    "memo": "Aporte en dólares",
+    "newLedgerEntryLines": [
+      { "id": "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1", "accountId": "11111111-1111-4111-8111-111111111111", "side": "debit", "transactionCurrency": "USD", "transactionAmount": 100000 },
+      { "id": "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2", "accountId": "22222222-2222-4222-8222-222222222222", "side": "credit", "functionalAmount": 943250 }
+    ]
+  }'
+```
+
+The USD line of the answer reads:
+
+```json
+{
+  "id": "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1",
+  "functionalAmount": 943250,
+  "side": "debit",
+  "transactionCurrency": "USD",
+  "transactionAmount": 100000,
+  "transactionFxRate": "943.25",
+  "transactionFxRateOrigin": "published",
+  "transactionFxRateDate": "2026-11-06",
+  "overrideFxRateReason": null,
+  "replacedFxRate": null,
+  "roundingAdjustment": 0,
+  "overrideFunctionalDifference": null
+}
+```
+
+To book the same line at a contract rate, state your own rate on the line:
+
+```json
+{ "id": "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1", "accountId": "11111111-1111-4111-8111-111111111111", "side": "debit", "transactionCurrency": "USD", "transactionAmount": 100000, "overrideFxRate": "950", "overrideFxRateReason": "Tipo de cambio pactado en el contrato de aporte" }
+```
+
+That line is valued at CLP 950,000, with `replacedFxRate: "943.25"` and `overrideFunctionalDifference: 6750`. The credit line must then carry 950000.
+
+### Dry run
+
+Add `?dryRun=true` to `POST /ledger/entries` or [`POST /ledger/entries/bulk`](#post-/api/entities/entityid/ledger/entries/bulk) to read what Sintropix would book, without booking it. Use it to read the functional amount of each foreign line, then size the other lines so the entry balances.
+
+- A dry run runs the whole write, with every check, then rolls it back. It answers `200` with the answer the write would give plus `dryRun: true` (on each element of a bulk answer), or with the refusal the write would give.
+- It stores nothing: no entry, no audit change. The entry and line ids stay free, so you can send the same body without `dryRun` to book it.
+- It counts as a write for permissions. It needs the write's permission and [audit headers](/api-reference/overview), and a read-only key gets `403`.
+- Audit ids are not reused, so a dry run leaves a gap in them, as a refused write does.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?dryRun=true" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d @entry.json
+```
+
+If the credit line of the example above carried 943000, the dry run, like the write, answers:
+
+```json
+{
+  "code": "LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR",
+  "params": {
+    "debitTotal": 943250,
+    "creditTotal": 943000,
+    "gap": 250,
+    "valuedLines": [
+      { "lineId": "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1", "side": "debit", "functionalAmount": 943250, "transactionFxRate": "943.25", "transactionFxRateDate": "2026-11-06", "transactionFxRateOrigin": "published" },
+      { "lineId": "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2", "side": "credit", "functionalAmount": 943000, "transactionFxRate": null, "transactionFxRateDate": null, "transactionFxRateOrigin": null }
+    ]
+  }
+}
+```
+
+### In the app
+
+In the new entry screen, you type a foreign line's currency and amount. As you type, the screen runs a dry run and shows what Sintropix would book: each line's figure, the rate with its date and series, any rounding, the totals, and **Balanceado** or **Diferencia**. **Usar otro tipo de cambio** opens the override. There you type the rate and its required **Motivo**, and see the published rate it replaces and the difference. A currency the Rate Source doesn't publish is refused on its line, with the next step.
+
+A booked entry shows each foreign line's rate origin and date: **Publicado para el** and the date, or **Tipo de cambio propio** with its reason and the published rate it replaced. A line booked before Sintropix valued foreign lines shows **Indicado al contabilizar**.
+
 ## POST /api/entities/:entityId/ledger/entries/bulk
 
-Create up to 100 Ledger Entries in a single request and transaction. Each element is a full entry with the same fields as [`POST /api/entities/:entityId/ledger/entries`](#post-/api/entities/entityid/ledger/entries), and follows the same rules.
+Create up to 100 Ledger Entries in a single request and transaction. Each element is a full entry with the same fields as [`POST /api/entities/:entityId/ledger/entries`](#post-/api/entities/entityid/ledger/entries), and follows the same rules, including the [valuation of foreign-currency lines](#foreign-currency-lines).
 
 - **Path param:** `entityId` (UUID)
+- **Query param:** `dryRun` (boolean, optional). `true` runs the whole batch and rolls it back; see [Dry run](#dry-run).
 - **Body:**
 
 | Field | Type | Required | Description |
@@ -320,7 +455,7 @@ Create up to 100 Ledger Entries in a single request and transaction. Each elemen
 | `entries` | array | Yes | 1 to 100 entries, each with the body of the single create. Each `id` must be unique within the request. No other field is accepted. |
 
 - **Success response:** an array of the created entries, in request order. Each element has the same shape as the single create response.
-- **Status:** 201
+- **Status:** 201, or 200 for a dry run
 
 The request is all or nothing:
 
@@ -372,6 +507,8 @@ A refused batch, where the second entry is dated on or before the ledger lock da
 
 Update an entry's header fields (date, memo, notes). At least one field must be provided.
 
+An entry with a `published` or `overridden` [foreign-currency line](#foreign-currency-lines) was valued on its date, so a new `entryDate` answers `409` with `LEDGER_ENTRY_VALUED_LINES_DATE_CHANGE_ERROR` and `params: { ledgerEntryId }`. To move it, unbook the entry and book it again on the new date. The memo and notes can still change.
+
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
 - **Body:**
 
@@ -394,7 +531,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries/$
 
 ## POST /api/entities/:entityId/ledger/entries/:entryId/reverse
 
-Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be on or after the original entry date and after the ledger lock date. The reversal takes the Basis of the original; do not send `basisId`.
+Reverse a live Ledger Entry by posting a mirror entry. The reversal date must be on or after the original entry date and after the ledger lock date. The reversal takes the Basis of the original; do not send `basisId`. It copies each line's valuation as it stands, with sides flipped: the amounts, rate, rate origin, rate date, override reason, and replaced rate. Sintropix values nothing again.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
 - **Body:**
@@ -464,7 +601,7 @@ An [Intercompany Link](/api-reference/intercompany-links) joins a line of an Ent
 
 ### POST /api/entities/:entityId/ledger/scheduled-entries
 
-Schedule a Ledger Entry for future booking. The entry date must be in the future. Scheduled entries cannot carry transaction currency lines.
+Schedule a Ledger Entry for future booking. The entry date must be in the future. Scheduled entries take domestic lines only, so they cannot carry transaction currency lines, and they offer no dry run.
 
 - **Path param:** `entityId` (UUID)
 - **Body:** the same fields as `POST /api/entities/:entityId/ledger/entries` above
@@ -728,6 +865,11 @@ The retag shows in the entry's history, with who made it and the Value before an
 | `LEDGER_ENTRY_SCHEDULED_DATE_NOT_FUTURE_ERROR` | Scheduled date must be in the future |
 | `LEDGER_ENTRY_SCHEDULED_NOT_DUE_ERROR` | Scheduled entry is not yet due |
 | `LEDGER_ENTRY_SCHEDULED_TRANSACTION_CURRENCY_ERROR` | Scheduled entries cannot carry foreign currency |
+| `LEDGER_ENTRY_LINE_FX_RATE_NOT_FOUND_ERROR` | The Entity's Rate Source has no rate for a foreign line on or before the Entry Date, and the line has no override. See [Foreign-currency lines](#foreign-currency-lines) (`409`) |
+| `LEDGER_ENTRY_LINE_FX_RATE_SOURCE_NOT_FOUND_ERROR` | The Entity's country has no Rate Source, and a foreign line has no override (`409`) |
+| `LEDGER_ENTRY_LINE_VALUED_AMOUNT_OUT_OF_RANGE_ERROR` | A foreign line values past the largest functional amount the ledger accepts. `params: { lineId }` (`409`) |
+| `LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR` | The lines don't balance once valued. `params: { debitTotal, creditTotal, gap, valuedLines }` (`409`) |
+| `LEDGER_ENTRY_VALUED_LINES_DATE_CHANGE_ERROR` | A new date for an entry with a `published` or `overridden` line. Unbook it and book it again. `params: { ledgerEntryId }` (`409`) |
 | `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR` | A line of a Basis Entry posts to an account of a [common-only Sub-type](/api-reference/bases#common-only-accounts). Returned by create, bulk create, Scheduled Entry create, reschedule, and book, and line reclassify. `params: { basisId, ledgerAccountId, ledgerAccountCode, ledgerAccountName, subtype }` names the first such account (`409`) |
 | `DEFERRAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#deferrals) of a Deferral; its date cannot change, and it cannot be rescheduled |
 | `ACCRUAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#accruals) of an Accrual; its date cannot change. `params: { ledgerEntryId }` (`409`) |
