@@ -375,7 +375,8 @@ The logo belongs to the Organization, like the Partner and its `website`, so thi
 
 **Response**
 
-- `200` with the PNG itself (`Content-Type: image/png`). The response carries `Cache-Control: private, max-age=31536000, immutable`, so a browser keeps it for up to a year. The URL stays the same when the `website` changes, so a cached logo can outlive it. Add the website to the URL, for example `?website=acme.cl`, to fetch the new logo after a change.
+- `200` with the PNG itself (`Content-Type: image/png`). The response carries `Cache-Control: private, max-age=31536000, immutable`, so a browser keeps it for up to a year. The URL stays the same when the `website` changes, so a cached logo can outlive it. Add the website to the URL, for example `?website=acme.cl`, to fetch the new logo after a change. Sintropix reads the logo from the stored `website`, not from this parameter.
+- `400` when the query carries any parameter other than `website`.
 - `404` with `PARTNER_LOGO_NOT_FOUND_ERROR` when the Partner has no `website`, or its site shows no usable icon. A `404` carries no cache header. A site that could not be reached is tried again on the next request; a site that answered with no usable icon is not.
 
 ```bash
