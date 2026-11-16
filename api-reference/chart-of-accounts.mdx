@@ -711,7 +711,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
 
 ### Exchange Difference Accounts
 
-The sub-type `exchange_difference` (**Diferencia de cambio**) marks an Exchange Difference Account: the `other_income` or `other_expense` account where an Entity's exchange differences go. Sintropix doesn't book to it automatically yet, so you can tag the account ahead of time.
+The sub-type `exchange_difference` (**Diferencia de cambio**) marks an Exchange Difference Account: the `other_income` or `other_expense` account where an Entity's exchange differences go. Sintropix books the [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) of a bank Match, Assign, or conversion to it: a gain to the `other_income` account and a loss to the `other_expense` account, or both to the one account the Entity tagged. Tag it before you settle foreign items through the bank. Without it, those writes are refused with `409` and `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING_ERROR`.
 
 An Entity can tag at most one account per Normal Side: one `other_income` account (credit) and one `other_expense` account (debit). Choose one of these setups:
 

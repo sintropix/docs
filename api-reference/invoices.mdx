@@ -113,11 +113,11 @@ Ontop issues three kinds of invoice:
 Erwin reads the facts below from the Ontop page of his [wiki](/core-concepts). Ask him to note them there before the first load. If the page is missing or lacks a fact, he stops and asks. He never creates a Partner, a Source, a Bank Account, or an account.
 
 - The Partner of Ontop, the [Source](/api-reference/sources) of its invoices, and the Bank Account of the wallet.
-- The control account of the invoices, and the account for the exchange difference.
+- The control account of the invoices.
 - The expense account of each category of contractor, and the category of each contractor.
 - The expense account for Ontop's fees (`ONTF` and `OMF`).
 
-The Entity also needs a login Credential for Ontop.
+The Entity also needs a login Credential for Ontop, and a tagged [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts).
 
 ### What a load does
 
@@ -140,7 +140,7 @@ Each load reads from 3 days before the newest issue date among the Partner of On
    - A `PAYMENT` of the wallet pairs with the Ontop payment made from the wallet, with the same amount and a date at most 3 days away.
    - A card charge whose description names Ontop pairs with the Ontop payment made by card, or with an `OMF`, with the same amount and a date at most 3 days away.
 
-   He matches the Movement to the first invoice, [assigns](/api-reference/bank-movements#post-/movements/movementid/assign) the others from the Suspense Account, and books what's left to the exchange difference account on the last invoice. If an invoice of the payment isn't booked yet, the Movement waits unbooked with a `waiting` Follow-up that names the invoices. If two payments fit, he pairs none and leaves a `question` Follow-up.
+   He matches the Movement to the first invoice, [assigns](/api-reference/bank-movements#post-/movements/movementid/assign) the others from the Suspense Account. He declares an [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) once, and Sintropix books the difference between what the payment paid and what the books carried for the invoices to the Entity's Exchange Difference Account. If an invoice of the payment isn't booked yet, the Movement waits unbooked with a `waiting` Follow-up that names the invoices. If two payments fit, he pairs none and leaves a `question` Follow-up.
 
 The other wallet movements get their own treatment:
 

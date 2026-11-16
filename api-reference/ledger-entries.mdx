@@ -109,7 +109,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | `accrualRelease` | object or null | Set when this entry is a [Release](/api-reference/invoices#accruals) of an Accrual: `{ accrualId, invoiceId, invoiceDocumentNumber, invoiceDirection }`. `null` for other entries |
 | `accruals` | array | The [Accruals](/api-reference/invoices#reading-an-accrual) whose accrued line this entry books; empty for other entries. Unbooking or reversing this entry also undoes their Releases |
 
-Each item in `lines` is a **Ledger Entry Line** (the first sixteen fields, which other endpoints return on their own) plus the names and valuation figures the detail view shows:
+Each item in `lines` is a **Ledger Entry Line** (the first nineteen fields, which other endpoints return on their own) plus the names and valuation figures the detail view shows:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -127,6 +127,9 @@ Each item in `lines` is a **Ledger Entry Line** (the first sixteen fields, which
 | `transactionFxRateDate` | ISO date or null | Date of the published rate the line used. `null` on an `overridden` or `stated` line, and on a line in the functional currency |
 | `overrideFxRateReason` | string or null | Why the line uses its own rate; set exactly when the origin is `overridden` |
 | `replacedFxRate` | decimal string or null | The published rate an override replaced; `null` when none was published, or the line isn't overridden |
+| `exchangeDifferenceGround` | enum or null | Set only on an [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line): `settlement` or `conversion`. `null` on every other line |
+| `exchangeDifferenceReason` | string or null | On an Exchange Difference Line booked beyond the [rate bound](/api-reference/bank-movements#the-rate-bound), the reason the request gave. `null` otherwise |
+| `exchangeDifferencePublishedRate` | decimal string or null | The published rate that reason was measured against; `null` when none was published, or the line has no reason |
 | `createdAt` | ISO datetime | Creation timestamp |
 | `updatedAt` | ISO datetime | Last update timestamp |
 | `roundingAdjustment` | integer or null | On a `published` or `overridden` line, the line's `functionalAmount` less its own rounding of `transactionAmount` × `transactionFxRate`: the minor units the rounding of its group placed on it. `null` on other lines |
@@ -343,8 +346,8 @@ A foreign line states its currency and its amount. Sintropix works out its funct
 | --- | --- |
 | `published` | The rate of the Entity's Rate Source on or before the Entry Date, dated in `transactionFxRateDate` |
 | `overridden` | A rate the caller stated with `overrideFxRate` and its reason |
-| `settled_item` | The carrying rate of the open line the line settles, dated in `transactionFxRateDate`. The routes on this page don't post it |
-| `stated` | A rate the caller stated without a check: every foreign line booked before Sintropix valued foreign lines, and the lines that the [bank routes](/api-reference/bank-movements) still post with `transactionFxRate`. [Invoice booking](/api-reference/invoices#foreign-currency-invoices) values its lines like this page does |
+| `settled_item` | The carrying rate of the open line the line settles, dated in `transactionFxRateDate`. A [bank Match or Assign](/api-reference/bank-movements#settle-a-foreign-open-item) posts it on its settlement line. The routes on this page don't post it |
+| `stated` | A rate the caller stated without a check: every foreign line booked before Sintropix valued foreign lines. [Invoice booking](/api-reference/invoices#foreign-currency-invoices) and the [bank routes](/api-reference/bank-movements#foreign-currency-and-the-exchange-difference) value their lines like this page does |
 
 The valuation adds these refusals, all `409`:
 
