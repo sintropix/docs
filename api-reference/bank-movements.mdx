@@ -297,7 +297,7 @@ A `line` candidate has these fields:
 | Field | Type | Description |
 | --- | --- | --- |
 | `kind` | `line` | Candidate kind. |
-| `line` | object | The open Ledger Entry Line: `id`, `entryId`, `accountId`, `entityId`, `functionalAmount`, `side`, `partnerId`, `transactionCurrency`, `transactionAmount`, `transactionFxRate`, `openAmount` (remaining unsettled amount, nullable), `createdAt`, `updatedAt`. |
+| `line` | object | The open Ledger Entry Line: `id`, `entryId`, `accountId`, `entityId`, `functionalAmount`, `side`, `partnerId`, `transactionCurrency`, `transactionAmount`, `transactionFxRate`, `openAmount` (remaining unsettled amount, nullable), `openTransactionAmount` (units of `transactionCurrency` still open on a foreign line, `null` on a domestic line), `createdAt`, `updatedAt`. |
 | `entry` | object | `{ id, entryDate, memo }` of the entry the line belongs to. |
 | `account` | object | `{ id, code, name }` of the Ledger Account the line sits on. |
 | `partner` | object \| null | `{ id, name, legalName, taxId }` when the line names a Partner. |
@@ -317,7 +317,7 @@ Return the Movement's current booking or match state and the Ledger Lines that d
 | `entry` | object | The booking Ledger Entry: `id`, `entityId`, `entryDate`, `memo`, `notes`, `status` (`active` \| `deleted` \| `reversed` \| `scheduled` \| `cancelled`), `reversalOfEntryId`, `basisId`, `createdAt`, `updatedAt`, plus `lines` and `allocations`. |
 | `entry.lines[]` | array | Every line of the entry, each with the line fields above plus `accountCode`, `accountName`, `accountType`, `partnerName`, `partnerWebsite` (the Partner's website as a bare domain, or `null`), `lineDimensionValues[]` (`{ dimensionId, dimensionValueId, dimensionName, dimensionValueCode, dimensionValueName }`), and `intercompanyLinkId` (the [Intercompany Link](/api-reference/intercompany-links) of the line, or `null`). |
 | `entry.allocations[]` | array | Every Allocation the entry's lines take part in: `id`, `entityId`, `debitLineId`, `creditLineId`, `accountId`, `amount`, `createdAt`, `updatedAt`, and `counterpart` (`{ lineId, entryId, entryDate, entryMemo, accountId, partnerId, accountCode, accountName, partnerName }`). |
-| `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount`. `null` when the booking touches no open-item account. |
+| `controlLine` | object \| null | The open-item counterpart line of the booking, with `openAmount` and `openTransactionAmount`. `null` when the booking touches no open-item account. |
 | `settledAllocations[]` | array | Allocations the control line settles. Same shape as `entry.allocations[]`, with `counterpart.invoiceDocumentNumber` (nullable), `counterpart.invoiceIsExpenseRendition` (boolean), and `counterpart.openAmount` added. `counterpart.invoiceIsExpenseRendition` is `true` when the counterpart is an [Expense Rendition](/api-reference/expense-claims). `counterpart.openAmount` is the balance still unsettled on the counterpart line, such as an Invoice, after every Allocation against it. It is nullable. A value above `0` means the Movement settled the counterpart only in part. |
 
 ## POST `/movements`
@@ -379,6 +379,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 Book up to 100 already-created Movements in a single transaction. Each element carries a `movementId` plus the booking instructions used by the single-movement endpoint.
 
+- **Query param:** `dryRun` (boolean, optional). `true` runs the whole batch and rolls it back. See [Dry run](#dry-run).
 - **Body:** `{ bookings: [...] }` (1 to 100 elements), each in the [`POST /movements/:movementId/book`](#post-/movements/movementid/book) body shape plus `movementId`.
 - **Response:** array of `{ movement, bankAccount, reconciliation }`, in input order.
 
@@ -386,6 +387,7 @@ Book up to 100 already-created Movements in a single transaction. Each element c
 
 Match up to 100 already-created Movements to existing documents in a single transaction. Each element carries a `movementId` plus the match instructions used by the single-movement endpoint.
 
+- **Query param:** `dryRun` (boolean, optional). `true` runs the whole batch and rolls it back. See [Dry run](#dry-run).
 - **Body:** `{ matches: [...] }` (1 to 100 elements), each in the [`POST /movements/:movementId/match`](#post-/movements/movementid/match) body shape plus `movementId`.
 - **Response:** array of `{ movement, bankAccount, reconciliation }`, in input order.
 
@@ -429,7 +431,9 @@ Remove a Movement. Booked or matched Movements are refused; unbook or unmatch fi
 
 ## POST `/movements/:movementId/book`
 
-Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry from the Movement plus the booking instructions in the body. You supply the entry header and the counterpart lines; the bank line on the Bank Account's mapped Ledger Account is built for you, so it can never be on the wrong side or for the wrong amount. The entry names no Basis: it is common to every [Basis](/api-reference/bases) of the Entity.
+Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry from the Movement plus the booking instructions in the body. You supply the entry header and the counterpart lines; the bank line on the Bank Account's mapped Ledger Account is built for you, so it can never be on the wrong side or for the wrong amount. The entry names no Basis: it is common to every [Basis](/api-reference/bases) of the Entity. Sintropix values each foreign line, the bank line included; see [Foreign currency and the exchange difference](#foreign-currency-and-the-exchange-difference).
+
+**Query param:** `dryRun` (boolean, optional). `true` runs the write and rolls it back. See [Dry run](#dry-run).
 
 **Body**
 
@@ -441,21 +445,29 @@ Book a Movement to a Ledger Entry. Sintropix generates the balanced Ledger Entry
 | `notes` | string \| null | No | Free-text notes. Blank is stored as `null`. |
 | `movementPartnerId` | uuid \| null | No | Set the Movement's Partner in the same write. Omit to keep the current Partner; `null` clears it. |
 | `newCounterpartLines` | array of line objects | Yes | At least one counterpart line (see below). |
-| `bankLineFxRate` | decimal string | Conditional | FX rate for the generated bank line. Required exactly when the Bank Account's currency differs from the Entity's functional currency; omit otherwise. |
+| `bankLineOverride` | object | No | Foreign Bank Account only. `{ overrideFxRate, overrideFxRateReason }`: a rate of your own for the bank line, instead of the published one, and why. See [The bank line](#the-bank-line). |
+| `exchangeDifferenceLineId` | uuid | No | Client-generated id of the Exchange Difference Line. Send it when the valued lines leave a gap. See [The Exchange Difference Line](#the-exchange-difference-line). |
 
 **Counterpart line object**
+
+Each line is **domestic**, in the Entity's functional currency, or **foreign**, in another currency. It takes the same fields as a line of a [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines):
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id of the line. Must not already exist. See [Ledger Entries](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries). |
 | `accountId` | uuid | Yes | Ledger Account to post to. |
-| `functionalAmount` | integer | Yes | Amount in the functional currency's minor units, `0` or greater. |
 | `side` | `debit` \| `credit` | Yes | Line side. |
+| `functionalAmount` | integer | Domestic only | Amount in the functional currency's minor units, `0` or greater. Required on a domestic line, refused on a foreign line. |
+| `transactionCurrency` | string | Foreign only | ISO 4217 code of a foreign line. Sending it makes the line foreign. It can't be the Entity's functional currency. |
+| `transactionAmount` | integer | Foreign only | Amount in the minor units of `transactionCurrency`, `0` or greater. Required on a foreign line. |
+| `overrideFxRate` | decimal string | No | Foreign only. A rate of your own, such as `"950.25"`, instead of the published one. Requires `overrideFxRateReason`. Refused on a line that settles an open item. |
+| `overrideFxRateReason` | string | No | Foreign only. Why the line uses its own rate, 1 to 500 characters after trimming. Requires `overrideFxRate`. |
 | `partnerId` | uuid \| null | No | Counterparty on this line. |
-| `transactionCurrency` | string \| null | No | ISO 4217 code of a foreign-currency line. |
-| `transactionAmount` | integer \| null | No | Amount in that currency's minor units. |
-| `transactionFxRate` | decimal string \| null | No | Rate used, as a decimal string such as `"943.25"`. `transactionCurrency`, `transactionAmount`, and `transactionFxRate` must be given together or not at all. |
 | `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. |
+
+<Note>
+  You never send a rate or a functional amount for a foreign line: Sintropix values it. A field the route doesn't define is refused with `400` that names it. That includes `transactionFxRate` on a line and `bankLineFxRate` on the body.
+</Note>
 
 **Response:** `{ movement, bankAccount, reconciliation }`, where `reconciliation` has the same shape as `GET /movements/:movementId/reconciliation`.
 
@@ -486,7 +498,9 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 Match a Movement to an existing document (Invoice or Ledger Entry) rather than booking a new entry. Sintropix records an Allocation between the Movement's counter-account line and the matched document's open-item line.
 
-The settlement line can settle at most the target's Open Amount. When the Movement is larger than your counterpart lines, Sintropix books the rest on the Entity's Suspense Account. See [Overpayments and the Suspense Account](#overpayments-and-the-suspense-account).
+The settlement line can settle at most the target's Open Amount, or its open units on a foreign target. When the Movement is larger than your counterpart lines, Sintropix books the rest on the Entity's Suspense Account. See [Overpayments and the Suspense Account](#overpayments-and-the-suspense-account).
+
+**Query param:** `dryRun` (boolean, optional). `true` runs the write and rolls it back. See [Dry run](#dry-run).
 
 **Body:** the same fields as `POST /book` without `movementPartnerId`, plus the line to settle:
 
@@ -496,8 +510,10 @@ The settlement line can settle at most the target's Open Amount. When the Moveme
 | `entryDate` | string (`YYYY-MM-DD`) | Yes | Entry date. |
 | `memo` | string \| null | Yes | Entry memo. Pass `null` for none. |
 | `notes` | string \| null | No | Free-text notes. |
-| `newCounterpartLines` | array of line objects | Yes | At least one line, each with a `functionalAmount` above `0`. Include the settlement line on the open-item account (and any realized-FX line); the allocation is sized from it. The settlement line cannot exceed the target's Open Amount, and the lines together cannot exceed the Movement. Do not send a line for the rest. Sintropix adds it on the Suspense Account. |
-| `bankLineFxRate` | decimal string | Conditional | Same rule as `POST /book`. |
+| `newCounterpartLines` | array of line objects | Yes | At least one line, in the shape of the `POST /book` counterpart line, each with an amount above `0` (`functionalAmount` on a domestic line, `transactionAmount` on a foreign one). Include the settlement line on the target's account, in the target's denomination: on a foreign target, its `transactionCurrency` and the units you settle; on a domestic target, the `functionalAmount` you settle. The allocation is sized from it. The settlement line cannot exceed the target's open amount, and the lines together cannot exceed the Movement. Don't send a line for the exchange difference or for the rest: declare the first with `exchangeDifferenceLineId`, and Sintropix adds the rest on the Suspense Account. |
+| `bankLineOverride` | object | No | Same rule as `POST /book`. |
+| `exchangeDifferenceLineId` | uuid | No | Same rule as `POST /book`. |
+| `exchangeDifferenceReason` | string | No | Why the settlement's rate is beyond the bound on the published rate, 1 to 500 characters after trimming. Send it only when Sintropix asks for it. See [The rate bound](#the-rate-bound). |
 | `lineId` | uuid | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. To match an Invoice, pass its control line. |
 
 **Response:** `{ movement, bankAccount, reconciliation }`. When a rest is left, `reconciliation.entry.lines` includes the Suspense line and `movement.status` is `booked_pending_assign`.
@@ -543,7 +559,7 @@ Keep these rules in mind:
 - A Match that leaves a rest is refused with `BANK_MOVEMENT_SUSPENSE_ACCOUNT_MISSING_ERROR` when the Entity has no Suspense Account. A Match with no rest works without one.
 - Assign and Unassign edit the Match's Ledger Entry in place. They do not create a new Entry. They work only on an active Entry dated after the Lock Date.
 - To undo the whole Match, unbook the Movement. [Reversing](/api-reference/ledger-entries#post-/api/entities/entityid/ledger/entries/entryid/reverse) the Entry is refused while it still has a Suspense line.
-- On a foreign-currency Bank Account, the Suspense line is stated in the Bank Account's currency at `bankLineFxRate`.
+- On a foreign-currency Bank Account, the Suspense line is in the Bank Account's currency when every counterpart line is in that currency. Otherwise it's in the functional currency.
 - The Suspense Account cannot be a Match or Assign target, and you cannot post to it through manual entries or Reclassify.
 
 ## POST `/movements/:movementId/assign`
@@ -557,12 +573,16 @@ Assign works in two ways:
 
 The Suspense line shrinks by the net amount the new lines take. It goes away when nothing is left, and the Movement then becomes `reconciled`.
 
+**Query param:** `dryRun` (boolean, optional). `true` runs the write and rolls it back. See [Dry run](#dry-run).
+
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `lineId` | uuid \| null | Yes | The open Ledger Entry Line to settle, for example `candidates[].line.id` from `GET /match-candidates`. Pass `null` to assign to plain account lines. |
-| `newCounterpartLines` | array of line objects | Yes | At least one counterpart line, in the same shape as `POST /book`, each with a `functionalAmount` above `0`. Together they cannot take more than the Suspense line holds. |
+| `newCounterpartLines` | array of line objects | Yes | Counterpart lines, in the same shape as `POST /book`, each with an amount above `0` (`functionalAmount` on a domestic line, `transactionAmount` on a foreign one). A settlement line follows the same rules as on `POST /match`. Together they cannot take more than the Suspense line holds. The array can be empty only when you send `exchangeDifferenceLineId`: the Exchange Difference Line alone then takes the difference the Match left on the Suspense line. |
+| `exchangeDifferenceLineId` | uuid | No | Same rule as `POST /book`. If the Entry already keeps an Exchange Difference Line, don't send another one: Sintropix updates the kept line. |
+| `exchangeDifferenceReason` | string | No | Same rule as `POST /match`. |
 
 **Response:** `{ movement, bankAccount, reconciliation }`, the same shape as `POST /match`.
 
@@ -595,6 +615,10 @@ Move one counterpart line of the Movement's Ledger Entry back to the Suspense li
 
 The Entity must have a Suspense Account. Sintropix creates the Suspense line if the Entry has none. You cannot unassign the bank line, the Suspense line, or a line that another record holds, such as a Fixed Asset. A line in an [Intercompany Link](/api-reference/intercompany-links) returns `409` with `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR`, and `params.intercompanyLinkId` names the Link. Unlink it first, then Unassign.
 
+If the Entry keeps an Exchange Difference Line, Sintropix recomputes it for the gap that's left, or removes it when no gap is left.
+
+**Query param:** `dryRun` (boolean, optional). `true` runs the write and rolls it back. See [Dry run](#dry-run).
+
 **Body**
 
 | Field | Type | Required | Description |
@@ -613,11 +637,11 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 ### Match, Assign, and Unassign errors
 
-Each error answers `409` with the `code` and the `params` shown. Amounts are functional amounts in minor units.
+Each error answers `409` with the `code` and the `params` shown. Amounts are functional amounts in minor units, except where a row says otherwise. For the foreign-currency errors, see [Foreign-currency errors](#foreign-currency-errors).
 
 | Code | Meaning |
 | --- | --- |
-| `BANK_MOVEMENT_MATCH_SETTLEMENT_EXCEEDS_OPEN_AMOUNT_ERROR` | The settlement line is larger than the target's Open Amount. `params: { lineId, openAmount, settlementAmount }`. |
+| `BANK_MOVEMENT_MATCH_SETTLEMENT_EXCEEDS_OPEN_AMOUNT_ERROR` | The settlement line is larger than the target's Open Amount. `params: { lineId, openAmount, settlementAmount }`. On a foreign target, both amounts are units of the target's currency. |
 | `BANK_MOVEMENT_MATCH_COUNTERPARTS_EXCEED_MOVEMENT_ERROR` | The counterpart lines add up to more than the Movement. `params: { movementSide, bankLineAmount, counterpartNetAmount }`. |
 | `BANK_MOVEMENT_MATCH_TARGET_ON_SUSPENSE_ACCOUNT_ERROR` | `lineId` names a line on the Suspense Account. `params: { lineId }`. |
 | `BANK_MOVEMENT_SUSPENSE_ACCOUNT_MISSING_ERROR` | The Match leaves a rest, or Unassign needs a Suspense line, but the Entity has no Suspense Account. |
@@ -629,18 +653,148 @@ Each error answers `409` with the `code` and the `params` shown. Amounts are fun
 | `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR` | The Unassign names a line in an [Intercompany Link](/api-reference/intercompany-links). `params: { lineId, intercompanyLinkId }`. |
 | `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line you sent posts to the Suspense Account. `params: { ledgerAccountId }`. |
 
+## Foreign currency and the exchange difference
+
+Book, Match, Assign, and Unassign, single or bulk, value foreign lines the way a [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines) does. So do the bank acts of a [Follow-up](/api-reference/follow-ups) Plan when it's approved. A foreign line states its currency and its units, and Sintropix works out its functional amount. You never send a rate or a functional amount for a foreign line.
+
+### The bank line
+
+Sintropix builds the bank line from the Movement. On a Bank Account in the Entity's functional currency, the bank line is domestic. On a Bank Account in another currency, it's foreign, and Sintropix values it at the rate the Entity's [Rate Source](/api-reference/fx-rates#rate-sources) published for the Movement's date, or the last date before it.
+
+To use another rate, send `bankLineOverride` on a Book or a Match, with `overrideFxRate` and `overrideFxRateReason` (1 to 500 characters). The override also values every other line of the request that's in the Bank Account's currency and settles nothing, such as a split or a fee line. A Bank Account in the functional currency refuses it with `BANK_MOVEMENT_BANK_LINE_OVERRIDE_FORBIDDEN_ERROR`.
+
+### Settle a foreign open item
+
+The line that settles a foreign open item, such as an Invoice in USD, states the item's `transactionCurrency` and the units it settles, with no `functionalAmount`. Read the units still open in `openTransactionAmount` on a [match candidate](#get-/movements/movementid/match-candidates).
+
+- Sintropix values the settlement line at the item's carrying amount: all the open units take the whole open functional amount, and fewer units take their share of it. The line's `transactionFxRateOrigin` is `settled_item`.
+- A settlement line never takes a rate of its own. `overrideFxRate` on it is refused with `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR`.
+- The Allocation records the units it settles.
+- A partial settlement is refused with `LEDGER_ENTRY_SETTLEMENT_PARTIAL_NOT_MEASURABLE_ERROR` when its share of the carrying amount rounds to `0`, or to all of the open amount while units stay open. `params.minimumUnits` and `params.maximumPartialUnits` give the range of partial units the item accepts, or `null` when it accepts none. Settling all the open units always works.
+
+What the Movement paid and what the books carried for the item usually differ. That difference is an exchange difference.
+
+### The Exchange Difference Line
+
+When the valued lines leave a gap, declare an Exchange Difference Line: send `exchangeDifferenceLineId`, a new UUID. Don't send a line of your own for the difference, and don't name its account. Sintropix fills in the line:
+
+- **Amount:** the gap the valuation leaves, in the functional currency.
+- **Side:** `credit` for a gain, `debit` for a loss.
+- **Account:** the Entity's [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts) for that side. A gain goes to the tagged `other_income` account and a loss to the tagged `other_expense` account. When the Entity tagged a single account, it takes both. With no account for the side, the write is refused with `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING_ERROR`.
+- **Ground:** `exchangeDifferenceGround` on the line says why it exists. `settlement` means the act settles an open item. `conversion` means the act settles nothing and moves money between two Bank Accounts of the Entity kept in different currencies: a counterpart line posts to the Ledger Account of a Bank Account in another currency.
+
+An Entry holds one Exchange Difference Line. Once a Match or an Assign declares it, later Assigns and Unassigns of the Movement keep it and update its amount, or remove it when no gap is left.
+
+Use a [dry run](#dry-run) to learn whether you need the line. `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_REQUIRED_ERROR` answers the gap and its side, so add `exchangeDifferenceLineId` and run it again. `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_WITHOUT_GAP_ERROR` means there's no difference, so leave the field out.
+
+When one Movement pays items in two currencies, settle the item in the other currency first, and declare the Exchange Difference Line on the last request. Otherwise an Assign or an Unassign can answer `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_WITH_REST_ERROR`.
+
+### The rate bound
+
+When a Match, a bulk Match, an Assign, or a Follow-up act settles an item, and a counterpart line is in another currency than the Bank Account's, Sintropix checks the rate the settlement implies. It doesn't matter which line is the target.
+
+- **Implied rate:** the functional amount the Movement pays for the settlement, divided by the units settled. A fee or another item on its own line stays out of it.
+- **Bound:** the implied rate may differ from the published rate of the Movement's date by at most 5%.
+
+Within the bound, the write books. Beyond it, or when no rate is published, it's refused with `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_RATE_UNEXPLAINED_ERROR`, unless the request carries `exchangeDifferenceReason` (1 to 500 characters). The refusal carries both rates, the published rate's date and source, the distance, the bound, and the difference it would book.
+
+When you get that refusal, try these in order:
+
+1. Check the units. Settle fewer and leave the rest of the item open.
+2. Give a fee or another item its own line.
+3. If the bank really applied that rate, send `exchangeDifferenceReason` and say so, citing the bank's document.
+4. Otherwise, match without `exchangeDifferenceLineId` and leave the rest on the Suspense Account.
+
+With a reason, the Exchange Difference Line stores it in `exchangeDifferenceReason`, and the published rate it was measured against in `exchangeDifferencePublishedRate` (`null` when none was published). Both appear in the [audit trail](/api-reference/audit-trail).
+
+A reason the write doesn't need is refused with `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_REASON_NOT_NEEDED_ERROR`. `params.cause` says why:
+
+| `cause` | Meaning |
+| --- | --- |
+| `no_exchange_difference_line` | The request declares no Exchange Difference Line. |
+| `not_a_settlement` | The act settles no open item, such as a Book or a conversion. |
+| `same_denomination` | Every counterpart line is in the Bank Account's currency. |
+| `within_bound` | The implied rate is within 5% of the published rate. |
+
+### Example
+
+A Chilean Entity has a USD 1,000.00 receivable Invoice, booked at 943.25, so it carries CLP 943,250. The customer pays CLP 950,000 into a CLP Bank Account. The Match settles the Invoice's 100000 open units and declares an Exchange Difference Line:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$BANK_ACCOUNT_ID/movements/$MOVEMENT_ID/match?dryRun=true" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "4a5b6c7d-8e9f-4a0b-8c1d-2e3f4a5b6c7d",
+    "entryDate": "2026-11-12",
+    "memo": "Payment of invoice 1077",
+    "lineId": "5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e",
+    "exchangeDifferenceLineId": "6c7d8e9f-0a1b-4c2d-8e3f-4a5b6c7d8e9f",
+    "newCounterpartLines": [
+      {
+        "id": "7d8e9f0a-1b2c-4d3e-8f4a-5b6c7d8e9f0a",
+        "accountId": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+        "side": "credit",
+        "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+        "transactionCurrency": "USD",
+        "transactionAmount": 100000
+      }
+    ]
+  }'
+```
+
+The settlement line takes the Invoice's carrying amount, CLP 943,250. The Exchange Difference Line takes the gap, a CLP 6,750 credit (a gain), on the Entity's Exchange Difference Account. The implied rate is 950.00. If the published rate for 12 November is 948.10, that's within 5%, so the Match needs no reason. Send the same body without `dryRun` to book it.
+
+### Foreign-currency errors
+
+Each error answers `409` with the `code` and the `params` shown. Amounts are functional amounts in minor units.
+
+| Code | Meaning |
+| --- | --- |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_REQUIRED_ERROR` | The valued lines leave a gap, and the request declares no Exchange Difference Line. `params: { gap, exchangeDifferenceSide }`. |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_NOT_ALLOWED_ERROR` | The request declares an Exchange Difference Line on an act that settles nothing and converts nothing. `params: { lineId }`. |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_WITHOUT_GAP_ERROR` | The request declares an Exchange Difference Line, but the valued lines already balance. `params: { lineId }`. |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_WITH_REST_ERROR` | An Assign or an Unassign would leave a rest on the Suspense line beside the Exchange Difference Line while a line is in another currency than the Bank Account's. `params: { lineId }`. |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_LINE_REPEATED_ERROR` | An Assign declares an Exchange Difference Line on a Movement whose Entry already keeps one. `params: { lineIds }`. |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING_ERROR` | The Entity has no Exchange Difference Account for the line's side. `params: { functionalAmount, side }`. |
+| `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR` | A settlement line carries `overrideFxRate`. `params: { lineId }`. |
+| `BANK_MOVEMENT_BANK_LINE_OVERRIDE_FORBIDDEN_ERROR` | `bankLineOverride` on a Bank Account in the functional currency. `params: { bankAccountCurrency }`. |
+| `LEDGER_ENTRY_SETTLEMENT_PARTIAL_NOT_MEASURABLE_ERROR` | The partial units' share of the carrying amount rounds to `0`, or to all of the open amount. `params: { lineId, openUnits, minimumUnits, maximumPartialUnits }`. |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_RATE_UNEXPLAINED_ERROR` | The implied rate is beyond the bound, or no rate is published, and the request has no `exchangeDifferenceReason`. `params: { lineId, transactionCurrency, impliedRate, publishedRate, publishedRateDate, rateSource, distance, bound, functionalAmount, side }`. `distance` and `bound` are fractions, such as `"0.05"`. |
+| `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_REASON_NOT_NEEDED_ERROR` | The request sends `exchangeDifferenceReason` where it isn't needed. `params: { cause }`. |
+
+The valuation of foreign lines can also answer the refusals of a [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines), such as `LEDGER_ENTRY_LINE_FX_RATE_NOT_FOUND_ERROR`.
+
+### In the app
+
+When you match a Movement to a foreign item, the panel proposes the units at the published rate. The proposal is capped at the item's open units, and moved to the nearest partial the item accepts. When that move would cross the 5% bound, the field stays empty, and you type the units the Movement pays. The **Diferencia de cambio** row shows the amount and whether it's a **Ganancia** or a **Pérdida**.
+
+When the bound asks for a reason, the panel shows the implied rate, the published rate, and the distance, and asks for **Motivo de la diferencia de cambio**. **Conciliar** stays disabled until you fill it in.
+
+## Dry run
+
+Add `?dryRun=true` to Book, Match, Assign, or Unassign, single or bulk, to read what Sintropix would book without booking it. It works like the [dry run of a manual entry](/api-reference/ledger-entries#dry-run):
+
+- It runs the whole write, with every check and the valuation, then rolls it back. It answers `200` with the answer the write would give plus `dryRun: true` (on each element of a bulk answer), or with the refusal the write would give.
+- It stores nothing. The entry and line ids stay free, so you can send the same body without `dryRun` to book it.
+- It counts as a write for permissions, and needs the write's [audit headers](/api-reference/overview).
+
+Read each line's `functionalAmount`, `transactionFxRate`, and `transactionFxRateOrigin`, and the Exchange Difference Line, in `reconciliation.entry.lines`.
+
 ## Record an internal transfer
 
-An Internal Transfer moves money between two Bank Accounts of the same Entity, for example from checking to savings or through a currency conversion. It is never income or expense. There is no dedicated transfer endpoint. You record a transfer with `POST /book` and an Allocation.
+An Internal Transfer moves money between two Bank Accounts of the same Entity, for example from checking to savings or through a currency conversion. It is never income or expense. There is no dedicated transfer endpoint. You record a transfer with `POST /book` on the first leg and `POST /match` on the second.
 
 Each leg of the transfer passes through a bridge account. A bridge account is an open-item Ledger Account with sub-type `internal_transfer` (see [Chart of Accounts](/api-reference/chart-of-accounts)). An open line on the bridge account is money in transit. The Allocation that joins the two bridge lines shows that both legs arrived.
 
-1. Book each leg with `POST /movements/:movementId/book`. Put one counterpart line on the bridge account, on the side opposite to the bank line. Add extra lines, such as a bank fee or realized FX, as needed. The Entry must balance. Keep the id of the bridge line from the response.
-2. Join the two bridge lines with an Allocation, in one of two ways:
-   - Call [Match Lines](/api-reference/allocations) (`POST /api/entities/:entityId/ledger/allocations/match`) with the two bridge line ids in `lineIds`. Use this for cross-currency transfers.
-   - Book only the first leg, then call `POST /movements/:movementId/match` on the second Movement with `lineId` set to the open bridge line. The settlement line and the bridge line must have the same currency.
+1. Book the first leg, the one that left first, with `POST /movements/:movementId/book`. Put one counterpart line on the bridge account, on the side opposite to the bank line, in the leg's currency: units on a foreign leg, a `functionalAmount` on a domestic one. Give a bank fee its own line. Keep the id of the bridge line.
+2. Match the second leg with `POST /movements/:movementId/match`, with `lineId` set to the open bridge line. Its settlement line goes on the bridge account, on the opposite side, in the bridge line's denomination: its `transactionCurrency` and open units when the bridge line is foreign, its open `functionalAmount` when it's domestic. Sintropix values the settlement line at the bridge line's carrying amount.
+3. When a leg is foreign, the second leg's bank line is valued at the rate of its own date, so the two legs usually differ in the functional currency. Add `exchangeDifferenceLineId` to the Match, and Sintropix books the difference on the Entity's Exchange Difference Account. See [The Exchange Difference Line](#the-exchange-difference-line). Two domestic legs never need it.
 
-Give both bridge lines the same functional amount. Sintropix does not refuse unequal bridge lines. The Allocation takes the smaller amount, and the difference stays as an Open Amount on the bridge account. If only one leg has arrived, book it and leave its bridge line open until the other leg arrives.
+Run each request with [`?dryRun=true`](#dry-run) first to read the valued lines. If only one leg has arrived, book it and leave its bridge line open until the other leg arrives.
+
+If both legs are already booked, you can join the two bridge lines with [Match Lines](/api-reference/allocations) (`POST /api/entities/:entityId/ledger/allocations/match`). Sintropix doesn't refuse unequal bridge lines: the Allocation takes the smaller amount, and the difference stays as an Open Amount on the bridge account.
 
 ```bash
 # Leg A: money out of checking, into the bridge account
@@ -657,8 +811,8 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$C
     ]
   }'
 
-# Leg B: money into savings, out of the bridge account
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$SAVINGS_ID/movements/$MOVEMENT_B_ID/book" \
+# Leg B: money into savings, settling the bridge line of leg A
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$SAVINGS_ID/movements/$MOVEMENT_B_ID/match" \
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -H "Content-Type: application/json" \
@@ -666,17 +820,11 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$S
     "id": "1d2e3f4a-5b6c-4d7e-8f8a-9b0c1d2e3f4a",
     "entryDate": "2025-12-30",
     "memo": "Transfer from checking",
+    "lineId": "1f2a3b4c-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
     "newCounterpartLines": [
       { "id": "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d", "accountId": "6d7e8f9a-0b1c-4d2e-8f3a-4b5c6d7e8f9a", "functionalAmount": 150000, "side": "credit" }
     ]
   }'
-
-# Join the two bridge lines taken from the book responses
-curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocations/match" \
-  -H "x-api-key: $SINTROPIX_API_KEY" \
-  -H "x-audit-actor: my-agent" \
-  -H "Content-Type: application/json" \
-  -d '{ "lineIds": ["'"$BRIDGE_LINE_A_ID"'", "'"$BRIDGE_LINE_B_ID"'"] }'
 ```
 
 ## Exclude a movement from the books
@@ -731,9 +879,9 @@ A blank `reason`, or one longer than 1,000 characters, is refused with `400`. Ea
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Success (`GET`, `PATCH`, `PUT`, and `DELETE`). |
+| `200` | Success (`GET`, `PATCH`, `PUT`, and `DELETE`), and a [dry run](#dry-run). |
 | `201` | Success of any `POST`, including the actions on an existing Movement such as `/book` and `/match`. |
-| `400` | Validation error, or missing `x-audit-actor` on a key call. |
+| `400` | Validation error, including a field the route doesn't define such as `bankLineFxRate`, or missing `x-audit-actor` on a key call. |
 | `403` | Read-only key attempted a mutation. |
 | `404` | Entity, Bank Account, or Movement not found. |
 | `409` | Domain conflict (already booked, already matched, duplicate `id` or `externalRef`, and so on). |

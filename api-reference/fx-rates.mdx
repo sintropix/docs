@@ -170,7 +170,7 @@ The route is an Entity route, so you need access to the Entity.
 | --- | --- | --- |
 | `transactionCurrency` | string | The requested currency. |
 | `functionalCurrency` | string | The Entity's functional currency. |
-| `rate` | decimal string | One unit of `transactionCurrency` equals `rate` units of `functionalCurrency`. Use it as the `transactionFxRate` of a bank line. A [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines) and an [Invoice booking](/api-reference/invoices#foreign-currency-invoices) take no rate: Sintropix values their foreign lines at this rate. |
+| `rate` | decimal string | One unit of `transactionCurrency` equals `rate` units of `functionalCurrency`. A [manual Ledger Entry](/api-reference/ledger-entries#foreign-currency-lines), an [Invoice booking](/api-reference/invoices#foreign-currency-invoices), and the [bank acts](/api-reference/bank-movements#foreign-currency-and-the-exchange-difference) take no rate: Sintropix values their foreign lines at this rate. |
 | `rateDate` | string (`YYYY-MM-DD`) | The oldest `rateDate` among `legs`. |
 | `rateSource` | `banco_central_de_chile` \| `banco_de_mexico` \| `banco_central_do_brasil` \| `superintendencia_financiera_de_colombia` \| `superintendencia_de_banca_seguros_y_afp` \| `central_banks_against_usd` | The Entity's Rate Source. |
 | `legs` | array | The one or two stored rates the answer used, in order. Each has `baseCurrency`, `quoteCurrency`, `rateDate`, `rate`, and `series` as in [the FX Rate object](#the-fx-rate-object), and `inverted`: `true` when the lookup divided by the rate instead of multiplying. |
