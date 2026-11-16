@@ -108,6 +108,18 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts" \
 
 Los parámetros de ruta que son identificadores deben ser UUID válidos; un identificador mal formado devuelve `400`. Un `entityId` mal formado devuelve `404`, como cualquier Entidad a la que no tienes acceso.
 
+Cada endpoint acepta solo los parámetros de query que lista su página de referencia. Una ruta que no lista ninguno no acepta ninguno. Cualquier otro parámetro de query devuelve `400` con `unrecognized_keys`, y la solicitud no hace nada, aunque sea una escritura. Así, `?dryRun=true` ensaya una escritura solo en una ruta que documenta `dryRun`. En cualquier otra ruta, la solicitud se rechaza y no se escribe nada.
+
+```json
+{
+  "statusCode": 400,
+  "message": "Validation failed",
+  "errors": [{ "code": "unrecognized_keys", "keys": ["dryRun"], "path": [], "message": "Unrecognized key: \"dryRun\"" }]
+}
+```
+
+La autenticación y los permisos se revisan antes, así que una solicitud sin una credencial válida sigue devolviendo `401`, y una que no tienes permitida devuelve `403`.
+
 ## Formato de las respuestas
 
 Las respuestas son el recurso en sí como JSON. No hay un envoltorio `data` de nivel superior, ni un bloque `meta`, ni un bloque `pagination` en los endpoints no paginados. Cada página de referencia lista los campos que devuelve cada endpoint.

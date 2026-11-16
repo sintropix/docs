@@ -110,6 +110,18 @@ Path parameters that are ids must be valid UUIDs; a malformed id returns `400`. 
 
 A string anywhere in the path, query, or body can't hold a NUL character (`\u0000`). A request that holds one returns `400`.
 
+Each endpoint accepts only the query parameters its reference page lists. A route that lists none accepts none. Any other query parameter returns `400` with `unrecognized_keys`, and the request does nothing, even on a write. So `?dryRun=true` rehearses a write only on a route that documents `dryRun`. On any other route, the request is refused and nothing is written.
+
+```json
+{
+  "statusCode": 400,
+  "message": "Validation failed",
+  "errors": [{ "code": "unrecognized_keys", "keys": ["dryRun"], "path": [], "message": "Unrecognized key: \"dryRun\"" }]
+}
+```
+
+Authentication and permissions are checked first, so a request without a valid credential still returns `401`, and one you aren't allowed to make returns `403`.
+
 ### Search by amount
 
 Many list endpoints take a `search` parameter. When the search reads as an amount, it also matches the amounts the endpoint's reference page names for that search:
