@@ -681,7 +681,7 @@ When the valued lines leave a gap, declare an Exchange Difference Line: send `ex
 - **Amount:** the gap the valuation leaves, in the functional currency.
 - **Side:** `credit` for a gain, `debit` for a loss.
 - **Account:** the Entity's [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts) for that side. A gain goes to the tagged `other_income` account and a loss to the tagged `other_expense` account. When the Entity tagged a single account, it takes both. With no account for the side, the write is refused with `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING_ERROR`.
-- **Ground:** `exchangeDifferenceGround` on the line says why it exists. `settlement` means the act settles an open item. `conversion` means the act settles nothing and moves money between two Bank Accounts of the Entity kept in different currencies: a counterpart line posts to the Ledger Account of a Bank Account in another currency.
+- **Ground:** `exchangeDifferenceGround` on the line says why it exists. `settlement` means the act settles an open item. `conversion` means the act settles nothing and moves money between two Bank Accounts of the Entity kept in different currencies: a counterpart line posts to the Ledger Account of a Bank Account in another currency. A third ground, `revaluation`, appears only on the computed lines of a [Revaluation Entry](/api-reference/ledger-entries#revaluation-entries). You never declare it.
 
 An Entry holds one Exchange Difference Line. Once a Match or an Assign declares it, later Assigns and Unassigns of the Movement keep it and update its amount, or remove it when no gap is left.
 

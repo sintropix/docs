@@ -473,7 +473,7 @@ A positive amount is cash in; a negative amount is cash out. Every statement sat
 | `openingCash` | integer | Balance of the Cash Accounts before `exerciseStart` |
 | `closingCash` | integer | Balance of the Cash Accounts at `cutoffDate` |
 | `netChange` | integer | Net flow of every activity plus `unclassified` |
-| `fxEffect` | integer | Effect of exchange rate changes on cash; currently always `0` |
+| `fxEffect` | integer | Effect of exchange rate changes on cash: how far the balance of the Cash Accounts moved beyond their flows. It comes from the [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries) of foreign cash on [Monetary Accounts](/api-reference/chart-of-accounts#monetary-accounts), and is `0` when none applies |
 | `cashInTransit` | integer | Net cash moved through `internal_transfer` accounts: cash that left one of your accounts and has not reached the other |
 | `activities` | array | Always `operating`, `investing`, and `financing`, each `{ activity, total, categories }` |
 | `unclassified` | object | `{ total, accounts }`: cash on accounts with no cash flow category, or on the Suspense Account |
