@@ -575,6 +575,7 @@ While an account has entries (`hasEntries` is `true`), its sub-type follows thes
 
 - An account with no sub-type can still take one.
 - A stated sub-type can switch between `payable` (**Por pagar**) and `expense_rendition_payable` (**Rendición por pagar**), in either direction. A `payable` Invoice takes either one as its control account, so the lines already posted keep their meaning.
+- The sub-type `exchange_difference` (**Diferencia de cambio**) can be removed by setting `subtype` to `null`. It can't switch to another sub-type. See [Exchange Difference Accounts](#exchange-difference-accounts).
 - Every other change of a stated sub-type, including clearing it to `null`, is refused with `409` and `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR`.
 - An account cannot take a [common-only sub-type](/api-reference/bases#common-only-accounts) (`cash`, `receivable`, `payable`, `expense_rendition_payable`, or `credit_card`) while a live or scheduled Basis Entry has a line on it. The change is refused with `409` and `LEDGER_ACCOUNT_COMMON_ONLY_SUBTYPE_HAS_BASIS_LINES_ERROR`.
 - An account that a record pins keeps its sub-type even within the pair. For example, while the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) names an account, changing its sub-type is refused with `409` and `LEDGER_ACCOUNT_FACT_PINNED_ERROR`.
@@ -595,7 +596,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
   -d '{"subtype": "expense_rendition_payable"}'
 ```
 
-In the app, **Editar cuenta** on an account with entries offers only **Por pagar** and **Rendición por pagar** when the account has one of them, and explains why. For any other sub-type, the **Subtipo** field is locked.
+In the app, **Editar cuenta** on an account with entries offers only **Por pagar** and **Rendición por pagar** when the account has one of them, and explains why. On a **Diferencia de cambio** account, it offers **Diferencia de cambio** and **Ninguno**, and explains that the sub-type can only be removed. For any other sub-type, the **Subtipo** field is locked.
 
 ### Cash Accounts
 
@@ -721,11 +722,11 @@ Create the account, or `PATCH` an existing one, with `type: "other_income"` or `
 
 - Only an `other_income` or `other_expense` account with `balance` tracking can take the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `open_item` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`.
 - A second Exchange Difference Account of the same type in the Entity is refused with `409` and `LEDGER_ACCOUNT_EXCHANGE_DIFFERENCE_ALREADY_EXISTS_ERROR`. `params.ledgerAccountType` names the type that is already taken: `other_income` or `other_expense`.
-- An account that already has lines can take the sub-type. Once it has lines, the sub-type is locked like any other. See [Sub-type changes on an account with entries](#sub-type-changes-on-an-account-with-entries).
+- An account that already has lines can take the sub-type, and can give it up: `PATCH` it with `subtype: null`. This frees its Normal Side, so another account of the same type can take the sub-type. An account with lines can't switch from `exchange_difference` to another sub-type; that change is refused with `409` and `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR`. See [Sub-type changes on an account with entries](#sub-type-changes-on-an-account-with-entries).
 - The sub-type is not [common-only](/api-reference/bases#common-only-accounts), so Basis Entries can post to it.
 - In the cash flow statement, it counts by default under `other_operating`.
 
-In the app, choose **Diferencia de cambio** in the **Subtipo** field of an **Otros ingresos** or **Otros gastos** account.
+In the app, choose **Diferencia de cambio** in the **Subtipo** field of an **Otros ingresos** or **Otros gastos** account. To remove the tag, choose **Ninguno**.
 
 ```bash
 curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
@@ -733,6 +734,16 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
   -H "x-api-key: $SINTROPIX_API_KEY" \
   -H "x-audit-actor: my-agent" \
   -d '{"subtype": "exchange_difference"}'
+```
+
+To move the tag to another account of the same type, remove it from the current one first:
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{"subtype": null}'
 ```
 
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
@@ -763,7 +774,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_DEFAULT_PURCHASE_IN_USE_ERROR` | A Partner names the account as its Default Purchase Account, and the change would make it ineligible for that role |
 | `LEDGER_ACCOUNT_TYPE_LOCKED_ERROR` | Type change not allowed for an account with entries |
 | `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
-| `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed for an account with entries. Only a switch between `payable` and `expense_rendition_payable` is allowed |
+| `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed for an account with entries. Only a switch between `payable` and `expense_rendition_payable`, or removing `exchange_difference` (`null`), is allowed |
 | `LEDGER_ACCOUNT_COMMON_ONLY_SUBTYPE_HAS_BASIS_LINES_ERROR` | The account would take a [common-only sub-type](/api-reference/bases#common-only-accounts) while a live or scheduled Basis Entry has a line on it. `params: { ledgerAccountId, subtype }` (`409`) |
 | `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template. A [Budget](/api-reference/budgets) that plans the account pins its type, a Bank Account of kind `bank` pins the `cash` sub-type of its Ledger Account, and the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) pins the sub-type of the accounts it names |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
