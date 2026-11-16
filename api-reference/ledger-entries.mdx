@@ -21,7 +21,7 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 
 ## GET /api/entities/:entityId/ledger/entries
 
-List Ledger Entries with pagination, filtering, and sorting. Defaults to live entries (`active` and `reversed` statuses). Pass `ids` instead to read the full detail of up to 100 specific entries in one request.
+List Ledger Entries with pagination, filtering, and sorting. Defaults to live entries (`active` and `reversed` statuses). The list includes [Computed Entries](#computed-entries), such as Revaluation Entries and their reversals. Pass `ids` instead to read the full detail of up to 100 specific entries in one request.
 
 - **Path param:** `entityId` (UUID)
 - **Query params:**
@@ -99,6 +99,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | Field | Type | Description |
 | --- | --- | --- |
 | `basisName` | string or null | Name of the entry's [Basis](/api-reference/bases); `null` for a common entry |
+| `isComputed` | boolean | `true` on a [Computed Entry](#computed-entries), such as a Revaluation Entry, which Sintropix computes on each read and never stores. Every write that names it is refused |
 | `reversedByEntryId` | UUID or null | The live reversal that points at this entry, if any |
 | `lines` | array | The entry's lines, each with the fields below |
 | `relatedInvoices` | array | Invoices this entry books, each with the invoice fields below |
@@ -127,7 +128,7 @@ Each item in `lines` is a **Ledger Entry Line** (the first nineteen fields, whic
 | `transactionFxRateDate` | ISO date or null | Date of the published rate the line used. `null` on an `overridden` or `stated` line, and on a line in the functional currency |
 | `overrideFxRateReason` | string or null | Why the line uses its own rate; set exactly when the origin is `overridden` |
 | `replacedFxRate` | decimal string or null | The published rate an override replaced; `null` when none was published, or the line isn't overridden |
-| `exchangeDifferenceGround` | enum or null | Set only on an [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line): `settlement` or `conversion`. `null` on every other line |
+| `exchangeDifferenceGround` | enum or null | Set only on an [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line): `settlement`, `conversion`, or `revaluation` (on a [Revaluation Entry](#revaluation-entries)). `null` on every other line |
 | `exchangeDifferenceReason` | string or null | On an Exchange Difference Line booked beyond the [rate bound](/api-reference/bank-movements#the-rate-bound), the reason the request gave. `null` otherwise |
 | `exchangeDifferencePublishedRate` | decimal string or null | The published rate that reason was measured against; `null` when none was published, or the line has no reason |
 | `createdAt` | ISO datetime | Creation timestamp |
@@ -600,6 +601,103 @@ An [Intercompany Link](/api-reference/intercompany-links) joins a line of an Ent
 - Editing the Entry's header, or a linked line's Partner, account, or Dimension values, keeps the Link.
 - [Unbooking](#delete-/api/entities/entityid/ledger/entries/entryid) or [reversing](#post-/api/entities/entityid/ledger/entries/entryid/reverse) the Entry removes its Links, as it removes its Allocations. After you book the corrected Entry, link its new line again. See [Correct a Link](/api-reference/intercompany-links#correct-a-link).
 
+## Computed Entries
+
+A Computed Entry is a Ledger Entry that Sintropix computes from your stored lines and FX Rates each time you read the books. It is never stored. Today, every Computed Entry is a [Revaluation Entry](#revaluation-entries) or its reversal.
+
+A Computed Entry reads like any other entry:
+
+- `GET /ledger/entries`, the entry detail, and `GET /ledger/lines` return it. The entry detail answers `isComputed: true`.
+- Balances and reports include it: the balance sheet, the income statement, the eight-column balance, the general ledger, and the journal.
+- Its amounts follow your data and the published rates, so two reads can answer different amounts. Its id stays the same.
+
+Open items and their open amounts, bank match candidates, and the activities of the cash flow statement read stored lines only. A Computed Entry never settles or changes an open item.
+
+In the app, a Computed Entry shows a **Calculado** chip beside its status in the entry list, the general ledger, the entry page, and the **Libro Diario**. Its page offers no **Reverse** or **Unbook**, and no tasks, attachments, or messages.
+
+### Computed ids
+
+The ids of a Computed Entry and its lines are version 8 UUIDs that start with `ca1c21ed-`. The shape of the id alone marks it as computed. Random version 4 UUIDs never take this shape, so you don't need to change how you generate ids.
+
+### Writes are refused
+
+You can't change a Computed Entry. Every write that names one, or one of its lines, is refused with `409`:
+
+- **An entry id** answers `LEDGER_ENTRY_COMPUTED_ERROR` with `params: { entryId, entryDate }`. This covers edit, reverse, unbook, the Scheduled Entry book, edit, and cancel, [attachments](/api-reference/attachments), [task](/api-reference/tasks) links, and messages on the entry.
+- **A line id** answers `LEDGER_ENTRY_LINE_COMPUTED_ERROR` with `params: { lineId }`. This covers the line's Partner, account, and Dimension values, [Allocations](/api-reference/allocations), a bank Match, bulk Match, Assign, and Unassign, a [Follow-up](/api-reference/follow-ups) Plan that names the line, an [Intercompany Link](/api-reference/intercompany-links), and the acquisition line of a Fixed Asset.
+- **A create** that sends a new entry id or line id of the computed shape is refused with the same codes. This covers entry create, bulk create, and dry run, Scheduled Entry create and reschedule, reverse, the bank Book, Match, and Assign, an Invoice booking, and a Follow-up Plan.
+
+### Revaluation Entries
+
+IAS 21 reports a foreign-currency monetary item at the closing rate. Sintropix does this with Revaluation Entries: it restates the foreign units that each [Monetary Account](/api-reference/chart-of-accounts#monetary-accounts) holds at the closing rate, and books the difference as an unrealized exchange difference.
+
+These lines are revalued: live common lines (with no Basis) on an account with `isMonetary: true`, in a currency other than the Entity's functional currency. A `balance` account is revalued per currency. An `open_item` account is revalued per open item, on the units the item still has open.
+
+An Entity has one Revaluation Entry per month, from the month of its first such line to the current month. A month where nothing differs from the carrying amount has none.
+
+- **Date.** A month that has passed is revalued on its last day. The current month is revalued on today's date, at the latest published rate, so its entry moves forward each day and keeps its id.
+- **Rate.** The closing rate is the rate from the Entity's [Rate Source](/api-reference/fx-rates) on or before the entry date.
+- **Lines.** For each balance or open item, an item line on the Monetary Account carries the difference, with `transactionCurrency` set, a `transactionAmount` of `0`, and the closing rate in `transactionFxRate`. An [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) with `exchangeDifferenceGround: "revaluation"` balances it on the Entity's [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts): a gain on the `other_income` account and a loss on the `other_expense` account, or both on the one account the Entity tagged.
+- **Reversal.** Each Revaluation Entry has `status: "reversed"`. Its reversal is dated on the 1st of the next month, has `status: "active"`, and names it in `reversalOfEntryId`. The reversal takes the difference back on the same accounts, so each month restates the whole difference from the stored amounts.
+- **Memo.** `Diferencia de cambio no realizada al DD-MM-YYYY`, with the entry date.
+
+An Entity with no Exchange Difference Account has no Revaluation Entries. Tag one to start revaluing. Lines of a Basis Entry are not revalued.
+
+For example, a Chilean Entity holds USD 1,000.00 on a monetary Bank Account, bought at 900.00, so the books carry CLP 900,000:
+
+1. On 31 March the closing rate is 940.00. The March Revaluation Entry, dated 31 March, debits the bank account CLP 40,000 and credits the Exchange Difference Account CLP 40,000. The balance sheet at 31 March shows the bank at CLP 940,000.
+2. On 1 April the reversal takes the CLP 40,000 back.
+3. On 30 April the closing rate is 920.00. The April Revaluation Entry books a CLP 20,000 gain. The income statement for April shows an exchange difference of CLP −20,000: the reversal of March's CLP 40,000 gain and April's CLP 20,000 gain.
+
+### GET /api/entities/:entityId/ledger/revaluation
+
+List the Revaluation Entries dated on or before a date, and the notices about how they were computed. Call it before you close a month, to check that every foreign monetary balance was revalued.
+
+- **Path param:** `entityId` (UUID)
+- **Query params:**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `through` | ISO date | Yes | Latest entry date to include |
+
+- **Success response:**
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entryIds` | UUID[] | Ids of the Revaluation Entries and their reversals dated on or before `through`. Read them with [`GET /ledger/entries?ids=`](#reading-several-entries-by-id) |
+| `notices` | array | What kept a balance from being revalued, or may still change it, as `{ code, params }`. A notice about a month is included when the month starts on or before `through` |
+
+A notice never blocks a read. Balances and reports answer without the part it names.
+
+| Code | Meaning |
+| --- | --- |
+| `REVALUATION_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING` | The Entity has foreign monetary balances but no [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts), so nothing is revalued. `params: {}` |
+| `REVALUATION_CLOSING_RATE_MISSING` | The Rate Source has no rate for the currency on or before the month's entry date, so that currency isn't revalued in that month. `params: { currency, monthEnd }` |
+| `REVALUATION_CLOSING_RATE_PROVISIONAL` | The Rate Source has published nothing dated after the month end yet, so the closing rate, and the entry with it, can still change. `params: { currency, monthEnd, rateDate }` |
+| `REVALUATION_DIMENSIONS_NOT_SET` | The Group Account of an Exchange Difference Account the entries use [requires Dimensions](/api-reference/dimensions#required-dimensions), but computed lines carry no Dimension values. `params: { accountId, dimensionIds }` |
+| `REVALUATION_BASIS_LINE_NOT_REVALUED` | A Basis Entry has a foreign line on a Monetary Account. Basis lines are not revalued. `params: { accountId, basisId }` |
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/revaluation?through=2026-03-31" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+```json
+{
+  "entryIds": [
+    "ca1c21ed-5ec2-8012-a345-6789abcdef01",
+    "ca1c21ed-5ec2-8112-a345-6789abcdef01"
+  ],
+  "notices": [
+    {
+      "code": "REVALUATION_CLOSING_RATE_PROVISIONAL",
+      "params": { "currency": "USD", "monthEnd": "2026-03-31", "rateDate": "2026-03-31" }
+    }
+  ]
+}
+```
+
 ## Scheduled Entries
 
 ### POST /api/entities/:entityId/ledger/scheduled-entries
@@ -693,7 +791,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/schedule
 
 ### GET /api/entities/:entityId/ledger/lines
 
-List Ledger Entry Lines. Defaults to live entries only. Optionally filter by partner.
+List Ledger Entry Lines. Defaults to live entries only. Optionally filter by partner. The lines of [Computed Entries](#computed-entries) are included.
 
 - **Path param:** `entityId` (UUID)
 - **Query params:**
@@ -847,6 +945,8 @@ The retag shows in the entry's history, with who made it and the Value before an
 | `LEDGER_ENTRY_UNBOOK_FROZEN_ERROR` | Cannot unbook a frozen entry |
 | `LEDGER_ENTRY_UNBOOK_RELEASE_ERROR` | The entry is a Release of a [Deferral](/api-reference/invoices#deferrals) or an [Accrual](/api-reference/invoices#accruals); unbook its Invoice instead. `params: { ledgerEntryId, invoiceId, invoiceDocumentNumber }` (`409`) |
 | `LEDGER_ENTRY_NOT_ACTIVE_ERROR` | Entry is not active |
+| `LEDGER_ENTRY_COMPUTED_ERROR` | The request names a [Computed Entry](#computed-entries), or creates an entry with a computed id. `params: { entryId, entryDate }` (`409`) |
+| `LEDGER_ENTRY_LINE_COMPUTED_ERROR` | The request names a line of a [Computed Entry](#computed-entries), or creates a line with a computed id. `params: { lineId }` (`409`) |
 | `LEDGER_ENTRY_OVER_CORRECTED_ERROR` | Entry already has a reversal |
 | `LEDGER_REVERSAL_NETTING_BLOCKED_ERROR` | Reversal would net an existing allocation |
 | `LEDGER_REVERSAL_DATE_BEFORE_ORIGINAL_ERROR` | Reversal date is before the original |

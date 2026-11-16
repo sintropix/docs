@@ -716,7 +716,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
 
 ### Exchange Difference Accounts
 
-The sub-type `exchange_difference` (**Diferencia de cambio**) marks an Exchange Difference Account: the `other_income` or `other_expense` account where an Entity's exchange differences go. Sintropix books the [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) of a bank Match, Assign, or conversion to it: a gain to the `other_income` account and a loss to the `other_expense` account, or both to the one account the Entity tagged. Tag it before you settle foreign items through the bank. Without it, those writes are refused with `409` and `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING_ERROR`.
+The sub-type `exchange_difference` (**Diferencia de cambio**) marks an Exchange Difference Account: the `other_income` or `other_expense` account where an Entity's exchange differences go. Sintropix books the [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) of a bank Match, Assign, or conversion to it, and the difference of each [Revaluation Entry](/api-reference/ledger-entries#revaluation-entries): a gain to the `other_income` account and a loss to the `other_expense` account, or both to the one account the Entity tagged. Tag it before you settle foreign items through the bank. Without it, an Entity with foreign balances on [Monetary Accounts](#monetary-accounts) has no Revaluation Entries. Without it, those writes are refused with `409` and `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING_ERROR`.
 
 An Entity can tag at most one account per Normal Side: one `other_income` account (credit) and one `other_expense` account (debit). Choose one of these setups:
 
@@ -755,7 +755,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
 
 A Monetary Account is an account for a right to receive, or an obligation to deliver, a fixed or determinable number of units of currency, as IAS 21 defines monetary items. Cash, bank balances, receivables, and loans payable are typical examples. Prepaid expenses, fixed assets, and inventory are not monetary.
 
-`isMonetary` states the answer as `true` or `false` on every Ledger Account. Sintropix doesn't infer it from the type or the sub-type, so you set it yourself. Today the answer doesn't change any posting, balance, or report. Set it now so your chart is ready for the IAS 21 foreign currency features that will use it.
+`isMonetary` states the answer as `true` or `false` on every Ledger Account. Sintropix doesn't infer it from the type or the sub-type, so you set it yourself. The answer decides which foreign balances Sintropix revalues: the foreign-currency lines of a Monetary Account are restated at each month's closing rate by computed [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries). Revaluation Entries are computed on every read, so changing the answer changes the account's balances and your reports at once, for past months too.
 
 These rules apply:
 
