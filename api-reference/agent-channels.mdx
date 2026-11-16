@@ -222,6 +222,24 @@ Erwin first confirms in the thread what he set, and until when, or tells you why
 
 To change or cancel one, ask in the same thread, for example *"cancela el aviso de Toku"*. Erwin confirms the change there.
 
+### Draft the questions for the client
+
+Ask Erwin for the questions to send the client, for example *"¿qué le preguntamos hoy al cliente?"* or *"arma las dudas para el cliente"*. He drafts one short message that you edit and send yourself. Erwin never sends it to the client, and drafting it changes nothing in the ERP.
+
+- **What he asks.** Only what the client alone can tell you, taken from the pending records and their `question` and `waiting` [Follow-ups](/api-reference/follow-ups): what a purchase or a payment was for, where something new should be booked, who paid something, or a document only the client can get, such as an invoice or a statement. When he has a guess, he gives it for the client to confirm, for example *"¿Marketing?"*.
+- **What he leaves out.** Decisions for your team, such as how to book a record he already understands or whether to approve a proposal. He also skips anything the client already answered in the client's channel or that the [wiki](/core-concepts) settles. A question your team already asked and is still waiting on comes back as a one-line reminder.
+- **How it reads.** One message in Spanish, with at most eight items, the most blocking first. Each item is one short question and links its record, named the way the client knows it: the supplier or the person, and what it is. It has no accounting or ERP terms, so a client who has never seen the ERP can answer it.
+- **After the draft.** One line for your team with what he left out and why. When nothing needs the client, he says so in one line.
+
+```text
+Hola! Dejo un par de dudas:
+• Factura del maestro por traslados e instalaciones: ¿es para un evento o para la oficina?
+• Reprograf $70.500, son stickers. ¿Marketing?
+• Pago a Deel del 27-10: ¿qué es?
+• ¿Tienen la invoice de Twilio de octubre?
+• Les recuerdo los pasajes de LAN.
+```
+
 ## Work with Erwin in the Chat
 
 Every Organization has a Chat in the app, where its members write to each other in ERP Messages and answer them in ERP Threads. Erwin answers there too, when someone tags him, and he follows the ERP Threads he has written in.
