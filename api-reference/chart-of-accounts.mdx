@@ -350,6 +350,7 @@ Each account in `accounts` carries:
 | `tracking` | enum | `balance` or `open_item` |
 | `subtype` | enum or null | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `unbilled_payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, `credit_card`, `exchange_difference` |
 | `cashFlowCategory` | enum or null | Line of the [cash flow statement](/api-reference/reports#cash-flow-statement) where a flow against the account appears: `customer_receipts`, `supplier_payments`, `employee_payments`, `taxes`, `other_operating`, `fixed_assets`, `other_investing`, `borrowings`, `interest`, `dividends`, `equity_contributions`. `null` uses `defaultCashFlowCategory` |
+| `isMonetary` | boolean | Whether the account is a [Monetary Account](#monetary-accounts). Always `false` on an account that is not `asset` or `liability` |
 | `normalSide` | enum | `debit` or `credit`, derived from type |
 | `defaultCashFlowCategory` | enum or null | Category the account takes while `cashFlowCategory` is `null`, derived from its sub-type or type. `null` leaves the account unclassified |
 | `hasEntries` | boolean | Whether at least one live or scheduled line points at this account |
@@ -388,6 +389,7 @@ Each account in `accounts` carries:
       "tracking": "balance",
       "subtype": null,
       "cashFlowCategory": null,
+      "isMonetary": false,
       "normalSide": "debit",
       "defaultCashFlowCategory": null,
       "hasEntries": false,
@@ -460,7 +462,7 @@ List all Ledger Accounts for an Entity.
 - **Success response:** array of Ledger Accounts
 - **Status:** 200
 
-Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `organizationId`, `groupAccountId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `cashFlowCategory`, `normalSide`, `createdAt`, `updatedAt`) without `groupAccountCode`, `groupAccountName`, and the derived `hasEntries`, `deleteBlockedBy`, `isDefaultPurchaseAccount`, and `defaultCashFlowCategory` facts.
+Each account carries the stored fields of the Chart of Accounts account row (`id`, `entityId`, `organizationId`, `groupAccountId`, `groupId`, `code`, `name`, `description`, `type`, `tracking`, `subtype`, `cashFlowCategory`, `isMonetary`, `normalSide`, `createdAt`, `updatedAt`) without `groupAccountCode`, `groupAccountName`, and the derived `hasEntries`, `deleteBlockedBy`, `isDefaultPurchaseAccount`, and `defaultCashFlowCategory` facts.
 
 ```bash
 curl https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts \
@@ -484,6 +486,7 @@ Create a new Ledger Account.
 | `tracking` | enum | Yes | `balance` or `open_item` |
 | `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `unbilled_payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, `credit_card`, `exchange_difference`; null or omitted means none |
 | `cashFlowCategory` | enum or null | No | Cash flow statement category, one of the values listed in the Chart of Accounts above; null or omitted uses the default of the sub-type or type |
+| `isMonetary` | boolean | No | Whether the account is a [Monetary Account](#monetary-accounts). Only an `asset` or `liability` account can be `true`. Omitted means `false` |
 | `groupAccountId` | UUID | Yes | [Group Account](#the-group-chart) of the Entity's Organization, of the same `type` |
 | `groupId` | UUID | No | Parent group |
 
@@ -513,6 +516,7 @@ An unknown `groupAccountId`, or one of another Organization, returns `404` with 
     "tracking": "balance",
     "subtype": null,
     "cashFlowCategory": null,
+    "isMonetary": false,
     "normalSide": "debit",
     "defaultCashFlowCategory": null,
     "hasEntries": false,
@@ -555,6 +559,7 @@ Edit an existing Ledger Account. At least one field must be provided. Accounts w
 | `tracking` | enum | No | `balance` or `open_item` |
 | `subtype` | enum or null | No | `fixed_asset`, `receivable`, `unbilled_receivable`, `payable`, `unbilled_payable`, `internal_transfer`, `migration_clearing`, `suspense`, `cash`, `prepaid_expense`, `deferred_revenue`, `expense_rendition_payable`, `retained_earnings`, `credit_card`, `exchange_difference`, or null to clear (transition rules apply) |
 | `cashFlowCategory` | enum or null | No | Cash flow statement category; null to use the default. It can change while the account has entries |
+| `isMonetary` | boolean | No | Whether the account is a [Monetary Account](#monetary-accounts). Only an `asset` or `liability` account can be `true`. It can change while the account has entries |
 | `groupAccountId` | UUID | No | Map the account to another Group Account of its type. Required with a `type` change: a Group Account of the new type |
 | `groupId` | UUID | No | Parent group |
 
@@ -746,6 +751,32 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
   -d '{"subtype": null}'
 ```
 
+### Monetary Accounts
+
+A Monetary Account is an account for a right to receive, or an obligation to deliver, a fixed or determinable number of units of currency, as IAS 21 defines monetary items. Cash, bank balances, receivables, and loans payable are typical examples. Prepaid expenses, fixed assets, and inventory are not monetary.
+
+`isMonetary` states the answer as `true` or `false` on every Ledger Account. Sintropix doesn't infer it from the type or the sub-type, so you set it yourself. Today the answer doesn't change any posting, balance, or report. Set it now so your chart is ready for the IAS 21 foreign currency features that will use it.
+
+These rules apply:
+
+- Only an `asset` or `liability` account can be monetary. Sending `isMonetary: true` on any other type is refused with `400` and `LEDGER_ACCOUNT_MONETARY_TYPE_INCOMPATIBLE_ERROR`. `params.ledgerAccountType` names the account type.
+- A create that leaves out `isMonetary` answers `false`. Accounts that existed before the field was added answer `false` too.
+- Changing the `type` of a monetary account to anything other than `asset` or `liability` is refused with the same error, unless the same request also sends `isMonetary: false`.
+- The answer can change at any time, also while the account has entries. Each change is recorded in the [Audit Trail](/api-reference/audit-trail) as an update of the account.
+
+In the app, the **Nueva cuenta** and **Editar cuenta** forms show a **Cuenta monetaria** switch for an **Activo** or **Pasivo** account. Choosing another type turns the switch off and hides it. The account detail shows the same switch, and you can change it there directly.
+
+To mark an existing account as monetary with an API key, send the audit headers with the change:
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/$ACCOUNT_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Mark the USD bank account as monetary (IAS 21)" \
+  -d '{"isMonetary": true}'
+```
+
 ## DELETE /api/entities/:entityId/ledger/accounts/:accountId
 
 Delete a Ledger Account. The account must not be referenced by any Ledger Entry Line, Bank Account, Partner default purchase account, or vendor [Booking Template](/api-reference/partners#booking-templates) line; the `deleteBlockedBy` field of the Chart of Accounts tells you in advance which reference would block the delete.
@@ -779,6 +810,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template. A [Budget](/api-reference/budgets) that plans the account pins its type, a Bank Account of kind `bank` pins the `cash` sub-type of its Ledger Account, and the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) pins the sub-type of the accounts it names |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
+| `LEDGER_ACCOUNT_MONETARY_TYPE_INCOMPATIBLE_ERROR` | Only an `asset` or `liability` account can be monetary. `params: { ledgerAccountType }` (`400`) |
 | `LEDGER_ACCOUNT_SUSPENSE_ALREADY_EXISTS_ERROR` | The Entity already has a Suspense Account |
 | `LEDGER_ACCOUNT_RETAINED_EARNINGS_ALREADY_EXISTS_ERROR` | The Entity already has a retained earnings account |
 | `LEDGER_ACCOUNT_EXCHANGE_DIFFERENCE_ALREADY_EXISTS_ERROR` | The Entity already has an Exchange Difference Account of this type. `params: { ledgerAccountType }`, `other_income` or `other_expense` (`409`) |
