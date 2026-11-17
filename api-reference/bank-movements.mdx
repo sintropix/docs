@@ -639,11 +639,22 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/bank-accounts/$B
 
 Each error answers `409` with the `code` and the `params` shown. Amounts are functional amounts in minor units, except where a row says otherwise. For the foreign-currency errors, see [Foreign-currency errors](#foreign-currency-errors).
 
+Match and Assign check the settlement line with the same `LEDGER_ENTRY_SETTLED_LINE_*` and `LEDGER_ENTRY_SETTLEMENT_*` codes as a [manual entry that settles open lines](/api-reference/ledger-entries#settlement-errors).
+
+<Note>
+  These codes replace `BANK_MOVEMENT_MATCH_LINE_NOT_OPEN_ERROR`, `BANK_MOVEMENT_MATCH_SIDE_INCOMPATIBLE_ERROR`, `BANK_MOVEMENT_MATCH_SETTLEMENT_LINE_PARTNER_MISMATCH_ERROR`, `BANK_MOVEMENT_MATCH_SETTLEMENT_LINE_DENOMINATION_MISMATCH_ERROR`, `BANK_MOVEMENT_MATCH_SETTLEMENT_EXCEEDS_OPEN_AMOUNT_ERROR`, and `BANK_MOVEMENT_MATCH_TARGET_ON_SUSPENSE_ACCOUNT_ERROR`, which Sintropix no longer returns. A target on the Suspense Account now answers `LEDGER_ENTRY_SETTLED_LINE_NOT_OPEN_ITEM_ERROR`.
+</Note>
+
 | Code | Meaning |
 | --- | --- |
-| `BANK_MOVEMENT_MATCH_SETTLEMENT_EXCEEDS_OPEN_AMOUNT_ERROR` | The settlement line is larger than the target's Open Amount. `params: { lineId, openAmount, settlementAmount }`. On a foreign target, both amounts are units of the target's currency. |
+| `LEDGER_ENTRY_SETTLED_LINE_NOT_OPEN_ITEM_ERROR` | The target isn't an open item: its account tracks no open items or is the Suspense Account, or its entry isn't live. `params: { lineId, settlesLineId, accountId }`, with `lineId` `null` and `settlesLineId` the target. |
+| `LEDGER_ENTRY_SETTLED_LINE_NOT_OPEN_ERROR` | Nothing is left open on the target. `params: { lineId, settlesLineId }`, with `lineId` `null` and `settlesLineId` the target. |
+| `LEDGER_ENTRY_SETTLEMENT_SIDE_MISMATCH_ERROR` | A Movement settles only an item on its own side, and the settlement line goes on the other side. `params: { lineId, settledSide }`, with `settledSide` the target's side. `lineId` is `null` when the Movement's direction is the cause, or the settlement line when it's on the wrong side. |
+| `LEDGER_ENTRY_SETTLEMENT_PARTNER_MISMATCH_ERROR` | The settlement line carries another Partner than the target's. `params: { lineId, partnerId, settledPartnerId }`. |
+| `LEDGER_ENTRY_SETTLEMENT_DENOMINATION_MISMATCH_ERROR` | The settlement line is in another denomination than the target. `params: { lineId, denomination, settledDenomination }`, each a currency code, the functional currency's on a domestic line. |
+| `LEDGER_ENTRY_SETTLEMENT_EXCEEDS_OPEN_AMOUNT_ERROR` | The settlement line is larger than the target's Open Amount. `params: { lineId, openAmount, settlementAmount, settledDenomination }`. Both amounts are in `settledDenomination`: units of the target's currency on a foreign target. |
+| `LEDGER_ENTRY_SETTLEMENT_AMOUNT_ZERO_ERROR` | The settlement line is `0`, so it settles nothing. `params: { lineId }`. |
 | `BANK_MOVEMENT_MATCH_COUNTERPARTS_EXCEED_MOVEMENT_ERROR` | The counterpart lines add up to more than the Movement. `params: { movementSide, bankLineAmount, counterpartNetAmount }`. |
-| `BANK_MOVEMENT_MATCH_TARGET_ON_SUSPENSE_ACCOUNT_ERROR` | `lineId` names a line on the Suspense Account. `params: { lineId }`. |
 | `BANK_MOVEMENT_SUSPENSE_ACCOUNT_MISSING_ERROR` | The Match leaves a rest, or Unassign needs a Suspense line, but the Entity has no Suspense Account. |
 | `BANK_MOVEMENT_NO_SUSPENSE_LINE_ERROR` | Assign was called on a Movement whose Entry has no Suspense line. `params: { movementId, ledgerEntryId }`. |
 | `BANK_MOVEMENT_ASSIGN_EXCEEDS_SUSPENSE_LINE_ERROR` | The new lines take more than the Suspense line holds. `params: { suspenseLineId, suspenseAmount, assignedAmount }`. |
@@ -665,7 +676,7 @@ To use another rate, send `bankLineOverride` on a Book or a Match, with `overrid
 
 ### Settle a foreign open item
 
-The line that settles a foreign open item, such as an Invoice in USD, states the item's `transactionCurrency` and the units it settles, with no `functionalAmount`. Read the units still open in `openTransactionAmount` on a [match candidate](#get-/movements/movementid/match-candidates).
+The line that settles a foreign open item, such as an Invoice in USD, states the item's `transactionCurrency` and the units it settles, with no `functionalAmount`. Read the units still open in `openTransactionAmount` on a [match candidate](#get-/movements/movementid/match-candidates). When no Movement pays the item, a [manual Ledger Entry](/api-reference/ledger-entries#settle-open-lines) can settle it the same way.
 
 - Sintropix values the settlement line at the item's carrying amount: all the open units take the whole open functional amount, and fewer units take their share of it. The line's `transactionFxRateOrigin` is `settled_item`.
 - A settlement line never takes a rate of its own. `overrideFxRate` on it is refused with `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR`.
@@ -691,7 +702,7 @@ When one Movement pays items in two currencies, settle the item in the other cur
 
 ### The rate bound
 
-When a Match, a bulk Match, an Assign, or a Follow-up act settles an item, and a counterpart line is in another currency than the Bank Account's, Sintropix checks the rate the settlement implies. It doesn't matter which line is the target.
+When a Match, a bulk Match, an Assign, or a Follow-up act settles an item, and a counterpart line is in another currency than the Bank Account's, Sintropix checks the rate the settlement implies. It doesn't matter which line is the target. A [manual entry that settles open lines](/api-reference/ledger-entries#settle-open-lines) in two denominations is checked the same way, against the published rate of its entry date.
 
 - **Implied rate:** the functional amount the Movement pays for the settlement, divided by the units settled. A fee or another item on its own line stays out of it.
 - **Bound:** the implied rate may differ from the published rate of the Movement's date by at most 5%.

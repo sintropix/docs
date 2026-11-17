@@ -231,6 +231,8 @@ Create a new Ledger Entry. The entry must have at least two lines and total debi
 | `notes` | string or null | No | Longer notes; trimmed, blank becomes null |
 | `basisId` | UUID or null | No | [Basis](/api-reference/bases) the Entry counts in. Omit it, or send `null`, to post a common Entry. A Basis Entry cannot post a line to a [common-only account](/api-reference/bases#common-only-accounts) (`409`, `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR`). An Entity with no Basis must omit it. |
 | `newLedgerEntryLines` | array | Yes | At least 2 lines, max 10,000, balanced once valued |
+| `exchangeDifferenceLineId` | UUID | No | Client-generated id of the Exchange Difference Line, on an entry that [settles open lines](#settle-open-lines). Send it when the valued lines leave a gap |
+| `exchangeDifferenceReason` | string | No | Why the settlement's implied rate is beyond the [rate bound](/api-reference/bank-movements#the-rate-bound), 1 to 500 characters after trimming. Send it only when Sintropix asks for it |
 
 Each line in `newLedgerEntryLines` is either **domestic**, in the Entity's functional currency, or **foreign**, in another currency:
 
@@ -246,6 +248,7 @@ Each line in `newLedgerEntryLines` is either **domestic**, in the Entity's funct
 | `overrideFxRateReason` | string | No | Foreign only. Why the line uses its own rate, 1 to 500 characters after trimming. Requires `overrideFxRate` |
 | `partnerId` | UUID or null | No | Counterparty partner |
 | `dimensionValueIds` | UUID[] | No | Default `[]`; tags for this line. Each must be a Value of the Entity's Organization; see [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization). A line on an account whose Group Account [requires Dimensions](/api-reference/dimensions#required-dimensions) must carry a value of each |
+| `settlesLineId` | UUID | No | The open line this line settles. See [Settle open lines](#settle-open-lines) |
 
 <Note>
   A line takes only the fields above. Any other field, `transactionFxRate` included, is refused with a `400` that names it. Don't send a currency field set to `null` on a domestic line; leave it out.
@@ -347,7 +350,7 @@ A foreign line states its currency and its amount. Sintropix works out its funct
 | --- | --- |
 | `published` | The rate of the Entity's Rate Source on or before the Entry Date, dated in `transactionFxRateDate` |
 | `overridden` | A rate the caller stated with `overrideFxRate` and its reason |
-| `settled_item` | The carrying rate of the open line the line settles, dated in `transactionFxRateDate`. A [bank Match or Assign](/api-reference/bank-movements#settle-a-foreign-open-item) posts it on its settlement line. The routes on this page don't post it |
+| `settled_item` | The carrying rate of the open line the line settles, dated in `transactionFxRateDate`. A line with [`settlesLineId`](#settle-open-lines) posts it, as does the settlement line of a [bank Match or Assign](/api-reference/bank-movements#settle-a-foreign-open-item) |
 | `stated` | A rate the caller stated without a check: every foreign line booked before Sintropix valued foreign lines. [Invoice booking](/api-reference/invoices#foreign-currency-invoices) and the [bank routes](/api-reference/bank-movements#foreign-currency-and-the-exchange-difference) value their lines like this page does |
 
 The valuation adds these refusals, all `409`:
@@ -406,6 +409,87 @@ To book the same line at a contract rate, state your own rate on the line:
 
 That line is valued at CLP 950,000, with `replacedFxRate: "943.25"` and `overrideFunctionalDifference: 6750`. The credit line must then carry 950000.
 
+### Settle open lines
+
+A line can settle an open item: an open line on an [Open-Item Account](/api-reference/chart-of-accounts), such as an Invoice's Control Line or an advance to a supplier. Name the open line in the line's `settlesLineId`. Sintropix values the line at the item's carrying amount and records the [Allocation](/api-reference/allocations) in the same write, so the item is settled when the entry books.
+
+Use it when no Bank Movement pays the item, such as a payment through a card or a provider's clearing account. Use it also to net two open lines in different currencies against each other, such as a supplier's USD Invoice and a CLP payment booked to the same payable. When a Bank Movement pays the item, [match the Movement](/api-reference/bank-movements#post-/movements/movementid/match) instead.
+
+Read the items to settle with [`GET /ledger/open-item-lines`](#get-/api/entities/entityid/ledger/open-item-lines) or the [open positions](/api-reference/reports#open-positions-receivables-and-payables). Each line there states what a settling line needs: `openAmount`, `openTransactionAmount`, `entryBasisId`, and `dimensionValueIds`.
+
+**The settling line.** It mirrors the item it settles:
+
+- It posts to the item's account, on the other side, with the item's Partner.
+- It's in the item's denomination. On a foreign item, it sends the item's `transactionCurrency` and the units it settles, at most `openTransactionAmount`. On a domestic item, it sends the `functionalAmount` it settles, at most `openAmount`. The amount must be above `0`.
+- The entry is in the item's Basis: its `basisId` is the item's `entryBasisId`, or it's omitted for a common item.
+- The item must be open: a line of a live entry, on an Open-Item Account other than the Suspense Account, with something left to settle.
+- Each item takes one settling line. One entry may settle several items, on any accounts and in any denominations.
+- In a [bulk create](#post-/api/entities/entityid/ledger/entries/bulk), an entry may settle a line that an earlier entry of the same request creates.
+
+A foreign settling line takes the item's carrying amount: all the open units take the whole open functional amount, and fewer units take their share of it. Its `transactionFxRateOrigin` is `settled_item`. A partial settlement follows the [bank rule](/api-reference/bank-movements#settle-a-foreign-open-item) for `LEDGER_ENTRY_SETTLEMENT_PARTIAL_NOT_MEASURABLE_ERROR`. The Allocation records the amount settled, and on a foreign item the units too.
+
+**The exchange difference.** When the valued lines leave a gap, declare an Exchange Difference Line: send `exchangeDifferenceLineId`, a new UUID, on the entry. Don't send a line of your own for the difference. Sintropix fills in its amount, side, and account, with the ground `settlement`, the same way as on the [bank acts](/api-reference/bank-movements#the-exchange-difference-line). An entry with no settling line can't declare one, and answers `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_NOT_ALLOWED_ERROR`.
+
+The lines, other than the Exchange Difference Line, decide how Sintropix checks the difference:
+
+- **Two denominations**, such as USD and CLP. Sintropix measures the rate the settlement implies: the functional amount of the lines in the other denomination per unit of the foreign currency. It compares it with the published rate of the entry date, under the 5% [rate bound](/api-reference/bank-movements#the-rate-bound). Beyond the bound, or when no rate is published, the write answers `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_RATE_UNEXPLAINED_ERROR`. Send `exchangeDifferenceReason` only when a document shows that rate was really applied. A manual entry has no Suspense Account to leave a rest on, so otherwise check the units, or settle fewer and leave the rest open.
+- **One foreign currency**, such as a USD Invoice netted against a USD advance booked at another rate. No other denomination prices the units, so the debit and credit units in that currency must be equal, counting every line in it. Settle the smaller side's open units on both lines and leave the rest of the larger item open. Unequal units answer `LEDGER_ENTRY_SETTLEMENT_UNITS_UNBALANCED_ERROR`.
+
+**Rate overrides.** A settling line never takes `overrideFxRate`. When the entry also declares an Exchange Difference Line, no foreign line of it takes one. To record a payment at your own rate, send it as a domestic line with its `functionalAmount`, so the measure reads it. Both cases answer `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR`.
+
+**After booking.** The entry's date can't change; see [PATCH](#patch-/api/entities/entityid/ledger/entries/entryid). Unbooking or reversing the entry reopens the items it settled.
+
+Run the entry with [`?dryRun=true`](#dry-run) first. The dry run answers the valued lines and the Exchange Difference Line, or the refusal the write would give.
+
+#### Example
+
+A Chilean Entity holds a supplier's USD 1,000.00 Invoice, booked at 943.25, so its Control Line carries a CLP 943,250 credit on the payables account. The Entity paid the supplier CLP 950,000 by card, booked as an open debit on the same account. One entry nets the two:
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/entries?dryRun=true" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -d '{
+    "id": "4d4d4d4d-4d4d-4d4d-8d4d-4d4d4d4d4d4d",
+    "entryDate": "2026-11-10",
+    "memo": "Factura 812 pagada con tarjeta",
+    "exchangeDifferenceLineId": "5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e",
+    "newLedgerEntryLines": [
+      { "id": "c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3", "accountId": "66666666-6666-4666-8666-666666666666", "side": "debit", "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "transactionCurrency": "USD", "transactionAmount": 100000, "settlesLineId": "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1" },
+      { "id": "c4c4c4c4-c4c4-4c4c-8c4c-c4c4c4c4c4c4", "accountId": "66666666-6666-4666-8666-666666666666", "side": "credit", "partnerId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "functionalAmount": 950000, "settlesLineId": "d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2" }
+    ]
+  }'
+```
+
+The USD line takes the Invoice's carrying amount, CLP 943,250. The Exchange Difference Line takes the gap, a CLP 6,750 debit (a loss), on the Entity's Exchange Difference Account. The implied rate is 950, so the entry books if the published rate of 10 November is within 5% of it. Send the same body without `dryRun` to book it. Both items then leave the open items.
+
+#### Settlement errors
+
+| Code | Status | When | `params` |
+| --- | --- | --- | --- |
+| `LEDGER_ENTRY_SETTLED_LINE_NOT_FOUND_ERROR` | `404` | `settlesLineId` names no line of the Entity | `{ lineId, settlesLineId }` |
+| `LEDGER_ENTRY_SETTLED_LINE_REPEATED_ERROR` | `400` | Two lines of the entry settle the same item | `{ settlesLineId, lineIds }` |
+| `LEDGER_ENTRY_SETTLED_LINE_NOT_OPEN_ITEM_ERROR` | `409` | The item isn't an open item: its account tracks no open items or is the Suspense Account, or its entry isn't live | `{ lineId, settlesLineId, accountId }` |
+| `LEDGER_ENTRY_SETTLED_LINE_NOT_OPEN_ERROR` | `409` | Nothing is left open on the item | `{ lineId, settlesLineId }` |
+| `LEDGER_ENTRY_SETTLEMENT_ACCOUNT_MISMATCH_ERROR` | `409` | The line posts to another account than the item's | `{ lineId, accountId, settledAccountId }` |
+| `LEDGER_ENTRY_SETTLEMENT_SIDE_MISMATCH_ERROR` | `409` | The line is on the item's side. `settledSide` is the item's side, so the line goes on the other one | `{ lineId, settledSide }` |
+| `LEDGER_ENTRY_SETTLEMENT_PARTNER_MISMATCH_ERROR` | `409` | The line carries another Partner than the item's | `{ lineId, partnerId, settledPartnerId }` |
+| `LEDGER_ENTRY_SETTLEMENT_DENOMINATION_MISMATCH_ERROR` | `409` | The line is in another denomination than the item. Each denomination is a currency code, the functional currency's on a domestic line | `{ lineId, denomination, settledDenomination }` |
+| `LEDGER_ENTRY_SETTLEMENT_EXCEEDS_OPEN_AMOUNT_ERROR` | `409` | The line settles more than is open. Both amounts are in `settledDenomination`: units on a foreign item, functional on a domestic one | `{ lineId, openAmount, settlementAmount, settledDenomination }` |
+| `LEDGER_ENTRY_SETTLEMENT_AMOUNT_ZERO_ERROR` | `409` | The line is `0`, so it settles nothing | `{ lineId }` |
+| `LEDGER_ENTRY_SETTLEMENT_BASIS_MISMATCH_ERROR` | `409` | The entry is in another Basis than the item's entry | `{ lineId, settlesLineId }` |
+| `LEDGER_ENTRY_SETTLEMENT_UNITS_UNBALANCED_ERROR` | `409` | Every line but the Exchange Difference Line is in one foreign currency, and its debit and credit units differ. The units are minor units of that currency | `{ transactionCurrency, debitUnits, creditUnits }` |
+| `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR` | `409` | A settling line carries `overrideFxRate`, or any foreign line does on an entry that settles and declares an Exchange Difference Line | `{ lineId }` |
+
+In each, `lineId` is the settling line and `settlesLineId` the item. A `settlesLineId` that names a line of a [Computed Entry](#computed-entries) answers `LEDGER_ENTRY_LINE_COMPUTED_ERROR`. The Exchange Difference Line answers the [foreign-currency errors](/api-reference/bank-movements#foreign-currency-errors) of the bank acts, such as `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_REQUIRED_ERROR`. In a bulk create, each refusal also carries `elementIndex`.
+
+#### Settle in the app
+
+In **Partidas abiertas**, **Por cobrar**, and **Por pagar**, select open lines in more than one currency, with at least one debit and one credit, all in one Basis. **Liquidar con diferencia de cambio** appears beside **Conciliar**. The dialog lists each line with the amount it settles under **Liquida**, which you can lower to settle part of an item. As you edit, it runs a dry run and shows the **Diferencia de cambio** row with its account and amount. Beyond the rate bound, it asks for **Motivo de la diferencia de cambio**.
+
+**Liquidar** books one entry in the Basis of the selected lines, and each settling line carries the Dimension Values of its item. If Sintropix refuses it, the dialog keeps your draft and shows why. The booked entry lists the items it settled under **Conciliado contra**. **Conciliar** still matches a selection in one currency.
+
 ### Dry run
 
 Add `?dryRun=true` to `POST /ledger/entries` or [`POST /ledger/entries/bulk`](#post-/api/entities/entityid/ledger/entries/bulk) to read what Sintropix would book, without booking it. Use it to read the functional amount of each foreign line, then size the other lines so the entry balances.
@@ -448,7 +532,7 @@ A booked entry shows each foreign line's rate origin and date: **Publicado para 
 
 ## POST /api/entities/:entityId/ledger/entries/bulk
 
-Create up to 100 Ledger Entries in a single request and transaction. Each element is a full entry with the same fields as [`POST /api/entities/:entityId/ledger/entries`](#post-/api/entities/entityid/ledger/entries), and follows the same rules, including the [valuation of foreign-currency lines](#foreign-currency-lines).
+Create up to 100 Ledger Entries in a single request and transaction. Each element is a full entry with the same fields as [`POST /api/entities/:entityId/ledger/entries`](#post-/api/entities/entityid/ledger/entries), and follows the same rules, including the [valuation of foreign-currency lines](#foreign-currency-lines). An entry may [settle](#settle-open-lines) a line that an earlier entry of the same request creates.
 
 - **Path param:** `entityId` (UUID)
 - **Query param:** `dryRun` (boolean, optional). `true` runs the whole batch and rolls it back; see [Dry run](#dry-run).
@@ -511,7 +595,7 @@ A refused batch, where the second entry is dated on or before the ledger lock da
 
 Update an entry's header fields (date, memo, notes). At least one field must be provided.
 
-An entry with a `published` or `overridden` [foreign-currency line](#foreign-currency-lines) was valued on its date, so a new `entryDate` answers `409` with `LEDGER_ENTRY_VALUED_LINES_DATE_CHANGE_ERROR` and `params: { ledgerEntryId }`. To move it, unbook the entry and book it again on the new date. The memo and notes can still change.
+An entry with a `published`, `overridden`, or `settled_item` [foreign-currency line](#foreign-currency-lines), or with an [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line), was valued on its date, whichever route booked it. So a new `entryDate` answers `409` with `LEDGER_ENTRY_VALUED_LINES_DATE_CHANGE_ERROR` and `params: { ledgerEntryId }`. To move it, unbook the entry and book it again on the new date. The memo and notes can still change.
 
 - **Path params:** `entityId` (UUID), `entryId` (UUID)
 - **Body:**
@@ -705,7 +789,7 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/revaluation?throu
 Schedule a Ledger Entry for future booking. The entry date must be in the future. Scheduled entries take domestic lines only, so they cannot carry transaction currency lines, and they offer no dry run.
 
 - **Path param:** `entityId` (UUID)
-- **Body:** the same fields as `POST /api/entities/:entityId/ledger/entries` above
+- **Body:** the same fields as `POST /api/entities/:entityId/ledger/entries` above, except that a Scheduled Entry settles nothing: `settlesLineId`, `exchangeDifferenceLineId`, and `exchangeDifferenceReason` are refused with `400`
 - **Success response:** the Ledger Entry fields plus `ledgerEntryLines` (same shape as the create response), with `status` set to `scheduled`
 - **Status:** 201
 
@@ -856,6 +940,9 @@ Each item in `lines` is a Ledger Entry Line object (see the entry detail endpoin
 | `settlementStatus` | enum | `open` (nothing settled), `partial`, or `settled` (nothing left open) |
 | `invoiceId` | UUID or null | The Invoice whose Control Line this line is; `null` for any other line, even on the same account |
 | `invoiceDocumentNumber` | string or null | Document number of that Invoice. In the app, **Partidas abiertas** prefixes the line with `Doc.` and this number |
+| `openTransactionAmount` | integer or null | On a foreign line, the units still open, in minor units of `transactionCurrency`; `null` on a domestic line |
+| `entryBasisId` | UUID or null | The [Basis](/api-reference/bases) of the parent entry; `null` for a common entry. An entry that [settles](#settle-open-lines) the line takes this Basis |
+| `dimensionValueIds` | UUID[] | The Dimension Values that tag the line |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/open-item-lines?accountId=$ACCOUNT_ID&limit=20" \
@@ -972,7 +1059,8 @@ The retag shows in the entry's history, with who made it and the Value before an
 | `LEDGER_ENTRY_LINE_FX_RATE_SOURCE_NOT_FOUND_ERROR` | The Entity's country has no Rate Source, and a foreign line has no override (`409`) |
 | `LEDGER_ENTRY_LINE_VALUED_AMOUNT_OUT_OF_RANGE_ERROR` | A foreign line values past the largest functional amount the ledger accepts. `params: { lineId }` (`409`) |
 | `LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR` | The lines don't balance once valued. `params: { debitTotal, creditTotal, gap, valuedLines }` (`409`) |
-| `LEDGER_ENTRY_VALUED_LINES_DATE_CHANGE_ERROR` | A new date for an entry with a `published` or `overridden` line. Unbook it and book it again. `params: { ledgerEntryId }` (`409`) |
+| `LEDGER_ENTRY_VALUED_LINES_DATE_CHANGE_ERROR` | A new date for an entry with a `published`, `overridden`, or `settled_item` line, or an Exchange Difference Line. Unbook it and book it again. `params: { ledgerEntryId }` (`409`) |
+| `LEDGER_ENTRY_SETTLED_LINE_*`, `LEDGER_ENTRY_SETTLEMENT_*` | A line's `settlesLineId` doesn't fit the item it names. See [Settlement errors](#settlement-errors) |
 | `LEDGER_ENTRY_BASIS_LINE_ON_COMMON_ONLY_ACCOUNT_ERROR` | A line of a Basis Entry posts to an account of a [common-only Sub-type](/api-reference/bases#common-only-accounts). Returned by create, bulk create, Scheduled Entry create, reschedule, and book, and line reclassify. `params: { basisId, ledgerAccountId, ledgerAccountCode, ledgerAccountName, subtype }` names the first such account (`409`) |
 | `DEFERRAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#deferrals) of a Deferral; its date cannot change, and it cannot be rescheduled |
 | `ACCRUAL_RELEASE_LOCKED_ERROR` | The entry is a [Release](/api-reference/invoices#accruals) of an Accrual; its date cannot change. `params: { ledgerEntryId }` (`409`) |

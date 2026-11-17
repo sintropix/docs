@@ -147,6 +147,9 @@ Each item in `lines` extends the ledger entry line with:
 | `partner` | object or null | `{ id, name, website }` when the line has a counterparty. `website` is the partner's website as a bare domain (`acme.cl`), or `null` |
 | `dueDate` | ISO date or null | Due date carried by the source document |
 | `reference` | object or null | Source document; currently `{ kind: "invoice", id, label }` |
+| `openTransactionAmount` | integer or null | On a foreign line, the units still open, in minor units of `transactionCurrency`; `null` on a domestic line |
+| `entryBasisId` | UUID or null | The [Basis](/api-reference/bases) of the parent entry; `null` for a common entry |
+| `dimensionValueIds` | UUID[] | The Dimension Values that tag the line |
 
 ```bash
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/open-positions?invoiceDirection=receivable" \
