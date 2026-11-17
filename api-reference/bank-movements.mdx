@@ -460,7 +460,7 @@ Each line is **domestic**, in the Entity's functional currency, or **foreign**, 
 | `functionalAmount` | integer | Domestic only | Amount in the functional currency's minor units, `0` or greater. Required on a domestic line, refused on a foreign line. |
 | `transactionCurrency` | string | Foreign only | ISO 4217 code of a foreign line. Sending it makes the line foreign. It can't be the Entity's functional currency. |
 | `transactionAmount` | integer | Foreign only | Amount in the minor units of `transactionCurrency`, `0` or greater. Required on a foreign line. |
-| `overrideFxRate` | decimal string | No | Foreign only. A rate of your own, such as `"950.25"`, instead of the published one. Requires `overrideFxRateReason`. Refused on a line that settles an open item. |
+| `overrideFxRate` | decimal string | No | Foreign only. A rate of your own, such as `"950.25"`, instead of the published one. Requires `overrideFxRateReason`. Refused on a line that settles an open item, and on every line of a Match or an Assign with an Exchange Difference Line. See [Rate overrides and the exchange difference](#rate-overrides-and-the-exchange-difference). |
 | `overrideFxRateReason` | string | No | Foreign only. Why the line uses its own rate, 1 to 500 characters after trimming. Requires `overrideFxRate`. |
 | `partnerId` | uuid \| null | No | Counterparty on this line. |
 | `dimensionValueIds` | array of uuid | No | Dimension Values to tag the line with. Default `[]`. |
@@ -672,7 +672,7 @@ Book, Match, Assign, and Unassign, single or bulk, value foreign lines the way a
 
 Sintropix builds the bank line from the Movement. On a Bank Account in the Entity's functional currency, the bank line is domestic. On a Bank Account in another currency, it's foreign, and Sintropix values it at the rate the Entity's [Rate Source](/api-reference/fx-rates#rate-sources) published for the Movement's date, or the last date before it.
 
-To use another rate, send `bankLineOverride` on a Book or a Match, with `overrideFxRate` and `overrideFxRateReason` (1 to 500 characters). The override also values every other line of the request that's in the Bank Account's currency and settles nothing, such as a split or a fee line. A Bank Account in the functional currency refuses it with `BANK_MOVEMENT_BANK_LINE_OVERRIDE_FORBIDDEN_ERROR`.
+To use another rate, send `bankLineOverride` on a Book or a Match, with `overrideFxRate` and `overrideFxRateReason` (1 to 500 characters). The override also values every other line of the request that's in the Bank Account's currency and settles nothing, such as a split or a fee line. A Bank Account in the functional currency refuses it with `BANK_MOVEMENT_BANK_LINE_OVERRIDE_FORBIDDEN_ERROR`. A Match with an Exchange Difference Line refuses it too; see [Rate overrides and the exchange difference](#rate-overrides-and-the-exchange-difference).
 
 ### Settle a foreign open item
 
@@ -697,6 +697,16 @@ When the valued lines leave a gap, declare an Exchange Difference Line: send `ex
 An Entry holds one Exchange Difference Line. Once a Match or an Assign declares it, later Assigns and Unassigns of the Movement keep it and update its amount, or remove it when no gap is left.
 
 Use a [dry run](#dry-run) to learn whether you need the line. `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_REQUIRED_ERROR` answers the gap and its side, so add `exchangeDifferenceLineId` and run it again. `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_WITHOUT_GAP_ERROR` means there's no difference, so leave the field out.
+
+### Rate overrides and the exchange difference
+
+Sintropix measures the exchange difference against the published rate, so a Match or an Assign with an Exchange Difference Line takes no rate of your own. This applies to a Match or an Assign that declares the line, and to an Assign on a Movement whose Entry already keeps one. Each of these is refused with `409` and `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR`:
+
+- **A counterpart line with `overrideFxRate`.** `params.lineId` is the line's `id`.
+- **`bankLineOverride` on the Match.** `params.lineId` is `null`, because Sintropix builds the bank line.
+- **An Assign on a Movement whose Match booked the bank line with `bankLineOverride`.** The Suspense line carries that rate, so `params.lineId` is `null`.
+
+To record a fee or a payment at a rate of your own, send it as a domestic line with its `functionalAmount`. Or leave out the Exchange Difference Line, and leave the rest on the Suspense Account until you assign it.
 
 When one Movement pays items in two currencies, settle the item in the other currency first, and declare the Exchange Difference Line on the last request. Otherwise an Assign or an Unassign can answer `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_WITH_REST_ERROR`.
 
@@ -769,7 +779,7 @@ Each error answers `409` with the `code` and the `params` shown. Amounts are fun
 | `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_WITH_REST_ERROR` | An Assign or an Unassign would leave a rest on the Suspense line beside the Exchange Difference Line while a line is in another currency than the Bank Account's. `params: { lineId }`. |
 | `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_LINE_REPEATED_ERROR` | An Assign declares an Exchange Difference Line on a Movement whose Entry already keeps one. `params: { lineIds }`. |
 | `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING_ERROR` | The Entity has no Exchange Difference Account for the line's side. `params: { functionalAmount, side }`. |
-| `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR` | A settlement line carries `overrideFxRate`. `params: { lineId }`. |
+| `LEDGER_ENTRY_LINE_OVERRIDE_ON_SETTLEMENT_ERROR` | A settlement line carries `overrideFxRate`, or a Match or an Assign with an Exchange Difference Line carries a rate of your own on any line. See [Rate overrides and the exchange difference](#rate-overrides-and-the-exchange-difference). `params: { lineId }`, `null` when the rate is on the bank line or the Suspense line. |
 | `BANK_MOVEMENT_BANK_LINE_OVERRIDE_FORBIDDEN_ERROR` | `bankLineOverride` on a Bank Account in the functional currency. `params: { bankAccountCurrency }`. |
 | `LEDGER_ENTRY_SETTLEMENT_PARTIAL_NOT_MEASURABLE_ERROR` | The partial units' share of the carrying amount rounds to `0`, or to all of the open amount. `params: { lineId, openUnits, minimumUnits, maximumPartialUnits }`. |
 | `LEDGER_ENTRY_EXCHANGE_DIFFERENCE_RATE_UNEXPLAINED_ERROR` | The implied rate is beyond the bound, or no rate is published, and the request has no `exchangeDifferenceReason`. `params: { lineId, transactionCurrency, impliedRate, publishedRate, publishedRateDate, rateSource, distance, bound, functionalAmount, side }`. `distance` and `bound` are fractions, such as `"0.05"`. |
