@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<page>[?<params>]
 
 Two areas live outside an Entity:
 
-- **Configuración** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio, and Log. Take `organizationId` from the Entity or the record. The Organization's pages live beside them, under `https://app.sintropix.com/organizations/{organizationId}`: **Chat** at `/chat`, **Bandeja** at `/notifications`, **Tareas** at `/tasks`, **Intercompañía** at `/intercompany-links`, and **Reportes** at `/reports`. **Reportes** lists the group's reports: **Consolidado** at `/consolidated-trial-balance`, **Balance general** at `/consolidated-balance-sheet`, **Estado de resultados** at `/consolidated-income-statement`, the Consolidado of **KPIs** at `/kpis`, and **Flujo de caja** at `/cash-flow`.
+- **Configuración** pages that belong to the whole Organization live under `https://app.sintropix.com/organizations/{organizationId}/settings`. They are the Empresa page, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio, and Log. Take `organizationId` from the Entity or the record. The Organization's pages live beside them, under `https://app.sintropix.com/organizations/{organizationId}`: **Inicio** at `/home`, **Chat** at `/chat`, **Bandeja** at `/notifications`, **Tareas** at `/tasks`, **Intercompañía** at `/intercompany-links`, and **Reportes** at `/reports`. **Reportes** lists the group's reports: **Consolidado** at `/consolidated-trial-balance`, **Balance general** at `/consolidated-balance-sheet`, **Estado de resultados** at `/consolidated-income-statement`, the Consolidado of **KPIs** at `/kpis`, and **Flujo de caja** at `/cash-flow`.
 - **Tu cuenta**, the signed-in User's own settings, lives under `https://app.sintropix.com/account`.
 
 An Organization link shows the same page to everyone who opens it. Only the company menu and the links back into an Entity depend on the reader: they name the Entity the reader last worked in when it belongs to this Organization, and the Organization's first Entity otherwise.
@@ -46,7 +46,7 @@ The `open` parameter is the universal convention: whichever list page you are on
 
 | API resource | App URL | Notes |
 | --- | --- | --- |
-| Entity | `/{entityId}/home` | The Entity dashboard. Its settings are in its row on the Organization's Empresa page. |
+| Entity | `/{entityId}/home` | The Entity dashboard. `/organizations/{organizationId}/home` is **Inicio** in **Grupo**, the [dashboard of every Entity together](/api-reference/reports#home-dashboard-of-the-organization). Its settings are in its row on the Organization's Empresa page. |
 | Organization | `/organizations/{organizationId}/settings` | The Empresa page: the Organization's logo and name, and one row per Entity (**Entidades legales**) with its settings. |
 | Ledger Entry | `/{entityId}/entries/{entryId}` | Full-page detail. The list is `/{entityId}/entries`. |
 | Invoice, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | AR documents. Pick the page from the `direction` field. |

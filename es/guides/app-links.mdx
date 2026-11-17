@@ -24,7 +24,7 @@ https://app.sintropix.com/{entityId}/<pagina>[?<parametros>]
 
 Dos áreas viven fuera de una Entidad:
 
-- Las páginas de **Configuración** que pertenecen a toda la Organización viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Son la página Empresa, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio y Log. Toma `organizationId` de la Entidad o del registro. Las páginas de la Organización viven a su lado, bajo `https://app.sintropix.com/organizations/{organizationId}`: **Chat** en `/chat`, **Bandeja** en `/notifications`, **Tareas** en `/tasks`, **Intercompañía** en `/intercompany-links` y **Reportes** en `/reports`. **Reportes** lista los informes del grupo: **Consolidado** en `/consolidated-trial-balance`, **Balance general** en `/consolidated-balance-sheet`, **Estado de resultados** en `/consolidated-income-statement` el Consolidado de **KPIs** en `/kpis` y **Flujo de caja** en `/cash-flow`.
+- Las páginas de **Configuración** que pertenecen a toda la Organización viven bajo `https://app.sintropix.com/organizations/{organizationId}/settings`. Son la página Empresa, Plan de cuentas, Integraciones, Dimensiones, Canales del agente, Tipos de cambio y Log. Toma `organizationId` de la Entidad o del registro. Las páginas de la Organización viven a su lado, bajo `https://app.sintropix.com/organizations/{organizationId}`: **Inicio** en `/home`, **Chat** en `/chat`, **Bandeja** en `/notifications`, **Tareas** en `/tasks`, **Intercompañía** en `/intercompany-links` y **Reportes** en `/reports`. **Reportes** lista los informes del grupo: **Consolidado** en `/consolidated-trial-balance`, **Balance general** en `/consolidated-balance-sheet`, **Estado de resultados** en `/consolidated-income-statement` el Consolidado de **KPIs** en `/kpis` y **Flujo de caja** en `/cash-flow`.
 - **Tu cuenta**, los ajustes propios del Usuario que inició sesión, vive bajo `https://app.sintropix.com/account`.
 
 Un enlace de la Organización muestra la misma página a todos los que lo abren. Solo el menú de empresas y los enlaces de vuelta a una Entidad dependen del lector: nombran la Entidad en la que el lector trabajó por última vez cuando pertenece a esta Organización y, si no, la primera Entidad de la Organización.
@@ -46,7 +46,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 
 | Recurso de la API | URL en la aplicación | Notas |
 | --- | --- | --- |
-| Entidad | `/{entityId}/home` | El panel de la Entidad. Sus ajustes están en su fila de la página Empresa de la Organización. |
+| Entidad | `/{entityId}/home` | El panel de la Entidad. `/organizations/{organizationId}/home` es **Inicio** en **Grupo**, el [panel de todas las Entidades juntas](/api-reference/reports#home-dashboard-of-the-organization). Sus ajustes están en su fila de la página Empresa de la Organización. |
 | Organización | `/organizations/{organizationId}/settings` | La página Empresa: el logo y el nombre de la Organización, y una fila por Entidad (**Entidades legales**) con sus ajustes. |
 | Asiento contable | `/{entityId}/entries/{entryId}` | Detalle a página completa. El listado es `/{entityId}/entries`. |
 | Factura, `direction: receivable` | `/{entityId}/invoices?open={invoiceId}` | Documentos por cobrar. Elige la página según el campo `direction`. |
