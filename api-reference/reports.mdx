@@ -1,12 +1,12 @@
 ---
 title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, monthly cash burn and runway for an entity or the whole organization, the cash flow statement of the whole organization, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, monthly cash burn and runway for an entity or the whole organization, the home dashboard of the whole organization, the cash flow statement of the whole organization, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-The Reports API surfaces financial and operational read models for a single entity, plus the cash flow statement and the cash burn and runway of a whole Organization. All endpoints are `GET` only. Pass the entity id, or the Organization id for the Organization report, as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
+The Reports API surfaces financial and operational read models for a single entity, plus the home dashboard, the cash flow statement, and the cash burn and runway of a whole Organization. All endpoints are `GET` only. Pass the entity id, or the Organization id for the Organization report, as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
 
@@ -68,6 +68,8 @@ Income is often recognized on a month's last day, so the month in progress would
 | `cash.total` | integer | Consolidated cash position as of today, in the functional currency |
 | `cash.rateDate` | ISO date or null | Oldest `rateDate` among the [FX rates](/api-reference/fx-rates) used, all from the Entity's [Rate Source](/api-reference/fx-rates#rate-sources); `null` when nothing was converted |
 | `cash.unconvertedCurrencies` | string[] | Currencies left out because the Entity's Rate Source has no rate for them, or the Entity's country has no Rate Source |
+| `cash.accounts` | array | Up to 4 of the largest Bank Accounts by `total`, ranked, then the accounts whose currency has no rate. Each item is `{ bankAccount, balance, total }`. `bankAccount` holds `id`, `entityId`, `name`, `currency`, `bankCode`, and `feed`. `balance` is in the account's own currency. `total` is `balance` valued in the report's currency, or `null` when no rate values the account's currency |
+| `cash.otherAccounts` | object | `{ count, total }`: the valued accounts not listed in `cash.accounts`. `cash.total` is the sum of the valued accounts in `cash.accounts` and `otherAccounts.total` |
 | `dailyBalances` | array | Exactly 60 items of `{ date, total }`, one per calendar day |
 | `monthlyIncome` | array | Exactly 6 items of `{ monthKey, total }`, oldest first, one per closed month; `monthKey` is `YYYY-MM`. A month with no income has `total: 0` |
 | `receivable` | object | `{ total, count }`: open receivable amount and the number of open lines. It counts only debit lines, the normal side of a receivable |
@@ -81,6 +83,8 @@ Income is often recognized on a month's last day, so the month in progress would
 curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/home" \
   -H "Cookie: <session-cookie>"
 ```
+
+In the app, a card that leaves out a currency for want of a rate says so in one short line, for example **Sin TC KYD**.
 
 ### Open positions (receivables and payables)
 
@@ -691,6 +695,52 @@ curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/reports/ca
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/kpis?fromMonth={fromMonth}&toMonth={toMonth}&currency={currency}"
   note="The page is KPIs (Consolidado), under Reportes in the Grupo sidebar, with Consolidado, Balance general, Estado de resultados, and Flujo de caja. You can also pick Consolidado in the Entity menu of KPIs, which offers it when the Organization has more than one Entity. Either way, the page opens in Grupo. It shows the cards and the chart of the Entity's page for every Entity together, keeps the range you had, and opens in the currency of the Entity you came from. Pick another currency in the currency chip. Under the chart, it names the date of the rates, each currency with no rate, and the Entities that leaves out. Pick an Entity in the same menu to go back to its KPIs."
+/>
+
+### Home dashboard of the Organization
+
+`GET /api/organizations/:organizationId/reports/home`
+
+Returns the [home dashboard](#home-dashboard) of every Entity of the Organization together, valued in one currency. It is what **Inicio** shows in **Grupo**.
+
+The read covers every Entity of the Organization you can reach. It needs the `books` read permission, so every Role can call it. An API key [confined to one Entity](/guides/api-keys) reads that Entity only.
+
+Each part adds the Entities up in its own way:
+
+- **Cash** is the position the Organization's [Bank Accounts](/api-reference/bank-accounts#consolidated-balance-history) state, at the same rates: each account converts at the newest rate from the [Rate Source](/api-reference/fx-rates#rate-sources) of the Entity that holds it. An account whose currency has no rate stays listed in `cash.accounts` with `total: null`, after the valued accounts, and its currency is listed in `cash.unconvertedCurrencies`.
+- **Income, receivables, and payables** convert each Entity's figures at the newest rate from its Rate Source and add them. Nothing is eliminated between Entities, so amounts one Entity owes another count on both sides. An Entity with [Bases](/api-reference/bases) counts only its common Entries, the ones every Basis shares. `monthlyIncome` holds the same closed months as the Entity's home dashboard.
+- **Pending work** (`salesToBook`, `purchasesToBook`, `expenseRenditionsToBook`, `incompatibleStandingCount`) adds the counts of every Entity.
+
+An Entity whose functional currency its Rate Source has no rate for, or whose country has no Rate Source, is left out of `monthlyIncome`, `receivable`, and `payable`, and its id is listed in `unconvertedEntityIds`. Its pending-work counts still add up.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `currency` | string | Yes | ISO 4217 code every amount is valued in, for example `CLP`. An unknown currency returns `400` with `UNKNOWN_CURRENCY_ERROR` |
+
+The endpoint takes no `basisId`.
+
+**Response**
+
+The fields of the [home dashboard](#home-dashboard), with every amount in `currency`, plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `unconvertedEntityIds` | UUID[] | Entities left out of `monthlyIncome`, `receivable`, and `payable` because no rate values their functional currency |
+
+Use `cash.accounts[].bankAccount.entityId` to tell which Entity holds each account.
+
+An Organization where you hold no Membership returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/reports/home?currency=CLP" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/home"
+  note="The page is Inicio, the first item in the Grupo sidebar, and the page the Organization's row in the company menu opens. It shows the cards of the Entity's Inicio for every Entity together, in the default currency of the group's Bancos, with no currency picker. A card that leaves out an Entity for want of a rate says so in one short line, for example Sin TC MXN · excluye Andes México SA de CV. On the cash card, the accounts and Ver todas open the group's Bancos. Among the pending work, Movimientos opens the group's Bancos, and Ventas and Compras open the group's lists of unbooked invoices; the other rows have no link. Reportes lists Consolidado and Estado de resultados."
 />
 
 ### Cash flow statement of the Organization
