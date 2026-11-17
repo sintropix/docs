@@ -61,7 +61,7 @@ Every route on this page returns Feeds in this shape.
 | `awaitingCount` | integer | Documents the provider counts but does not list yet, so a later sync lands them. Today only `sii_mirror` boletas; see [SII Mirror boletas](#sii-mirror-boletas). |
 | `outcome` | `success` \| `failure` \| `preview` | `preview` when the run was requested with `preview: true`. |
 | `failureCode` | string \| null | Error code when `outcome` is `failure` and the failure was a coded rejection. |
-| `report` | object | `{ tieOutLines, rejected, ignored?, unreadPeriods?, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef, month? }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `range.month` (`YYYY-MM`) is present on the tie-out lines of an [expense Feed](#sync-an-expense-feed), one per month of creation. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`, `currency_mismatch`, `expense_category_unassigned`, or `person_unknown`). An expense Feed's rejections have `dteTypeCode: null` and the expense number as `folio`. `ignored[]` lists the documents the run ignored, each with its reason; see [Ignored documents](#ignored-documents). `unreadPeriods[]` lists the past months of an SII book the mirror hasn't read yet (`{ taxPeriod, direction }`, where `taxPeriod` is `YYYY-MM` and `direction` is `issued` or `received`); see [Unread months](#unread-months). It is absent on runs recorded before Sintropix listed unread months. `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `expenseDivergences[]` is present only on an expense Feed's run and lists landed expenses that changed in the tool; see [Changed expenses](#changed-expenses). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (`sii_mirror` and `xpendit`); see [File attachments](#file-attachments). |
+| `report` | object | `{ tieOutLines, rejected, ignored?, unreadPeriods?, failedTaxPeriodReads?, divergences, updates, tieOutMismatch?, files? }`. `tieOutLines[]` reconcile counts per range (`{ range: { dteTypeCode, taxPeriod, direction: "issued" \| "received" \| null, providerRef, month? }, tracked, count, landed, skipped, ignored, rejected, awaiting }`), where `landed + skipped + ignored + rejected + awaiting` equals `count`. `range.month` (`YYYY-MM`) is present on the tie-out lines of an [expense Feed](#sync-an-expense-feed), one per month of creation. `rejected[]` list refused documents (`{ externalRef, dteTypeCode, folio, reason, detail, document }`, where `reason` is one of `sii_rejected`, `client_rut_missing`, `client_rut_invalid`, `total_off_scale`, `currency_unknown`, `document_invalid`, `currency_mismatch`, `expense_category_unassigned`, or `person_unknown`). An expense Feed's rejections have `dteTypeCode: null` and the expense number as `folio`. `ignored[]` lists the documents the run ignored, each with its reason; see [Ignored documents](#ignored-documents). `unreadPeriods[]` lists the past months of an SII book the mirror hasn't read yet (`{ taxPeriod, direction }`, where `taxPeriod` is `YYYY-MM` and `direction` is `issued` or `received`); see [Unread months](#unread-months). It is absent on runs recorded before Sintropix listed unread months. `failedTaxPeriodReads[]` lists the months (`YYYY-MM`) of the SII purchase register that the SII mirror failed to answer when the sync looked up the Tax Period of a Feed's purchases; see [Wasabil Tax Period](#wasabil-tax-period). It is present only when at least one month failed. `divergences[]` list landed documents whose provider copy changed and that the sync left as they are (`{ dteId, externalRef, dteTypeCode, folio, fields: [{ field, landed, provider }] }`, where `field` is one of `total`, `netAmount`, `exemptAmount`, `taxAmount`, `withheldIvaAmount`, `currency`, `issueDate`, `receiverRut`, or `receiverName`). `updates[]` list landed documents whose Standing or Tax Period the sync wrote, in the same shape, where `field` is `standing` or `taxPeriod`, `landed` is the value before, and `provider` the value after; see [Standing and Tax Period](#standing-and-tax-period). `expenseDivergences[]` is present only on an expense Feed's run and lists landed expenses that changed in the tool; see [Changed expenses](#changed-expenses). `tieOutMismatch` is present only when the provider's stated count and the count read disagree. `files` is present only when the Integration's provider carries document files (`sii_mirror` and `xpendit`); see [File attachments](#file-attachments). |
 | `occurredAt` | ISO 8601 timestamp | When the run settled. |
 
 ## GET `/source-feeds`
@@ -226,6 +226,38 @@ The amount is written after the document lands, so it doesn't book the Invoice a
 
 In the [Audit Trail](/api-reference/audit-trail), each write is its own entry, credited to the system with the declared actor `source-feed`.
 
+### Wasabil Tax Period
+
+Wasabil doesn't state the Tax Period of a document. The SII files a received factura in the month it reaches the buyer, which can be the month after its issue. So when the Entity also has an SII Integration, a `wasabil` Feed takes the Tax Period of each purchase from the SII purchase register (RCV de compras).
+
+- **When it applies.** The Entity of the Feed must also have a `dte` or `honorarium` Feed that reads through a `sii_mirror` [Integration](/api-reference/integrations#sii). Without one, a Wasabil document lands on its issue month, and the sync doesn't read the SII.
+- **What it reads.** On each pass, the sync reads the purchase register of every month of its [sync window](#the-sync-window). It matches a document by its issuer, its counterparty RUT, its type, and its folio, and gives it the month the register files it in. Sales keep their issue month.
+- **Only the Tax Period.** Amounts, parties, dates, and the [Standing](#standing-and-tax-period) stay Wasabil's. A document the register lists and Wasabil doesn't hold doesn't land. A purchase the register doesn't list keeps its Tax Period, or lands on its issue month.
+- **It moves landed documents.** The register's month is a stated Tax Period, so it overwrites the Tax Period of a landed DTE, booked or not, including one you set. The run lists each change in `report.updates`. When a purchase moves to another month, the F29 of the month it left changes.
+- **A failed month fails nothing else.** Each month is read on its own. When the SII mirror fails to answer a month, or a [recent month](#recent-months) has no answer it read in the last 24 hours, that month's purchases keep their Tax Period or land on their issue month. The run lists the month in `report.failedTaxPeriodReads`, such as `["2026-11"]`, and a later sync writes the register's month. A month the mirror holds no answer for yet isn't a failure.
+
+For example, a factura issued on 31 October that reaches the buyer in November lands, or moves, to `2026-11`:
+
+```json
+{
+  "updates": [
+    {
+      "dteId": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f",
+      "externalRef": "6f1d2c3b-4a5e-4f60-9b7a-8c9d0e1f2a3b",
+      "dteTypeCode": "33",
+      "folio": 81001,
+      "fields": [
+        { "field": "taxPeriod", "landed": "2026-10", "provider": "2026-11" }
+      ]
+    }
+  ]
+}
+```
+
+In the app, the integration panel shows a note under the sync counts that names each month the SII didn't answer.
+
+In the [Audit Trail](/api-reference/audit-trail), these writes carry the declared actor `source-feed`, and the reason names the SII Integration next to the Feed.
+
 ## The sync window
 
 A sync reads the documents dated from the Feed's link date on. How far past the day it runs depends on the provider:
@@ -310,7 +342,7 @@ How a sync reads each provider:
 | --- | --- | --- |
 | `sii_mirror`, `dte` Feed | `REGISTRO` and `NO_INCLUIR` are `accepted`, `PENDIENTE` is `pending`, and `RECLAMADO` is `claimed`. | The month of the register that lists the document. When the SII moves a document to another month, the later month wins. |
 | `bsale` | A sale annulled in Bsale is `annulled`. A sale Bsale sent and the SII hasn't answered yet is `pending`. A sale the SII rejected is refused with `sii_rejected` and never lands. A purchase canceled in Bsale is `annulled`. Every other document is `accepted`. | Stated for purchases. Bsale states none for sales, so a Tax Period you set on a sale stays. |
-| `wasabil` | An emitted document is `accepted`, any other is `pending`. | Not stated, so a Tax Period you set stays. |
+| `wasabil` | An emitted document is `accepted`, any other is `pending`. | Not stated. A purchase takes the month the SII files it in when the Entity has an SII Integration; see [Wasabil Tax Period](#wasabil-tax-period). Otherwise a document lands on its issue month, and a Tax Period you set stays. |
 | `sii_mirror`, `honorarium` Feed | `N` and `VIG` are `accepted`, `S` and `ANUL` are `annulled`, `V` is `annulment_requested`, and `R` and `U` are `observed`. | The month of the book that lists the document. |
 
 A Tax Period the provider doesn't state never clears the one the DTE holds. A document missing from a provider's answer keeps its Standing.
