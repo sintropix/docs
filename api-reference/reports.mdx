@@ -812,7 +812,7 @@ Returns the receivables or payables of every Entity of the Organization together
 
 The read covers every Entity of the Organization you can reach. It needs the `books` read permission, so every Role can call it. An API key [confined to one Entity](/guides/api-keys) reads that Entity only.
 
-**What counts.** A Partner belongs to the Organization, so one row adds up what every Entity holds open with it. The amounts are those of the [open positions](#open-positions-receivables-and-payables) of each Entity, with the same accounts per `invoiceDirection`, as they stood at the end of `cutoffDate`. A line entered after `cutoffDate`, or a settlement booked after it, doesn't count yet. A line is overdue when its due date is before `cutoffDate`.
+**What counts.** A Partner belongs to the Organization, so one row adds up what every Entity holds open with it. The amounts are those of the [open positions](#open-positions-receivables-and-payables) of each Entity, with the same accounts per `invoiceDirection`, as they stood at the end of `cutoffDate`. A line whose Entry is dated after `cutoffDate` doesn't count yet, and neither does a settlement whose Entry is dated after it. A line is overdue when its due date is before `cutoffDate`.
 
 **Valuation.** Each Entity converts at the newest rate from its [Rate Source](/api-reference/fx-rates#rate-sources) on or before `cutoffDate`. Each Entity's amounts of a Partner convert and round once, and every total sums those converted shares. So a Partner, an Entity, and the group agree to the unit. An Entity whose functional currency its Rate Source has no rate for, or whose country has no Rate Source, is left out of the totals and of `entities`, and its currency is listed in `unconvertedCurrencies`.
 
