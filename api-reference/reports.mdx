@@ -1,12 +1,12 @@
 ---
 title: "ERP Reports: Balance Sheet, Income, Journal, and Ledger"
 sidebarTitle: "Reports"
-description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, monthly cash burn and runway for an entity or the whole organization, the home dashboard of the whole organization, the cash flow statement of the whole organization, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
+description: "Fetch financial reports for an entity including balance sheet, income statement with an optional Budget comparison, cash flow statement, monthly cash burn and runway for an entity or the whole organization, the home dashboard of the whole organization, the cash flow statement and the receivables and payables of the whole organization, journal, open positions (receivables and payables), revenue realization, customer status, ledger reports, open items at a cutoff, and the month-end close workbook. All endpoints are read-only and return bare JSON."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
 
-The Reports API surfaces financial and operational read models for a single entity, plus the home dashboard, the cash flow statement, and the cash burn and runway of a whole Organization. All endpoints are `GET` only. Pass the entity id, or the Organization id for the Organization report, as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
+The Reports API surfaces financial and operational read models for a single entity, plus the home dashboard, the cash flow statement, the receivables and payables, and the cash burn and runway of a whole Organization. All endpoints are `GET` only. Pass the entity id, or the Organization id for the Organization report, as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
 
 All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
 
@@ -697,7 +697,7 @@ curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/reports/ca
 
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/kpis?fromMonth={fromMonth}&toMonth={toMonth}&currency={currency}"
-  note="The page is KPIs (Consolidado), under Reportes in the Grupo sidebar, with Consolidado, Balance general, Estado de resultados, and Flujo de caja. You can also pick Consolidado in the Entity menu of KPIs, which offers it when the Organization has more than one Entity. Either way, the page opens in Grupo. It shows the cards and the chart of the Entity's page for every Entity together, keeps the range you had, and opens in the currency of the Entity you came from. Pick another currency in the currency chip. Under the chart, it names the date of the rates, each currency with no rate, and the Entities that leaves out. Pick an Entity in the same menu to go back to its KPIs."
+  note="The page is KPIs (Consolidado), under Reportes in the Grupo sidebar, with Consolidado, Balance general, Estado de resultados, Flujo de caja, Por cobrar, and Por pagar. You can also pick Consolidado in the Entity menu of KPIs, which offers it when the Organization has more than one Entity. Either way, the page opens in Grupo. It shows the cards and the chart of the Entity's page for every Entity together, keeps the range you had, and opens in the currency of the Entity you came from. Pick another currency in the currency chip. Under the chart, it names the date of the rates, each currency with no rate, and the Entities that leaves out. Pick an Entity in the same menu to go back to its KPIs."
 />
 
 ### Home dashboard of the Organization
@@ -802,6 +802,70 @@ curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/reports/ca
 <AppLink
   url="https://app.sintropix.com/organizations/{organizationId}/cash-flow?fromMonth={fromMonth}&toMonth={toMonth}&currency={currency}&groupBy={groupBy}"
   note="The page is Flujo de caja, under Reportes in the Grupo sidebar, after KPIs. It shows the cash flow statement of every Entity together, and each account names its Entity, as in Arriendo · Andes Chile SpA. It reads the months of the current year unless you pick another range, of at most 60 months. It opens in the currency of the Entity you came from. Pick another currency in the currency chip. Next to the title, it names the date of the rates, each currency with no rate, and the Entities that leaves out. A line doesn't open its entries. Pick an Entity in the company menu to open that Entity's own Flujo de caja."
+/>
+
+### Open positions of the Organization
+
+`GET /api/organizations/:organizationId/reports/open-positions`
+
+Returns the receivables or payables of every Entity of the Organization together, by Partner, valued in one currency, with each Entity's share beside it. Use it to answer how much each customer owes the group, or how much the group owes each supplier, and how much of it is overdue.
+
+The read covers every Entity of the Organization you can reach. It needs the `books` read permission, so every Role can call it. An API key [confined to one Entity](/guides/api-keys) reads that Entity only.
+
+**What counts.** A Partner belongs to the Organization, so one row adds up what every Entity holds open with it. The amounts are those of the [open positions](#open-positions-receivables-and-payables) of each Entity, with the same accounts per `invoiceDirection`, as they stood at the end of `cutoffDate`. A line whose Entry is dated after `cutoffDate` doesn't count yet, and neither does a settlement whose Entry is dated after it. A line is overdue when its due date is before `cutoffDate`.
+
+**Valuation.** Each Entity converts at the newest rate from its [Rate Source](/api-reference/fx-rates#rate-sources) on or before `cutoffDate`. Each Entity's amounts of a Partner convert and round once, and every total sums those converted shares. So a Partner, an Entity, and the group agree to the unit. An Entity whose functional currency its Rate Source has no rate for, or whose country has no Rate Source, is left out of the totals and of `entities`, and its currency is listed in `unconvertedCurrencies`.
+
+**Intercompany.** A [representing Partner](/api-reference/partners#representing-partners) of an Entity of the Organization names one Entity of the group as the counterparty of another. Its rows go to `intercompany`, outside the totals, so what Entities owe each other is never counted as owed to or by the group, and never dropped either.
+
+The report reads only the common Entries of an Entity with [Bases](/api-reference/bases). A Basis Entry posts to no control account, so no Basis Entry holds a receivable or a payable, and the route takes no `basisId`.
+
+**Query params**
+
+| Param | Type | Required | Description |
+| --- | --- | --- | --- |
+| `invoiceDirection` | enum | Yes | `receivable` or `payable` |
+| `cutoffDate` | ISO date | Yes | The day the positions are read at, `YYYY-MM-DD`. Rates are read up to this day too |
+| `currency` | string | Yes | ISO 4217 code every amount is valued in, for example `CLP`. An unknown currency returns `400` with `UNKNOWN_CURRENCY_ERROR` |
+
+An unknown `invoiceDirection` or a `cutoffDate` that isn't a date returns `400`.
+
+**Response**
+
+Every amount is an integer in the minor unit of `currency`. The report and `intercompany` are both groups, with the fields below:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `openDebitAmount`, `openCreditAmount` | integer | Sum of open amounts on debit and on credit lines of the group's Partners |
+| `overdueDebitAmount`, `overdueCreditAmount` | integer | The part of those amounts past its due date |
+| `shares` | array | Each Entity's part of the group: `entityId` and the four amounts above. An Entity with nothing open is left out |
+| `partners` | array | One item per Partner, each with the four amounts above, `partner` (`{ id, name, website }`, or `null` for lines with no Partner), and `shares`, its part in each Entity. Sorted by the open amount on the report's side (debit for `receivable`, credit for `payable`), largest first, then by name. The lines with no Partner come last |
+
+The report also has:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `invoiceDirection` | enum | The requested `invoiceDirection` |
+| `cutoffDate` | ISO date | The requested `cutoffDate` |
+| `currency` | string | The requested `currency` |
+| `entities` | array | One item per Entity in the totals, in the Organization's order: `entityId`, `entityName`, and `functionalCurrency` |
+| `intercompany` | object | The group of Partners that represent an Entity of the Organization, with the fields above. It is not part of the report's totals |
+| `rates` | array | The [FX Rates](/api-reference/fx-rates#the-fx-rate-object) used. Empty when nothing was converted |
+| `rateDate` | ISO date or null | Oldest `rateDate` among `rates`; `null` when nothing was converted |
+| `unconvertedCurrencies` | string[] | Currencies whose Entities were left out because no rate values them, sorted |
+
+An Organization where you hold no Membership returns `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+
+The report has no lines. To see the lines behind an amount, read the [open positions](#open-positions-receivables-and-payables) of the Entity it comes from with `partnerId`, in that Entity's own currency.
+
+```bash
+curl -s "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/reports/open-positions?invoiceDirection=receivable&cutoffDate=2026-11-16&currency=CLP" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+<AppLink
+  url="https://app.sintropix.com/organizations/{organizationId}/receivables?cutoffDate={cutoffDate}&currency={currency}"
+  note="The pages are Por cobrar and Por pagar, under Reportes in the Grupo sidebar, after Flujo de caja. Por pagar lives at /organizations/{organizationId}/payables. Each shows Contacto, one column per Entity, and Total, with the overdue amount under each Partner's total. Below the Total, a collapsible Intercompañía group lists the Partners that represent an Entity of the group, outside the Total. The page reads today unless you pick another cutoff date. It opens in the currency of the Entity you came from. Pick another currency in the currency chip. Next to the title, it names the date of the rates, each currency with no rate, and the Entities that leaves out. Click an Entity's amount to open that Entity's own Por cobrar or Por pagar, filtered to the Partner. It shows what is open today, in the Entity's own currency. Pick an Entity in the company menu to open that Entity's own Por cobrar or Por pagar."
 />
 
 ### Journal report
