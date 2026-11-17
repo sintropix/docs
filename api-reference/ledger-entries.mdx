@@ -100,6 +100,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | --- | --- | --- |
 | `basisName` | string or null | Name of the entry's [Basis](/api-reference/bases); `null` for a common entry |
 | `isComputed` | boolean | `true` on a [Computed Entry](#computed-entries), such as a Revaluation Entry, which Sintropix computes on each read and never stores. Every write that names it is refused |
+| `revaluedPosition` | object or null | Set on a [Revaluation Entry](#revaluation-entries) and its reversal: the position it revalues, as `{ units, carryingAmount, closingAmount }`. See [The revalued position](#the-revalued-position). `null` on every other entry |
 | `reversedByEntryId` | UUID or null | The live reversal that points at this entry, if any |
 | `lines` | array | The entry's lines, each with the fields below |
 | `relatedInvoices` | array | Invoices this entry books, each with the invoice fields below |
@@ -713,17 +714,22 @@ You can't change a Computed Entry. Every write that names one, or one of its lin
 
 ### Revaluation Entries
 
-IAS 21 reports a foreign-currency monetary item at the closing rate. Sintropix does this with Revaluation Entries: it restates the foreign units that each [Monetary Account](/api-reference/chart-of-accounts#monetary-accounts) holds at the closing rate, and books the difference as an unrealized exchange difference.
+IAS 21 reports a foreign-currency monetary item at the closing rate. Sintropix does this with Revaluation Entries: it restates the foreign units of each position at the closing rate, and books the difference as an unrealized exchange difference.
 
-These lines are revalued: live common lines (with no Basis) on an account with `isMonetary: true`, in a currency other than the Entity's functional currency. A `balance` account is revalued per currency. An `open_item` account is revalued per open item, on the units the item still has open.
+These lines are revalued: live common lines (with no Basis) on a [Monetary Account](/api-reference/chart-of-accounts#monetary-accounts), an account with `isMonetary: true`, in a currency other than the Entity's functional currency. They form positions:
 
-An Entity has one Revaluation Entry per month, from the month of its first such line to the current month. A month where nothing differs from the carrying amount has none.
+- **An open item** on an `open_item` account, on the units it still has open.
+- **A balance** on a `balance` account: the units the account holds in one currency.
+
+Each position has its own Revaluation Entry per month, from the month it is first held to the current month. A month where the position's amount doesn't differ from its carrying amount has none for that position.
 
 - **Date.** A month that has passed is revalued on its last day. The current month is revalued on today's date, at the latest published rate, so its entry moves forward each day and keeps its id.
 - **Rate.** The closing rate is the rate from the Entity's [Rate Source](/api-reference/fx-rates) on or before the entry date.
-- **Lines.** For each balance or open item, an item line on the Monetary Account carries the difference, with `transactionCurrency` set, a `transactionAmount` of `0`, and the closing rate in `transactionFxRate`. An [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) with `exchangeDifferenceGround: "revaluation"` balances it on the Entity's [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts): a gain on the `other_income` account and a loss on the `other_expense` account, or both on the one account the Entity tagged.
+- **Lines.** Each entry has two lines. The item line, on the position's Monetary Account, carries the difference, with `transactionCurrency` set, a `transactionAmount` of `0`, and the closing rate in `transactionFxRate`. An [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) with `exchangeDifferenceGround: "revaluation"` balances it on the Entity's [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts): a gain on the `other_income` account and a loss on the `other_expense` account, or both on the one account the Entity tagged.
+- **Partner.** The Exchange Difference Line of an open item carries the item's `partnerId`, so a Partner filter on `GET /ledger/lines` and the reports under that Partner find it. A balance position has no Partner.
 - **Reversal.** Each Revaluation Entry has `status: "reversed"`. Its reversal is dated on the 1st of the next month, has `status: "active"`, and names it in `reversalOfEntryId`. The reversal takes the difference back on the same accounts, so each month restates the whole difference from the stored amounts.
-- **Memo.** `Diferencia de cambio no realizada al DD-MM-YYYY`, with the entry date.
+- **Memo.** The memo names the position: `Dif. no realizada · {name} · {currency} {units} · al DD-MM-YYYY`, with the entry date. `{name}` is the memo of the open item's entry, or the account's name for a balance or an item whose entry has no memo. The units are an absolute value with Chilean grouping, such as `USD 1.234,56` or `JPY 1.234.567`, whatever the Entity's regional format. For example: `Dif. no realizada · Factura 1234 Acme Inc. · USD 1.234,56 · al 31-03-2026`. You can find an entry with the memo search of `GET /ledger/entries`.
+- **Ids.** A position keeps the same entry id every month it is read. An open item's id follows the Entity and the item's line, so it stays the same when you [move the line to another account](#patch-/api/entities/entityid/ledger/lines/lineid/account). A balance's id follows the Entity, the account, and the currency.
 
 An Entity with no Exchange Difference Account has no Revaluation Entries. Tag one to start revaluing. Lines of a Basis Entry are not revalued.
 
@@ -732,6 +738,20 @@ For example, a Chilean Entity holds USD 1,000.00 on a monetary Bank Account, bou
 1. On 31 March the closing rate is 940.00. The March Revaluation Entry, dated 31 March, debits the bank account CLP 40,000 and credits the Exchange Difference Account CLP 40,000. The balance sheet at 31 March shows the bank at CLP 940,000.
 2. On 1 April the reversal takes the CLP 40,000 back.
 3. On 30 April the closing rate is 920.00. The April Revaluation Entry books a CLP 20,000 gain. The income statement for April shows an exchange difference of CLP −20,000: the reversal of March's CLP 40,000 gain and April's CLP 20,000 gain.
+
+#### The revalued position
+
+The item line moves no units, so its `transactionAmount` is `0` and the account's unit balance stays right. To read what the entry revalues, use `revaluedPosition` on the entry detail:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `units` | integer | Foreign units the position holds, in minor units of `transactionCurrency` |
+| `carryingAmount` | integer | Functional amount the stored lines carry for those units, in minor units |
+| `closingAmount` | integer | Functional amount of those units at the closing rate, in minor units |
+
+The three amounts are signed: positive for a debit position such as a receivable or a bank balance, and negative for a credit position such as a payable. The entry and its reversal answer the same object, so the reversal's direction comes from `reversalOfEntryId`. In the March example, the entry answers `{ "units": 100000, "carryingAmount": 900000, "closingAmount": 940000 }`, with CLP amounts in pesos.
+
+In the app, the entry page and the entry panel show the units on the item line, with the functional amount as "from → to": carrying → closing on the entry, and closing → carrying on its reversal. A payable shows positive figures.
 
 ### GET /api/entities/:entityId/ledger/revaluation
 
@@ -749,7 +769,7 @@ List the Revaluation Entries dated on or before a date, and the notices about ho
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `entryIds` | UUID[] | Ids of the Revaluation Entries and their reversals dated on or before `through`. Read them with [`GET /ledger/entries?ids=`](#reading-several-entries-by-id) |
+| `entryIds` | UUID[] | Ids of the Revaluation Entries and their reversals dated on or before `through`, one pair per position and month. Read them with [`GET /ledger/entries?ids=`](#reading-several-entries-by-id) |
 | `notices` | array | What kept a balance from being revalued, or may still change it, as `{ code, params }`. A notice about a month is included when the month starts on or before `through` |
 
 A notice never blocks a read. Balances and reports answer without the part it names. Each notice carries the names it needs beside the ids, so you can show it without another read.
