@@ -103,7 +103,7 @@ The response always lists every matching account with its open totals. Pass `exp
 | `partnerId` | UUID | No | Restrict lines and account totals to one partner |
 | `expectedSettlement` | enum | No | `thisWeek`, `thisMonth`, `withoutDate`, or `overdueWithoutDate`. Restrict lines and account totals by the [expected settlement date](/api-reference/invoices#filter-by-expected-settlement-date) of each line's Invoice. A line that no Invoice backs, such as one of a manual entry, is left out whenever this filter is set |
 | `expandedAccountId` | UUID | No | Load lines for this one account; omit to return account totals only |
-| `sort` | enum | No | `date` (default), `dueDate`, `expectedSettlementDate`, `reference`, `partner`, `debit`, `credit`, `openAmount`, or `status` |
+| `sort` | enum | No | `dueDate` (default), `date`, `expectedSettlementDate`, `reference`, `partner`, `debit`, `credit`, `openAmount`, or `status`. Sorting by `dueDate` or `expectedSettlementDate` places the lines with no such date last when ascending |
 | `direction` | enum | No | `asc` (default) or `desc` |
 | `cursor` | UUID | No | Id of the last line from the previous page |
 | `limit` | integer | No | Page size for the expanded account's lines (default 50, max 100) |
