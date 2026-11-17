@@ -613,7 +613,7 @@ A Computed Entry reads like any other entry:
 
 Open items and their open amounts, bank match candidates, and the activities of the cash flow statement read stored lines only. A Computed Entry never settles or changes an open item.
 
-In the app, a Computed Entry shows a **Calculado** chip beside its status in the entry list, the general ledger, the entry page, and the **Libro Diario**. Its page offers no **Reverse** or **Unbook**, and no tasks, attachments, or messages.
+In the app, a Computed Entry shows a **Calculado** chip beside its status in the entry list, the general ledger, the entry page, and the **Libro Diario**. Its page offers no **Reverse** or **Unbook**, and no tasks, attachments, or messages. The **Libro mayor** Excel and the [month-end close workbook](/api-reference/reports#month-end-close-workbook) mark its lines with **Sí** in a last **Calculado** column, and the [Google Sheets export](/api-reference/integrations#libro-mayor) leaves its **Fecha de creación** empty.
 
 ### Computed ids
 
@@ -668,15 +668,15 @@ List the Revaluation Entries dated on or before a date, and the notices about ho
 | `entryIds` | UUID[] | Ids of the Revaluation Entries and their reversals dated on or before `through`. Read them with [`GET /ledger/entries?ids=`](#reading-several-entries-by-id) |
 | `notices` | array | What kept a balance from being revalued, or may still change it, as `{ code, params }`. A notice about a month is included when the month starts on or before `through` |
 
-A notice never blocks a read. Balances and reports answer without the part it names.
+A notice never blocks a read. Balances and reports answer without the part it names. Each notice carries the names it needs beside the ids, so you can show it without another read.
 
 | Code | Meaning |
 | --- | --- |
 | `REVALUATION_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING` | The Entity has foreign monetary balances but no [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts), so nothing is revalued. `params: {}` |
 | `REVALUATION_CLOSING_RATE_MISSING` | The Rate Source has no rate for the currency on or before the month's entry date, so that currency isn't revalued in that month. `params: { currency, monthEnd }` |
 | `REVALUATION_CLOSING_RATE_PROVISIONAL` | The Rate Source has published nothing dated after the month end yet, so the closing rate, and the entry with it, can still change. `params: { currency, monthEnd, rateDate }` |
-| `REVALUATION_DIMENSIONS_NOT_SET` | The Group Account of an Exchange Difference Account the entries use [requires Dimensions](/api-reference/dimensions#required-dimensions), but computed lines carry no Dimension values. `params: { accountId, dimensionIds }` |
-| `REVALUATION_BASIS_LINE_NOT_REVALUED` | A Basis Entry has a foreign line on a Monetary Account. Basis lines are not revalued. `params: { accountId, basisId }` |
+| `REVALUATION_DIMENSIONS_NOT_SET` | The Group Account of an Exchange Difference Account the entries use [requires Dimensions](/api-reference/dimensions#required-dimensions), but computed lines carry no Dimension values. `params: { accountId, accountName, dimensions }`, where `dimensions` is an array of `{ dimensionId, name }` |
+| `REVALUATION_BASIS_LINE_NOT_REVALUED` | A Basis Entry has a foreign line on a Monetary Account. Basis lines are not revalued. `params: { accountId, accountName, basisId, basisName }` |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/revaluation?through=2026-03-31" \
@@ -697,6 +697,23 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/revaluation?throu
   ]
 }
 ```
+
+#### Notices in the app
+
+The app shows these notices in a **Diferencia de cambio no realizada** banner above each report of an Entity's books. It reads the notices through the report's last day:
+
+| Report | Read through |
+| --- | --- |
+| Balance sheet, eight-column balance, and cash flow statement | The cutoff date |
+| Income statement, income statement by Dimension, **Libro mayor**, and the partner ledger | The end of the window |
+| **Libro Diario** | The end of the window, or today when the window has no end |
+
+The banner shows one line per notice, and nothing when no notice applies. To keep it short, it differs from the API answer in two ways:
+
+- It hides the provisional rate of the current month. That month is always revalued at today's rate, so the notice would always show.
+- Months that share one closing rate, or that all lack a rate for a currency, show once, at the newest month. For example, when a Rate Source stops publishing USD, the banner shows one line for the latest month instead of one per month.
+
+The banner refreshes when the books change, when you tag an Exchange Difference Account, when you change whether an account is monetary, and when a Dimension or a Group Account's required Dimensions change. The consolidated reports show no banner.
 
 ## Scheduled Entries
 
