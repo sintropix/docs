@@ -96,6 +96,65 @@ Documents with no DTE behind them are named differently:
 
 `documentName` is read-only and derived on every read: change the DTE or `documentNumber` and it follows. In the app, **Compras** and **Ventas** show it in the **Documento** column, and hovering it shows the full type name. [`GET /invoices/pages`](#get-/invoices/pages) searches it and sorts by it.
 
+## Expected settlement date
+
+Every Invoice, sale or purchase, can state when you expect it to settle: its **expected settlement date** (`expectedSettlementDate`). The app calls it **Cobro previsto** on a sale, **Pago previsto** on a purchase, and **Fecha prevista** where both directions show together, such as the audit trail.
+
+It's your plan, and it's separate from the Invoice's other dates:
+
+| Date | What it is | Who sets it |
+| --- | --- | --- |
+| `dueDate` | The due date the document states. Aging and overdue status read it. | The document, or you |
+| `expectedSettlementDate` | When you expect to collect or pay it. | You |
+| `paymentDate` | When it was actually settled. Set once the Invoice is `paid`. | Sintropix, from the ledger |
+
+The expected settlement date is optional, and an Invoice has none until you set one. You can set, change, or clear it at any time, whether the Invoice is unbooked, booked, or paid. It stays on the Invoice after it settles, so you can compare the plan with `paymentDate`.
+
+### Set it in the app
+
+- **One Invoice.** Click the pencil on the **Cobro previsto** or **Pago previsto** column in **Ventas** or **Compras**, in the rail of the invoice panel, or on a line of **Por cobrar** or **Por pagar**. Pick a date, or empty the field to clear it.
+- **Several Invoices.** In **Ventas** or **Compras**, select rows and click **Programar cobro** or **Programar pago** in the selection bar. In **Por cobrar** and **Por pagar**, the selection bar offers the same control for the Invoices of the selected lines. You can schedule up to 100 documents at once. If any of them is refused, the bar says so and no date changes.
+
+Once the Invoice is paid, a mark beside its date shows whether it was settled on or before the expected date (a check) or after it (a clock). Hover over or focus the mark to see the payment date.
+
+### Set it through the API
+
+Send `expectedSettlementDate` to [`PATCH /invoices/:invoiceId`](#patch-/invoices/invoiceid), or to [`PATCH /invoices/bulk`](#patch-/invoices/bulk) for up to 100 Invoices at once. Send `null` to clear it. You can't set it when you create an Invoice; set it with an update afterwards.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{ "expectedSettlementDate": "2026-11-27" }'
+```
+
+### Filter by expected settlement date
+
+The `expectedSettlement` filter takes one of these values. Dates are read in Santiago time.
+
+| Value | In the app | Keeps |
+| --- | --- | --- |
+| `thisWeek` | **Previsto esta semana** | Documents expected to settle this week, Monday to Sunday. |
+| `thisMonth` | **Previsto este mes** | Documents expected to settle this calendar month. |
+| `withoutDate` | **Sin fecha prevista** | Documents with no expected settlement date. |
+| `overdueWithoutDate` | **Vencido sin fecha prevista** | Documents still owed, with a due date before today and no expected settlement date. |
+
+The same filter works on:
+
+- The invoice listing, [`GET /invoices/pages`](#get-/invoices/pages) (**Ventas** and **Compras**).
+- The [open positions](/api-reference/reports#open-positions-receivables-and-payables) (**Por cobrar** and **Por pagar**).
+- The [Payables to Plan](/api-reference/reports#payables-to-plan), which **Agregar cuentas por pagar** lists in a [Payment Batch](/api-reference/payment-batches#orders-in-the-app).
+
+In the app, pick it in **Filtros**. The active filter shows as a chip you can remove. The listing and the open positions also sort by `expectedSettlementDate`.
+
+To list the purchases you still owe that are overdue and have no plan:
+
+```bash
+curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/pages?direction=payable&expectedSettlement=overdueWithoutDate" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
 ## Ontop invoices
 
 [Ontop](https://www.getontop.com) pays a company's foreign contractors from a prepaid USD wallet, and bills the company for each payment. Erwin can load those invoices, book them, and match each payment to its invoices. Ask him in a Slack channel bound to the Entity's Organization through an [Agent Channel](/api-reference/agent-channels), for example *"carga las facturas de Ontop"*. To load the wallet's movements first, ask *"carga Ontop"*. See [Ontop wallet](/api-reference/bank-movements#ontop-wallet).
@@ -240,6 +299,7 @@ List every Invoice for the Entity, filtered by direction and document kind. Pass
 | `total` | integer | Gross total in minor units of `currency`. |
 | `issueDate` | string | `YYYY-MM-DD`. |
 | `dueDate` | string or null | `YYYY-MM-DD`. |
+| `expectedSettlementDate` | string or null | `YYYY-MM-DD`. When you expect the Invoice to be collected or paid. Null when nobody stated one. See [Expected settlement date](#expected-settlement-date). |
 | `memo` | string or null | Free text. |
 | `metadata` | array | Additional Information lines, each `{ "label": string, "value": string }`. Empty array when none. |
 | `sourceId` | uuid or null | The [Source](/api-reference/sources) the document came from. Null when it was entered directly. |
@@ -296,6 +356,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `issueDateTo` | string | No | `YYYY-MM-DD`, inclusive. |
 | `dueDateFrom` | string | No | `YYYY-MM-DD`, inclusive. Documents without a due date are excluded. |
 | `dueDateTo` | string | No | `YYYY-MM-DD`, inclusive. Documents without a due date are excluded. |
+| `expectedSettlement` | string | No | `thisWeek`, `thisMonth`, `withoutDate`, or `overdueWithoutDate`. Filters by the [expected settlement date](#filter-by-expected-settlement-date). |
 | `taxPeriodFrom` | string | No | `YYYY-MM`, inclusive. Read from the DTE; documents without one are excluded. |
 | `taxPeriodTo` | string | No | `YYYY-MM`, inclusive. |
 | `totalMin` | integer | No | Minimum `total`, in minor units. |
@@ -303,7 +364,7 @@ Paginated Invoice listing with richer filters. Use this instead of `GET /invoice
 | `groupBy` | string | No | `none`, `partner`, `currency`, `dteType`, `bookingStatus`, `paymentStatus`, `issueMonth`, `dueMonth`, or `taxPeriod`. Default `none`. |
 | `search` | string | No | Case-insensitive contains-match on `documentName`, `documentNumber`, `partnerName`, and `memo`, so `FE-3671911`, `3671911`, and `BHE` all find their documents. A search that reads as an amount also matches `total` and the Open Amount; see [Search by amount](/api-reference/overview#search-by-amount). At most 100 characters; blank is ignored. |
 | `erpThread` | string | No | `with` keeps only documents that have an [ERP Thread](/api-reference/notifications#talk-about-a-record-in-its-erp-thread), the conversation about the record in its **Thread** tab; `without` keeps only documents with none. Omit to return both. Group counts follow this filter; `totalCount`, `unbookedCount`, and `outstandingTotal` do not. |
-| `sort` | string | No | `documentName`, `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `documentName` or `documentNumber` uses natural order, so `FE-8842` comes before `FE-3671911`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
+| `sort` | string | No | `documentName`, `documentNumber`, `partnerName`, `currency`, `total`, `issueDate`, `dueDate`, `expectedSettlementDate`, `memo`, `dteTypeCode`, `bookingStatus`, `paymentStatus`, `openAmount`, or `taxPeriod`. Default `issueDate`. Sorting by `documentName` or `documentNumber` uses natural order, so `FE-8842` comes before `FE-3671911`. Sorting by `openAmount` places unbooked documents (null `openAmount`) before every value in both directions. |
 | `sortDirection` | string | No | `asc` or `desc`. Default `desc`. |
 
 **Response**
@@ -445,6 +506,7 @@ Example response:
     "total": 1190000,
     "issueDate": "2026-08-14",
     "dueDate": "2026-09-13",
+    "expectedSettlementDate": null,
     "memo": "Hosting agosto 2026",
     "metadata": [{ "label": "Orden de compra", "value": "OC-2026-0193" }],
     "sourceId": null,
@@ -582,6 +644,7 @@ Partial update.
 | `total` | integer | No | Minor units, zero or more. |
 | `issueDate` | string | No | `YYYY-MM-DD`. |
 | `dueDate` | string or null | No | `YYYY-MM-DD`, or null to clear. |
+| `expectedSettlementDate` | string or null | No | `YYYY-MM-DD`, or null to clear. Editable whether or not the Invoice is booked or paid. See [Expected settlement date](#expected-settlement-date). |
 | `memo` | string or null | No | Free text, or null to clear. |
 | `metadata` | array | No | Replaces the whole list. Same limits as on create. |
 | `sourceId` | uuid or null | No | Editable whether or not the Invoice is booked. |
@@ -589,6 +652,31 @@ Partial update.
 While a [Payment Order](/api-reference/payment-batches) names the Invoice, a change to `partnerId`, `currency`, or `documentKind` is refused with `409` and `INVOICE_PAYMENT_ORDERS_PIN_ERROR`. Remove the orders first.
 
 **Response:** `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`.
+
+## PATCH `/invoices/bulk`
+
+Update up to 100 Invoices in a single request and transaction. Each element is an `invoiceId` plus the fields to change, with the same fields and rules as the body of [`PATCH /invoices/:invoiceId`](#patch-/invoices/invoiceid). Elements can change different fields.
+
+- **Body:** `{ "updates": [{ "invoiceId": uuid, ...fields }] }`, 1 to 100 elements. Each element needs at least one field besides `invoiceId`, or the request is refused with `400`.
+- **Response:** an array of `{ "invoice": <Invoice row>, "totalCount": integer, "unbookedCount": integer, "outstandingTotal": integer }`, in input order.
+
+The request is all or nothing. If any element is refused, nothing changes, and the response names the offending element by its zero-based `elementIndex`. Each element appears in its Invoice's [audit trail](/api-reference/audit-trail) like a single edit.
+
+To plan when you'll pay two supplier invoices, and clear the date of a third:
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/bulk" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "updates": [
+      { "invoiceId": "6f1c2b1e-0d1a-4c7b-9a3e-2b8f5d0e1a11", "expectedSettlementDate": "2026-11-27" },
+      { "invoiceId": "7a2d3c2f-1e2b-4d8c-8b4f-3c9a6e1f2b22", "expectedSettlementDate": "2026-11-27" },
+      { "invoiceId": "8b3e4d3a-2f3c-4e9d-9c5a-4d0b7f2a3c33", "expectedSettlementDate": null }
+    ]
+  }'
+```
 
 ## DELETE `/invoices/:invoiceId`
 

@@ -101,8 +101,9 @@ The response always lists every matching account with its open totals. Pass `exp
 | `invoiceDirection` | enum | Yes | `receivable` or `payable`. See the accounts each direction lists below |
 | `status` | enum | No | `unsettled` (default), `settled`, or `all` |
 | `partnerId` | UUID | No | Restrict lines and account totals to one partner |
+| `expectedSettlement` | enum | No | `thisWeek`, `thisMonth`, `withoutDate`, or `overdueWithoutDate`. Restrict lines and account totals by the [expected settlement date](/api-reference/invoices#filter-by-expected-settlement-date) of each line's Invoice. A line that no Invoice backs, such as one of a manual entry, is left out whenever this filter is set |
 | `expandedAccountId` | UUID | No | Load lines for this one account; omit to return account totals only |
-| `sort` | enum | No | `date` (default), `reference`, `partner`, `debit`, `credit`, `openAmount`, or `status` |
+| `sort` | enum | No | `date` (default), `dueDate`, `expectedSettlementDate`, `reference`, `partner`, `debit`, `credit`, `openAmount`, or `status` |
 | `direction` | enum | No | `asc` (default) or `desc` |
 | `cursor` | UUID | No | Id of the last line from the previous page |
 | `limit` | integer | No | Page size for the expanded account's lines (default 50, max 100) |
@@ -146,6 +147,8 @@ Each item in `lines` extends the ledger entry line with:
 | `entryMemo` | string or null | Memo of the parent entry |
 | `partner` | object or null | `{ id, name, website }` when the line has a counterparty. `website` is the partner's website as a bare domain (`acme.cl`), or `null` |
 | `dueDate` | ISO date or null | Due date carried by the source document |
+| `expectedSettlementDate` | ISO date or null | The [expected settlement date](/api-reference/invoices#expected-settlement-date) of the line's Invoice, or `null` when it has none. It stays once the Invoice is paid |
+| `paymentDate` | ISO date or null | The date the line's Invoice was paid, or `null` until it is paid |
 | `reference` | object or null | Source document; currently `{ kind: "invoice", id, label }` |
 | `openTransactionAmount` | integer or null | On a foreign line, the units still open, in minor units of `transactionCurrency`; `null` on a domestic line |
 | `entryBasisId` | UUID or null | The [Basis](/api-reference/bases) of the parent entry; `null` for a common entry |
@@ -184,6 +187,7 @@ The report takes the same filters as the purchases listing, [`GET /invoices/page
 | `issueDateTo` | ISO date | No | Latest issue date. Must not be before `issueDateFrom`. |
 | `dueDateFrom` | ISO date | No | Earliest due date. Invoices with no due date are kept, since most documents from the SII don't state one. |
 | `dueDateTo` | ISO date | No | Latest due date. Must not be before `dueDateFrom`. Invoices with no due date are kept. |
+| `expectedSettlement` | string | No | `thisWeek`, `thisMonth`, `withoutDate`, or `overdueWithoutDate`. Filters by the invoice's [expected settlement date](/api-reference/invoices#filter-by-expected-settlement-date). |
 | `taxPeriodFrom` | string | No | `YYYY-MM`. Read from the DTE; invoices without one are left out. |
 | `taxPeriodTo` | string | No | `YYYY-MM` |
 | `totalMin` | integer | No | Minimum `total`, in minor units |
@@ -209,6 +213,7 @@ An array, earliest due date first, then earliest issue date. Invoices with no du
 | `total` | integer | Gross total, in minor units of `currency` |
 | `issueDate` | ISO date | Issue date |
 | `dueDate` | ISO date or null | Due date |
+| `expectedSettlementDate` | ISO date or null | When you plan to pay the invoice (**Pago previsto**); `null` when it has none |
 | `owedAmount` | integer | What the invoice still owes, in minor units of `currency`: its `total` while unbooked, or the Open Amount of its Control Line once booked |
 | `amountToPlan` | integer | What is left to plan, in minor units of `currency`; always above zero. It's `owedAmount` minus the orders already planned for the invoice in every batch. |
 
