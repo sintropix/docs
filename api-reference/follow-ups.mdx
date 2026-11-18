@@ -86,7 +86,7 @@ A Plan needs at least one act. Keep these rules in mind when you build one:
 - **A `bookInvoice` line is domestic or foreign.** It takes the same line fields as [`POST /invoices/:invoiceId/book`](/api-reference/invoices#foreign-currency-invoices), and Sintropix values a foreign line on approval. On an Invoice in another currency, the Control Line sends the Invoice's `currency` as its `transactionCurrency` and its `total` as its `transactionAmount`. To check the booking once valued, send it to `POST /invoices/:invoiceId/book?dryRun=true` before you write the Plan.
 - **A `createEntries` line is domestic or foreign.** It takes the same line fields as [`POST /ledger/entries`](/api-reference/ledger-entries#foreign-currency-lines). A foreign line sends its `transactionCurrency` and `transactionAmount` and no `functionalAmount`, and Sintropix values it on approval. Send `overrideFxRate` and `overrideFxRateReason` only when the evidence names another rate. A line may [settle an open line](/api-reference/ledger-entries#settle-open-lines) with `settlesLineId`, and the entry may declare `exchangeDifferenceLineId` and `exchangeDifferenceReason`, as on the route. Use it to net two open lines in different currencies: a `matchLines` act posts nothing, so it can't book the exchange difference between them. To check that the entry balances once valued, send the same entry to `POST /ledger/entries?dryRun=true` before you write the Plan; see [Dry run](/api-reference/ledger-entries#dry-run).
 - **A `bookMovement`, `match`, or `assign` line is domestic or foreign.** It takes the same line fields as [`POST /movements/:movementId/book`](/api-reference/bank-movements#post-/movements/movementid/book), and the act takes `bankLineOverride`, `exchangeDifferenceLineId`, and `exchangeDifferenceReason` as that route does. Sintropix values a foreign line on approval. To check the act once valued, send it to the same route with `?dryRun=true` before you write the Plan; see [Dry run](/api-reference/bank-movements#dry-run).
-- **Sintropix validates the acts only on approval.** A `PUT` checks the shape of the Plan, not whether each booking balances or each line is still open. Check the bodies before you write them.
+- **Sintropix runs the Plan when you write it.** A `PUT` runs each Plan the way an approval would, then rolls it back, so it refuses a Plan that approval would refuse today. See [Plan check on write](#plan-check-on-write).
 
 ## PUT `…/follow-up`
 
@@ -110,6 +110,19 @@ Retrying a `PUT` with the same `id` and the same body changes nothing. Sending t
 
 - Bank Movement: `{ movement, bankAccount }`
 - Invoice: the same answer as `PATCH /invoices/:invoiceId`
+
+### Plan check on write
+
+A `PUT` runs each Plan through the same acts and checks as an approval, then undoes the run. Nothing of it stays: it posts no entry, leaves no audit change beyond the Follow-up itself, and the entry and line ids you chose stay free for the approval. So a `200` means the Plan runs on the books as they stand when you write it.
+
+- A `proposal` runs its `plan`.
+- A `question` runs the `plan` of each option on its own, since a person picks only one. A question with no options runs nothing.
+- A `waiting` Follow-up has no Plan, so nothing runs.
+- A retry with the same `id` and body runs the Plan again.
+
+When a Plan would not run, the `PUT` answers with the error of the act that refused it, and stores nothing. The record keeps its current Follow-up. For example, a `match` on a line that neither the books nor an earlier act of the Plan holds answers `404` with `RECONCILIATION_MATCH_LINE_NOT_FOUND_ERROR` or `LEDGER_ENTRY_LINE_NOT_FOUND_ERROR`.
+
+To fix a missing line, put the act that creates it earlier in the same Plan. For example, to match a Movement to the Control Line of an unbooked Invoice, book the Invoice with a `bookInvoice` act first, then `match` to the Control Line `id` you gave it. Don't split the work into two Follow-ups: the second one's Plan names a line that doesn't exist until the first is approved, so its `PUT` is refused.
 
 This example proposes matching a Movement to the Control Line of an open Invoice:
 
@@ -226,7 +239,7 @@ Read the Follow-up of a record with every record in its Plan named, so you can s
 - On a `createEntries` line, `settles` is the open line it settles, in the shape of a `target`, or `null` when it settles nothing. `exchangeDifferenceLineId` and `exchangeDifferenceReason` on its `entry` are `null` when the entry declares none. In the app, the Plan shows **Liquida** and the item on a settling line, and the declared **Diferencia de cambio** line, whose account and amount are set on approval.
 - Each `target` is a line to settle. Its `kind` is `existing` (a line on the books, with its current `openAmount` and any Invoice it controls), `new` (a line an earlier act creates, with its `actIndex`), or `notFound`. The `target` of an `assign` is `null` when its `lineId` is `null`.
 
-A named record is `null` when the Plan names a record the Entity does not hold. That includes the `recognitionAccount` of a `deferral` or an `accrual`. Approving that Plan fails.
+A named record is `null` when the Plan names a record the Entity does not hold. That includes the `recognitionAccount` of a `deferral` or an `accrual`. A `PUT` refuses such a Plan, so this happens only when a record changes after the Follow-up was written. Approving that Plan fails.
 
 A `bookInvoice` act whose Plan defers a line reads, for example:
 
@@ -269,6 +282,8 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/invoices/$INVOICE_ID/fol
 ## POST `…/follow-up/approve`
 
 Run the Plan of the current Follow-up, then clear it. Sintropix runs every act in order in one transaction, through the same checks as the act's own route. If any act fails, nothing is written and the Follow-up stays.
+
+A Plan ran when it was written, but the books can change before someone approves it. For example, a lock date set later, an entry id another write took, or a Dimension made required. Approval then refuses the Plan with the act's own error.
 
 **Body**
 
@@ -316,7 +331,7 @@ An approval that names a cleared or replaced Follow-up answers `409 FOLLOW_UP_ST
 
 ## Audit trail
 
-Setting, approving, and discarding a Follow-up appear in the [audit trail](/api-reference/audit-trail) as changes to the host row. In row images, the Follow-up sits under the `follow_up` key. Images written before Follow-ups replaced Recommendations keep it under `recommendation`, with a `status` of `confident`, `needs_clarification`, or `waiting` instead of a `kind`.
+Setting, approving, and discarding a Follow-up appear in the [audit trail](/api-reference/audit-trail) as changes to the host row. Setting one records only that change: the [Plan check](#plan-check-on-write) leaves nothing in the trail. In row images, the Follow-up sits under the `follow_up` key. Images written before Follow-ups replaced Recommendations keep it under `recommendation`, with a `status` of `confident`, `needs_clarification`, or `waiting` instead of a `kind`.
 
 ## Domain errors
 
@@ -333,14 +348,14 @@ Setting, approving, and discarding a Follow-up appear in the [audit trail](/api-
 | `FOLLOW_UP_OPTION_NOT_FOUND_ERROR` | `400` | `optionIndex` is out of range. `params: { followUpId, optionIndex, optionCount }`. |
 | `FOLLOW_UP_OPTION_UNEXPECTED_ERROR` | `400` | `optionIndex` sent for a `proposal`. `params: { followUpId, optionIndex }`. |
 
-An act that fails on approval answers with the error of its own route, for example `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR`.
+An act that fails when you write the Follow-up or approve it answers with the error of its own route, for example `LEDGER_ENTRY_LINE_ALREADY_EXISTS_ERROR` or `LEDGER_ENTRY_LINE_NOT_FOUND_ERROR`.
 
 ## Status codes
 
 | Status | Meaning |
 | --- | --- |
 | `200` | Success on every route. |
-| `400` | Validation error, an option error above, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `400` | Validation error, an option error above, a Plan act refused by its own route, or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | Read-only key attempted a mutation. |
-| `404` | Entity, Bank Account, Bank Movement, or Invoice not found. |
+| `404` | Entity, Bank Account, Bank Movement, or Invoice not found, or a Plan act names a record or line that doesn't exist. |
 | `409` | Domain conflict (see above), or a Plan act refused by its own route. |
