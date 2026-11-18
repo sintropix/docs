@@ -8,6 +8,13 @@ import AppLink from "/snippets/app-link.mdx"
 
 An Allocation settles one debit line against one credit line on an Open-Item Account. The match endpoint lets you auto-allocate a selection of lines. This page covers the full CRUD for Allocations plus the match operation.
 
+An Allocation posts nothing, so it joins only lines it can settle without an exchange difference:
+
+- **One denomination.** Both lines are in the same currency: two lines in the functional currency, or two lines in the same foreign currency. A line's denomination is its `transactionCurrency`, or the Entity's functional currency when it has none.
+- **One rate.** Two foreign lines must also carry the same rate, so the Allocation knows how many units it settles.
+
+To settle lines in two denominations, such as a USD Invoice and a CLP payment, or two USD lines booked at different rates, write a [manual entry that settles them](/api-reference/ledger-entries#settle-open-lines). That entry books the exchange difference between them. Allocations created before this rule stay as they are, and you can still delete them.
+
 All amounts are integers in the minor unit of the currency (for example, cents).
 
 <Note>
@@ -63,7 +70,9 @@ curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocations?entry
 
 ## POST /api/entities/:entityId/ledger/allocations
 
-Create a single Allocation between two lines. The caller supplies the idempotency id. The debit line must be on the debit side, the credit line on the credit side, both must belong to the same Open-Item Account, and the amount must not exceed either line's open amount.
+Create a single Allocation between two lines. The caller supplies the idempotency id. The debit line must be on the debit side, the credit line on the credit side, both must belong to the same Open-Item Account, and the amount must not exceed either line's open amount. Both lines must be in one denomination and, when foreign, at one rate.
+
+Two lines in different denominations answer `409` with `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_DENOMINATIONS_ERROR` and `params: { debitLineId, creditLineId, debitDenomination, creditDenomination }`. Two lines in one foreign currency at different rates answer `409` with `RECONCILIATION_ALLOCATION_LINES_AT_DIFFERENT_RATES_ERROR` and `params: { debitLineId, creditLineId }`. In both cases, [settle the lines with an exchange difference](/api-reference/ledger-entries#settle-open-lines) instead.
 
 - **Path param:** `entityId` (UUID)
 - **Body:**
@@ -152,6 +161,8 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocati
 
 Auto-match a selection of Open-Item lines. The selection is split by side, greedily decomposed into debit/credit pairs, and every resulting Allocation is created in one transaction. The selection must contain at least two lines, at least one debit and one credit, and all lines must belong to the same Open-Item Account.
 
+Every line of the selection must be in one denomination. A selection in two or more denominations answers `409` with `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_DENOMINATIONS_ERROR` and `params: { lines: [{ lineId, denomination }] }`. A pair of foreign lines at different rates answers `409` with `RECONCILIATION_ALLOCATION_LINES_AT_DIFFERENT_RATES_ERROR`. Sintropix refuses the whole match and writes no Allocation; it never matches only the lines that fit. Settle such a selection [with an exchange difference](/api-reference/ledger-entries#settle-open-lines) instead.
+
 - **Path param:** `entityId` (UUID)
 - **Body:**
 
@@ -228,6 +239,9 @@ curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/allocation
 | `RECONCILIATION_MATCH_NOTHING_TO_MATCH_ERROR` | Selection contains no debit/credit pair |
 | `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_BASES_ERROR` | Allocation would settle lines from two different Bases |
 | `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_BASES_ERROR` | Match would settle a selection spanning two Bases |
+| `RECONCILIATION_ALLOCATION_LINES_IN_DIFFERENT_DENOMINATIONS_ERROR` | Allocation would join lines in two denominations. Settle them with an exchange difference |
+| `RECONCILIATION_ALLOCATION_LINES_AT_DIFFERENT_RATES_ERROR` | Allocation or match would join foreign lines of one currency at different rates. Settle them with an exchange difference |
+| `RECONCILIATION_MATCH_LINES_IN_DIFFERENT_DENOMINATIONS_ERROR` | Match selection spans two or more denominations. Settle it with an exchange difference |
 | `LEDGER_ENTRY_LINE_NOT_FOUND_ERROR` | A line named in `lineIds` does not exist (list) |
 | `LEDGER_ENTRY_NOT_FOUND_ERROR` | `entryId` names no live entry (list) |
 

@@ -806,7 +806,7 @@ Each element of `newLedgerEntryLines` is either **domestic**, in the Entity's fu
   A line takes only the fields above. Any other field, `transactionFxRate` included, is refused with a `400` that names it. Don't send a currency field set to `null` on a domestic line; leave it out.
 </Note>
 
-A line carries `deferral`, `accrual`, or neither. A line with both is refused with `400`. A deferred or accrued line that asks for `0` (a `functionalAmount` of `0` on a domestic line, a `transactionAmount` of `0` on a foreign one) is refused with `400` too. A foreign deferred or accrued line whose amount Sintropix values at `0` is refused with `409` (`DEFERRAL_LINE_VALUED_AT_ZERO_ERROR` or `ACCRUAL_LINE_VALUED_AT_ZERO_ERROR`), because it has nothing to release.
+A line carries `deferral`, `accrual`, or neither. A line with both is refused with `400`. A deferred or accrued line that asks for `0` (a `functionalAmount` of `0` on a domestic line, a `transactionAmount` of `0` on a foreign one) is refused with `400` too. A foreign deferred line whose amount Sintropix values at `0` is refused with `409` (`DEFERRAL_LINE_VALUED_AT_ZERO_ERROR`), because it has nothing to release. An accrued line must be domestic; a foreign one is refused with `409` (`ACCRUAL_LINE_FOREIGN_ERROR`). See [Accrue a line when you book](#accrue-a-line-when-you-book).
 
 The Control Line (the line whose `id` is `controlLineId`) must sit on an open-item receivable account for a `receivable` Invoice or payable account for a `payable` one, name the Invoice's Partner, and match the Invoice's denomination. On an Invoice in the functional currency, the Control Line is domestic. On an Invoice in another currency, it is foreign: its `transactionCurrency` is the Invoice's `currency` and its `transactionAmount` the Invoice's `total`. Sintropix checks the Control Line after it values the lines. A regular invoice debits a receivable or credits a payable; a credit note posts the opposite side. Its account becomes the Invoice's `controlAccountId`.
 
@@ -856,7 +856,7 @@ A booking line in another currency states its currency and its amount, and Sintr
 3. **Rounding.** Lines of one currency, rate, and side round as a group, as on a manual entry.
 4. **Balance.** The entry must balance once every line is valued. Check that with a [dry run](#dry-run) before you write.
 
-On an Invoice in another currency, the Control Line is in the Invoice's currency, for its total. The other lines can be domestic, or foreign in any currency. Deferrals and Accruals take the functional amount each line was valued at.
+On an Invoice in another currency, the Control Line is in the Invoice's currency, for its total. The other lines can be domestic, or foreign in any currency. A Deferral takes the functional amount its line was valued at. An accrued line is always stated in the functional currency; see [Accrue a line when you book](#accrue-a-line-when-you-book).
 
 When the valued lines don't balance, the booking is refused with `409` and `LEDGER_ENTRY_UNBALANCED_AFTER_VALUATION_ERROR`. Its `valuedLines` lists every line as Sintropix valued it, so you can size the domestic lines. A booking whose lines are all domestic and don't balance still answers `400`.
 
@@ -928,7 +928,7 @@ Besides the codes below, a booking with a foreign line can answer the [valuation
 | `ACCRUAL_DOCUMENT_KIND_NOT_SUPPORTED_ERROR` | `409` | A line of a `tax_only` document carries `accrual`. An `invoice` or a credit note can be accrued. The response carries `params: { invoiceId, documentKind }`, with `documentKind` `tax_only`. |
 | `ACCRUAL_ACCOUNT_SUBTYPE_MISMATCH_ERROR` | `400` | The accrued line's account does not have the sub-type the Invoice's direction needs: `unbilled_payable` for `payable`, `unbilled_receivable` for `receivable`. The response carries `params: { ledgerEntryLineId, ledgerAccountId, expectedSubtype }`. |
 | `ACCRUAL_LINE_SIDE_MISMATCH_ERROR` | `400` | The accrued line is not on the side opposite the Control Line: a payable invoice accrues a `debit` line and a receivable invoice a `credit` line, and a credit note the other way round. The response carries `params: { ledgerEntryLineId, expectedSide }`. |
-| `ACCRUAL_LINE_VALUED_AT_ZERO_ERROR` | `409` | A foreign accrued line values to `0` in the functional currency, so it has nothing to release. Raise its amount or remove the `accrual`. The response carries `params: { ledgerEntryLineId }`. |
+| `ACCRUAL_LINE_FOREIGN_ERROR` | `409` | The accrued line is in a foreign currency. An Accrual releases its months in the functional currency, so state the line in the functional currency or remove the `accrual`. The response carries `params: { ledgerEntryLineId, transactionCurrency }`. |
 | `ACCRUAL_RECOGNITION_ACCOUNT_INELIGIBLE_ERROR` | `400` | `recognitionAccountId` is not of a type the accrual can release into. The response carries `params: { ledgerEntryLineId, recognitionAccountId, accruedAccountSubtype }`. |
 | `ACCRUAL_SCHEDULE_REACHES_BOOKING_MONTH_ERROR` | `400` | A month of the accrual is the month of the booking or later. Every month must end before the month of `entry.entryDate`. The response carries `params: { ledgerEntryLineId, entryDate }`. |
 | `LEDGER_ENTRY_DATE_LOCKED_ERROR` | `409` | A Release of a deferred or accrued line falls on or before the ledger lock date. Nothing is booked. The response carries `params: { entryDate, ledgerLockDate }`, where `entryDate` is the date of that Release. |
@@ -1117,7 +1117,7 @@ These rules apply:
 - The line sits on the side opposite the Control Line: a `debit` on a payable invoice, a `credit` on a receivable invoice. A credit note flips it: a `credit` on a payable credit note, a `debit` on a receivable one.
 - An `invoice` or a credit note can be accrued. A `tax_only` document can't.
 - A line carries an `accrual` or a [`deferral`](#deferrals), never both.
-- Only the functional amount is accrued. A foreign-currency line is released at the functional amount Sintropix valued it at, and the Releases carry no transaction currency.
+- The accrued line is domestic, because an Accrual releases its months in the functional currency. A foreign accrued line is refused with `ACCRUAL_LINE_FOREIGN_ERROR`. On an Invoice in another currency, state the accrued line in the functional currency: first send the booking to [`?dryRun=true`](#dry-run) with that line foreign and no `accrual`, and read the line's `functionalAmount`. Then book with the line domestic at that `functionalAmount`, with the `accrual`. The Releases carry no transaction currency.
 - Accrue the net line only. The IVA line and the Control Line follow the Invoice on its own date.
 - Several lines of the same booking can each carry their own `accrual`.
 
