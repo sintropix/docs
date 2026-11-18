@@ -202,6 +202,8 @@ Approve a `submitted` claim. Sintropix creates its Expense Rendition and books i
 | --- | --- | --- | --- |
 | `expenseAccountId` | uuid | No | Book to this expense account instead of the proposed one. Same rules as on create. For a `factura`, it becomes the suggested account for the SII invoice. The claim keeps its Expense Category. |
 
+The lines of an Expense Rendition carry no Dimension Value. So when the expense account maps to a Group Account that [requires a Dimension](/api-reference/dimensions#required-dimensions), the approval is refused with `400` and `DIMENSION_VALUE_REQUIRED_ERROR`, and nothing is written: the claim stays `submitted`. `params.missingDimensions` names the Dimensions. Approve again with an `expenseAccountId` that requires none. In the app, the approve dialog names the Dimension: "La cuenta de gasto exige un valor de {Dimensión}, y una rendición no lo lleva. Elige otra cuenta de gasto."
+
 **Response** (`200`)
 
 | Field | Type | Description |
@@ -438,7 +440,7 @@ curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/expens
 | --- | --- |
 | `200` | Success on `GET`, `PUT`, `PATCH`, `DELETE`, approve, and reject. |
 | `201` | Expense Claim submitted, or Expense Category created. |
-| `400` | Validation error (including a claim with both or neither of `expenseCategoryId` and `expenseAccountId`), an invalid cursor, an ineligible account, Source, or Approver, or missing `x-audit-actor` on a key-authenticated mutation. |
+| `400` | Validation error (including a claim with both or neither of `expenseCategoryId` and `expenseAccountId`), an invalid cursor, an ineligible account, Source, or Approver, an expense account that requires a Dimension on approve (`DIMENSION_VALUE_REQUIRED_ERROR`), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | Your Role can't write (`PERMISSION_DENIED_ERROR`), or you aren't the Approver (`EXPENSE_CLAIM_NOT_APPROVER_ERROR`). |
 | `404` | Entity, Organization, Expense Claim, Expense Category, or Partner not found. |
 | `409` | The claim's or category's `id` already exists, a category name is taken, the category to delete is in use, the claim's category has no account, the claim was already decided, the Organization has no Approver, the Entity has no setting, or the Partner was merged. |
