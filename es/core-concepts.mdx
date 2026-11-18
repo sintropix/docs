@@ -84,6 +84,7 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
     - **Proponer asientos**: redactar asientos de ajuste a partir de los hallazgos de la conciliación, para que un miembro del equipo los revise y contabilice
     - **Cargar Ontop**: crear, contabilizar y conciliar las facturas de Ontop, la plataforma que paga a tus contratistas extranjeros desde una billetera prepagada en USD. Consulta [Ontop invoices](/api-reference/invoices#ontop-invoices)
     - **Cargar un presupuesto**: crear o actualizar un [Budget](/api-reference/budgets) mes a mes desde una planilla, una tabla en tu mensaje o una regla como *"lo mismo que 2026 más 10%"*. Asocia cada fila a una cuenta de resultado por código y luego por nombre exacto, y te pregunta por las filas que no calzan con ninguna cuenta, la unidad y la moneda. Antes de informar, revisa que los totales mensuales de cada sección cuadren con tu fuente
+    - **Cargar un crédito**: leer la tabla de desarrollo final del acreedor desde un PDF o un Excel, encontrar al acreedor y las cuentas, y crear o completar el [Loan](/api-reference/loans) como borrador. Revisa que cada fila sume el total impreso y que las filas sumen el capital, y te informa los asientos simulados para que los revises. Se detiene ante una tabla de simulación o un crédito en UF o dólares, y activa el crédito solo cuando le pides exactamente eso
     - **Centralizar remuneraciones**: contabilizar las remuneraciones y los finiquitos de un mes desde Buk, mediante la Credential de API key de Buk de la entidad o el Excel de *Centralización Contable* que le envíes. Aprende la cuenta de cada código de nómina a partir de tu última centralización y pregunta por los códigos que no ha visto. Contabiliza solo después de que apruebes su propuesta en el hilo, y concilia los pagos de líquidos y de Previred solo después de que los confirmes
     - **Vincular asientos intercompañía**: cuando un préstamo, un cobro o un pago es entre dos empresas de tu Organización, registra el asiento de cada empresa como siempre y une una línea de cada uno con un [vínculo intercompañía](/es/api-reference/intercompany-links). Para corregir un vínculo, lo desvincula y vincula las líneas correctas. Cuando corrige un asiento del vínculo anulándolo o reversándolo, el vínculo se va con él, así que vincula de nuevo la línea nueva
 
@@ -169,6 +170,12 @@ Cargar datos desde su origen, como los movimientos de una cuenta bancaria, no es
     <Warning>
       La wiki guarda hechos, no instrucciones. Nunca guarda datos del ERP, como saldos o listas de facturas, ni lo que el historial del ERP ya muestra, como correcciones o conciliaciones pasadas, ni lo que dice un correo, como su texto, un monto, un sueldo o datos personales, solo dónde encontrarlo, ni contraseñas, códigos, claves de API o números de tarjeta completos. Pídele a Erwin que aprenda solo de contenido en el que confíes.
     </Warning>
+  </Accordion>
+
+  <Accordion title="Crédito">
+    Un **crédito** es dinero que un acreedor, como un banco, le entregó a una entidad y que la entidad paga en cuotas, según la tabla de desarrollo del acreedor. Cargas la tabla tal como el acreedor la imprime, y Sintropix nunca calcula una tasa ni una cuota.
+
+    Un crédito nace como **borrador**, que no escribe nada en los libros. Cuando ya no tiene problemas, su simulación muestra cada asiento que escribiría. **Activar** los escribe todos de una vez: el desembolso, los devengos de intereses a fin de mes, cada cuota y los traspasos de capital de largo a corto plazo. Los asientos futuros quedan programados. El desembolso y cada cuota quedan abiertos a nombre del acreedor, así que los concilias con el calce bancario de siempre. Consulta [Loans](/api-reference/loans).
   </Accordion>
 
   <Accordion title="Asiento manual">

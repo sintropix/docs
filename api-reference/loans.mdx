@@ -1,0 +1,370 @@
+---
+title: "Sintropix Loans API: Load a Lender's Repayment Schedule"
+sidebarTitle: "Loans"
+description: "Load a loan as a Draft from the lender's repayment schedule, review its issues and simulated entries, and activate it to book the disbursement, interest accruals, installments, and short-term reclassifications."
+---
+
+A Loan is money a lender, such as a bank, a partner, or another company, handed to an Entity, which the Entity pays back as the lender's repayment schedule (*tabla de desarrollo*) states. You load the schedule exactly as the lender prints it. Sintropix never computes a rate, an installment, or a schedule: it only adds up the rows and splits each row's interest and charges by days.
+
+A Loan has two states:
+
+- **Draft** (`draft`): a Loan being loaded. It writes nothing to the books, you can edit every fact, and you can delete it. A Draft needs only its lender and its name.
+- **Active** (`active`): a Loan you activated. Activating writes every Ledger Entry of the Loan at once. After that, only the name changes, and the Loan can't be deleted. Activation can't be undone.
+
+The usual flow:
+
+1. [Create a Draft](#post-/api/entities/entityid/loans) with the lender and a name, and send the schedule and the accounts in the same call or later with [`PATCH`](#patch-/api/entities/entityid/loans/loanid).
+2. [Read the Draft](#get-/api/entities/entityid/loans/loanid). Fix each [Loan Issue](#loan-issues) it lists. Once it lists none, review its `simulation`: every entry Activate would write.
+3. [Activate](#post-/api/entities/entityid/loans/loanid/activate) the Loan.
+4. Settle the bank credit of the disbursement and each installment the bank charges with the usual [bank Match](/api-reference/bank-movements).
+
+<Note>
+  The app has no Loan screens yet. Load Loans through the API, or ask Erwin to load one from the lender's PDF or Excel. Erwin creates the Draft and reports its simulation, and activates it only when you ask for exactly that.
+</Note>
+
+## Amounts and currency
+
+A Loan is booked in the Entity's functional currency. Every amount is a whole number, not negative, in the minor unit of that currency. CLP has no decimals, so `120000000` is $120.000.000. Loans in UF or in a foreign currency aren't supported.
+
+## The Loan's accounts
+
+A Loan names each account it posts to. No account has a default, so you pick each one. Every account must belong to the Entity and fit its role:
+
+| Field | Role | Account it takes |
+| --- | --- | --- |
+| `shortTermPrincipalLedgerAccountId` | Principal due within 12 months (**Capital C/P**) | A `liability` with the sub-type [`loan`](/api-reference/chart-of-accounts#loan-accounts) |
+| `longTermPrincipalLedgerAccountId` | Principal due later (**Capital L/P**) | A `liability` with the sub-type `loan`, other than the short-term account |
+| `settlementLedgerAccountId` | The disbursement and installments to settle (**Créditos por liquidar**) | A `liability` with the sub-type `payable` |
+| `accruedInterestLedgerAccountId` | Interest and charges accrued but not yet paid (**Intereses por pagar**) | A `liability` with `balance` tracking, and not a `loan` account |
+| `interestLedgerAccountId` | Interest expense (**Gastos financieros**) | An expense type: `cost_of_goods_sold`, `operating_expense`, or `other_expense` |
+| `chargesLedgerAccountId` | The installments' charges, such as a FOGAPE guarantee commission | An expense type. Needed only when a row has charges |
+| `disbursementCharges[].ledgerAccountId` | Each charge deducted at disbursement, such as stamp tax or notary | An expense type |
+
+An account that doesn't fit its role is refused with `400` and `LOAN_LEDGER_ACCOUNT_INELIGIBLE`. Naming the same account for both principal roles is refused with `400` and `LOAN_PRINCIPAL_ACCOUNTS_MUST_DIFFER`.
+
+## The entries a Loan writes
+
+When you activate a Loan, Sintropix writes all its entries in one transaction. An entry dated today or earlier is booked as an active entry. A later one is created as a [Scheduled Entry](/api-reference/ledger-entries#scheduled-entries) that books on its date.
+
+| Kind | Date | What it posts |
+| --- | --- | --- |
+| `disbursement` | The disbursement date | Debits the settlement account with the net disbursement (the principal less the disbursement charges), with the lender as Partner. Debits each disbursement charge to its expense account. Credits short-term principal with the principal of the rows due within 12 months, and long-term principal with the rest. |
+| `accrual` | Each month end strictly inside an installment's period | Recognizes the days elapsed of that row's interest and charges: debits the interest and charges accounts, and credits the accrued-interest account. |
+| `installment` | The row's due date | Credits the settlement account with the row's total, with the lender as Partner. Debits short-term principal with the row's principal, clears the accrued interest of the row, and expenses the rest of the period's interest and charges. |
+| `reclassification` | 12 months before the row's due date | Moves the row's principal from long-term to short-term principal. Only rows due more than 12 months after the disbursement get one, and a row with zero principal gets none. |
+
+An installment's period runs from the previous due date, or from the disbursement for the first row, to its due date. Accruals are prorated by days and rounded on the running total, so over each row the expense equals the lender's interest and charges exactly. The short-term principal balance therefore always equals the principal due in the next 12 months, and every report reads it from the ledger.
+
+The disbursement and each installment stay as open items on the settlement account in the lender's name. Settle them against the bank feed with the usual [Match](/api-reference/bank-movements): match the bank credit to the disbursement, and each bank charge to its installment. A partial charge leaves the rest of the installment open. A charge above the open amount leaves the rest on the [Suspense Account](/api-reference/bank-movements#overpayments-and-the-suspense-account).
+
+To correct an entry after activation, use the usual acts on that entry, such as rescheduling, cancelling, or unbooking it. The Loan shows its entries with their current status.
+
+## Loan Issues
+
+A Loan Issue is something that keeps a Draft from activating. The Draft's detail lists all of them in `issues`, each as `{ code, params }`. Activate refuses with the first one as a `400`.
+
+| Code | Meaning | `params` |
+| --- | --- | --- |
+| `LOAN_FIELD_MISSING` | A required fact is missing: `disbursementDate`, `principalAmount`, or one of the five required accounts | `{ field }` |
+| `LOAN_SCHEDULE_EMPTY` | The Draft has no installments | `{}` |
+| `LOAN_PRINCIPAL_MISMATCH` | The principal of the rows doesn't add up to the Loan's principal | `{ principalTotal, principalAmount }` |
+| `LOAN_INSTALLMENT_DUE_DATE_NOT_AFTER_DISBURSEMENT` | The first due date is on or before the disbursement date | `{ installmentNumber, dueDate, disbursementDate }` |
+| `LOAN_INSTALLMENT_DUE_DATE_NOT_INCREASING` | A due date is on or before the previous row's due date | `{ installmentNumber, dueDate, previousDueDate }` |
+| `LOAN_DISBURSEMENT_CHARGES_EXCEED_PRINCIPAL` | The disbursement charges reach or exceed the principal | `{ disbursementChargesTotal, principalAmount }` |
+| `LOAN_CHARGES_ACCOUNT_REQUIRED` | A row has charges, and the Loan names no `chargesLedgerAccountId` | `{ installmentNumber }` |
+| `LOAN_DISBURSEMENT_DATE_LOCKED` | The disbursement date is on or before the Entity's [Lock Date](/api-reference/entities) | `{ disbursementDate, lockDate }` |
+
+The disbursement is the Loan's first entry, so the Lock Date check on its date covers every entry.
+
+## GET /api/entities/:entityId/loans
+
+List the Loans of an Entity, Drafts and active ones. The list comes whole, not in pages.
+
+- **Path param:** `entityId` (UUID)
+- **Success response:** `{ loans }`, an array of the rows below
+- **Status:** 200
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Loan id |
+| `name` | string | Loan name |
+| `disbursementDate` | ISO date or null | Disbursement date |
+| `principalAmount` | integer or null | Principal granted, before disbursement charges |
+| `partner` | object | The lender: `{ id, name, taxId }` |
+| `state` | enum | `draft` or `active` |
+| `figures` | object or null | The [figures](#figures) of an active Loan. `null` for a Draft |
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/loans \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## POST /api/entities/:entityId/loans
+
+Create a Draft. Only `id`, `partnerId`, and `name` are required. Send the other facts now or later with `PATCH`.
+
+- **Path param:** `entityId` (UUID)
+- **Body:** unknown fields are refused
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | Yes | Client-supplied idempotency id. A retry with the same id returns `409` with `LOAN_ALREADY_EXISTS` |
+| `partnerId` | UUID | Yes | The lender, a [Partner](/api-reference/partners) of the Entity. A Merged Partner is refused with `409` and `PARTNER_MERGED_ERROR` |
+| `name` | string | Yes | Loan name, such as `Operación 4471 FOGAPE`. Trimmed, and it can't be blank |
+| `disbursementDate` | ISO date or null | No | The date the lender paid out the Loan |
+| `principalAmount` | integer or null | No | Principal granted, before disbursement charges. Positive |
+| `shortTermPrincipalLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
+| `longTermPrincipalLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
+| `settlementLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
+| `accruedInterestLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
+| `interestLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
+| `chargesLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
+| `disbursementCharges` | array | No | Up to 20 charges the lender deducted from the disbursement. Defaults to `[]` |
+| `installments` | array | No | Up to 600 rows of the repayment schedule. Defaults to `[]` |
+
+Each item in `disbursementCharges`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `label` | string | Yes | What the charge is, such as `Impuesto de timbres`. It can't be blank |
+| `ledgerAccountId` | UUID | Yes | The expense account the charge goes to |
+| `amount` | integer | Yes | Positive amount |
+
+Each item in `installments`, one row as the lender prints it:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `number` | integer | Yes | Row number. Rows must be numbered 1 to N in order |
+| `dueDate` | ISO date | Yes | Due date |
+| `principal` | integer | Yes | Principal paid by the row |
+| `interest` | integer | Yes | Interest of the row |
+| `charges` | integer | Yes | The row's commission or guarantee, `0` when the schedule has none |
+| `total` | integer | Yes | The total the lender printed. It must equal `principal + interest + charges`, and it is not stored |
+
+The write is refused, and nothing is written, when:
+
+- A row's `total` isn't the sum of its parts: `400` with `LOAN_INSTALLMENT_TOTAL_MISMATCH`, `params: { installmentNumber, total, partsTotal }`. This catches a misread row.
+- The rows aren't numbered 1 to N: `400` with `LOAN_INSTALLMENT_NUMBER_OUT_OF_SEQUENCE`, `params: { installmentNumber, expectedNumber }`.
+- An account doesn't fit its role, or both principal accounts are the same. See [The Loan's accounts](#the-loans-accounts).
+
+Other rules, such as a principal the rows don't add up to, don't refuse the write. They show as [Loan Issues](#loan-issues) on the Draft.
+
+- **Success response:** the Draft's [detail](#get-/api/entities/entityid/loans/loanid)
+- **Status:** 201
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/loans \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Tabla de desarrollo operación 4471.pdf" \
+  -d '{
+    "id": "77777777-7777-4777-8777-777777777777",
+    "partnerId": "88888888-8888-4888-8888-888888888888",
+    "name": "Operación 4471 FOGAPE",
+    "disbursementDate": "2026-03-10",
+    "principalAmount": 120000000,
+    "shortTermPrincipalLedgerAccountId": "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    "longTermPrincipalLedgerAccountId": "a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2",
+    "settlementLedgerAccountId": "a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3",
+    "accruedInterestLedgerAccountId": "a4a4a4a4-a4a4-4a4a-8a4a-a4a4a4a4a4a4",
+    "interestLedgerAccountId": "a5a5a5a5-a5a5-4a5a-8a5a-a5a5a5a5a5a5",
+    "chargesLedgerAccountId": "a6a6a6a6-a6a6-4a6a-8a6a-a6a6a6a6a6a6",
+    "disbursementCharges": [
+      { "label": "Impuesto de timbres", "ledgerAccountId": "a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7", "amount": 720000 }
+    ],
+    "installments": [
+      { "number": 1, "dueDate": "2026-04-10", "principal": 3000000, "interest": 1050000, "charges": 40000, "total": 4090000 }
+    ]
+  }'
+```
+
+## GET /api/entities/:entityId/loans/:loanId
+
+Read one Loan. The response depends on `state`.
+
+- **Path params:** `entityId` (UUID), `loanId` (UUID)
+- **Success response:** the fields below
+- **Status:** 200
+
+Every Loan carries:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Loan id |
+| `entityId` | UUID | Owning Entity |
+| `partnerId` | UUID | The lender's Partner id |
+| `partner` | object | The lender: `{ id, name, taxId }` |
+| `name` | string | Loan name |
+| `state` | enum | `draft` or `active` |
+| `disbursementDate` | ISO date or null | Disbursement date |
+| `principalAmount` | integer or null | Principal granted |
+| `activatedAt` | ISO datetime or null | When the Loan was activated. `null` for a Draft |
+| `shortTermPrincipalLedgerAccountId`, `longTermPrincipalLedgerAccountId`, `settlementLedgerAccountId`, `accruedInterestLedgerAccountId`, `interestLedgerAccountId`, `chargesLedgerAccountId` | UUID or null | The account of each role |
+| `shortTermPrincipalLedgerAccount`, `longTermPrincipalLedgerAccount`, `settlementLedgerAccount`, `accruedInterestLedgerAccount`, `interestLedgerAccount`, `chargesLedgerAccount` | object or null | The same accounts as `{ id, code, name }` |
+| `disbursementCharges` | array | Each `{ position, label, amount, ledgerAccount }`, where `ledgerAccount` is `{ id, code, name }` |
+| `installments` | array | Each row as `{ number, dueDate, principal, interest, charges, total }` |
+| `createdAt` | ISO datetime | Creation timestamp |
+| `updatedAt` | ISO datetime | Last update timestamp |
+
+### A Draft
+
+A Draft adds:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `issues` | array | Every [Loan Issue](#loan-issues) of the Draft, each `{ code, params }`. Empty when the Draft can activate |
+| `simulation` | object or null | What Activate would write today. `null` while `issues` isn't empty |
+
+`simulation` holds:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `netDisbursement` | integer | The principal less the disbursement charges: what the bank should credit |
+| `shortTermPrincipal` | integer | Principal the disbursement credits to short term |
+| `longTermPrincipal` | integer | Principal the disbursement credits to long term |
+| `entries` | array | Every entry Activate would write, in date order |
+
+Each item in `entries`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `kind` | enum | `disbursement`, `accrual`, `installment`, or `reclassification` |
+| `installmentNumber` | integer or null | The row of an installment, accrual, or reclassification. `null` for the disbursement |
+| `entryDate` | ISO date | Entry date |
+| `memo` | string | Entry memo |
+| `status` | enum | `active` when it would be booked, or `scheduled` when it would be a Scheduled Entry |
+| `lines` | array | Each `{ ledgerAccount, side, functionalAmount, partnerId }`, where `ledgerAccount` is `{ id, code, name }` and `side` is `debit` or `credit` |
+
+### An active Loan
+
+An active Loan adds `figures` and `entries`.
+
+#### Figures
+
+`figures` is read from the Loan's entries as the ledger holds them now. A reversed entry no longer counts, and a rescheduled one counts at its new date and amount.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `outstandingPrincipal` | integer | Principal still owed: `shortTermPrincipal + longTermPrincipal` |
+| `shortTermPrincipal` | integer | Balance of the short-term principal from the Loan's active entries |
+| `longTermPrincipal` | integer | Balance of the long-term principal from the Loan's active entries |
+| `nextInstallment` | object or null | The earliest installment still `scheduled` or `due`, as `{ number, dueDate, total }`. `null` when none is left |
+| `overdueInstallmentCount` | integer | Installments booked, past their due date, and not fully paid |
+
+#### Entries
+
+`entries` lists each Ledger Entry the Loan wrote. Read the entry itself through the [Ledger Entries](/api-reference/ledger-entries) API with `ledgerEntryId`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ledgerEntryId` | UUID | The Ledger Entry |
+| `kind` | enum | `disbursement`, `accrual`, `installment`, or `reclassification` |
+| `installmentNumber` | integer or null | The row it belongs to. `null` for the disbursement |
+| `entryDate` | ISO date | The entry's current date |
+| `status` | enum | The entry's current status, such as `active` or `scheduled` |
+| `amount` | integer | The amount of its settlement line, or the sum of its debits when it has none |
+| `openAmount` | integer or null | The Open Amount of its settlement line. `null` for an accrual or a reclassification |
+| `settlementState` | enum or null | Where the disbursement or installment stands. `null` for an accrual or a reclassification |
+
+`settlementState` is read from the entry's status and the Open Amount of its settlement line:
+
+| Value | Meaning |
+| --- | --- |
+| `scheduled` | The entry is still a Scheduled Entry |
+| `to_receive` | The disbursement is booked, and the bank credit isn't matched yet |
+| `received` | The disbursement is fully matched |
+| `due` | The installment is booked, unpaid, and not past its due date |
+| `overdue` | The installment is unpaid and past its due date |
+| `partially_paid` | Part of the installment is paid |
+| `paid` | The installment is fully paid |
+| `cancelled` | The entry was cancelled, reversed, or deleted |
+
+```bash
+curl https://api.sintropix.com/api/entities/$ENTITY_ID/loans/$LOAN_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+## PATCH /api/entities/:entityId/loans/:loanId
+
+Update a Draft, or rename an active Loan. Send at least one field. Each field you send replaces the stored one whole. So `installments` and `disbursementCharges` replace the whole list: send every row, not only the ones that changed.
+
+- **Path params:** `entityId` (UUID), `loanId` (UUID)
+- **Body:** the fields of [`POST`](#post-/api/entities/entityid/loans) except `id`, each optional, with the same rules. Unknown fields are refused
+- **Success response:** the Loan's [detail](#get-/api/entities/entityid/loans/loanid)
+- **Status:** 200
+
+An active Loan takes only `name`. Any other field is refused with `409` and `LOAN_NOT_DRAFT`.
+
+```bash
+curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/loans/$LOAN_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Principal corrected from the lender's final table" \
+  -d '{"principalAmount": 118000000}'
+```
+
+## DELETE /api/entities/:entityId/loans/:loanId
+
+Delete a Draft with its schedule and disbursement charges. An active Loan can't be deleted: `409` with `LOAN_NOT_DRAFT`.
+
+- **Path params:** `entityId` (UUID), `loanId` (UUID)
+- **Success response:** the deleted Loan's own fields, without `partner`, the account objects, `disbursementCharges`, `installments`, or `state`
+- **Status:** 200
+
+```bash
+curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/loans/$LOAN_ID \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Loaded from a simulation, not the final table"
+```
+
+## POST /api/entities/:entityId/loans/:loanId/activate
+
+Activate a Draft. Sintropix writes every [entry of the Loan](#the-entries-a-loan-writes) in one transaction: entries dated today or earlier are booked, and later ones are scheduled. Activation can't be undone, and afterwards only the name changes.
+
+- **Path params:** `entityId` (UUID), `loanId` (UUID)
+- **Body:** none
+- **Success response:** the active Loan's [detail](#an-active-loan), with its `figures` and `entries`
+- **Status:** 200
+
+A Draft with a [Loan Issue](#loan-issues) is refused with `400` and the first issue's code and `params`. An active Loan is refused with `409` and `LOAN_NOT_DRAFT`.
+
+```bash
+curl -X POST https://api.sintropix.com/api/entities/$ENTITY_ID/loans/$LOAN_ID/activate \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Activate the FOGAPE loan, as asked by the controller"
+```
+
+## Loans and Partner merges
+
+When you [merge Partners](/api-reference/partners#merge-partners), every Loan of the merged Partner, Drafts and active ones, moves to the kept Partner. A Merged Partner can't be the lender of a new Draft or be set on one.
+
+## Domain error codes
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `LOAN_NOT_FOUND` | 404 | The Loan doesn't exist in this Entity. `params: { loanId }` |
+| `LOAN_ALREADY_EXISTS` | 409 | The Loan id is already used. Read the Loan instead of creating another. `params: { loanId }` |
+| `LOAN_NOT_DRAFT` | 409 | The Loan is active: it takes only a new name, and it can't be deleted or activated again. `params: { loanId }` |
+| `LOAN_LEDGER_ACCOUNT_INELIGIBLE` | 400 | An account doesn't fit its role. `params: { ledgerAccountId, role }`, where `role` is `short_term_principal`, `long_term_principal`, `settlement`, `accrued_interest`, `interest`, `charges`, or `disbursement_charge` |
+| `LOAN_PRINCIPAL_ACCOUNTS_MUST_DIFFER` | 400 | The short-term and long-term principal accounts are the same. `params: { ledgerAccountId }` |
+| `LOAN_INSTALLMENT_NUMBER_OUT_OF_SEQUENCE` | 400 | The rows aren't numbered 1 to N. `params: { installmentNumber, expectedNumber }` |
+| `LOAN_INSTALLMENT_TOTAL_MISMATCH` | 400 | A row's printed total isn't the sum of its parts. `params: { installmentNumber, total, partsTotal }` |
+| `PARTNER_NOT_FOUND_ERROR` | 404 | The lender isn't a Partner of the Entity. `params: { partnerId }` |
+| `PARTNER_MERGED_ERROR` | 409 | The lender is a Merged Partner. Use the Partner in `params.mergedIntoPartnerId` instead. `params: { partnerId, mergedIntoPartnerId }` |
+| Any [Loan Issue](#loan-issues) code | 400 | Activate refused the Draft with its first Loan Issue |
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Success (GET, PATCH, DELETE, activate) |
+| 201 | Created (POST) |
+| 400 | Validation error, such as an unknown field, a negative amount, more than 600 rows, a row that doesn't add up, or a Loan Issue on activate |
+| 401 | Unauthenticated |
+| 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`). A `viewer` can read Loans but not write them |
+| 404 | Entity, Loan, Partner, or account not found in this Entity |
+| 409 | Domain rule violation |

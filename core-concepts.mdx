@@ -39,7 +39,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - An **entity with no Basis** keeps one set of books, exactly as before.
     - An **entity with at least one Basis** states its facts under more than one measure. Every report reads one Basis (its common entries plus the entries of that Basis), and every basis-scoped read must name which Basis with a `basisId` query parameter.
     - A ledger entry either names a Basis (it counts in that Basis only) or names none (a **common entry**, counting in every Basis).
-    - Invoices and bank movements are facts every Basis shares, so the entries that book them are always common. A Basis entry cannot post to an account of Sub-type `cash`, `receivable`, `payable`, `expense_rendition_payable`, or `credit_card`. See [Common-only accounts](/api-reference/bases#common-only-accounts).
+    - Invoices and bank movements are facts every Basis shares, so the entries that book them are always common. A Basis entry cannot post to an account of Sub-type `cash`, `receivable`, `payable`, `expense_rendition_payable`, `credit_card`, or `loan`. See [Common-only accounts](/api-reference/bases#common-only-accounts).
     - A reversal stays in the Basis of its original. An allocation, and every pair inside a match, must stay within a single Basis.
 
     Bases share the entity's chart of accounts, functional currency, and ledger lock date. See the [Bases API](/api-reference/bases) for the model and the exact rule.
@@ -96,6 +96,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
     - **Draft journal entries**: propose adjusting entries based on reconciliation findings, which a team member can review and post
     - **Load Ontop**: create, book, and match the invoices of Ontop, the platform that pays your foreign contractors from a prepaid USD wallet. See [Ontop invoices](/api-reference/invoices#ontop-invoices)
     - **Load a Budget**: create or update a [Budget](/api-reference/budgets) month by month from a spreadsheet, a table in your message, or a rule such as *"lo mismo que 2026 más 10%"*. He maps each row to a Result Account by code, then by exact name, and asks about rows that match no account, the unit, and the currency. He checks each section's monthly totals against your source before he reports
+    - **Load a Loan**: read the lender's final repayment schedule (*tabla de desarrollo*) from a PDF or Excel, find the lender and the accounts, and create or complete the [Loan](/api-reference/loans) as a Draft. He checks that each row adds up to its printed total and that the rows add up to the principal, and reports the simulated entries for you to review. He stops on a simulation table or a Loan in UF or dollars, and activates the Loan only when you ask for exactly that
     - **Centralize payroll**: book a month's remuneraciones and finiquitos from Buk, through the Entity's Buk API key Credential or the *Centralización Contable* Excel you send him. He learns each payroll code's account from your last centralization and asks about codes he hasn't seen. He books only after you approve his proposal in the thread, and clears salary and Previred payments only after you confirm them
     - **Link intercompany entries**: when a loan, a charge, or a payment is between two companies of your Organization, he books each company's entry as usual and joins a line of each with an [Intercompany Link](/api-reference/intercompany-links). To correct a Link, he unlinks it and links the right lines. When he corrects an entry behind a Link by unbooking or reversing it, the Link goes with it, so he links the new line again
 
@@ -205,6 +206,12 @@ Loading data from its source, such as the movements of a bank account, isn't a d
     For example, an asset bought and starting on 2026-07-15, with a cost of 1001 and a life of 3 months, gets charges of 333 on 2026-07-31, 333 on 2026-08-31, and 335 on 2026-09-30.
 
     In the API, `depreciationStartDate` is an ISO date. A date before the acquisition date returns `400` with `FIXED_ASSET_DEPRECIATION_START_DATE_INVALID`, and `params` carries `acquisitionDate` and `depreciationStartDate`. Open the assets in the app at `/{entityId}/fixed-assets` (see [Link to the App](/guides/app-links)).
+  </Accordion>
+
+  <Accordion title="Loan">
+    A **Loan** is money a lender, such as a bank, handed to an entity and that the entity pays back in installments, as the lender's repayment schedule (*tabla de desarrollo*) states. You load the schedule as the lender prints it, and Sintropix never computes a rate or an installment.
+
+    A Loan starts as a **Draft**, which writes nothing to the books. Once it has no issues, its simulation shows every entry it would write. **Activate** then writes all of them at once: the disbursement, the month-end interest accruals, each installment, and the moves of principal from long term to short term. Future entries are scheduled. The disbursement and each installment stay open in the lender's name, so you settle them with the usual bank Match. See [Loans](/api-reference/loans).
   </Accordion>
 
   <Accordion title="Journal Entry">
