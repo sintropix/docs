@@ -45,7 +45,8 @@
                   "api-reference/ledger-entries",
                   "api-reference/intercompany-links",
                   "api-reference/allocations",
-                  "api-reference/dimensions"
+                  "api-reference/dimensions",
+                  "api-reference/loans"
                 ]
               },
               {
@@ -149,7 +150,8 @@
                   "api-reference/ledger-entries",
                   "es/api-reference/intercompany-links",
                   "api-reference/allocations",
-                  "api-reference/dimensions"
+                  "api-reference/dimensions",
+                  "api-reference/loans"
                 ]
               },
               {
