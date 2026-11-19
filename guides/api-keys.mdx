@@ -1,7 +1,7 @@
 ---
 title: "Get a Sintropix API Key for Agents and Integrations"
 sidebarTitle: "Get an API Key"
-description: "Create a Sintropix API key from Tu cuenta, pass it in the x-api-key header, and choose its Key Scope, and understand the rate limits, and rotation rules that apply to programmatic access."
+description: "Create a Sintropix API key from Tu cuenta, choose its Key Scope, pass it in the x-api-key header, and understand the rate limits and rotation rules that apply to programmatic access."
 ---
 
 Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, acts as the owning User with that User's Organization Memberships, reaches the Entities its [Key Scope](#key-scope) allows, and is rate-limited to 25,000 requests per hour.
@@ -28,11 +28,11 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
     The page lists every key you own with its name, its scope in the **Alcance** column, prefix, creation date, expiry, and last use. Keys can be revoked from the trash icon on each row.
 
     <Frame caption="Existing keys. Only the prefix is shown; the secret is never displayed again after creation.">
-      <img src="/images/api-keys/03-api-keys-list.png" alt="Claves de API page listing existing keys with a Crear clave button" />
+      <img src="/images/api-keys/03-api-keys-list.png" alt="Claves de API page under Tu cuenta listing three keys: Bot contable and Conciliación bancaria with their selected entities in the Alcance column, and Agente de reportes with Todas las entidades, and a Crear clave button at the top right" />
     </Frame>
   </Step>
   <Step title="Create the key">
-    Click **Crear clave**. Give the key a descriptive name (for example `erwin-agent` or `reconciliation-bot`) so you can identify it later in the key list and the audit trail.
+    Click **Crear clave** at the top right of the page. Give the key a descriptive name (for example `erwin-agent` or `reconciliation-bot`) so you can identify it later in the key list and the audit trail.
 
     Under **Alcance**, choose the Entities the key reaches:
 
@@ -44,7 +44,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
     Click **Crear clave** in the dialog to mint the key.
 
     <Frame caption="Name the key after the software that will use it, and choose its scope under Alcance.">
-      <img src="/images/api-keys/04-create-key-dialog.png" alt="Crear clave de API dialog with a Nombre field" />
+      <img src="/images/api-keys/04-create-key-dialog.png" alt="Crear clave de API dialog with Bot contable as the Nombre and Entidades seleccionadas chosen under Alcance, with Anthropic Chile SpA checked in a list of entities grouped by Organization" />
     </Frame>
   </Step>
   <Step title="Copy the secret">
