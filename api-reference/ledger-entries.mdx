@@ -110,6 +110,7 @@ Get the full detail of a single Ledger Entry, including lines, related invoices,
 | `deferrals` | array | The [Deferrals](/api-reference/invoices#reading-a-deferral) whose deferred line this entry books; empty for other entries. Unbooking or reversing this entry also undoes their Releases |
 | `accrualRelease` | object or null | Set when this entry is a [Release](/api-reference/invoices#accruals) of an Accrual: `{ accrualId, invoiceId, invoiceDocumentNumber, invoiceDirection }`. `null` for other entries |
 | `accruals` | array | The [Accruals](/api-reference/invoices#reading-an-accrual) whose accrued line this entry books; empty for other entries. Unbooking or reversing this entry also undoes their Releases |
+| `loan` | object or null | Set when a [Loan](/api-reference/loans) wrote this entry, such as its disbursement, an accrual, an installment, or a reclassification: `{ loanId, loanName }`. `null` for other entries |
 
 Each item in `lines` is a **Ledger Entry Line** (the first nineteen fields, which other endpoints return on their own) plus the names and valuation figures the detail view shows:
 

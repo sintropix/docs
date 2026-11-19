@@ -18,9 +18,22 @@ The usual flow:
 3. [Activate](#post-/api/entities/entityid/loans/loanid/activate) the Loan.
 4. Settle the bank credit of the disbursement and each installment the bank charges with the usual [bank Match](/api-reference/bank-movements).
 
-<Note>
-  The app has no Loan screens yet. Load Loans through the API, or ask Erwin to load one from the lender's PDF or Excel. Erwin creates the Draft and reports its simulation, and activates it only when you ask for exactly that.
-</Note>
+You can also ask Erwin to load a Loan from the lender's PDF or Excel. Erwin creates the Draft, reports its simulation with a link to the Loan in the app, and activates it only when you ask for exactly that.
+
+## Loans in the app
+
+In the app, Loans live under **Contabilidad** → **Créditos**, at `/{entityId}/loans`. The register lists every Loan with its lender, its state, its outstanding principal split into **C/P** and **L/P**, its next installment, and its overdue installments not yet matched.
+
+1. Click **Nuevo crédito**, choose the lender, and name the Loan. Click **Crear borrador** to create the Draft and open it.
+2. On the Draft, fill in **Condiciones**: the disbursement date, the amount, and the account of each role. Each account picker offers only the accounts that [fit that role](#the-loans-accounts).
+3. Add the **Cargos del desembolso**, if the lender deducted any.
+4. Type the **Tabla de desarrollo** row by row, or paste the lender's table into it. Paste the columns in this order: number, due date, principal, interest, charges, and total. Below the table, a live sum tells you whether the rows' principal adds up to the Loan's amount.
+5. Click **Guardar**. **Para activar** lists each [Loan Issue](#loan-issues) still open, and **Asientos que se crearán** shows the simulation: every entry Activate would write.
+6. Once nothing is left to fix, click **Activar** and confirm. You can also **Eliminar** a Draft you no longer need.
+
+An active Loan opens at `/{entityId}/loans/{loanId}`. It shows its [figures](#figures) and one timeline of its past and future entries, with the date, the kind, the amount, the entry's status, and its settlement state. Each row opens its Ledger Entry. Rename the Loan from its name in the breadcrumb. An entry a Loan wrote shows a **Crédito** section that links back to the Loan.
+
+Both the Draft and the active Loan end with the Loan's activity: when it was created, when its terms, schedule, or charges changed, and when it was activated, renamed, or deleted.
 
 ## Amounts and currency
 
