@@ -10,7 +10,7 @@ A **Consolidation Scope** is a set of Entities of one Organization that you read
 
 An [Intercompany Link](/api-reference/intercompany-links) joins two lines, one in each of two Entities, that are the two halves of one position or flow between them: a receivable and its payable, or a revenue and its expense. A consolidated report eliminates a Link when both of its Entities are in the Scope. A line that's in no Link is never eliminated, so link every intercompany line you want the reports to cancel.
 
-A consolidated report reads the books each time you call it. It posts nothing and stores nothing.
+A consolidated report reads the books each time you call it. It posts nothing and stores nothing. It reads each Entity's books as the Entity's own reports do, [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries) included, so an Entity's column carries its foreign monetary items at the closing rate. See [Revaluation in consolidated reports](#revaluation-in-consolidated-reports).
 
 There are three reads:
 
@@ -101,8 +101,8 @@ Each item in `intercompanyLinks`:
 
 The kinds:
 
-- **`unrevalued`** (**Diferencia sin revaluar**): both lines of an eliminated Link are on asset or liability accounts. It comes from money owed in a foreign currency after the rate moved, and a revaluation would remove it. Only the Trial Balance shows it.
-- **`translation`** (**Diferencia de conversión**): any other eliminated Link whose two sides don't cancel. It comes from the fixed rate, and no revaluation removes it.
+- **`unrevalued`** (**Diferencia sin revaluar**): every line of an eliminated Link is on an asset or liability account, and a foreign-currency line among them isn't carried at the closing rate on the report's date. That happens when the line's account isn't a [Monetary Account](/api-reference/chart-of-accounts#monetary-accounts), when the account is revalued as one balance (`tracking: "balance"`), or when the line's month has no closing rate yet. A revaluation would remove it. Only the Trial Balance shows it.
+- **`translation`** (**Diferencia de conversión**): any other eliminated Link whose two sides don't cancel, such as a revalued receivable and its payable read at a presentation rate other than the closing rate. It comes from the fixed rate, and no revaluation removes it.
 - **`inTransit`** (**En tránsito, sin eliminar**): one line of the Link is in the report and the other is dated after it. Nothing eliminates the Link yet, so the line stays in its Entity's column and in Consolidado.
 
 The `unrevalued` and `translation` amounts sit in the Eliminaciones and Consolidado columns. The `inTransit` amount is a memo: no column adds it up, because its line already counts in its Entity's column.
@@ -111,7 +111,7 @@ The `unrevalued` and `translation` amounts sit in the Eliminaciones and Consolid
 
 The **Consolidated Trial Balance** is the balance of every Group Account of a Scope at a date. It has one row per Group Account, with one column per Entity of the Scope, then Eliminaciones, then Consolidado:
 
-- **An Entity's cell** is the balance at `date` of the Entity's Ledger Accounts mapped to that Group Account, in the presentation currency: what those accounts carry into the Fiscal Year plus their lines of the year up to `date`, each [converted once](#scope-currency-and-rates). It equals the closing balance of the [Consolidated Ledger](#consolidated-ledger) behind it.
+- **An Entity's cell** is the balance at `date` of the Entity's Ledger Accounts mapped to that Group Account, in the presentation currency: what those accounts carry into the Fiscal Year plus their lines of the year up to `date`, Revaluation Entries included, each [converted once](#scope-currency-and-rates). It equals the closing balance of the [Consolidated Ledger](#consolidated-ledger) behind it.
 - **Eliminaciones** is the reversal of each linked line that the date eliminates.
 - **Consolidado** is the Entities' cells plus Eliminaciones.
 
@@ -129,6 +129,20 @@ A Link is eliminated at `date` when both of its Entities are in the Scope and bo
 A linked line on a result account dated in an earlier, closed Fiscal Year has already moved to retained earnings. So it's reversed on its Entity's [retained earnings account](/api-reference/chart-of-accounts#the-retained-earnings-account), or on `unclosedPriorResult` when the Entity has none.
 
 A Link with one Entity outside the Scope is never eliminated: from the Scope's view, the other Entity is an outside party. A Link with only one line on or before `date` is [in transit](#differences).
+
+### Revaluation in consolidated reports
+
+An Entity's column reads its books with their [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries), so a foreign open item that a Link names may carry a revaluation. When the Link is eliminated, the item is eliminated as revalued:
+
+- **The item's Revaluation lines are reversed with it.** Each Revaluation line on the open item's Monetary Account, dated on or before `date`, is reversed in Eliminaciones on its Group Account, dated the later of the Revaluation line and the Link. A month's Revaluation Entry and its reversal on the 1st of the next month are eliminated in pairs.
+- **The exchange difference stays in the result.** The [Exchange Difference Lines](/api-reference/bank-movements#the-exchange-difference-line) of those entries aren't eliminated, so the gain or loss each Entity booked on the item stays in Consolidado.
+- **A Link in transit leaves the item's Revaluation lines in its Entity's column**, with the item itself.
+
+For example, a CLP Entity is owed USD 1,000.00 by a USD Entity of the same group. It booked the receivable at 900, so CLP 900.000, and the closing rate on 31 March is 940. Read on 31 March in CLP at 1 USD = 940 CLP, the receivable's column reads CLP 940.000 with its Revaluation Entry. Eliminaciones reverses the stored line and the Revaluation line, so the receivable is eliminated in full at 940.000 and no difference is left. The gain of CLP 40.000 stays in the result.
+
+A [Monetary Account](/api-reference/chart-of-accounts#monetary-accounts) revalued as one balance (`tracking: "balance"`) has one Revaluation Entry per currency for the whole account, so no Link can take its revaluation with it. When such an account holds a linked foreign line, the elimination reverses the linked line alone. The account's revaluation stays in the Entity's column, and the Link's difference is `unrevalued` ([sin revaluar](#differences)). The Entity's revaluation notices name the account with `REVALUATION_LINKED_LINE_ON_BALANCE_ACCOUNT`. To have a linked receivable or payable eliminated as revalued, keep it on an `open_item` account.
+
+The consolidated pages show each Entity's [revaluation notices](/api-reference/ledger-entries#notices-in-the-app) in a banner, each under the Entity's name. To read them through the API, call [`GET /api/entities/:entityId/ledger/revaluation`](/api-reference/ledger-entries#get-/api/entities/entityid/ledger/revaluation) for each Entity of the Scope.
 
 ### Read it as a balance sheet
 
@@ -176,7 +190,7 @@ Read the Consolidated Trial Balance of a Scope at a date.
 
 ### Trial Balance example
 
-Holding SpA keeps its books in CLP and Inc in USD. On March 2, SpA lends Inc USD 1,000.00 and books the receivable at that day's rate: 1.100.000 CLP, with a transaction amount of USD 1,000.00. On March 3, Inc books the payable of USD 1,000.00. A Link joins the receivable and the payable. Read the balance on April 30 in CLP at 1 USD = 1.000 CLP:
+Holding SpA keeps its books in CLP and Inc in USD. On March 2, SpA lends Inc USD 1,000.00 and books the receivable, on a Ledger Account that isn't monetary, at that day's rate: 1.100.000 CLP, with a transaction amount of USD 1,000.00. On March 3, Inc books the payable of USD 1,000.00. A Link joins the receivable and the payable. Read the balance on April 30 in CLP at 1 USD = 1.000 CLP:
 
 ```bash
 curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/consolidated-trial-balance?entityIds=$SPA_ID&entityIds=$INC_ID&date=2026-04-30&presentationCurrency=CLP&presentationRates=USD:0.001" \
@@ -265,13 +279,13 @@ curl "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/consolidated-
 }
 ```
 
-The loan cancels in Eliminaciones: SpA's receivable of 1.100.000 CLP against Inc's payable of 1.000.000 CLP. The 100.000 CLP they don't cancel is a **sin revaluar** difference, because SpA booked the receivable at 1.100 CLP per USD and the report reads it at 1.000. With it, Eliminaciones and Consolidado each sum to zero.
+The loan cancels in Eliminaciones: SpA's receivable of 1.100.000 CLP against Inc's payable of 1.000.000 CLP. The 100.000 CLP they don't cancel is a **sin revaluar** difference, because SpA booked the receivable at 1.100 CLP per USD, doesn't revalue it, and the report reads it at 1.000. With it, Eliminaciones and Consolidado each sum to zero.
 
 ## Consolidated Ledger
 
 The **Consolidated Ledger** is the line-level read behind one row of the Trial Balance or the Income Statement. For one Group Account and a period, it walks in date order the lines of every Entity's Ledger Accounts mapped to that Group Account, and the elimination lines that land on it, with one running balance in the presentation currency.
 
-An **elimination line** reverses one linked line on the opposite side. It names the line it reverses and that line's Entry, Entity, account, and Link, and it's dated the later of its Link's two lines.
+An **elimination line** reverses one linked line on the opposite side. It names the line it reverses and that line's Entry, Entity, account, and Link, and it's dated the later of its Link's two lines. An elimination line can also reverse a Revaluation line of the open item a Link names, as described in [Revaluation in consolidated reports](#revaluation-in-consolidated-reports). It's dated the later of the Revaluation line and the Link, and it names the Revaluation line and its [Computed Entry](/api-reference/ledger-entries#computed-entries).
 
 Narrow the walk with `entityId` to one Entity's lines, or with `kind=elimination` to the elimination lines alone. The opening, running, and closing balances then count only the lines it keeps, so the page closes on that cell of the Trial Balance.
 
@@ -321,7 +335,7 @@ Each item in `lines`:
 | `entityId` | UUID | Entity of the line |
 | `entityName` | string | Name of that Entity |
 | `entryId` | UUID | Ledger Entry of the line |
-| `entryDate` | ISO date | Date of the Entry, or for an elimination line, the later of its Link's two lines |
+| `entryDate` | ISO date | Date of the Entry. For an elimination line, the later of its Link's two lines, or of the Revaluation line it reverses and the Link |
 | `entryMemo` | string or null | Memo of the Entry |
 | `accountId` | UUID | The Entity's Ledger Account |
 | `accountCode` | string | Code of that account |
@@ -395,7 +409,7 @@ The elimination line is dated March 3, the day Inc booked its side of the Link.
 
 The **Consolidated Income Statement** is the result of a Scope over a period inside one [Fiscal Year](/api-reference/reports#the-fiscal-year-in-reports). It has one row per Group Account of a result type (`income`, `cost_of_goods_sold`, `operating_expense`, `other_income`, or `other_expense`), and these columns:
 
-- **One column per Entity of the Scope.** What the Entity's Ledger Accounts mapped to that Group Account move in the period: the sum of their lines, each [converted once](#scope-currency-and-rates).
+- **One column per Entity of the Scope.** What the Entity's Ledger Accounts mapped to that Group Account move in the period: the sum of their lines, each [converted once](#scope-currency-and-rates). This includes the exchange differences of the Entity's [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries), which no elimination reverses.
 - **Eliminaciones.** The reversal of each linked line that the period eliminates.
 - **Consolidado.** The Entities' columns plus Eliminaciones.
 

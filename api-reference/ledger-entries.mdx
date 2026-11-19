@@ -695,7 +695,7 @@ A Computed Entry is a Ledger Entry that Sintropix computes from your stored line
 A Computed Entry reads like any other entry:
 
 - `GET /ledger/entries`, the entry detail, and `GET /ledger/lines` return it. The entry detail answers `isComputed: true`.
-- Balances and reports include it: the balance sheet, the income statement, the eight-column balance, the general ledger, and the journal.
+- Balances and reports include it: the balance sheet, the income statement, the eight-column balance, the general ledger, the journal, and the [consolidated reports](/api-reference/consolidation#revaluation-in-consolidated-reports).
 - Its amounts follow your data and the published rates, so two reads can answer different amounts. Its id stays the same.
 
 Open items and their open amounts, bank match candidates, and the activities of the cash flow statement read stored lines only. A Computed Entry never settles or changes an open item.
@@ -783,6 +783,7 @@ A notice never blocks a read. Balances and reports answer without the part it na
 | `REVALUATION_CLOSING_RATE_PROVISIONAL` | The Rate Source has published nothing dated after the month end yet, so the closing rate, and the entry with it, can still change. `params: { currency, monthEnd, rateDate }` |
 | `REVALUATION_DIMENSIONS_NOT_SET` | The Group Account of an Exchange Difference Account the entries use [requires Dimensions](/api-reference/dimensions#required-dimensions), but computed lines carry no Dimension values. `params: { accountId, accountName, dimensions }`, where `dimensions` is an array of `{ dimensionId, name }` |
 | `REVALUATION_BASIS_LINE_NOT_REVALUED` | A Basis Entry has a foreign line on a Monetary Account. Basis lines are not revalued. `params: { accountId, accountName, basisId, basisName }` |
+| `REVALUATION_LINKED_LINE_ON_BALANCE_ACCOUNT` | A foreign line in an [Intercompany Link](/api-reference/intercompany-links) sits on a Monetary Account revalued as one balance (`tracking: "balance"`). The consolidated reports can't eliminate the account's exchange difference in that currency with the Link. See [Revaluation in consolidated reports](/api-reference/consolidation#revaluation-in-consolidated-reports). `params: { accountId, accountName, currency }` |
 
 ```bash
 curl "https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/revaluation?through=2026-03-31" \
@@ -819,7 +820,9 @@ The banner shows one line per notice, and nothing when no notice applies. To kee
 - It hides the provisional rate of the current month. That month is always revalued at today's rate, so the notice would always show.
 - Months that share one closing rate, or that all lack a rate for a currency, show once, at the newest month. For example, when a Rate Source stops publishing USD, the banner shows one line for the latest month instead of one per month.
 
-The banner refreshes when the books change, when you tag an Exchange Difference Account, when you change whether an account is monetary, and when a Dimension or a Group Account's required Dimensions change. The consolidated reports show no banner.
+The banner refreshes when the books change, when you tag an Exchange Difference Account, when you change whether an account is monetary, and when a Dimension or a Group Account's required Dimensions change.
+
+The group's reports show the same banner with the notices of every Entity they read, each line opening with the Entity's name, as in `Andes Chile SpA: {notice}`. These are **Consolidado**, **Balance general**, and **Estado de resultados** of the [consolidated reports](/api-reference/consolidation), read through the report's date or the end of its period, and the [cash flow statement of the Organization](/api-reference/reports#cash-flow-statement-of-the-organization), read through the last day of its last month.
 
 ## Scheduled Entries
 
