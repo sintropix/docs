@@ -1,10 +1,10 @@
 ---
 title: "Get a Sintropix API Key for Agents and Integrations"
 sidebarTitle: "Get an API Key"
-description: "Create a Sintropix API key from Tu cuenta, pass it in the x-api-key header, and understand the scope, rate limits, and rotation rules that apply to programmatic access."
+description: "Create a Sintropix API key from Tu cuenta, pass it in the x-api-key header, and choose its Key Scope, and understand the rate limits, and rotation rules that apply to programmatic access."
 ---
 
-Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, acts as the owning User with that User's Organization Memberships, and is rate-limited to 25,000 requests per hour.
+Sintropix API keys let agents and integrations authenticate as a User without a browser session. Each key is a long-lived credential passed in the `x-api-key` header, acts as the owning User with that User's Organization Memberships, reaches the Entities its [Key Scope](#key-scope) allows, and is rate-limited to 25,000 requests per hour.
 
 Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sintropix.com). The whole trip takes under a minute.
 
@@ -25,7 +25,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
   <Step title="Go to Claves de API">
     **Tu cuenta** opens on **Perfil**. In the list on the left, click **Claves de API**. The page is at `https://app.sintropix.com/account/api-keys`.
 
-    The page lists every key you own with its name, prefix, creation date, expiry, and last use. Keys can be revoked from the trash icon on each row.
+    The page lists every key you own with its name, its scope in the **Alcance** column, prefix, creation date, expiry, and last use. Keys can be revoked from the trash icon on each row.
 
     <Frame caption="Existing keys. Only the prefix is shown; the secret is never displayed again after creation.">
       <img src="/images/api-keys/03-api-keys-list.png" alt="Claves de API page listing existing keys with a Crear clave button" />
@@ -34,13 +34,16 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
   <Step title="Create the key">
     Click **Crear clave**. Give the key a descriptive name (for example `erwin-agent` or `reconciliation-bot`) so you can identify it later in the key list and the audit trail.
 
-    If the owning User belongs to more than one Entity, the dialog also shows an **Entidad legal** selector. Leave it on **Todas las entidades legales** to let the key act across every Entity the User can already access, or pick one Entity to confine the key to that single company. A confined key cannot read or write the data of the other Entities, and the confinement is visible in the **Entidad legal** column of the key list.
+    Under **Alcance**, choose the Entities the key reaches:
 
-    Choose one Entity when the integration only needs to work with one company (for example a bookkeeping bot that services a single client), so a leaked key cannot touch the rest.
+    - **Todas las entidades** (the default) reaches every Entity you reach, in every Organization you belong to. It also reaches the Entities added later.
+    - **Entidades seleccionadas** reaches only the Entities you check. The list groups your Entities by Organization, and you can check Entities of more than one Organization. Check at least one: **Crear clave** stays disabled until you do.
+
+    Choose **Entidades seleccionadas** when the integration only needs some companies (for example a bookkeeping bot that services one client), so a leaked key can't touch the rest. You can't change the scope later. To reach other Entities, create a new key and revoke the old one. See [Key scope](#key-scope) for what a key of selected Entities can and can't do.
 
     Click **Crear clave** in the dialog to mint the key.
 
-    <Frame caption="Name the key after the software that will use it. The Entidad legal selector only appears when the owning User has access to more than one Entity.">
+    <Frame caption="Name the key after the software that will use it, and choose its scope under Alcance.">
       <img src="/images/api-keys/04-create-key-dialog.png" alt="Crear clave de API dialog with a Nombre field" />
     </Frame>
   </Step>
@@ -82,7 +85,7 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
       }'
     ```
 
-    Requests to `/api/auth/*` are rejected when they carry `x-api-key`, so keys cannot be used to mint further keys or manage Users.
+    Requests to `/api/auth/*` are rejected when they carry `x-api-key`, and `POST /api/api-keys` refuses a key with `403`, so keys can't be used to mint further keys or manage Users.
 
     Requests made with an API key do not ask for a two-step verification code. The second factor is checked once, when the key is created.
   </Step>
@@ -93,7 +96,86 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
 - A key authenticates as its owning User, with that User's Organization Memberships. See [Access and roles](/api-reference/overview#access-and-roles).
 - A key never does Superadmin work, even when a Superadmin owns it. Managing Users, Organizations, and Memberships needs a signed-in session; a key gets `403` with `SUPERADMIN_SESSION_REQUIRED`.
 - Business routes are scoped by Entity (`/api/entities/{entityId}/...`). A key can only access Entities of the Organizations the owning User holds a Membership in, and only do what the User's Role there allows. A key owned by a `viewer` can only read.
-- A key created for a single Entity is confined to that Entity. Requests to `/api/entities/{otherEntityId}/...` return `404`, `GET /api/entities` lists only the confined Entity, and `GET /api/organizations` returns an empty array. The key reaches the [Partners of its Entity's Organization](/api-reference/partners#organization-partners), but it can only merge a Partner that no other Entity uses. It also reaches the [Dimensions of that Organization](/api-reference/dimensions#dimensions-belong-to-the-organization). It lists every [Integration of that Organization](/api-reference/integrations#integrations-belong-to-the-organization), never a secret, but it can't connect, renew, or disconnect one (`403` with `PERMISSION_DENIED_ERROR`), and it adds or removes only the feeds that land in its own Entity. Any other Organization answers `404`. Routes that manage a whole Organization, such as [Agent Channels](/api-reference/agent-channels), [Intercompany Links](/api-reference/intercompany-links#access) and [consolidated reports](/api-reference/consolidation#access) (reads included), and [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-/organizations/organizationid/role), return `403`. No API key can create Entities. Use one-Entity keys when the integration should only ever touch one company.
+- A key reaches only the Entities its [Key Scope](#key-scope) allows, and never more than the owning User reaches.
+
+## Key scope
+
+Every key states its Key Scope when it is created, and the scope never changes. The owning User's Memberships and Roles cap both kinds, so a scope only narrows what the key can do.
+
+| Scope | In the app | Reaches |
+| --- | --- | --- |
+| `all_entities` | **Todas las entidades** | Every Entity the owning User reaches, in every Organization, including Entities added after the key was created. |
+| `listed_entities` | **Entidades seleccionadas** | Only the Entities the key lists: at least one, from any of the owning User's Organizations. |
+
+A key of listed Entities works with the books of its Entities and with the Organizations they belong to, but it never acts on a whole Organization, even when it lists every Entity:
+
+- Requests to `/api/entities/{otherEntityId}/...` for an Entity it doesn't list return `404`. `GET /api/entities` lists only its Entities, and `GET /api/organizations` returns an empty array.
+- It reaches the [Partners](/api-reference/partners#organization-partners) and [Dimensions](/api-reference/dimensions#dimensions-belong-to-the-organization) of its Entities' Organizations. It can only merge a Partner that no unlisted Entity uses.
+- It lists every [Integration](/api-reference/integrations#integrations-belong-to-the-organization) of those Organizations, never a secret, but it can't connect, renew, or disconnect one, and it can't read Integration content such as email or files (`403` with `PERMISSION_DENIED_ERROR`). It adds or removes only the feeds that land in its own Entities.
+- Routes that manage a whole Organization, such as [Agent Channels](/api-reference/agent-channels), [Intercompany Links](/api-reference/intercompany-links#access) and [consolidated reports](/api-reference/consolidation#access) (reads included), and [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-/organizations/organizationid/role), return `403`.
+- Any other Organization answers `404`.
+
+No API key can create Entities. An Entity that a key lists can't be deleted while the key exists.
+
+Keys created before Key Scopes existed keep their reach: a key confined to one Entity now lists that Entity, and every other key reaches all Entities.
+
+## Manage keys over the API
+
+The **Claves de API** page uses these routes. They need a signed-in browser session that passed two-step verification. A request that carries an API key or an OAuth access token gets `403` with `PERMISSION_DENIED_ERROR`.
+
+### Create a key
+
+`POST /api/api-keys` creates a key for the signed-in User and returns its secret once.
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `name` | string | Required. 1 to 32 characters after trimming. |
+| `expiresIn` | integer or `null` | Required. Seconds until the key expires, from `3600` (1 hour) to `31536000` (1 year). `null` creates a key that never expires. |
+| `scope` | object | Required. `{ "kind": "all_entities" }`, or `{ "kind": "listed_entities", "entityIds": [...] }` with at least one Entity id, each listed once. |
+
+```json
+{
+  "name": "reconciliation-bot",
+  "expiresIn": null,
+  "scope": {
+    "kind": "listed_entities",
+    "entityIds": [
+      "5f1c2a9e-8d4b-4c7a-9e21-3b6f0d8a4c12",
+      "a2e7d3c1-6b9f-4e05-8c4a-1d7e9f2b3a60"
+    ]
+  }
+}
+```
+
+The response is the key object with its secret in `key`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The key's id. |
+| `name` | string | The key's name. |
+| `start` | string or `null` | The first characters of the secret, shown in the key list. |
+| `prefix` | string or `null` | The key's prefix. |
+| `createdAt` | string | ISO 8601 timestamp. |
+| `expiresAt` | string or `null` | ISO 8601 timestamp, or `null` for a key that never expires. |
+| `lastRequest` | string or `null` | ISO 8601 timestamp of the key's last request. |
+| `scope` | object | The Key Scope, as sent. |
+| `key` | string | The secret. Only this response returns it. |
+
+| Status | Code | When |
+| --- | --- | --- |
+| `400` | — | A field is missing or breaks its rules: an empty or duplicated `entityIds`, a name over 32 characters, or an `expiresIn` out of range. |
+| `403` | `PERMISSION_DENIED_ERROR` | The request carries an API key or an OAuth access token. |
+| `404` | `ENTITY_NOT_FOUND_ERROR` | A listed Entity doesn't exist or the signed-in User can't reach it. |
+
+The older `POST /api/auth/api-key/create` route no longer creates keys. It returns `403` with `API_KEY_SCOPE_REQUIRED`.
+
+### List your keys
+
+`GET /api/api-keys` returns the signed-in User's keys, each with the fields above except `key`. The keys Erwin creates for its own turns aren't listed.
+
+### Revoke a key
+
+Revoke a key from the trash icon on its row, or with `POST /api/auth/api-key/delete` and `{ "keyId": "..." }` from a signed-in session.
 
 ## Rate Limits
 

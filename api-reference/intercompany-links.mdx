@@ -38,7 +38,7 @@ All amounts are integers in the minor unit of the currency (for example, cents).
 
 A Link joins the books of two Entities, so every route asks for access to the whole Organization:
 
-- **Use an Organization-level API key.** Create the key with **Todas las empresas** in the **Empresa** selector (see [Get an API Key](/guides/api-keys)). A key confined to one Entity gets `403` with `PERMISSION_DENIED_ERROR` on every route on this page, reads included. Don't retry with that key.
+- **Use an API key of all Entities.** Create the key with **Todas las entidades** under **Alcance** (see [Get an API Key](/guides/api-keys#key-scope)). A key scoped to listed Entities gets `403` with `PERMISSION_DENIED_ERROR` on every route on this page, reads included. Don't retry with that key.
 - **Writes need a Role that writes.** `POST` and `DELETE` need the `staff` or `client` Role. A `viewer` can list and read Links, and gets `403` with `PERMISSION_DENIED_ERROR` on a write. See [Access and roles](/api-reference/overview#access-and-roles).
 - **Send the audit headers on writes.** With an API key, `POST` and `DELETE` need `x-audit-actor` and `x-audit-reason`, like every mutation. See [Authentication](/api-reference/overview#authentication).
 
@@ -344,7 +344,7 @@ It shows the Link's insert and its delete, which also show in the [Organization 
 
 | Code | Status | Meaning |
 | --- | --- | --- |
-| `PERMISSION_DENIED_ERROR` | `403` | The API key is confined to one Entity (every route), or the caller's Role can't write (`POST`, `DELETE`) |
+| `PERMISSION_DENIED_ERROR` | `403` | The API key is scoped to listed Entities (every route), or the caller's Role can't write (`POST`, `DELETE`) |
 | `INTERCOMPANY_LINK_NOT_FOUND_ERROR` | `404` | The Organization holds no Link with this id, or the list `cursor` names none. `params.intercompanyLinkId` |
 | `INTERCOMPANY_LINK_LINE_NOT_FOUND_ERROR` | `404` | A line doesn't exist or belongs to another Organization. `params.lineId` |
 | `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR` | `409` | A Link with this `id` already exists. `params.intercompanyLinkId` |

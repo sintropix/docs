@@ -38,7 +38,7 @@ Todos los montos son enteros en la unidad mínima de la moneda (por ejemplo, cen
 
 Un vínculo une los libros de dos Entidades, así que cada ruta pide acceso a la Organización completa:
 
-- **Usa una clave de API de nivel Organización.** Crea la clave con **Todas las empresas** en el selector **Empresa** (consulta [Obtén una clave de API](/es/guides/api-keys)). Una clave acotada a una sola Entidad recibe `403` con `PERMISSION_DENIED_ERROR` en todas las rutas de esta página, también al leer. No reintentes con esa clave.
+- **Usa una clave de API de todas las Entidades.** Crea la clave con **Todas las entidades** en **Alcance** (consulta [Obtén una clave de API](/es/guides/api-keys#alcance-de-la-clave)). Una clave de Entidades seleccionadas recibe `403` con `PERMISSION_DENIED_ERROR` en todas las rutas de esta página, también al leer. No reintentes con esa clave.
 - **Escribir requiere un Rol que escriba.** `POST` y `DELETE` necesitan el Rol `staff` o `client`. Un `viewer` puede listar y leer vínculos, y recibe `403` con `PERMISSION_DENIED_ERROR` al escribir. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
 - **Envía los encabezados de auditoría al escribir.** Con una clave de API, `POST` y `DELETE` necesitan `x-audit-actor` y `x-audit-reason`, como toda mutación. Consulta [Autenticación](/es/api-reference/overview#autenticación).
 
@@ -344,7 +344,7 @@ Muestra la creación del vínculo y su eliminación. También aparecen en el [Lo
 
 | Código | Estado | Significado |
 | --- | --- | --- |
-| `PERMISSION_DENIED_ERROR` | `403` | La clave de API está acotada a una Entidad (todas las rutas), o el Rol de quien llama no puede escribir (`POST`, `DELETE`) |
+| `PERMISSION_DENIED_ERROR` | `403` | La clave de API es de Entidades seleccionadas (todas las rutas), o el Rol de quien llama no puede escribir (`POST`, `DELETE`) |
 | `INTERCOMPANY_LINK_NOT_FOUND_ERROR` | `404` | La Organización no tiene un vínculo con ese id, o el `cursor` de la lista no nombra ninguno. `params.intercompanyLinkId` |
 | `INTERCOMPANY_LINK_LINE_NOT_FOUND_ERROR` | `404` | Una línea no existe o es de otra Organización. `params.lineId` |
 | `INTERCOMPANY_LINK_ALREADY_EXISTS_ERROR` | `409` | Ya existe un vínculo con ese `id`. `params.intercompanyLinkId` |

@@ -24,7 +24,7 @@ There are three reads:
 
 A consolidated report reads the books of several Entities, so it asks for access to the whole Organization:
 
-- **Use an Organization-level API key.** Create the key with **Todas las empresas** in the **Empresa** selector (see [Get an API Key](/guides/api-keys)). A key confined to one Entity gets `403` with `PERMISSION_DENIED_ERROR`, even for a Scope of only its own Entity.
+- **Use an API key of all Entities.** Create the key with **Todas las entidades** under **Alcance** (see [Get an API Key](/guides/api-keys#key-scope)). A key scoped to listed Entities gets `403` with `PERMISSION_DENIED_ERROR`, even when it lists every Entity of the Scope.
 - **Any Role can read it**, `viewer` included. See [Access and roles](/api-reference/overview#access-and-roles).
 
 ## Scope, currency, and rates

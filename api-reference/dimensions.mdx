@@ -73,7 +73,7 @@ Sintropix doesn't check these lines:
 
 In the app, the Dimension picker marks a required Dimension with a red asterisk in the entry composer, the entry detail, and the Invoice's classification and accounting table. A refusal shows "Elige un valor de {Dimensión}: la cuenta lo exige." An Expense Rendition carries no Dimension Value, so [approving an Expense Claim](/api-reference/expense-claims#post-/expense-claims/expenseclaimid/approve) to an account that requires one is refused, and the approve dialog asks for another expense account instead.
 
-The routes on this page live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). The routes need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key confined to one Entity can call them for that Entity's Organization. Any other Organization, or one where you hold no Membership, answers `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
+The routes on this page live under the Organization, not under an Entity. Read the `organizationId` from the [Entity](/api-reference/entities#response-shape). The routes need the `books` permission in the Organization: `books` read for `GET`, `books` write for the other methods. An API key scoped to listed Entities can call them for the Organizations of its Entities. Any other Organization, or one where you hold no Membership, answers `404` with `ORGANIZATION_NOT_FOUND_ERROR`.
 
 ## GET /api/organizations/:organizationId/dimensions
 
