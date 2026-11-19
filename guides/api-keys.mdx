@@ -50,8 +50,10 @@ Keys are created in the Sintropix web app at [app.sintropix.com](https://app.sin
   <Step title="Copy the secret">
     The key is shown once. Copy it with the button next to the field and store it in your secrets manager before clicking **Listo**. Sintropix does not display the secret again after this screen; if you lose it, revoke the key and create a new one.
 
-    <Frame caption="The one-time secret dialog. It also reminds you of the two headers every mutating request needs.">
-      <img src="/images/api-keys/05-copy-secret.png" alt="Copia tu clave de API dialog showing the secret once, with the x-api-key and x-audit-actor headers" />
+    The dialog also shows the `x-api-key` and `x-audit-actor` headers. Every mutating request needs `x-audit-reason` too, which the dialog doesn't list. See [Authentication](/api-reference/overview#authentication) for every audit header.
+
+    <Frame caption="The one-time secret dialog shows the x-api-key and x-audit-actor headers. Mutating requests also need x-audit-reason.">
+      <img src="/images/api-keys/05-copy-secret.png" alt="Copia tu clave de API dialog showing an example secret once, with a copy button and the x-api-key and x-audit-actor headers, and a Listo button" />
     </Frame>
   </Step>
   <Step title="Call the API">

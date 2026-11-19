@@ -50,8 +50,10 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
   <Step title="Copia el secreto">
     La clave se muestra una sola vez. Cópiala con el botón junto al campo y guárdala en tu gestor de secretos antes de hacer clic en **Listo**. Sintropix no vuelve a mostrar el secreto después de esta pantalla; si lo pierdes, revoca la clave y crea una nueva.
 
-    <Frame caption="El diálogo del secreto de un solo uso. También te recuerda los dos encabezados que necesita toda solicitud que modifica datos.">
-      <img src="/images/api-keys/05-copy-secret.png" alt="Diálogo Copia tu clave de API mostrando el secreto una sola vez, con los encabezados x-api-key y x-audit-actor" />
+    El diálogo también muestra los encabezados `x-api-key` y `x-audit-actor`. Toda solicitud que modifica datos necesita además `x-audit-reason`, que el diálogo no lista. Consulta [Autenticación](/es/api-reference/overview#autenticación) para ver todos los encabezados de auditoría.
+
+    <Frame caption="El diálogo del secreto de un solo uso muestra los encabezados x-api-key y x-audit-actor. Las solicitudes que modifican datos necesitan además x-audit-reason.">
+      <img src="/images/api-keys/05-copy-secret.png" alt="Diálogo Copia tu clave de API mostrando un secreto de ejemplo una sola vez, con un botón para copiar, los encabezados x-api-key y x-audit-actor y un botón Listo" />
     </Frame>
   </Step>
   <Step title="Llama a la API">
