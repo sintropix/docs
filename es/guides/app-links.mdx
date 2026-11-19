@@ -70,6 +70,7 @@ El parámetro `open` es la convención universal: en cualquier página de listad
 | Partida abierta | `/{entityId}/receivables?open={entryId}` o `/{entityId}/payables?open={entryId}` | Pasa el id del asiento que contiene la partida. `/{entityId}/open-items` las muestra todas. |
 | Asignación | `/{entityId}/entries/{entryId}` | Las asignaciones no tienen página. Enlaza el asiento que se está liquidando. |
 | Dimensión | `/organizations/{organizationId}/settings/dimensions` | Todas las dimensiones de la Organización, con sus valores. Agrega `dimensionSearch` (texto) para acotarla a las dimensiones y los valores que coinciden, por ejemplo el nombre de una dimensión o el código de un valor. |
+| Crédito (Loan) | `/{entityId}/loans/{loanId}` | El [crédito](/api-reference/loans), en borrador o activo. `/{entityId}/loans` es **Créditos**, el registro de todos los créditos de la entidad. |
 | Nómina (Payment Batch) | `/{entityId}/payment-batches/{paymentBatchId}` | `/{entityId}/payment-batches` lista todas las nóminas. Acepta `search` (busca en el nombre y la etiqueta) y `label` (deja las nóminas con esa etiqueta exacta). |
 | Fuente | `/{entityId}/sources/{sourceId}` | Documentos importados por esa fuente. Las fuentes se configuran en `/{entityId}/settings/sources`. |
 | Feed de fuente | `/{entityId}/settings/sources` | Los feeds se gestionan dentro de los ajustes de su fuente. |
