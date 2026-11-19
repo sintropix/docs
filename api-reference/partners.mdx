@@ -390,7 +390,7 @@ curl -i "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/partners/$
 
 List the Organization's Partners in name order, each with the Entities that use it. Use it to find a Partner another Entity already uses before you create one. Merged Partners are never listed.
 
-This route lives under the Organization, not under an Entity. It needs the `books` read permission in the Organization. An API key confined to one Entity can call it for that Entity's Organization; any other Organization answers `404`.
+This route lives under the Organization, not under an Entity. It needs the `books` read permission in the Organization. An API key scoped to listed Entities can call it for the Organizations of its Entities; any other Organization answers `404`.
 
 **Query parameters.** Unknown parameters are rejected with `400`.
 
@@ -449,7 +449,7 @@ Merge a duplicate Partner into the Partner you want to keep. Both belong to the 
 
 Merge the Partner in the path into `targetPartnerId`, the Partner that stays. The merge runs all-or-nothing across every Entity, and the [Audit Trail](/api-reference/audit-trail) records every row it changes. There is no merge route under `/api/entities/:entityId`.
 
-The route needs the `books` write permission in the Organization. An API key confined to one Entity can merge only a Partner that no other Entity uses, because a merge moves the books of every Entity that uses it. Otherwise it gets `403` with `PERMISSION_DENIED_ERROR`.
+The route needs the `books` write permission in the Organization. An API key scoped to listed Entities can merge only a Partner that no unlisted Entity uses, because a merge moves the books of every Entity that uses it. Otherwise it gets `403` with `PERMISSION_DENIED_ERROR`.
 
 **Body.** Unknown keys are rejected with `400`.
 
@@ -505,7 +505,7 @@ A Merged Partner:
 | `PARTNER_MERGE_LOCKED_OPEN_LINES_ERROR` | `409` | The merged Partner has lines with an Open Amount on or before the Lock Date of an Entity that uses it. `params.entityId` and `params.entityName` name that Entity, and `params.ledgerLockDate` is its Lock Date. `params.lines` lists each line with its Entry and, for a Control Line, its Invoice. Settle them in that Entity first. |
 | `PARTNER_ALIAS_TAKEN_ERROR` | `409` | A name of the merged Partner is already an Alias of a third Partner. |
 | `PARTNER_REPRESENTS_ENTITY_ERROR` | `422` | After the merge, the kept Partner would represent an Entity that uses either Partner. |
-| `PERMISSION_DENIED_ERROR` | `403` | The API key is confined to one Entity, and another Entity uses the merged Partner. |
+| `PERMISSION_DENIED_ERROR` | `403` | The API key is scoped to listed Entities, and an Entity it doesn't list uses the merged Partner. |
 
 A merge is also refused when an Invoice without a DTE would collide with an Invoice of the kept Partner that has the same direction, kind, and number.
 
@@ -699,7 +699,7 @@ A Control Line on the wrong side or on an account Book invoice refuses as a paya
 | `200` | Success on `GET`, `PUT`, `PATCH`, `DELETE`, and merge. `DELETE` answers with the row as it was before. `GET /partners/:partnerId/logo` answers with the logo PNG. |
 | `201` | Partner created. |
 | `400` | Validation error (including an invalid RUT, an invalid website, an unknown country, or an unknown bank), or missing `x-audit-actor` on a key-authenticated mutation. |
-| `403` | A merge with an API key confined to one Entity would move another Entity's books (`PERMISSION_DENIED_ERROR`). |
+| `403` | A merge with an API key scoped to listed Entities would move the books of an Entity it doesn't list (`PERMISSION_DENIED_ERROR`). |
 | `404` | Entity, Organization, or Partner not found, the Entity doesn't use the Partner, the Partner has no logo (`PARTNER_LOGO_NOT_FOUND_ERROR`), or it has no Bank Details to delete (`PARTNER_BANK_DETAILS_NOT_FOUND_ERROR`). |
 | `409` | Partner id already exists, another Partner of the Organization holds the tax identity, the Partner has open items or references and cannot be deleted, an Alias is taken, the Partner is merged, a merge is refused, or a Booking Template rule is violated. |
 | `422` | The Partner represents the Entity (`PARTNER_REPRESENTS_ENTITY_ERROR`), or a change would edit a representing Partner's tax identity (`PARTNER_REPRESENTS_ENTITY_TAX_IDENTITY_ERROR`). |

@@ -41,7 +41,7 @@ Use a session cookie or an API key via the `x-api-key` header. Mutations with an
 
 Read the live account panel for one Integration. This fetches the Provider's current status, the discovered accounts, and, for each Entity of the Organization, the local Bank Accounts and Ledger Accounts you can map to.
 
-An API key confined to one Entity gets its own Entity as the one entry of `entities`, and doesn't see an account that already feeds a Bank Account of another Entity.
+An API key scoped to listed Entities gets only its own Entities in `entities`, and doesn't see an account that already feeds a Bank Account of an Entity it doesn't list.
 
 ### Response
 

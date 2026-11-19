@@ -17,7 +17,7 @@ Tasks are independent of a record's [Follow-up](/api-reference/follow-ups). Sett
 </Note>
 
 <Warning>
-  Every route below requires the `staff` or `client` Role in the Organization. A `client` Member works Tasks as staff does: they see every Task of the Organization and can create, edit, assign, and delete them. A `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key confined to one Entity also receives `403`, because these routes act on the whole Organization. See [Access and roles](/api-reference/overview#access-and-roles).
+  Every route below requires the `staff` or `client` Role in the Organization. A `client` Member works Tasks as staff does: they see every Task of the Organization and can create, edit, assign, and delete them. A `viewer` caller (session or API key) receives `403` with `PERMISSION_DENIED_ERROR`. An API key scoped to listed Entities also receives `403`, because these routes act on the whole Organization. See [Access and roles](/api-reference/overview#access-and-roles).
 </Warning>
 
 <AppLink
@@ -350,7 +350,7 @@ Task domain errors carry a `code` and a `params` object in the body.
 | `201` | Task created, or a record related to it. |
 | `400` | Validation error: blank or too-long `text`, a `description` over 10,000 characters, an unknown `status`, a malformed `dueDate`, a Task Link item without exactly one record id or without `entityId`, the same record twice in `links`, more than one record filter, or an empty PATCH body. |
 | `401` | Unauthenticated. |
-| `403` | Caller holds the `viewer` Role in the Organization, or uses an API key confined to one Entity (`PERMISSION_DENIED_ERROR`). |
+| `403` | Caller holds the `viewer` Role in the Organization, or uses an API key scoped to listed Entities (`PERMISSION_DENIED_ERROR`). |
 | `404` | Task, Task Link, parent Task, or related record not found. |
 | `409` | A Task with that `id` already exists. |
 | `422` | The assignee is not a staff or client Member of the Organization, or the parent Task is a subtask. |

@@ -1,10 +1,10 @@
 ---
 title: "Obtén una clave de API de Sintropix para agentes e integraciones"
 sidebarTitle: "Obtener una clave de API"
-description: "Crea una clave de API de Sintropix desde Tu cuenta, envíala en el encabezado x-api-key y entiende el alcance, los límites de solicitudes y las reglas de rotación que aplican al acceso programático."
+description: "Crea una clave de API de Sintropix desde Tu cuenta, envíala en el encabezado x-api-key elige su alcance y entiende los límites de solicitudes y las reglas de rotación que aplican al acceso programático."
 ---
 
-Las claves de API de Sintropix permiten que agentes e integraciones se autentiquen como un Usuario sin una sesión de navegador. Cada clave es una credencial de larga duración que se envía en el encabezado `x-api-key`, actúa como el Usuario propietario con sus Membresías de Organización y está limitada a 25.000 solicitudes por hora.
+Las claves de API de Sintropix permiten que agentes e integraciones se autentiquen como un Usuario sin una sesión de navegador. Cada clave es una credencial de larga duración que se envía en el encabezado `x-api-key`, actúa como el Usuario propietario con sus Membresías de Organización, alcanza las Entidades que permite su [alcance](#alcance-de-la-clave) y está limitada a 25.000 solicitudes por hora.
 
 Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](https://app.sintropix.com). Todo el proceso toma menos de un minuto.
 
@@ -25,7 +25,7 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
   <Step title="Ve a Claves de API">
     **Tu cuenta** se abre en **Perfil**. En la lista de la izquierda, haz clic en **Claves de API**. La página está en `https://app.sintropix.com/account/api-keys`.
 
-    La página lista todas las claves que te pertenecen con su nombre, prefijo, fecha de creación, vencimiento y último uso. Puedes revocar una clave desde el ícono de papelera de cada fila.
+    La página lista todas las claves que te pertenecen con su nombre, su alcance en la columna **Alcance**, prefijo, fecha de creación, vencimiento y último uso. Puedes revocar una clave desde el ícono de papelera de cada fila.
 
     <Frame caption="Claves existentes. Solo se muestra el prefijo; el secreto no vuelve a mostrarse después de la creación.">
       <img src="/images/api-keys/03-api-keys-list.png" alt="Página Claves de API con las claves existentes y un botón Crear clave" />
@@ -34,13 +34,16 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
   <Step title="Crea la clave">
     Haz clic en **Crear clave**. Dale a la clave un nombre descriptivo (por ejemplo `erwin-agent` o `reconciliation-bot`) para poder identificarla después en la lista de claves y en el registro de auditoría.
 
-    Si el Usuario propietario pertenece a más de una Entidad, el diálogo muestra además un selector **Entidad legal**. Déjalo en **Todas las entidades legales** para que la clave actúe sobre todas las Entidades a las que el Usuario ya tiene acceso, o elige una Entidad para acotar la clave a esa única empresa. Una clave acotada no puede leer ni escribir los datos de las otras Entidades, y la restricción se ve en la columna **Entidad legal** de la lista de claves.
+    En **Alcance**, elige las Entidades que alcanza la clave:
 
-    Elige una sola Entidad cuando la integración solo necesita trabajar con una empresa (por ejemplo, un bot contable que atiende a un solo cliente), para que una clave filtrada no pueda tocar el resto.
+    - **Todas las entidades** (la opción por defecto) alcanza todas las Entidades a las que tienes acceso, en todas tus Organizaciones. También alcanza las Entidades que se agreguen después.
+    - **Entidades seleccionadas** alcanza solo las Entidades que marques. La lista agrupa tus Entidades por Organización, y puedes marcar Entidades de más de una Organización. Marca al menos una: **Crear clave** sigue desactivado hasta que lo hagas.
+
+    Elige **Entidades seleccionadas** cuando la integración solo necesita algunas empresas (por ejemplo, un bot contable que atiende a un solo cliente), para que una clave filtrada no pueda tocar el resto. No puedes cambiar el alcance después. Para alcanzar otras Entidades, crea una clave nueva y revoca la anterior. Consulta [Alcance de la clave](#alcance-de-la-clave) para ver qué puede y qué no puede hacer una clave de Entidades seleccionadas.
 
     Haz clic en **Crear clave** en el diálogo para generar la clave.
 
-    <Frame caption="Nombra la clave según el software que la va a usar. El selector Entidad legal solo aparece cuando el Usuario propietario tiene acceso a más de una Entidad.">
+    <Frame caption="Nombra la clave según el software que la va a usar y elige su alcance en Alcance.">
       <img src="/images/api-keys/04-create-key-dialog.png" alt="Diálogo Crear clave de API con un campo Nombre" />
     </Frame>
   </Step>
@@ -82,7 +85,7 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
       }'
     ```
 
-    Las solicitudes a `/api/auth/*` se rechazan cuando llevan `x-api-key`, así que una clave no puede usarse para crear más claves ni para administrar Usuarios.
+    Las solicitudes a `/api/auth/*` se rechazan cuando llevan `x-api-key`, y `POST /api/api-keys` rechaza una clave con `403`, así que una clave no puede usarse para crear más claves ni para administrar Usuarios.
 
     Las solicitudes hechas con una clave de API no piden un código de verificación en dos pasos. El segundo factor se comprueba una sola vez, al crear la clave.
   </Step>
@@ -93,7 +96,86 @@ Las claves se crean en la aplicación web de Sintropix en [app.sintropix.com](ht
 - Una clave se autentica como su Usuario propietario, con las Membresías de Organización de ese Usuario. Consulta [Acceso y roles](/es/api-reference/overview#acceso-y-roles).
 - Una clave nunca hace trabajo de Superadmin, aunque sea de un Superadmin. Administrar Usuarios, Organizaciones y Membresías requiere una sesión iniciada; una clave recibe `403` con `SUPERADMIN_SESSION_REQUIRED`.
 - Las rutas de negocio están acotadas por Entidad (`/api/entities/{entityId}/...`). Una clave solo puede acceder a las Entidades de las Organizaciones en las que el Usuario propietario tiene una Membresía, y solo puede hacer lo que el Rol del Usuario allí permite. Una clave de un `viewer` solo puede leer.
-- Una clave creada para una sola Entidad queda acotada a esa Entidad. Las solicitudes a `/api/entities/{otherEntityId}/...` devuelven `404`, `GET /api/entities` lista solo la Entidad acotada y `GET /api/organizations` devuelve un arreglo vacío. La clave alcanza los [Partners de la Organización de su Entidad](/api-reference/partners#organization-partners), pero solo puede fusionar un Partner que ninguna otra Entidad usa. También alcanza las [Dimensiones de esa Organización](/api-reference/dimensions#dimensions-belong-to-the-organization). Lista todas las [Integraciones de esa Organización](/api-reference/integrations#integrations-belong-to-the-organization), nunca un secreto, pero no puede conectar, renovar ni desconectar ninguna (`403` con `PERMISSION_DENIED_ERROR`), y solo agrega o quita los feeds que llegan a su propia Entidad. Cualquier otra Organización responde `404`. Las rutas que administran una Organización completa, como [Agent Channels](/api-reference/agent-channels), los [vínculos intercompañía](/es/api-reference/intercompany-links#acceso) y los [informes consolidados](/api-reference/consolidation#access) (también al leer) y [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-/organizations/organizationid/role), devuelven `403`. Ninguna clave de API puede crear Entidades. Usa claves de una sola Entidad cuando la integración solo deba tocar una empresa.
+- Una clave alcanza solo las Entidades que permite su [alcance](#alcance-de-la-clave), y nunca más de lo que alcanza el Usuario propietario.
+
+## Alcance de la clave
+
+Cada clave declara su alcance al crearse, y el alcance nunca cambia. Las Membresías y los Roles del Usuario propietario limitan ambos tipos, así que un alcance solo restringe lo que la clave puede hacer.
+
+| Alcance | En la aplicación | Alcanza |
+| --- | --- | --- |
+| `all_entities` | **Todas las entidades** | Todas las Entidades a las que llega el Usuario propietario, en todas sus Organizaciones, incluidas las Entidades que se agreguen después de crear la clave. |
+| `listed_entities` | **Entidades seleccionadas** | Solo las Entidades que lista la clave: al menos una, de cualquiera de las Organizaciones del Usuario propietario. |
+
+Una clave de Entidades seleccionadas trabaja con los libros de sus Entidades y con las Organizaciones a las que pertenecen, pero nunca actúa sobre una Organización completa, aunque liste todas sus Entidades:
+
+- Las solicitudes a `/api/entities/{otherEntityId}/...` de una Entidad que no lista devuelven `404`. `GET /api/entities` lista solo sus Entidades y `GET /api/organizations` devuelve un arreglo vacío.
+- Alcanza los [Partners](/api-reference/partners#organization-partners) y las [Dimensiones](/api-reference/dimensions#dimensions-belong-to-the-organization) de las Organizaciones de sus Entidades. Solo puede fusionar un Partner que ninguna Entidad no listada usa.
+- Lista todas las [Integraciones](/api-reference/integrations#integrations-belong-to-the-organization) de esas Organizaciones, nunca un secreto, pero no puede conectar, renovar ni desconectar ninguna, ni leer su contenido, como el correo o los archivos (`403` con `PERMISSION_DENIED_ERROR`). Solo agrega o quita los feeds que llegan a sus propias Entidades.
+- Las rutas que administran una Organización completa, como [Agent Channels](/api-reference/agent-channels), los [vínculos intercompañía](/es/api-reference/intercompany-links#acceso) y los [informes consolidados](/api-reference/consolidation#access) (también al leer) y [`GET /api/organizations/{organizationId}/role`](/api-reference/organizations#get-/organizations/organizationid/role), devuelven `403`.
+- Cualquier otra Organización responde `404`.
+
+Ninguna clave de API puede crear Entidades. Una Entidad que lista una clave no se puede eliminar mientras la clave exista.
+
+Las claves creadas antes de que existieran los alcances conservan lo que alcanzaban: una clave acotada a una Entidad ahora lista esa Entidad, y todas las demás alcanzan todas las Entidades.
+
+## Administra las claves por la API
+
+La página **Claves de API** usa estas rutas. Requieren una sesión iniciada en el navegador que pasó la verificación en dos pasos. Una solicitud con una clave de API o un token de acceso OAuth recibe `403` con `PERMISSION_DENIED_ERROR`.
+
+### Crear una clave
+
+`POST /api/api-keys` crea una clave para el Usuario que inició sesión y devuelve su secreto una sola vez.
+
+| Campo | Tipo | Reglas |
+| --- | --- | --- |
+| `name` | string | Obligatorio. De 1 a 32 caracteres, sin contar los espacios de los extremos. |
+| `expiresIn` | entero o `null` | Obligatorio. Segundos hasta que la clave vence, de `3600` (1 hora) a `31536000` (1 año). `null` crea una clave que no vence. |
+| `scope` | objeto | Obligatorio. `{ "kind": "all_entities" }`, o `{ "kind": "listed_entities", "entityIds": [...] }` con al menos un id de Entidad, cada uno una sola vez. |
+
+```json
+{
+  "name": "reconciliation-bot",
+  "expiresIn": null,
+  "scope": {
+    "kind": "listed_entities",
+    "entityIds": [
+      "5f1c2a9e-8d4b-4c7a-9e21-3b6f0d8a4c12",
+      "a2e7d3c1-6b9f-4e05-8c4a-1d7e9f2b3a60"
+    ]
+  }
+}
+```
+
+La respuesta es el objeto de la clave, con su secreto en `key`:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | string | El id de la clave. |
+| `name` | string | El nombre de la clave. |
+| `start` | string o `null` | Los primeros caracteres del secreto, que se muestran en la lista de claves. |
+| `prefix` | string o `null` | El prefijo de la clave. |
+| `createdAt` | string | Marca de tiempo ISO 8601. |
+| `expiresAt` | string o `null` | Marca de tiempo ISO 8601, o `null` si la clave no vence. |
+| `lastRequest` | string o `null` | Marca de tiempo ISO 8601 de la última solicitud de la clave. |
+| `scope` | objeto | El alcance de la clave, tal como se envió. |
+| `key` | string | El secreto. Solo esta respuesta lo devuelve. |
+
+| Estado | Código | Cuándo |
+| --- | --- | --- |
+| `400` | — | Falta un campo o no cumple sus reglas: `entityIds` vacío o con duplicados, un nombre de más de 32 caracteres o un `expiresIn` fuera de rango. |
+| `403` | `PERMISSION_DENIED_ERROR` | La solicitud lleva una clave de API o un token de acceso OAuth. |
+| `404` | `ENTITY_NOT_FOUND_ERROR` | Una Entidad listada no existe o el Usuario que inició sesión no llega a ella. |
+
+La ruta anterior `POST /api/auth/api-key/create` ya no crea claves. Devuelve `403` con `API_KEY_SCOPE_REQUIRED`.
+
+### Listar tus claves
+
+`GET /api/api-keys` devuelve las claves del Usuario que inició sesión, cada una con los campos anteriores salvo `key`. No lista las claves que Erwin crea para sus propios turnos.
+
+### Revocar una clave
+
+Revoca una clave desde el ícono de papelera de su fila, o con `POST /api/auth/api-key/delete` y `{ "keyId": "..." }` desde una sesión iniciada.
 
 ## Límites de solicitudes
 

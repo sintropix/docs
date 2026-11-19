@@ -25,7 +25,7 @@ Keep Feedback about the product. Leave out personal and client data beyond what 
 Any authenticated caller can send Feedback, whatever its access:
 
 - A signed-in session, with any Role, `viewer` included.
-- Any [API key](/guides/api-keys), including a read-only key and a key confined to one Entity.
+- Any [API key](/guides/api-keys), including a read-only key and a key scoped to listed Entities.
 - Any [Connected App](/guides/connected-apps), including one granted `read` only.
 - An assistant connected to the [Sintropix MCP server](/guides/mcp-server), with its `leave_feedback` tool. It takes the same fields as this route.
 
