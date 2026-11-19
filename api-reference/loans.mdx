@@ -25,7 +25,7 @@ You can also ask Erwin to load a Loan from the lender's PDF or Excel. Erwin crea
 In the app, Loans live under **Contabilidad** → **Créditos**, at `/{entityId}/loans`. The register lists every Loan with its lender, its state, its outstanding principal split into **C/P** and **L/P**, its next installment, and its overdue installments not yet matched.
 
 1. Click **Nuevo crédito**, choose the lender, and name the Loan. Click **Crear borrador** to create the Draft and open it.
-2. On the Draft, fill in **Condiciones**: the disbursement date, the amount, and the account of each role. Each account picker offers only the accounts that [fit that role](#the-loans-accounts).
+2. On the Draft, fill in **Condiciones**: the disbursement date, the amount, and the account of each role. Each account picker offers only the accounts that [fit that role](#the-loans-accounts). Under **Registro de intereses**, keep **Devengo mensual** or choose **Intereses diferidos**, which shows the three [deferred-interest accounts](#interest-recognition) to pick.
 3. Add the **Cargos del desembolso**, if the lender deducted any.
 4. Type the **Tabla de desarrollo** row by row, or paste the lender's table into it. Paste the columns in this order: number, due date, principal, interest, charges, and total. Below the table, a live sum tells you whether the rows' principal adds up to the Loan's amount.
 5. Click **Guardar**. **Para activar** lists each [Loan Issue](#loan-issues) still open, and **Asientos que se crearán** shows the simulation: every entry Activate would write.
@@ -53,7 +53,32 @@ A Loan names each account it posts to. No account has a default, so you pick eac
 | `chargesLedgerAccountId` | The installments' charges, such as a FOGAPE guarantee commission | An expense type. Needed only when a row has charges |
 | `disbursementCharges[].ledgerAccountId` | Each charge deducted at disbursement, such as stamp tax or notary | An expense type |
 
-An account that doesn't fit its role is refused with `400` and `LOAN_LEDGER_ACCOUNT_INELIGIBLE`. Naming the same account for both principal roles is refused with `400` and `LOAN_PRINCIPAL_ACCOUNTS_MUST_DIFFER`.
+A Loan that [defers its interest](#interest-recognition) names three more accounts. A Loan that accrues its interest names none of them:
+
+| Field | Role | Account it takes |
+| --- | --- | --- |
+| `shortTermDeferredInterestLedgerAccountId` | Deferred interest due within 12 months (**Intereses diferidos C/P**) | An `asset` with `balance` tracking |
+| `longTermDeferredInterestLedgerAccountId` | Deferred interest due later (**Intereses diferidos L/P**) | An `asset` with `balance` tracking, other than the short-term account |
+| `longTermInterestPayableLedgerAccountId` | Interest payable due later (**Intereses por pagar L/P**) | A `liability` with `balance` tracking, not a `loan` account, and other than `accruedInterestLedgerAccountId` |
+
+In a Loan that defers its interest, `accruedInterestLedgerAccountId` holds the interest payable due within 12 months (**Intereses por pagar C/P**).
+
+An account that doesn't fit its role is refused with `400` and `LOAN_LEDGER_ACCOUNT_INELIGIBLE`. Naming the same account for two roles of a pair is refused with `400` and `LOAN_ACCOUNTS_MUST_DIFFER`. The pairs are the two principal accounts, the two deferred-interest accounts, and the two interest-payable accounts (`accruedInterestLedgerAccountId` and `longTermInterestPayableLedgerAccountId`).
+
+While a Loan names an account as `accruedInterestLedgerAccountId` or `longTermInterestPayableLedgerAccountId`, the account can't take the sub-type `loan`: the change is refused with `409` and `LEDGER_ACCOUNT_FACT_PINNED_ERROR`.
+
+## Interest recognition
+
+`interestRecognition` says how a Loan books the interest and charges of its schedule. In the app, it's **Registro de intereses** on the Draft.
+
+| Value | App label | What it books |
+| --- | --- | --- |
+| `accrued` | **Devengo mensual** | The default. Each month end accrues the elapsed interest and charges into interest payable, and each installment clears it |
+| `deferred` | **Intereses diferidos** | The disbursement books the whole schedule's interest and charges at once, as deferred interest (an asset) against interest payable. Accruals and installments then release the deferred interest |
+
+Both values give the same expense every month. Only the balance sheet differs: with `deferred`, the Loan carries the interest still to come as deferred interest and as interest payable, each split into short term and long term. Both balances reach zero with the last installment. Pick the value your Entity's accounting policy uses. The lender's schedule is the same either way.
+
+To defer the interest, send `interestRecognition: "deferred"` with the [three deferred-interest accounts](#the-loans-accounts). A Draft that defers its interest and lacks one of them shows `LOAN_FIELD_MISSING`. Setting `interestRecognition` back to `accrued` clears the three accounts. Like every other fact, the value can't change after activation.
 
 ## The entries a Loan writes
 
@@ -61,14 +86,27 @@ When you activate a Loan, Sintropix writes all its entries in one transaction. A
 
 | Kind | Date | What it posts |
 | --- | --- | --- |
-| `disbursement` | The disbursement date | Debits the settlement account with the net disbursement (the principal less the disbursement charges), with the lender as Partner. Debits each disbursement charge to its expense account. Credits short-term principal with the principal of the rows due within 12 months, and long-term principal with the rest. |
-| `accrual` | Each month end strictly inside an installment's period | Recognizes the days elapsed of that row's interest and charges: debits the interest and charges accounts, and credits the accrued-interest account. |
+| `disbursement` | The disbursement date | Debits the settlement account with the net disbursement (the principal less the disbursement charges), with the lender as Partner. Debits each disbursement charge to its expense account. Credits short-term principal with the principal of the rows due within 12 months, and long-term principal with the rest. With [deferred interest](#deferred-interest), it also books the rows' interest and charges as deferred interest against interest payable. |
+| `accrual` | Each month end strictly inside an installment's period | Recognizes the days elapsed of that row's interest and charges: debits the interest and charges accounts, and credits the accrued-interest account, or short-term deferred interest with deferred interest. |
 | `installment` | The row's due date | Credits the settlement account with the row's total, with the lender as Partner. Debits short-term principal with the row's principal, clears the accrued interest of the row, and expenses the rest of the period's interest and charges. |
-| `reclassification` | 12 months before the row's due date | Moves the row's principal from long-term to short-term principal. Only rows due more than 12 months after the disbursement get one, and a row with zero principal gets none. |
+| `reclassification` | 12 months before the row's due date | Moves the row's principal from long-term to short-term principal, and with deferred interest also the row's interest payable and deferred interest. Only rows due more than 12 months after the disbursement get one, and a row with nothing to move gets none. |
 
 An installment's period runs from the previous due date, or from the disbursement for the first row, to its due date. Accruals are prorated by days and rounded on the running total, so over each row the expense equals the lender's interest and charges exactly. The short-term principal balance therefore always equals the principal due in the next 12 months, and every report reads it from the ledger.
 
 The disbursement and each installment stay as open items on the settlement account in the lender's name. Settle them against the bank feed with the usual [Match](/api-reference/bank-movements): match the bank credit to the disbursement, and each bank charge to its installment. A partial charge leaves the rest of the installment open. A charge above the open amount leaves the rest on the [Suspense Account](/api-reference/bank-movements#overpayments-and-the-suspense-account).
+
+### Deferred interest
+
+A Loan with `interestRecognition: "deferred"` posts these extra lines. Each amount is a row's interest plus its charges:
+
+| Kind | Extra or changed lines |
+| --- | --- |
+| `disbursement` | Debits short-term deferred interest with the rows due within 12 months and long-term deferred interest with the rest. Credits the accrued-interest account (interest payable C/P) and the long-term interest payable account with the same split |
+| `accrual` | Credits short-term deferred interest instead of the accrued-interest account. The expense lines don't change |
+| `installment` | Debits the accrued-interest account with the row's whole interest and charges. Expenses the rest of the period as usual, and credits short-term deferred interest with that rest |
+| `reclassification` | Also moves the row's interest and charges from long-term to short-term interest payable, and from long-term to short-term deferred interest. A row with zero principal but some interest or charges gets one too |
+
+In the entry timeline, a reclassification's amount is the sum of its debits, so with deferred interest it includes the moved payable and deferred amounts.
 
 To correct an entry after activation, use the usual acts on that entry, such as rescheduling, cancelling, or unbooking it. The Loan shows its entries with their current status.
 
@@ -78,7 +116,7 @@ A Loan Issue is something that keeps a Draft from activating. The Draft's detail
 
 | Code | Meaning | `params` |
 | --- | --- | --- |
-| `LOAN_FIELD_MISSING` | A required fact is missing: `disbursementDate`, `principalAmount`, or one of the five required accounts | `{ field }` |
+| `LOAN_FIELD_MISSING` | A required fact is missing: `disbursementDate`, `principalAmount`, one of the five required accounts, or, when the Loan [defers its interest](#interest-recognition), one of the three deferred-interest accounts | `{ field }` |
 | `LOAN_SCHEDULE_EMPTY` | The Draft has no installments | `{}` |
 | `LOAN_PRINCIPAL_MISMATCH` | The principal of the rows doesn't add up to the Loan's principal | `{ principalTotal, principalAmount }` |
 | `LOAN_INSTALLMENT_DUE_DATE_NOT_AFTER_DISBURSEMENT` | The first due date is on or before the disbursement date | `{ installmentNumber, dueDate, disbursementDate }` |
@@ -132,6 +170,10 @@ Create a Draft. Only `id`, `partnerId`, and `name` are required. Send the other 
 | `accruedInterestLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
 | `interestLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
 | `chargesLedgerAccountId` | UUID or null | No | See [The Loan's accounts](#the-loans-accounts) |
+| `interestRecognition` | enum | No | `accrued` or `deferred`. Defaults to `accrued`. See [Interest recognition](#interest-recognition) |
+| `shortTermDeferredInterestLedgerAccountId` | UUID or null | No | Only with `deferred`. See [The Loan's accounts](#the-loans-accounts) |
+| `longTermDeferredInterestLedgerAccountId` | UUID or null | No | Only with `deferred`. See [The Loan's accounts](#the-loans-accounts) |
+| `longTermInterestPayableLedgerAccountId` | UUID or null | No | Only with `deferred`. See [The Loan's accounts](#the-loans-accounts) |
 | `disbursementCharges` | array | No | Up to 20 charges the lender deducted from the disbursement. Defaults to `[]` |
 | `installments` | array | No | Up to 600 rows of the repayment schedule. Defaults to `[]` |
 
@@ -158,7 +200,7 @@ The write is refused, and nothing is written, when:
 
 - A row's `total` isn't the sum of its parts: `400` with `LOAN_INSTALLMENT_TOTAL_MISMATCH`, `params: { installmentNumber, total, partsTotal }`. This catches a misread row.
 - The rows aren't numbered 1 to N: `400` with `LOAN_INSTALLMENT_NUMBER_OUT_OF_SEQUENCE`, `params: { installmentNumber, expectedNumber }`.
-- An account doesn't fit its role, or both principal accounts are the same. See [The Loan's accounts](#the-loans-accounts).
+- An account doesn't fit its role, or two roles of a pair name the same account. See [The Loan's accounts](#the-loans-accounts).
 
 Other rules, such as a principal the rows don't add up to, don't refuse the write. They show as [Loan Issues](#loan-issues) on the Draft.
 
@@ -213,8 +255,9 @@ Every Loan carries:
 | `disbursementDate` | ISO date or null | Disbursement date |
 | `principalAmount` | integer or null | Principal granted |
 | `activatedAt` | ISO datetime or null | When the Loan was activated. `null` for a Draft |
-| `shortTermPrincipalLedgerAccountId`, `longTermPrincipalLedgerAccountId`, `settlementLedgerAccountId`, `accruedInterestLedgerAccountId`, `interestLedgerAccountId`, `chargesLedgerAccountId` | UUID or null | The account of each role |
-| `shortTermPrincipalLedgerAccount`, `longTermPrincipalLedgerAccount`, `settlementLedgerAccount`, `accruedInterestLedgerAccount`, `interestLedgerAccount`, `chargesLedgerAccount` | object or null | The same accounts as `{ id, code, name }` |
+| `interestRecognition` | enum | `accrued` or `deferred`. See [Interest recognition](#interest-recognition) |
+| `shortTermPrincipalLedgerAccountId`, `longTermPrincipalLedgerAccountId`, `settlementLedgerAccountId`, `accruedInterestLedgerAccountId`, `interestLedgerAccountId`, `chargesLedgerAccountId`, `shortTermDeferredInterestLedgerAccountId`, `longTermDeferredInterestLedgerAccountId`, `longTermInterestPayableLedgerAccountId` | UUID or null | The account of each role. The three deferred-interest accounts are `null` unless `interestRecognition` is `deferred` |
+| `shortTermPrincipalLedgerAccount`, `longTermPrincipalLedgerAccount`, `settlementLedgerAccount`, `accruedInterestLedgerAccount`, `interestLedgerAccount`, `chargesLedgerAccount`, `shortTermDeferredInterestLedgerAccount`, `longTermDeferredInterestLedgerAccount`, `longTermInterestPayableLedgerAccount` | object or null | The same accounts as `{ id, code, name }` |
 | `disbursementCharges` | array | Each `{ position, label, amount, ledgerAccount }`, where `ledgerAccount` is `{ id, code, name }` |
 | `installments` | array | Each row as `{ number, dueDate, principal, interest, charges, total }` |
 | `createdAt` | ISO datetime | Creation timestamp |
@@ -362,8 +405,8 @@ When you [merge Partners](/api-reference/partners#merge-partners), every Loan of
 | `LOAN_NOT_FOUND` | 404 | The Loan doesn't exist in this Entity. `params: { loanId }` |
 | `LOAN_ALREADY_EXISTS` | 409 | The Loan id is already used. Read the Loan instead of creating another. `params: { loanId }` |
 | `LOAN_NOT_DRAFT` | 409 | The Loan is active: it takes only a new name, and it can't be deleted or activated again. `params: { loanId }` |
-| `LOAN_LEDGER_ACCOUNT_INELIGIBLE` | 400 | An account doesn't fit its role. `params: { ledgerAccountId, role }`, where `role` is `short_term_principal`, `long_term_principal`, `settlement`, `accrued_interest`, `interest`, `charges`, or `disbursement_charge` |
-| `LOAN_PRINCIPAL_ACCOUNTS_MUST_DIFFER` | 400 | The short-term and long-term principal accounts are the same. `params: { ledgerAccountId }` |
+| `LOAN_LEDGER_ACCOUNT_INELIGIBLE` | 400 | An account doesn't fit its role. `params: { ledgerAccountId, role }`, where `role` is `short_term_principal`, `long_term_principal`, `settlement`, `accrued_interest`, `interest`, `charges`, `disbursement_charge`, `short_term_deferred_interest`, `long_term_deferred_interest`, or `long_term_interest_payable` |
+| `LOAN_ACCOUNTS_MUST_DIFFER` | 400 | Two roles of a pair name the same account: the two principal accounts, the two deferred-interest accounts, or the two interest-payable accounts. `params: { ledgerAccountId, roles }`, where `roles` names the two roles, such as `["short_term_principal", "long_term_principal"]` |
 | `LOAN_INSTALLMENT_NUMBER_OUT_OF_SEQUENCE` | 400 | The rows aren't numbered 1 to N. `params: { installmentNumber, expectedNumber }` |
 | `LOAN_INSTALLMENT_TOTAL_MISMATCH` | 400 | A row's printed total isn't the sum of its parts. `params: { installmentNumber, total, partsTotal }` |
 | `PARTNER_NOT_FOUND_ERROR` | 404 | The lender isn't a Partner of the Entity. `params: { partnerId }` |

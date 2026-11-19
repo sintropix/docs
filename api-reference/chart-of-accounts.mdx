@@ -761,6 +761,7 @@ Create the account, or `PATCH` an existing one, with `type: "liability"`, `track
 - Only a `liability` account with `balance` tracking can take the sub-type. Another type is refused with `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR`, and `open_item` tracking with `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR`.
 - It is a [common-only sub-type](/api-reference/bases#common-only-accounts): a Basis Entry can't post a line to it.
 - While a Loan names the account, its type and sub-type can't change.
+- An account a Loan names as its interest payable, short term or long term, can't take the sub-type `loan`. The change is refused with `409` and `LEDGER_ACCOUNT_FACT_PINNED_ERROR`.
 
 In the cash flow statement, a `loan` account counts by default under `borrowings`. In the app, pick **Crédito** under **Subtipo** when you create a liability account.
 
@@ -820,7 +821,7 @@ curl -X DELETE https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts
 | `LEDGER_ACCOUNT_TRACKING_LOCKED_ERROR` | Tracking change not allowed |
 | `LEDGER_ACCOUNT_SUBTYPE_LOCKED_ERROR` | Subtype change not allowed for an account with entries. Only a switch between `payable` and `expense_rendition_payable`, or removing `exchange_difference` (`null`), is allowed |
 | `LEDGER_ACCOUNT_COMMON_ONLY_SUBTYPE_HAS_BASIS_LINES_ERROR` | The account would take a [common-only sub-type](/api-reference/bases#common-only-accounts) while a live or scheduled Basis Entry has a line on it. `params: { ledgerAccountId, subtype }` (`409`) |
-| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template. A [Budget](/api-reference/budgets) that plans the account pins its type, a Bank Account of kind `bank` pins the `cash` sub-type of its Ledger Account, and the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) pins the sub-type of the accounts it names |
+| `LEDGER_ACCOUNT_FACT_PINNED_ERROR` | Type, subtype, or tracking change not allowed while a record pins the account, such as the Control Line of a Booking Template. A [Budget](/api-reference/budgets) that plans the account pins its type, a Bank Account of kind `bank` pins the `cash` sub-type of its Ledger Account, and the [Expense Claim setting](/api-reference/expense-claims#before-you-submit-claims) pins the sub-type of the accounts it names. A [Loan](/api-reference/loans#the-loans-accounts) keeps the sub-type `loan` off its interest payable accounts |
 | `LEDGER_ACCOUNT_SUBTYPE_TYPE_INCOMPATIBLE_ERROR` | Subtype incompatible with the account type |
 | `LEDGER_ACCOUNT_SUBTYPE_TRACKING_INCOMPATIBLE_ERROR` | Subtype incompatible with the tracking |
 | `LEDGER_ACCOUNT_MONETARY_TYPE_INCOMPATIBLE_ERROR` | Only an `asset` or `liability` account can be monetary. `params: { ledgerAccountType }` (`400`) |
