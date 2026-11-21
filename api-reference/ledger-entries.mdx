@@ -1092,6 +1092,7 @@ The retag shows in the entry's history, with who made it and the Value before an
 | `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line posts to the Suspense Account, which only bank Match, Assign, and Unassign can use |
 | `LEDGER_ENTRY_LINE_PARTNER_ON_SUSPENSE_ACCOUNT_ERROR` | A line on the Suspense Account cannot carry a Partner |
 | `LEDGER_ENTRY_LINE_RECLASSIFY_SUSPENSE_ACCOUNT_ERROR` | Reclassify cannot move a line to or from the Suspense Account |
+| `LEDGER_ENTRY_LINE_ON_TRANSLATION_RESERVE_ERROR` | A line posts to the [Translation Reserve Account](/api-reference/chart-of-accounts#the-translation-reserve-account), which takes no lines. Returned by create, bulk create, dry runs, Scheduled Entries, and line reclassify. `params: { accountId }` (`409`) |
 | `TAX_ONLY_LINE_ON_CONTROL_ACCOUNT_ERROR` | Reclassify cannot move a line of a [`tax_only`](/api-reference/invoices#tax-only-documents) document's booking to an account whose sub-type is `payable`, `expense_rendition_payable`, or `receivable`. `params: { ledgerAccountId, ledgerAccountSubtype }` (`409`) |
 | `LEDGER_REVERSAL_ENTRY_HAS_SUSPENSE_LINE_ERROR` | Entry holds a Suspense line and cannot be reversed |
 | `LEDGER_ENTRY_NOT_SCHEDULED_ERROR` | Entry is not a Scheduled Entry |

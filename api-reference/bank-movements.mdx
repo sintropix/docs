@@ -665,6 +665,7 @@ Match and Assign check the settlement line with the same `LEDGER_ENTRY_SETTLED_L
 | `BANK_MOVEMENT_UNASSIGN_LINE_PINNED_ERROR` | Another record, such as a Fixed Asset, holds the line. `params: { lineId }`. |
 | `INTERCOMPANY_LINK_LINE_ALREADY_LINKED_ERROR` | The Unassign names a line in an [Intercompany Link](/api-reference/intercompany-links). `params: { lineId, intercompanyLinkId }`. |
 | `LEDGER_ACCOUNT_SUSPENSE_RESERVED_ERROR` | A line you sent posts to the Suspense Account. `params: { ledgerAccountId }`. |
+| `LEDGER_ENTRY_LINE_ON_TRANSLATION_RESERVE_ERROR` | A line you sent posts to the [Translation Reserve Account](/api-reference/chart-of-accounts#the-translation-reserve-account), which takes no lines. `params: { accountId }`. |
 
 ## Foreign currency and the exchange difference
 
