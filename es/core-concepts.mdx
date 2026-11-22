@@ -46,7 +46,7 @@ Sintropix introduce un pequeño conjunto de conceptos que definen cómo se estru
   </Accordion>
 
   <Accordion title="Moneda de reporte">
-    Los informes están en la moneda funcional de la entidad. Para leer un informe en otra moneda, por ejemplo en **USD** para tus inversionistas o tu directorio, pídelo con una **moneda de presentación** y el tipo de cambio a aplicar. El estado de resultados, el balance general, el libro mayor y la realización de ingresos aceptan `presentationCurrency` y `presentationRate` juntos, y todos los montos de la respuesta se convierten a ese único tipo. Consulta [Informes](/api-reference/reports).
+    Los informes están en la moneda funcional de la entidad. Para leer un informe en otra moneda, por ejemplo en **USD** para tus inversionistas o tu directorio, pídelo con una **moneda de presentación**. El balance general, el estado de resultados y el balance de ocho columnas aceptan `presentationCurrency` y convierten los libros con los tipos de cambio oficiales de la fuente de la entidad: cada línea al tipo de su fecha, los activos y pasivos al tipo de cierre, y la diferencia en la cuenta de Reserva de conversión de la entidad. Consulta [Informes en una moneda de presentación](/api-reference/reports#reports-in-a-presentation-currency).
   </Accordion>
 
   <Accordion title="Transacción">

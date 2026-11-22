@@ -58,7 +58,7 @@ Sintropix introduces a small set of concepts that shape how your financial data 
   </Accordion>
 
   <Accordion title="Reporting Currency">
-    Reports are in the entity's functional currency. To read a report in another currency, such as **USD** for investors or a board, ask for it with a **presentation currency** and the rate to apply. The Income Statement, Balance Sheet, general ledger, and Revenue Realization take `presentationCurrency` and `presentationRate` together, and every amount in the answer is then converted at that one rate. See [Reports](/api-reference/reports).
+    Reports are in the entity's functional currency. To read a report in another currency, such as **USD** for investors or a board, ask for it with a **presentation currency**. The Balance Sheet, the Income Statement, and the Eight-column Balance take `presentationCurrency` and translate the books from the official rates of the entity's Rate Source: each line at its date's rate, assets and liabilities at the closing rate, and the difference in the entity's Translation Reserve Account. See [Reports in a presentation currency](/api-reference/reports#reports-in-a-presentation-currency).
   </Accordion>
 
   <Accordion title="Transaction">

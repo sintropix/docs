@@ -8,7 +8,7 @@ import AppLink from "/snippets/app-link.mdx"
 
 The Reports API surfaces financial and operational read models for a single entity, plus the home dashboard, the cash flow statement, the receivables and payables, the revenue realization, the customer status, and the cash burn and runway of a whole Organization. All endpoints are `GET` only. Pass the entity id, or the Organization id for the Organization report, as a UUID path parameter. Responses are bare JSON with no wrapper. Paginated endpoints return `{ rows, nextCursor }`.
 
-All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. Where a report accepts `presentationCurrency` and `presentationRate`, the two must be supplied together, and every amount in the response is then expressed in the presentation currency.
+All amounts are integers in the minor unit of the currency (for example, cents). Dates are `YYYY-MM-DD` strings. The balance sheet, the income statement and its lines, and the eight-column balance accept `presentationCurrency` to translate the Entity's books into another currency. See [Reports in a presentation currency](#reports-in-a-presentation-currency).
 
 <Note>
   **Entities with Bases.** Every report on this page reads one [Basis](/api-reference/bases). When the Entity has at least one Basis, pass the `basisId` query parameter on every request; the server answers `BASIS_REQUIRED_ERROR` (`400`) without it. When the Entity has no Basis, omit `basisId`.
@@ -42,6 +42,79 @@ A report that walks a running balance reads one Fiscal Year: the [eight-column b
 ```
 
 The income statement, the journal, the cash flow statement, and the other reports that sum the lines between two dates take any window.
+
+## Reports in a presentation currency
+
+An Entity keeps its books in its functional currency. To read its financial statements in another currency, such as **USD** for investors or a board, pass `presentationCurrency` to one of these reports:
+
+- [Balance sheet](#balance-sheet)
+- [Income statement](#income-statement) and [Income statement lines](#income-statement-lines)
+- [Eight-column balance](#eight-column-balance)
+
+Sintropix then translates the Entity's books as IAS 21 describes, from the official rates of the Entity's [Rate Source](/api-reference/fx-rates#rate-sources). You don't send a rate. Translation is computed on every read: it posts nothing and never changes the books.
+
+The other reports, such as the journal, the general ledger, the partner ledger, and revenue realization, stay in the functional currency. The [consolidated reports](/api-reference/consolidation#scope-currency-and-rates) still take the rates you type in `presentationRates`.
+
+### Before you translate
+
+The Entity needs two things:
+
+1. **A Translation Reserve Account.** Mark one equity account of the Entity with the `translation_reserve` [sub-type](/api-reference/chart-of-accounts#the-translation-reserve-account). It holds the translation difference.
+2. **A Rate Source that quotes the pair.** The Entity's country must have a [Rate Source](/api-reference/fx-rates#rate-sources), and that source must publish a rate between the presentation currency and the functional currency on or before the first day the report needs.
+
+### How amounts are translated
+
+- **Each line** is translated at the rate of its entry date: the Rate Source's rate on or before that day. Each line is rounded half up to the minor unit of the presentation currency once, before it adds up. [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries) are translated like any other line.
+- **Asset and liability accounts** are then restated at the closing rate, so their balances equal the functional balance at the closing rate. The difference goes to the Translation Reserve Account, which also takes the rounding cents of the translated lines. Sintropix restates them at each month end and today, and also at the last day of your report and the day before its first when those aren't month ends. So a balance sheet at a mid-month date uses that day's closing rate.
+- **Equity and result accounts** keep the rates of their entry dates. The result of each Fiscal Year closes into retained earnings at its translated amount.
+- **The closing rate** is the Rate Source's rate on or before the last day of the report.
+
+The translation differences are other comprehensive income. The income statement shows them by month after the result, in `otherComprehensiveIncome`. In the app they read **Otro resultado integral**, **Diferencias de conversión (se reclasificarán a resultados)**, and **Resultado integral total**.
+
+### The `translation` object
+
+A translated report carries `translation`, which states the basis of the translation. It is `null` when the report is in the functional currency.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `functionalCurrency` | string | The Entity's functional currency |
+| `presentationCurrency` | string | The currency the amounts are in |
+| `rateSource` | enum | The [Rate Source](/api-reference/fx-rates#rate-sources) the rates come from |
+| `closingRate` | decimal string | One unit of the presentation currency in units of the functional currency, at the closing rate. `"1000"` means 1 USD = 1,000 CLP |
+| `closingRateDate` | ISO date | The date of the closing rate |
+| `notices` | array | Notices about the translation, each `{ code, params }` |
+
+The only notice is `TRANSLATION_CLOSING_RATE_PROVISIONAL`. The report is complete, but the Rate Source hasn't published a rate after the last day of the report yet, so the closing rate may still change. `params` holds `presentationCurrency`, `valuationDate` (the day that needs a rate), and `rateDate` (the date of the rate used). A currency with a fixed peg never raises it.
+
+```json
+"translation": {
+  "functionalCurrency": "CLP",
+  "presentationCurrency": "USD",
+  "rateSource": "banco_central_de_chile",
+  "closingRate": "1000",
+  "closingRateDate": "2026-07-31",
+  "notices": []
+}
+```
+
+### Translation errors
+
+Nothing is translated in part. A report that can't be translated in full answers an error, checked in this order:
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `400` | `PRESENTATION_CURRENCY_IS_FUNCTIONAL_ERROR` | `presentationCurrency` is the Entity's functional currency. Omit it to read the functional currency |
+| `400` | `INCOME_STATEMENT_BUDGET_NOT_TRANSLATED_ERROR` | The income statement was asked with both `budgetId` and `presentationCurrency`. A comparison with a Budget is only available in the functional currency. `params: { budgetId }` |
+| `409` | `TRANSLATION_RESERVE_ACCOUNT_MISSING_ERROR` | The Entity has no Translation Reserve Account. `params: { entityId }` |
+| `409` | `TRANSLATION_RATE_SOURCE_NOT_FOUND_ERROR` | The Entity's country has no Rate Source. `params: { entityId, country, presentationCurrency, functionalCurrency }` |
+| `409` | `TRANSLATION_RATE_NOT_FOUND_ERROR` | The Rate Source has no rate for the pair on or before `params.date`, the first day the report needs one. `params: { rateSource, presentationCurrency, functionalCurrency, date }` |
+
+```bash
+curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/balance-sheet?cutoffDate=2026-07-31&presentationCurrency=USD" \
+  -H "x-api-key: $SINTROPIX_API_KEY"
+```
+
+In the app, pick the currency in **Moneda de presentación** on the **Balance general**, **Balance de ocho columnas**, or **Estado de resultados** page. A translated report states the presentation currency, the functional currency, the Rate Source, and the closing rate above the table and in its exports.
 
 ## Entity reports
 
@@ -240,8 +313,7 @@ Returns the balance sheet on one date. The report reads the [Fiscal Year](#the-f
 | Param | Type | Required | Description |
 | --- | --- | --- | --- |
 | `cutoffDate` | ISO date | Yes | Date of the balance sheet |
-| `presentationCurrency` | string | No | Currency to present amounts in |
-| `presentationRate` | decimal string | No | Rate used for conversion; required together with `presentationCurrency` |
+| `presentationCurrency` | string | No | Currency to [translate](#reports-in-a-presentation-currency) the amounts into. Omit it for the functional currency |
 | `basisId` | UUID | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise |
 
 **Response**
@@ -252,11 +324,11 @@ Returns the balance sheet on one date. The report reads the [Fiscal Year](#the-f
 | `fiscalYearStart` | ISO date | First day of the Fiscal Year that holds `cutoffDate` |
 | `functionalCurrency` | string | The entity's functional currency |
 | `presentationCurrency` | string | Currency the amounts are in |
-| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
+| `translation` | object or null | The basis of the translation; `null` in the functional currency. See [The `translation` object](#the-translation-object) |
 | `accountGroups` | array | Account Groups in code-prefix order, each `{ id, parentGroupId, codePrefix, name }` |
 | `assets` | object | `{ accounts, total }` |
 | `liabilities` | object | `{ accounts, total }` |
-| `equity` | object | `{ accounts, total, priorPeriodResult, currentPeriodResult, conversionRounding }`. `currentPeriodResult` is the result from `fiscalYearStart` to `cutoffDate`. `priorPeriodResult` is the result of the closed Fiscal Years that no account carries; it is `0` once the Entity has a retained earnings account, which then carries it in its `balance` |
+| `equity` | object | `{ accounts, total, priorPeriodResult, currentPeriodResult }`. In a presentation currency, `accounts` includes the Translation Reserve Account. `currentPeriodResult` is the result from `fiscalYearStart` to `cutoffDate`. `priorPeriodResult` is the result of the closed Fiscal Years that no account carries; it is `0` once the Entity has a retained earnings account, which then carries it in its `balance` |
 | `totalLiabilitiesAndEquity` | integer | Sum of the liabilities and equity totals |
 
 Each item in an `accounts` array, in code order:
@@ -293,9 +365,8 @@ Pass `budgetId` to compare the actual results against a [Budget](/api-reference/
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `dimensionId` | UUID | No | Dimension of the Entity's Organization to split the accounts by. See [Dimensions belong to the Organization](/api-reference/dimensions#dimensions-belong-to-the-organization). A Dimension of another Organization returns `404` with `DIMENSION_NOT_FOUND_ERROR` |
-| `budgetId` | UUID | No | Budget of the Entity to compare against. A Budget of another Entity returns `404` with `BUDGET_NOT_FOUND_ERROR` |
-| `presentationCurrency` | string | No | Presentation currency |
-| `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
+| `budgetId` | UUID | No | Budget of the Entity to compare against. A Budget of another Entity returns `404` with `BUDGET_NOT_FOUND_ERROR`. Can't be combined with `presentationCurrency` |
+| `presentationCurrency` | string | No | Currency to [translate](#reports-in-a-presentation-currency) the amounts into. Omit it for the functional currency |
 | `basisId` | UUID | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise |
 
 **Response**
@@ -306,12 +377,13 @@ Pass `budgetId` to compare the actual results against a [Budget](/api-reference/
 | `to` | ISO date | As requested |
 | `functionalCurrency` | string | The entity's functional currency |
 | `presentationCurrency` | string | Currency the amounts are in |
-| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
+| `translation` | object or null | The basis of the translation; `null` in the functional currency. See [The `translation` object](#the-translation-object) |
 | `accountGroups` | array | Account Groups, each `{ id, parentGroupId, codePrefix, name }` |
 | `accounts` | array | Result accounts in code order, each with the fields below. With `budgetId`, an account the Budget plans in the range is listed even when it has no lines |
 | `dimension` | object or null | The Dimension asked for in `dimensionId`: `{ id, organizationId, name, createdAt, updatedAt }`; `null` when none was asked |
 | `dimensionValues` | array | Every value of that Dimension, ordered by code, each `{ id, code, name, parentId }`; `parentId` is `null` at the top level. Empty when no Dimension was asked |
 | `budget` | object or null | The Budget asked for in `budgetId`: `{ id, name }`; `null` when none was asked |
+| `otherComprehensiveIncome` | object or null | `{ translationDifferences }`: the translation differences of the period by month, each `{ month, amount }`, where `month` is the first day of the month and a gain is positive. `null` in the functional currency |
 
 Each item in `accounts`:
 
@@ -334,7 +406,7 @@ Each item in `amounts`:
 | `dimensionValueId` | UUID or null | Value of the asked Dimension the lines carry; `null` for the lines that carry none, and always `null` when no Dimension was asked |
 | `amount` | integer | Net result of those lines on the account's normal side, in the presentation currency. An income is positive, and a cost or expense is positive too. A negative amount is a result on the opposite side, such as a refund on an income account |
 
-`amount` covers only the lines between `from` and `to`: with `from=2027-03-15`, the March amount adds up the lines from March 15 on. A month with no lines has no item. With `presentationCurrency`, each line converts on its own before it adds up, so a monthly amount always equals the sum of the lines [Income statement lines](#income-statement-lines) returns for that month.
+`amount` covers only the lines between `from` and `to`: with `from=2027-03-15`, the March amount adds up the lines from March 15 on. A month with no lines has no item. With `presentationCurrency`, each line is translated at its entry date's rate before it adds up, so a monthly amount always equals the sum of the lines [Income statement lines](#income-statement-lines) returns for that month.
 
 To total an account for the period, add up all its `amounts`. To total it by value, add up its `amounts` per `dimensionValueId`. To total a parent value, also add the amounts of every value under it, following `parentId`. Amounts with a `null` `dimensionValueId` make up the untagged remainder, so the values plus the remainder always add up to the account.
 
@@ -342,7 +414,7 @@ To total an account for the period, add up all its `amounts`. To total it by val
   `amounts` replaces the `lines` array each account used to carry. To read the lines, call [Income statement lines](#income-statement-lines).
 </Note>
 
-Each item in `budgetAmounts` covers a whole calendar month, given by its first day in `month`. Every month the range overlaps counts whole: with `from=2027-03-15`, March is still included in full. Like `amounts`, `amount` is in the presentation currency, and it reads on the account's normal side, so a planned cost is positive.
+Each item in `budgetAmounts` covers a whole calendar month, given by its first day in `month`. Every month the range overlaps counts whole: with `from=2027-03-15`, March is still included in full. Like `amounts`, it reads on the account's normal side, so a planned cost is positive.
 
 To compare an account for a period, total its `amounts` to get the actual, and total its `budgetAmounts` for the months of the period to get the plan. The variance is actual minus plan. For an income account a positive variance is a better result; for a cost or expense account a negative variance is.
 
@@ -379,8 +451,7 @@ Returns the lines behind one figure of the [income statement](#income-statement)
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
 | `dimensionId` | UUID | No | Dimension whose value each line names in `dimensionValueId`. Pass the same `dimensionId` as the income statement to keep the lines of one value |
-| `presentationCurrency` | string | No | Presentation currency |
-| `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
+| `presentationCurrency` | string | No | Currency to [translate](#reports-in-a-presentation-currency) the amounts into. Omit it for the functional currency |
 | `basisId` | UUID | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise |
 
 **Response**
@@ -1015,7 +1086,7 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/journal?from=
 
 `GET /api/entities/:entityId/reports/revenue-realization`
 
-Returns a revenue realization report for the requested period, showing recognized revenue, collected amounts, billed outstanding, and monthly breakdowns. To read the revenue entries behind the figures, call [Revenue realization entries](#revenue-realization-entries).
+Returns a revenue realization report for the requested period, showing recognized revenue, collected amounts, billed outstanding, and monthly breakdowns. Amounts are in the Entity's functional currency. To read the revenue entries behind the figures, call [Revenue realization entries](#revenue-realization-entries).
 
 **Query params**
 
@@ -1023,8 +1094,6 @@ Returns a revenue realization report for the requested period, showing recognize
 | --- | --- | --- | --- |
 | `from` | ISO date | Yes | Start date |
 | `to` | ISO date | Yes | End date (must be on or after `from`) |
-| `presentationCurrency` | string | No | Presentation currency |
-| `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
 | `basisId` | UUID | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise |
 
 **Response**
@@ -1035,8 +1104,6 @@ Returns a revenue realization report for the requested period, showing recognize
 | `to` | ISO date | As requested |
 | `paymentStateDate` | ISO date | Date at which collection state was evaluated |
 | `functionalCurrency` | string | The entity's functional currency |
-| `presentationCurrency` | string | Currency the amounts are in |
-| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
 | `months` | array | One item per month: `{ monthKey }` (`YYYY-MM`) plus the amount fields below |
 | `total` | object | The amount fields below, summed over the period |
 | `entryCount` | integer | Number of revenue entries in the period |
@@ -1066,8 +1133,6 @@ curl -s "https://api.sintropix.com/api/entities/$ENTITY_ID/reports/revenue-reali
 `GET /api/entities/:entityId/reports/revenue-realization/entries`
 
 Returns the revenue entries behind the [revenue realization](#revenue-realization) report. It takes the same query params as the report. To explain one month, pass that month's first and last days as `from` and `to`.
-
-With `presentationCurrency`, each entry converts once, and the report's `months` and `total` add up the converted entries, so the entries of a month always add up to that month of the report.
 
 **Response**
 
@@ -1227,8 +1292,7 @@ The window must sit inside one [Fiscal Year](#the-fiscal-year-in-reports); one t
 | --- | --- | --- | --- |
 | `exerciseStart` | ISO date | Yes | Start of the window |
 | `cutoffDate` | ISO date | Yes | End of the window (must be on or after `exerciseStart`, in the same Fiscal Year) |
-| `presentationCurrency` | string | No | Presentation currency |
-| `presentationRate` | decimal string | No | Required together with `presentationCurrency` |
+| `presentationCurrency` | string | No | Currency to [translate](#reports-in-a-presentation-currency) the amounts into. Omit it for the functional currency |
 | `basisId` | UUID | Conditional | Required when the Entity has at least one Basis; must be omitted otherwise |
 
 **Response**
@@ -1239,11 +1303,10 @@ The window must sit inside one [Fiscal Year](#the-fiscal-year-in-reports); one t
 | `cutoffDate` | ISO date | As requested |
 | `functionalCurrency` | string | The entity's functional currency |
 | `presentationCurrency` | string | Currency the amounts are in |
-| `presentationRate` | decimal string or null | Rate applied; `null` when no conversion was requested |
+| `translation` | object or null | The basis of the translation; `null` in the functional currency. See [The `translation` object](#the-translation-object) |
 | `rows` | array | One item per account: `{ accountId, code, name, type }` plus the eight column fields below |
 | `unclosedPriorResult` | object | The eight column fields of an equity row for the result of the closed Fiscal Years that no account carries (**Resultados anteriores pendientes de cierre**). All `0` once the Entity has a retained earnings account |
 | `subtotal` | object | The eight column fields, summed over `rows` and `unclosedPriorResult` |
-| `conversionRounding` | object | The eight column fields; rounding difference introduced by currency conversion |
 | `result` | object | `{ kind, amount, adjustment }`; `kind` is `profit`, `loss`, or `break_even`, and `adjustment` carries the eight column fields |
 | `totals` | object | The eight column fields after the result adjustment |
 
@@ -1542,3 +1605,4 @@ The workbook is built from API reads you can call yourself: the [eight-column ba
 | 401 | Unauthenticated |
 | 403 | Your Role doesn't allow this action (`PERMISSION_DENIED_ERROR`) |
 | 404 | Entity, Organization, or referenced resource not found, or the Entity is outside your Organizations |
+| 409 | A report in a presentation currency can't be translated. See [Translation errors](#translation-errors) |
