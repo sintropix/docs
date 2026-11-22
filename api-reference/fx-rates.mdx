@@ -238,7 +238,7 @@ curl "https://api.sintropix.com/api/fx-rates/recent?rateSource=banco_de_mexico" 
 
 ## GET `/organizations/:organizationId/fx-rates/presentation-rates`
 
-Suggest a presentation rate for each functional currency of some Entities of the Organization, to read them in one presentation currency. Pass the suggestions as `presentationRates` to a [consolidated report](/api-reference/consolidation#scope-currency-and-rates), or use the one for a single Entity in its [reports](/api-reference/reports).
+Suggest a presentation rate for each functional currency of some Entities of the Organization, to read them in one presentation currency. Pass the suggestions as `presentationRates` to a [consolidated report](/api-reference/consolidation#scope-currency-and-rates). An Entity's own reports need no rate: they [translate](/api-reference/reports#reports-in-a-presentation-currency) from the Rate Source.
 
 Each functional currency is valued at the Rate Source of the Entities that keep it. The route needs the `books` read permission, so every Role can call it. An API key [scoped to listed Entities](/guides/api-keys#key-scope) reads those Entities only.
 

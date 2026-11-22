@@ -757,7 +757,7 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID/ledger/accounts/
 The sub-type `translation_reserve` (**Reserva de conversión**) marks the Entity's Translation Reserve Account. It is the equity account for the difference that arises when the Entity's balances are translated from its functional currency into another presentation currency, as IAS 21 describes. That balance exists only in a translated read, so Sintropix never stores a line on the account.
 
 <Note>
-  You can mark the account now. No report shows a translated balance on it yet.
+  The account is required to read a report in a [presentation currency](/api-reference/reports#reports-in-a-presentation-currency). Without it, those reports answer `409` with `TRANSLATION_RESERVE_ACCOUNT_MISSING_ERROR`.
 </Note>
 
 Create the account with `type: "equity"`, `tracking: "balance"`, and `subtype: "translation_reserve"`, or `PATCH` an existing account that has no lines. These rules apply:
