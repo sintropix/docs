@@ -199,7 +199,7 @@ When the API knows who you are, through an API key (read-only keys included), a 
 | `409` | Domain conflict (for example an already-booked Ledger Entry, a duplicate row). |
 | `422` | The request is well formed, but the domain refuses it (for example a value another record doesn't allow). |
 | `424` | An outside system Sintropix depends on, such as a bank, a payment provider, or the SII, refused the request. The body carries a coded error, for example `BANK_FEED_PROVIDER_FAILURE_ERROR`. See [Provider refusals](#provider-refusals). |
-| `429` | Rate limit exceeded on an API key. |
+| `429` | Rate limit exceeded on an API key, or too many sign-in attempts for one email (`SIGN_IN_THROTTLED_ERROR`). See [Rate Limits](#rate-limits). |
 | `500` | Unhandled server error. |
 | `503` | A service or outside system can't be reached right now. Retry later. |
 
@@ -223,6 +223,10 @@ A refusal answers the same until someone acts, for example by reconnecting the I
 ## Rate Limits
 
 Each API key is rate-limited to **25,000 requests per hour** on a sliding window. Exceeding the limit returns `429`; there is no `X-RateLimit-*` header response contract.
+
+Password sign-ins are also limited per email, whichever IP addresses send them. After 10 attempts for the same email within 15 minutes of the first one, the next sign-in answers `429` with `SIGN_IN_THROTTLED_ERROR` until those 15 minutes end. The `X-Retry-After` header carries the seconds left. A sign-in with the right password starts the count again. An email with no Sintropix account is limited the same way, so the answer doesn't reveal whether an account exists.
+
+A User gets at most 3 password reset emails an hour. A reset request past that limit answers the same as any other, and no email is sent.
 
 ## Service Status
 
