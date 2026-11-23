@@ -134,7 +134,7 @@ A Link with one Entity outside the Scope is never eliminated: from the Scope's v
 
 An Entity's column reads its books with their [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries), so a foreign open item that a Link names may carry a revaluation. When the Link is eliminated, the item is eliminated as revalued:
 
-- **The item's Revaluation lines are reversed with it.** Each Revaluation line on the open item's Monetary Account, dated on or before `date`, is reversed in Eliminaciones on its Group Account, dated the later of the Revaluation line and the Link. A month's Revaluation Entry and its reversal on the 1st of the next month are eliminated in pairs.
+- **The item's Revaluation lines are reversed with it.** Each Revaluation line on the open item's Monetary Account, dated on or before `date`, is reversed in Eliminaciones on its Group Account, dated the later of the Revaluation line and the Link. A month's Revaluation Entry and its reversal on the 1st of the next month are eliminated in pairs. So are the Revaluation Entry a report adds on [its own date](/api-reference/ledger-entries#revaluation-at-a-reports-dates) and its reversal the next day.
 - **The exchange difference stays in the result.** The [Exchange Difference Lines](/api-reference/bank-movements#the-exchange-difference-line) of those entries aren't eliminated, so the gain or loss each Entity booked on the item stays in Consolidado.
 - **A Link in transit leaves the item's Revaluation lines in its Entity's column**, with the item itself.
 

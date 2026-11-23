@@ -65,9 +65,10 @@ The Entity needs two things:
 ### How amounts are translated
 
 - **Each line** is translated at the rate of its entry date: the Rate Source's rate on or before that day. Each line is rounded half up to the minor unit of the presentation currency once, before it adds up. [Revaluation Entries](/api-reference/ledger-entries#revaluation-entries) are translated like any other line.
-- **Asset and liability accounts** are then restated at the closing rate, so their balances equal the functional balance at the closing rate. The difference goes to the Translation Reserve Account, which also takes the rounding cents of the translated lines. Sintropix restates them at each month end and today, and also at the last day of your report and the day before its first when those aren't month ends. So a balance sheet at a mid-month date uses that day's closing rate.
+- **Asset and liability accounts** are then restated at the closing rate, so their balances equal the functional balance at the closing rate. The difference goes to the Translation Reserve Account, which also takes the rounding cents of the translated lines. Sintropix restates them on the dates it [revalues foreign monetary items](/api-reference/ledger-entries#revaluation-at-a-reports-dates): each month end and today, and the last day of your report and the day before its first when no month's entry stands on those days. So a balance sheet at a mid-month date uses that day's closing rate.
+- **Foreign monetary items are revalued before they are translated.** A foreign item presented in its own currency shows its units on any date, the exchange difference goes to the result, and the Translation Reserve Account holds only translation differences.
 - **Equity and result accounts** keep the rates of their entry dates. The result of each Fiscal Year closes into retained earnings at its translated amount.
-- **The closing rate** is the Rate Source's rate on or before the last day of the report.
+- **The closing rate** is the Rate Source's rate on or before the last day of the report. When that day is later in the current month than today, the report uses today's closing rate.
 
 The translation differences are other comprehensive income. The income statement shows them by month after the result, in `otherComprehensiveIncome`. In the app they read **Otro resultado integral**, **Diferencias de conversión (se reclasificarán a resultados)**, and **Resultado integral total**.
 
