@@ -726,7 +726,7 @@ These lines are revalued: live common lines (with no Basis) on a [Monetary Accou
 
 Each position has its own Revaluation Entry per month, from the month it is first held to the current month. A month where the position's amount doesn't differ from its carrying amount has none for that position.
 
-- **Date.** A month that has passed is revalued on its last day. The current month is revalued on today's date, at the latest published rate, so its entry moves forward each day and keeps its id.
+- **Date.** A month that has passed is revalued on its last day. The current month is revalued on today's date, at the latest published rate, so its entry moves forward each day and keeps its id. A report can add one more entry on its own dates. See [Revaluation at a report's dates](#revaluation-at-a-reports-dates).
 - **Rate.** The closing rate is the rate from the Entity's [Rate Source](/api-reference/fx-rates) on or before the entry date.
 - **Lines.** Each entry has two lines. The item line, on the position's Monetary Account, carries the difference, with `transactionCurrency` set, a `transactionAmount` of `0`, and the closing rate in `transactionFxRate`. An [Exchange Difference Line](/api-reference/bank-movements#the-exchange-difference-line) with `exchangeDifferenceGround: "revaluation"` balances it on the Entity's [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts): a gain on the `other_income` account and a loss on the `other_expense` account, or both on the one account the Entity tagged.
 - **Partner.** The Exchange Difference Line of an open item carries the item's `partnerId`, so a Partner filter on `GET /ledger/lines` and the reports under that Partner find it. A balance position has no Partner.
@@ -741,6 +741,30 @@ For example, a Chilean Entity holds USD 1,000.00 on a monetary Bank Account, bou
 1. On 31 March the closing rate is 940.00. The March Revaluation Entry, dated 31 March, debits the bank account CLP 40,000 and credits the Exchange Difference Account CLP 40,000. The balance sheet at 31 March shows the bank at CLP 940,000.
 2. On 1 April the reversal takes the CLP 40,000 back.
 3. On 30 April the closing rate is 920.00. The April Revaluation Entry books a CLP 20,000 gain. The income statement for April shows an exchange difference of CLP −20,000: the reversal of March's CLP 40,000 gain and April's CLP 20,000 gain.
+
+#### Revaluation at a report's dates
+
+A month's Revaluation Entry stands from its date through the last day of its month. A report whose last day, or the day before its first day, is a day no month's entry stands on gets one more Revaluation Entry per position on that day. That day is:
+
+- A past day that isn't a month end.
+- A day of the current month before today.
+- A day of a month that hasn't started yet, such as the end of the current Fiscal Year.
+
+The extra entry follows the rules above, with these differences:
+
+- **Date and rate.** It's dated on that day, at the closing rate from the Entity's Rate Source on or before that day.
+- **Reversal.** Its reversal is dated the next day.
+- **Scope.** It exists only in a report that reaches that day. A report with other dates doesn't include it, and nothing is stored.
+- **Ids.** Its id states the position and the day, so the same report answers the same id. Open it with the [entry detail](#get-/api/entities/entityid/ledger/entries/entryid) like any Computed Entry. Every write that names it is refused with `LEDGER_ENTRY_COMPUTED_ERROR`, with its date in `entryDate`.
+
+So a balance sheet at any date carries foreign monetary items at that date's closing rate, and an income statement for any window shows only that window's exchange differences. Every read of the books includes it: the balance sheet, the income statement and its lines, the eight-column balance, the general ledger, the journal, `GET /ledger/entries`, the cash flow statement's `fxEffect`, the [consolidated reports](/api-reference/consolidation#revaluation-in-consolidated-reports), and [`GET /ledger/revaluation`](#get-/api/entities/entityid/ledger/revaluation).
+
+In the example above, the closing rate on 15 April is 930.00:
+
+- The balance sheet at 15 April gets a Revaluation Entry dated 15 April that books a CLP 30,000 gain, so it shows the bank at CLP 930,000. Its reversal is dated 16 April.
+- The income statement for 1–15 April shows an exchange difference of CLP −10,000: the reversal of March's CLP 40,000 gain and the 15 April entry's CLP 30,000 gain.
+- The income statement for 16–30 April shows CLP −10,000: the reversal of the 15 April entry and April's CLP 20,000 gain.
+- The balance sheet at 30 April reads only the month entries, as before.
 
 #### The revalued position
 
@@ -772,7 +796,7 @@ List the Revaluation Entries dated on or before a date, and the notices about ho
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `entryIds` | UUID[] | Ids of the Revaluation Entries and their reversals dated on or before `through`, one pair per position and month. Read them with [`GET /ledger/entries?ids=`](#reading-several-entries-by-id) |
+| `entryIds` | UUID[] | Ids of the Revaluation Entries and their reversals dated on or before `through`, one pair per position and month. When no month's entry stands on `through`, it also lists one pair per position for [that day](#revaluation-at-a-reports-dates). Read them with [`GET /ledger/entries?ids=`](#reading-several-entries-by-id) |
 | `notices` | array | What kept a balance from being revalued, or may still change it, as `{ code, params }`. A notice about a month is included when the month starts on or before `through` |
 
 A notice never blocks a read. Balances and reports answer without the part it names. Each notice carries the names it needs beside the ids, so you can show it without another read.
@@ -780,8 +804,8 @@ A notice never blocks a read. Balances and reports answer without the part it na
 | Code | Meaning |
 | --- | --- |
 | `REVALUATION_EXCHANGE_DIFFERENCE_ACCOUNT_MISSING` | The Entity has foreign monetary balances but no [Exchange Difference Account](/api-reference/chart-of-accounts#exchange-difference-accounts), so nothing is revalued. `params: {}` |
-| `REVALUATION_CLOSING_RATE_MISSING` | The Rate Source has no rate for the currency on or before the month's entry date, so that currency isn't revalued in that month. `params: { currency, monthEnd }` |
-| `REVALUATION_CLOSING_RATE_PROVISIONAL` | The Rate Source has published nothing dated after the month end yet, so the closing rate, and the entry with it, can still change. `params: { currency, monthEnd, rateDate }` |
+| `REVALUATION_CLOSING_RATE_MISSING` | The Rate Source has no rate for the currency on or before the month's entry date, so that currency isn't revalued in that month. `params: { currency, monthEnd }`. For an entry on a [report's own date](#revaluation-at-a-reports-dates), `monthEnd` is that date |
+| `REVALUATION_CLOSING_RATE_PROVISIONAL` | The Rate Source has published nothing dated after the month end yet, so the closing rate, and the entry with it, can still change. `params: { currency, monthEnd, rateDate }`. For an entry on a [report's own date](#revaluation-at-a-reports-dates), `monthEnd` is that date |
 | `REVALUATION_DIMENSIONS_NOT_SET` | The Group Account of an Exchange Difference Account the entries use [requires Dimensions](/api-reference/dimensions#required-dimensions), but computed lines carry no Dimension values. `params: { accountId, accountName, dimensions }`, where `dimensions` is an array of `{ dimensionId, name }` |
 | `REVALUATION_BASIS_LINE_NOT_REVALUED` | A Basis Entry has a foreign line on a Monetary Account. Basis lines are not revalued. `params: { accountId, accountName, basisId, basisName }` |
 | `REVALUATION_LINKED_LINE_ON_BALANCE_ACCOUNT` | A foreign line in an [Intercompany Link](/api-reference/intercompany-links) sits on a Monetary Account revalued as one balance (`tracking: "balance"`). The consolidated reports can't eliminate the account's exchange difference in that currency with the Link. See [Revaluation in consolidated reports](/api-reference/consolidation#revaluation-in-consolidated-reports). `params: { accountId, accountName, currency }` |
