@@ -47,6 +47,8 @@ A Partner has no type. Whether an Entity buys from a Partner or sells to it is r
 
 A Partner can have both roles, or none. In the app, **Contactos** filters by **Relación** (**Proveedor** or **Cliente**).
 
+In the app, **Contactos** and **Proveedores** show each Partner's `openReceivable` as **Por cobrar** and its `openPayable` as **Por pagar**. Click an amount to open the report of the items it sums, filtered by that Partner: **Por cobrar** opens `/{entityId}/receivables?partnerId={partnerId}`, and **Por pagar** opens `/{entityId}/payables?partnerId={partnerId}`. The report lists only the receivable and payable control accounts, so a Partner's open lines on another open-item account count in the column but don't appear in the report.
+
 ### Representing Partners
 
 Each Entity is represented by one Partner of its Organization. That Partner carries the Entity's tax identity (`country` and `taxId`), and its `representsEntityId` is the Entity's id. Sintropix creates it with the Entity. The other Entities of the Organization use it to name that Entity as their counterparty, for example for what they owe each other.
