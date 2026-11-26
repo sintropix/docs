@@ -26,6 +26,15 @@ Amounts are integers in the minor units of their currency (`1190000` is CLP 1,19
   note="That page is for direction receivable. For direction payable use /{entityId}/bills?open={invoiceId}, and for an Expense Rendition use /{entityId}/expense-renditions?open={invoiceId}."
 />
 
+### Payment date
+
+A `paid` document's `paymentDate` is the latest date among the things that settled its Control Line. Each one counts as follows:
+
+- **A payment** counts on its own entry date, a prepayment too. A purchase invoice paid from the bank on 16 August and booked on 26 November reads 16 August.
+- **Another document**, such as a credit note applied to an invoice, counts on the later of the two documents' booking dates. No money moved, so the settlement can't come before both documents exist. An invoice booked on 20 October and a credit note booked on 10 November that settle each other both read 10 November.
+
+The app shows this date next to **Pagado** in **Ventas** and **Compras**. The listing, the Invoice detail, and the [reports](/api-reference/reports) that carry `paymentDate` all read the same date.
+
 ## Document kinds
 
 Every Invoice has a `documentKind`. It says what the booking does with the Invoice's total:
@@ -388,7 +397,7 @@ Each element of `invoices` is an **Invoice row**: every field of the Invoice obj
 | `sourceName` | string or null | Name of the Source, null when the document came from none. |
 | `isExpenseRendition` | boolean | Whether the document is an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions): a `payable` Invoice whose Source holds Expense Renditions. Read from the Source, so marking or unmarking the Source changes it on every row at once. |
 | `paymentStatus` | string or null | `paid`, `partial`, or `unpaid`. Null while the document is not booked, and always null on a `tax_only` document. |
-| `paymentDate` | string or null | `YYYY-MM-DD`. For a `paid` document, the latest entry date of the entries that settled its Control Line, whatever settled it: a payment, a credit note, or a manual offset. Null while the document is unpaid, partially paid, or not booked, and always null on a `tax_only` document. |
+| `paymentDate` | string or null | `YYYY-MM-DD`. For a `paid` document, the date it was settled, read from whatever settled its Control Line: a payment, a credit note, or a manual offset (see [Payment date](#payment-date)). Null while the document is unpaid, partially paid, or not booked, and always null on a `tax_only` document. |
 | `openAmount` | integer or null | Remaining amount left to settle on the control line, in minor units of the Entity's functional currency (regardless of the document's own `currency`). Null while the document is not booked, and always null on a `tax_only` document; `0` once it is fully paid. |
 | `bookingAccountLabel` | string or null | The counterpart account that received the largest amount when the document was booked. Null while unbooked. |
 | `bookingExtraLineCount` | integer | How many further counterpart lines the booking has beyond the one named by `bookingAccountLabel`. |
@@ -991,6 +1000,7 @@ Booking a deferred line creates one Release per month:
 - **Closed months.** If a Release would fall on or before the ledger lock date, the whole booking is refused with `LEDGER_ENTRY_DATE_LOCKED_ERROR`.
 - **Partner and Dimensions.** Both lines of each Release carry the Invoice's Partner. The deferred line's `dimensionValueIds` go on the recognition line of each Release, not on the deferral account line of the booking.
 - **Basis.** Each Release counts in the [Basis](/api-reference/bases) of its booking.
+- **Memo.** Each Release's memo is `Diferimiento <document number> <yyyy-mm>`, such as `Diferimiento F-8 2026-10`. Releases created before this change keep the English memo `Deferral …`.
 
 Each Release has two lines: the Recognition Account and the deferral account. It posts to the Recognition Account on the side the deferred line took, and takes the share off the deferral account on the other side. For a prepaid expense on a purchase invoice, the Release debits the Recognition Account and credits the prepaid account. For deferred revenue on a sales invoice, it debits the deferred revenue account and credits the Recognition Account. A credit note's Releases post the other way round.
 
@@ -1131,6 +1141,7 @@ Booking an accrued line creates one Release per month:
 - **Closed months.** If a Release would fall on or before the ledger lock date, the whole booking is refused with `LEDGER_ENTRY_DATE_LOCKED_ERROR`, and `params.entryDate` names that Release's date.
 - **Settled by construction.** An [Allocation](/api-reference/allocations) ties the accrued line to the line of each Release on the accrual account, so the accrual account holds nothing open for the document.
 - **Partner, Dimensions, and Basis.** Both lines of each Release carry the Invoice's Partner. The accrued line's `dimensionValueIds` go on the recognition line of each Release, not on the accrual account line of the booking. Each Release counts in the [Basis](/api-reference/bases) of its booking.
+- **Memo.** Each Release's memo is `Devengo <document number> <yyyy-mm>`, such as `Devengo F-9 2026-10`. Releases created before this change keep the English memo `Accrual …`.
 
 Each Release has two lines: the Recognition Account and the accrual account. It posts to the Recognition Account on the side the accrued line took, and takes the share off the accrual account on the other side. For a purchase invoice, the Release debits the Recognition Account and credits Facturas por recibir, and the booking then debits Facturas por recibir. For a sales invoice, the Release debits Devengado por facturar and credits the Recognition Account, and the booking then credits Devengado por facturar. A credit note's Releases post the other way round.
 
