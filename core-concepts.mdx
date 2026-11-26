@@ -202,6 +202,7 @@ Loading data from its source, such as the movements of a bank account, isn't a d
     - It can be any date on or after the acquisition date. In the app, it defaults to the acquisition date, so an asset bought on February 20 starts depreciating in February.
     - The start month gets a full monthly charge. The day of the month never prorates it.
     - Each charge is dated at the end of its month. The last charge absorbs any rounding remainder.
+    - Each charge's memo is `Depreciación <asset code> <yyyy-mm>`, such as `Depreciación EC-001 2026-10`. Charges posted before this change keep the English memo `Depreciation …`.
 
     For example, an asset bought and starting on 2026-07-15, with a cost of 1001 and a life of 3 months, gets charges of 333 on 2026-07-31, 333 on 2026-08-31, and 335 on 2026-09-30.
 
