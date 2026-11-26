@@ -108,6 +108,7 @@ The `feed` object, when present, contains:
         "status": "tied_out",
         "reportedBalance": 1250000,
         "reportedTotal": null,
+        "unclosedSweptDay": null,
         "since": "2026-01-15T09:30:00.000Z"
       }
     },
@@ -340,19 +341,20 @@ Each sync checks that the Bank Account's Movements add up to the balance the Pro
 | `status` | `tied_out` \| `out_of_tie_out` \| `restated` | The verdict (see below) |
 | `reportedBalance` | integer | The balance the Provider reported, in minor units, that the sync checked against |
 | `reportedTotal` | integer \| null | A second balance the Provider reported in the same read, in minor units. The sync never checks against it. Only [Santander Brasil](/api-reference/bank-feeds#santander-brasil) states one: the checking balance plus ContaMax. `null` for every other Provider |
+| `unclosedSweptDay` | ISO date \| null | The first [swept day](/api-reference/bank-feeds#santander-brasil) on whose close the Movements don't add up to zero. When it's set, `status` is `out_of_tie_out`, even if `balance` equals `reportedBalance`. `null` when every swept day closes at zero, and always `null` for a Provider that doesn't sweep the account. Only Santander Brasil sweeps |
 | `since` | ISO datetime | When the feed entered this status. A later sync with the same verdict keeps it |
 
-The other side of the check is the Bank Account's `balance`, the sum of its Movements. The difference is `reportedBalance` minus `balance`.
+The other side of the check is the Bank Account's `balance`, the sum of its Movements. The difference is `reportedBalance` minus `balance`. For a Provider that sweeps the account to zero each day, the sync also checks that the Movements add up to zero at the close of each swept day, and names the first that doesn't in `unclosedSweptDay`.
 
 | `status` | Meaning |
 | --- | --- |
 | `tied_out` | The Movements add up to the reported balance. |
-| `out_of_tie_out` | The sync landed its Movements, but they don't add up to the reported balance. It's usually a movement the bank already counts and hasn't served yet. The next sync that lands it ties out again, with a new `since`. |
+| `out_of_tie_out` | The sync landed its Movements, but they don't add up to the reported balance, or a swept day doesn't close at zero. It's usually a movement the bank already counts and hasn't served yet. The next sync that lands it ties out again, with a new `since`. |
 | `restated` | The sync found a [restatement](#restatement) that a person must accept, and landed nothing. |
 
 Nothing blocks on `out_of_tie_out`: Movements keep landing, and you can book and reconcile them as usual. Use `since` to tell a short lag from a lasting difference. Most differences clear on their own within two days. If one lasts longer, contact Sintropix support.
 
-In the app, the movement queue of the Bank Account shows the verdict on every load, whether you or the scheduled sync ran it. An account out of tie-out shows **No cuadra con el banco desde …**, with the balance the bank reports, the sum of the Movements, and the difference.
+In the app, the movement queue of the Bank Account shows the verdict on every load, whether you or the scheduled sync ran it. An account out of tie-out shows **No cuadra con el banco desde …**, with the balance the bank reports, the sum of the Movements, and the difference. When `unclosedSweptDay` is set, the notice also names that day. If the balances agree, it names only the day.
 
 ```json
 {
@@ -365,6 +367,7 @@ In the app, the movement queue of the Bank Account shows the verdict on every lo
     "status": "out_of_tie_out",
     "reportedBalance": 1415979,
     "reportedTotal": null,
+    "unclosedSweptDay": null,
     "since": "2026-10-15T20:00:00.000Z"
   }
 }
