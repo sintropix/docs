@@ -1,7 +1,7 @@
 ---
 title: "Sintropix Bank Feeds API: Feed Bank Accounts from an Integration"
 sidebarTitle: "Bank Feeds"
-description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, Stripe, Brex, and Rho Integrations, including Brex card accounts and Rho credit lines."
+description: "List the accounts an Integration discovers at its Provider, and feed them into Bank Accounts. Works with Fintoc, Plaid, Global66, dLocal Go, Cardda, Mercado Pago, Polar, Stripe, Brex, Rho, and Santander Brasil Integrations, including Brex card accounts and Rho credit lines."
 ---
 
 import AppLink from "/snippets/app-link.mdx"
@@ -22,6 +22,7 @@ These Integration kinds can feed a Bank Account:
 | `stripe` | Stripe | One account per currency of the Stripe account's balance, such as `Stripe USD`. See [Stripe](#stripe) |
 | `brex` | Brex | The company's checking and vault cash accounts, and its card account. See [Brex](#brex) |
 | `rho` | Rho | The business's checking, savings, and rewards accounts, and each of its credit lines as a card. See [Rho](#rho) |
+| `santander_br` | Santander Brasil | Every checking account the company's Santander application reaches. See [Santander Brasil](#santander-brasil) |
 
 To connect, reconnect, or disconnect one of these Integrations, see [Integrations](/api-reference/integrations). Any other Integration kind answers every route on this page with `422` and `INTEGRATION_BANK_FEED_NOT_SUPPORTED_ERROR`.
 
@@ -539,6 +540,32 @@ Feed dates follow the calendar of Santiago (Chile), not US time, so a transactio
 
 Rho serves every transaction since the account opened, so any feed start date works and a Rho account never has a [short history](#short-history).
 
+### Santander Brasil
+
+A Santander Brasil Integration reads the checking accounts (contas correntes) the company's Santander application reaches, through Santander's "Saldo e Extrato" API. See [Santander Brasil](/api-reference/integrations#santander-brasil) to connect it. Sintropix only reads Santander: it never moves money.
+
+Many Santander checking accounts sweep idle money into **ContaMax**, an automatic investment, and redeem it when the account needs it. Santander states two balances for each account: the checking balance, without ContaMax, and the total of checking plus ContaMax. The feed lands the checking account only, and ties it out to the checking balance.
+
+**Discovered accounts**
+
+- Each checking account has `type` `checking` and `kind` `bank`, in `BRL`.
+- `providerAccountId` is the branch and the account number, as `<branch>.<number>`. `name` is `Santander Brasil` followed by the branch, such as `Santander Brasil 2271`, and `number` is the last 4 digits of the account number.
+- `balance.current` is the checking balance, without ContaMax. `balance.available` is the total of checking plus ContaMax, because ContaMax redeems on demand. `balance.limit` is null.
+- Santander Brasil is read live, so `readsLive` is `true` and `refreshedAt` is always null.
+
+**What lands**
+
+- Each statement row lands as its own Movement, dated by Santander's transaction date. A row dated before the feed start date doesn't land.
+- Money that comes in (`CREDITO` at Santander) lands as a positive amount, and money that leaves (`DEBITO`) as a negative amount.
+- The description is Santander's name for the transaction, followed by its complement when it has one. The Movement carries no Additional Information lines.
+- ContaMax sweeps land like any other row. A sweep into ContaMax, `APLICACAO CONTAMAX`, lands as a negative Movement, and a redemption, `RESGATE CONTAMAX AUTOMATICO`, as a positive one.
+- Two identical rows on the same day, with the same type, name, complement, and amount, both land, as two Movements. A twin that Santander serves later lands on the next sync.
+- A balance Santander states in a currency other than the Bank Account's fails the sync with `424` and `BANK_FEED_PROVIDER_FAILURE_ERROR`.
+
+**Balance check.** Each sync checks the landed Movements against the checking balance. When they don't add up, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out). The same sync also stores the total of checking plus ContaMax, as `feed.tieOut.reportedTotal`, and never checks against it. To read what the account holds in ContaMax, subtract `reportedBalance` from `reportedTotal`.
+
+Santander serves every row since the account opened, so any feed start date works and a Santander Brasil account never has a [short history](#short-history).
+
 ### Stripe
 
 [Stripe](https://stripe.com) holds the money it collects for you in a balance, one per currency, until it pays it out to your bank. A Stripe feed mirrors one currency of that balance, row by row, from Stripe's balance transactions.
@@ -622,6 +649,7 @@ Every Movement a feed lands carries a `providerTime`: the time the Provider stat
 | dLocal Go | The time of the date that gives the Movement its day: the approval or creation time of a payment, and the payment time of a settlement. dLocal Go states it without a time zone, so Sintropix reads it as UTC |
 | Brex | Always `null`. Brex dates each transaction by its day only |
 | Rho | The time Rho posted the transaction |
+| Santander Brasil | Always `null`. Santander Brasil dates each row by its day only |
 | Cardda | Bank transfers only, from `authorized_at`, or `created_at` when `authorized_at` is absent. Card, commission, and payment rows get `null` |
 
 The time is written once. A sync can give a time to a landed Movement that has none, booked or not, but only while the Provider still dates the row on the Movement's day. It never changes a time a Movement already holds, so a dLocal Go payment whose approval date changes keeps its first time. Movements that landed before Provider time existed have `null` until a sync fills it.
