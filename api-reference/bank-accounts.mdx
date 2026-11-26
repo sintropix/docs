@@ -80,7 +80,7 @@ The `feed` object, when present, contains:
 | Field | Type | Description |
 | --- | --- | --- |
 | `integrationId` | UUID | The [Integration](/api-reference/integrations) that feeds the account |
-| `integrationKind` | `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` \| `polar` \| `stripe` \| `brex` \| `rho` | The kind of that Integration |
+| `integrationKind` | `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `mercadopago` \| `polar` \| `stripe` \| `brex` \| `rho` \| `santander_br` | The kind of that Integration |
 | `providerAccountId` | string | Provider-side account handle |
 | `institutionName` | string \| null | The bank's display name for a `fintoc` or `plaid` feed; `null` for every other kind |
 | `lastSyncedAt` | ISO datetime \| null | Last sync that landed, whether or not it tied out. `null` until the first sync lands |
@@ -107,6 +107,7 @@ The `feed` object, when present, contains:
       "tieOut": {
         "status": "tied_out",
         "reportedBalance": 1250000,
+        "reportedTotal": null,
         "since": "2026-01-15T09:30:00.000Z"
       }
     },
@@ -338,6 +339,7 @@ Each sync checks that the Bank Account's Movements add up to the balance the Pro
 | --- | --- | --- |
 | `status` | `tied_out` \| `out_of_tie_out` \| `restated` | The verdict (see below) |
 | `reportedBalance` | integer | The balance the Provider reported, in minor units, that the sync checked against |
+| `reportedTotal` | integer \| null | A second balance the Provider reported in the same read, in minor units. The sync never checks against it. Only [Santander Brasil](/api-reference/bank-feeds#santander-brasil) states one: the checking balance plus ContaMax. `null` for every other Provider |
 | `since` | ISO datetime | When the feed entered this status. A later sync with the same verdict keeps it |
 
 The other side of the check is the Bank Account's `balance`, the sum of its Movements. The difference is `reportedBalance` minus `balance`.
@@ -362,6 +364,7 @@ In the app, the movement queue of the Bank Account shows the verdict on every lo
   "tieOut": {
     "status": "out_of_tie_out",
     "reportedBalance": 1415979,
+    "reportedTotal": null,
     "since": "2026-10-15T20:00:00.000Z"
   }
 }

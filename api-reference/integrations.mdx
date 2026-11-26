@@ -14,7 +14,7 @@ What an Integration can feed depends on its kind:
 | --- | --- |
 | `sii_mirror` | Up to two [Sources](/api-reference/sources), through [Source Feeds](/api-reference/source-feeds): one for DTEs (`dte`) and one for boletas de honorarios (`honorarium`) |
 | `bsale`, `wasabil` | A [Source](/api-reference/sources), through a [Source Feed](/api-reference/source-feeds) of DTEs (`dte`) |
-| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar`, `stripe`, `brex`, `rho` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
+| `fintoc`, `plaid`, `global66`, `cardda`, `dlocal`, `mercadopago`, `polar`, `stripe`, `brex`, `rho`, `santander_br` | One or more [Bank Accounts](/api-reference/bank-accounts), through [bank feeds](/api-reference/bank-feeds) |
 | `xpendit` | A [Source](/api-reference/sources) that holds Expense Renditions for each of its Subsidiaries, through a [Source Feed](/api-reference/source-feeds#expense-feeds) of expenses (`expense`). Each sync lands the expenses Xpendit approved as approved [Expense Claims](/api-reference/expense-claims). You can also [read its expenses](#read-what-xpendit-holds) on demand |
 | `mercadolibre`, `buk`, `notion` | Nothing yet |
 | `gmail`, `outlook`, `mailbox` | Nothing. You search and read their email on demand instead. See [Read email](#read-email) |
@@ -49,6 +49,8 @@ The `buk` kind connects a Buk tenant, the payroll system, with its address and a
 The `rho` kind connects a business on [Rho](https://www.rho.co), the US business banking platform, with a read-only API access token. It feeds a Bank Account from each checking, savings, and rewards account of the business, and a `card` Bank Account from each of its credit lines. You can also preview every account of the business with its current balance, Treasury accounts included. See [Rho](#rho).
 
 The `brex` kind connects a company on [Brex](https://www.brex.com), the US platform for corporate cards and business accounts, with a read-only user token. It feeds a Bank Account from each checking and vault cash account of the company, and a `card` Bank Account from its card account. See [Brex](#brex).
+
+The `santander_br` kind connects the checking accounts of a company at Santander Brasil, through the "Saldo e Extrato" API, with the company's own Santander application and its A1 certificate. It feeds a Bank Account from each checking account the application reaches. See [Santander Brasil](#santander-brasil).
 
 The `notion` kind connects a Notion workspace through OAuth, with read-only access to the pages and databases you share at consent. It feeds nothing yet, but you can preview each database it reaches. See [Notion](#notion).
 
@@ -95,8 +97,8 @@ The access token is stored encrypted and is never returned on any read.
 | --- | --- | --- |
 | `id` | uuid | Integration id. |
 | `organizationId` | uuid | Owning Organization. |
-| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `google_drive` \| `metabase` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` \| `brex` | The external system. |
-| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets` and `google_drive`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `buk`, the tenant, the subdomain of its `buk.cl` address; for `metabase`, the host of the Metabase Cloud site, such as `acme.metabaseapp.com`; for `notion`, the id of the Notion workspace; for `rho`, the id of the Rho business). `null` when a document provider could not determine it at connect time. |
+| `kind` | `bsale` \| `wasabil` \| `sii_mirror` \| `fintoc` \| `global66` \| `cardda` \| `dlocal` \| `plaid` \| `mercadopago` \| `mercadolibre` \| `gmail` \| `outlook` \| `mailbox` \| `polar` \| `google_sheets` \| `google_drive` \| `metabase` \| `xpendit` \| `stripe` \| `buk` \| `notion` \| `rho` \| `brex` \| `santander_br` | The external system. |
+| `providerRef` | string \| null | The provider's own handle for the connected account (for Bsale, the instance number; for `sii_mirror`, the company RUT the SII accepted at connect, unformatted; for `fintoc`, the Fintoc Link; for `plaid`, the Plaid Item id; for Mercado Pago and Mercado Libre, the account ID; for `gmail` and `outlook`, the account's email address; for `mailbox`, its address; for `polar`, the email address of the Polar user who granted access; for `google_sheets` and `google_drive`, the id of the Google Sheet; for `xpendit`, the id of the Xpendit enterprise; for `stripe`, the Stripe account id, such as `acct_1Q2w3E4r5T6y7U8i`; for `buk`, the tenant, the subdomain of its `buk.cl` address; for `metabase`, the host of the Metabase Cloud site, such as `acme.metabaseapp.com`; for `notion`, the id of the Notion workspace; for `rho`, the id of the Rho business; for `santander_br`, an opaque value that identifies the Santander application). `null` when a document provider could not determine it at connect time. |
 | `documentCount` | integer \| null | Number of documents the provider reported when the credential was verified at connect time. Only `bsale` and `wasabil` state it; `null` for every other kind. |
 | `institutionName` | string \| null | The bank's display name, as the Provider reports it. Only `fintoc` and `plaid` state it; `null` for every other kind. |
 | `holderId` | string \| null | The account holder's tax id (RUT), unformatted, as the Provider reports it. Only `fintoc` and `cardda` state it; `null` for every other kind. |
@@ -129,14 +131,14 @@ The access token is stored encrypted and is never returned on any read.
 
 Create an Integration of the Organization by handing Sintropix a provider-issued access token. The token is verified against the provider once, then stored encrypted. Connecting asks for no Entity: route the Integration to Entities afterwards, through its feeds.
 
-This route connects the document Providers, the bank Providers, Xpendit, Buk, Metabase, Rho, and Brex. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
+This route connects the document Providers, the bank Providers, Xpendit, Buk, Metabase, Rho, Brex, and Santander Brasil. Mercado Pago, Mercado Libre, Gmail, Outlook, Polar, Google Sheets, Google Drive, Stripe, and Notion use OAuth and are connected from **Configuración → Integraciones** in the Sintropix app. You cannot create them through this endpoint. A Mailbox has its own route: [`POST /integrations/mailbox`](#post-/integrations/mailbox).
 
 **Body.** The shape depends on `kind`. Every kind takes an `id`:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Client-generated id. Retrying the same `POST` with the same id is rejected instead of creating a duplicate. |
-| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `metabase` \| `rho` \| `brex` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `google_drive`, `stripe`, and `notion` are not accepted here. |
+| `kind` | `bsale` \| `wasabil` \| `xpendit` \| `buk` \| `metabase` \| `rho` \| `brex` \| `sii_mirror` \| `fintoc` \| `plaid` \| `global66` \| `cardda` \| `dlocal` \| `santander_br` | Yes | The external system to link. `mercadopago`, `mercadolibre`, `gmail`, `outlook`, `mailbox`, `polar`, `google_sheets`, `google_drive`, `stripe`, and `notion` are not accepted here. |
 
 Each kind adds its own fields:
 
@@ -151,10 +153,11 @@ Each kind adds its own fields:
 | `global66` | `clientId` (string), `clientSecret` (string) | Your Global66 client credentials. The Integration [discovers every active wallet](/api-reference/bank-feeds#global66) of that client, so you don't name the accounts. A client id can be connected only once in an Organization: connecting it again there answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. |
 | `cardda` | `apiKey` (string) | The Cardda API key. It selects the company, and the Integration discovers that company's one CLP wallet. |
 | `dlocal` | `apiKey` (string), `secretKey` (string) | The dLocal Go API key and its paired secret key. They name the merchant, and the Integration discovers its one balance. |
+| `santander_br` | `clientId` (string), `clientSecret` (string), `certificate` (string), `certificatePassword` (string) | The client id and client secret of the company's application in Santander's developer portal, the application's A1 certificate as a PKCS#12 (`.pfx`) file encoded in base64, and the file's password. `clientId` and `clientSecret` are trimmed and must be non-empty. `certificatePassword` can be an empty string for a file with no password. See [Santander Brasil](#santander-brasil). |
 
 For `sii_mirror`, the SII checks the RUT and Clave before Sintropix creates the Integration, so the request can take up to about a minute. A Clave the SII refuses answers `422` with `SII_CLAVE_REFUSED_ERROR`. When the SII gives no answer in time, the request answers `503` with `SII_UNAVAILABLE_ERROR` and creates nothing. Retry in a few minutes. When the SII answers the sign-in with a page Sintropix doesn't recognize, the request answers `424` with `SII_ANSWER_UNRECOGNIZED_ERROR` and creates nothing. `params.siiAnswer` carries the text of the SII's page.
 
-Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho or Brex refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho or Brex token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration of the Organization already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. So does an SII RUT, a Fintoc Link, or a Plaid Item that another Organization holds. See [An account that's already connected](#an-account-that’s-already-connected).
+Credentials the Provider refuses answer `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. An API key Xpendit, Buk, or Metabase refuses, or a token Rho or Brex refuses, answers `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Rho or Brex token that lacks a scope Sintropix needs answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Santander Brasil certificate that doesn't open with its password, that expired, or that isn't a `.pfx` file, and a client id and secret Santander refuses answer `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. A Buk address that holds no tenant, or a key that reaches no Empresa, answers `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. So does a Metabase address that holds no site, a Metabase key in the Administrators group, or a Metabase key that reaches no question. An external account another Integration of the Organization already holds answers `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`. So does an SII RUT, a Fintoc Link, or a Plaid Item that another Organization holds. See [An account that's already connected](#an-account-that’s-already-connected).
 
 For `wasabil`, Sintropix also registers a webhook named **Sintropix** in the Wasabil company, so its Feeds [sync about a minute after a new document](/api-reference/source-feeds#wasabil-syncs). When Wasabil refuses the webhook, the connect answers `424` with `INTEGRATION_PROVIDER_FAILURE_ERROR` and creates nothing. When Wasabil can't be reached, it answers `503` with `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`. Retry later.
 
@@ -2099,6 +2102,60 @@ After you revoke the token, or after it expires, create a new token in Brex with
 
 [`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid), or disconnecting from the Integration's panel, removes the token Sintropix stores and stops every feed of the Integration. Brex keeps the token working until you revoke it there too, under **Developer → Settings**.
 
+## Santander Brasil
+
+A `santander_br` Integration connects the checking accounts (contas correntes) of a company at [Santander Brasil](https://www.santander.com.br), through Santander's "Saldo e Extrato" API. It connects with an application the company creates in Santander's developer portal and the A1 certificate linked to that application. Sintropix only reads Santander: it never moves money. It feeds a `bank` Bank Account in `BRL` from each checking account the application reaches, through a [bank feed](/api-reference/bank-feeds#santander-brasil).
+
+### Create the application in Santander
+
+1. In Santander's developer portal, create an application with the **Saldo e Extrato** API.
+2. Link an ICP-Brasil A1 certificate to the application. Use a certificate issued only for that application.
+3. Copy the application's client id and client secret, and keep the certificate's `.pfx` file and its password at hand.
+
+### Connect Santander Brasil
+
+In the app, open **Configuración → Integraciones**, click **Conectar integración**, and pick **Santander Brasil**, under the **Banco** tag. Fill in **ID del cliente** and **Secreto del cliente**, upload the `.pfx` file in **Certificado A1 (.pfx)**, type its password in **Contraseña del certificado**, and connect. Leave the password empty only when the file has none. Through the API, send [`POST /integrations`](#post-/integrations) with `kind: "santander_br"`, `clientId`, `clientSecret`, `certificate` (the `.pfx` file in base64), and `certificatePassword`.
+
+Sintropix opens the certificate with its password, checks that it hasn't expired, and then reads the application's accounts at Santander before it stores anything. It stores the client id, the client secret, and the certificate encrypted. It doesn't keep the certificate's password.
+
+| Outcome | Answer |
+| --- | --- |
+| Santander accepts the application and the certificate | `201` with the Integration |
+| The password doesn't open the file, the certificate expired, or the file isn't a `.pfx` | `422` with `INTEGRATION_CONNECT_REJECTED_ERROR`. Nothing is sent to Santander and nothing is stored. The app says *El certificado no se pudo usar: la contraseña no corresponde, el certificado venció o el archivo no es un .pfx.* |
+| Santander refuses the client id or secret | `422` with `INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`. Nothing is stored |
+| Another Integration of the Organization already connects that application | `409` with `INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR` |
+| Santander can't be reached, or it doesn't accept the certificate for the connection | `503` with `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`. Check that the certificate is the one linked to the application, then retry |
+
+Each Santander application can be connected only once in an Organization.
+
+```bash
+CERTIFICATE=$(base64 -w0 certificado-a1.pfx)
+
+curl -X POST "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/integrations" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Connect Santander Brasil to feed its checking accounts" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "kind": "santander_br",
+    "clientId": "your_client_id",
+    "clientSecret": "your_client_secret",
+    "certificate": "'"$CERTIFICATE"'",
+    "certificatePassword": "your_certificate_password"
+  }'
+```
+
+When the connection is stored, the Integration's panel lists the application's checking accounts with their balances. For each one, click **Crear** to create the Bank Account it feeds, or **Asociar existente** to feed one you already have. Through the API, read the [discovered accounts](/api-reference/bank-feeds#get-discovered-accounts) and feed them as described in [Bank Feeds](/api-reference/bank-feeds#santander-brasil).
+
+### When the certificate expires
+
+Every sync uses the stored certificate. Once it expires, Santander refuses the connection and the feeds stop syncing. You can't replace the certificate of an existing Integration yet.
+
+### Disconnect Santander Brasil
+
+[`DELETE /integrations/:integrationId`](#delete-/integrations/integrationid), or disconnecting from the Integration's panel, removes the credentials and the certificate Sintropix stores, and stops every feed of the Integration. The application and its certificate stay valid at Santander until you revoke them there.
+
 ## Stripe
 
 A `stripe` Integration connects one Stripe account with read-only access. Sintropix only reads: it never charges, refunds, or withdraws money. It can feed a Bank Account with each currency of the account's Stripe payments balance, through a [bank feed](/api-reference/bank-feeds).
@@ -2404,6 +2461,6 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/portal-logins/
 | `404` | Organization, Entity, Integration (`INTEGRATION_NOT_FOUND_ERROR`), Portal Login (`CREDENTIAL_NOT_FOUND_ERROR`), Mailbox (`MAILBOX_NOT_FOUND_ERROR`), Conversation (`CONVERSATION_NOT_FOUND_ERROR`), email (`INTEGRATION_EMAIL_NOT_FOUND_ERROR`), email attachment (`INTEGRATION_EMAIL_ATTACHMENT_NOT_FOUND_ERROR`), a Notion database the connection doesn't reach (`INTEGRATION_DATA_SOURCE_NOT_FOUND_ERROR`), or a Basis outside the Organization (`BASIS_NOT_FOUND_ERROR`) not found. |
 | `409` | Integration id already exists, the Organization has no email domain for a Mailbox (`MAILBOX_EMAIL_DOMAIN_NOT_SET_ERROR`), a Mailbox address already exists (`MAILBOX_ALREADY_EXISTS_ERROR`), a disconnect names a Mailbox (`MAILBOX_NOT_REMOVABLE_ERROR`), the Organization's email domain no longer receives email (`EMAIL_DOMAIN_NOT_OPEN_ERROR`), the external account, such as an SII RUT, is already connected (`INTEGRATION_ACCOUNT_ALREADY_CONNECTED_ERROR`), a reconnect names another grant or a non-Fintoc Integration, or a replaced Xpendit key opens another enterprise a replaced Rho token another business, or a replaced Brex token another company (`INTEGRATION_GRANT_MISMATCH_ERROR`), a Portal Login id already exists (`CREDENTIAL_ALREADY_EXISTS_ERROR`), or a Portal Login names a portal the Entity already uses, including a second Bank Login for the same bank, a second Getnet Login, a second SII Login of the same `holderType`, or a Clay Login whose name is in use (`CREDENTIAL_LABEL_ALREADY_USED_ERROR`), or another General Ledger Export of the Integration is still running (`GENERAL_LEDGER_EXPORT_RUNNING_ERROR`). |
 | `410` | The Provider no longer holds the grant (`INTEGRATION_GRANT_GONE_ERROR`). Disconnect the Integration and connect it again. |
-| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, Metabase, Rho, or Brex refused the API key (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, `metabase`, `rho`, or `brex` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a Basis, export start, or export mode change names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), a `group` export is chosen or run while the Organization's books can't be exported as one group (`GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR`), a Basis change names a `group` Integration (`GENERAL_LEDGER_GROUP_EXPORT_TAKES_NO_BASIS_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
+| `422` | The Provider refused the credentials (`INTEGRATION_CONNECT_REJECTED_ERROR`), Xpendit, Buk, Metabase, Rho, or Brex refused the API key or Santander Brasil refused the client id and secret (`INTEGRATION_PROVIDER_UNAUTHORIZED_ERROR`), an API key replacement names an Integration that isn't `xpendit`, `buk`, `metabase`, `rho`, or `brex` (`INTEGRATION_TOKEN_REPLACEMENT_NOT_SUPPORTED_ERROR`), an Xpendit expense or Provider Account read names an Integration that has none (`INTEGRATION_EXPENSES_NOT_SUPPORTED_ERROR`), a Provider account carries a currency Sintropix does not know (`INTEGRATION_CURRENCY_UNKNOWN_ERROR`), a General Ledger Export names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), the SII refused a Clave (`SII_CLAVE_REFUSED_ERROR`), a legal representative's Clave names the company's own RUT (`SII_REPRESENTATIVE_RUT_IS_TAXPAYER_RUT_ERROR`), the legal representative's Clave names an Integration that isn't `sii_mirror` (`INTEGRATION_REPRESENTATIVE_CLAVE_NOT_SUPPORTED_ERROR`), an email route names an Integration that isn't `gmail`, `outlook`, or `mailbox` (`INTEGRATION_EMAIL_NOT_SUPPORTED_ERROR`), a Basis, export start, or export mode change names an Integration that isn't `google_sheets` (`GENERAL_LEDGER_EXPORT_NOT_SUPPORTED_ERROR`), a `group` export is chosen or run while the Organization's books can't be exported as one group (`GENERAL_LEDGER_GROUP_EXPORT_REFUSED_ERROR`), a Basis change names a `group` Integration (`GENERAL_LEDGER_GROUP_EXPORT_TAKES_NO_BASIS_ERROR`), a database preview names an Integration that isn't `notion` (`INTEGRATION_DATA_SOURCE_PREVIEW_NOT_SUPPORTED_ERROR`), or an account preview names an Integration that isn't `rho` (`INTEGRATION_ACCOUNT_PREVIEW_NOT_SUPPORTED_ERROR`). |
 | `424` | The Provider refused the request (`BANK_FEED_PROVIDER_FAILURE_ERROR`, `BANK_FEED_PROVIDER_UNAUTHORIZED_ERROR`, `BANK_FEED_PROVIDER_ROLE_REFUSED_ERROR`, or `INTEGRATION_PROVIDER_FAILURE_ERROR`), the access of an email account failed (`INTEGRATION_GRANT_FAILED_ERROR`), the SII answered a Clave check with a page Sintropix doesn't recognize (`SII_ANSWER_UNRECOGNIZED_ERROR`, with the SII's text in `params.siiAnswer`), or the Mailbox limit of the email plan is reached (`MAILBOX_LIMIT_REACHED_ERROR`). See [Provider refusals](/api-reference/overview#provider-refusals). |
 | `503` | The Provider can't be reached right now (`BANK_FEED_PROVIDER_UNREACHABLE_ERROR` or `INTEGRATION_PROVIDER_UNREACHABLE_ERROR`), Sintropix can't connect that Provider right now (`INTEGRATION_NOT_CONFIGURED_ERROR`), Sintropix can't store a Portal Login right now (`CREDENTIAL_NOT_CONFIGURED_ERROR`), the SII gave no answer in time or the SII mirror is busy with that RUT (`SII_UNAVAILABLE_ERROR`), or a Mailbox can't be created or read right now (`MAILBOX_UNAVAILABLE_ERROR`). Retry later. |
