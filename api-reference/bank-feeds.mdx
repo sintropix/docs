@@ -159,6 +159,7 @@ The endpoint returns `400 Bad Request` with a body of `{ "code": "<code>", "para
 | --- | --- |
 | `BANK_FEED_START_DATE_IN_FUTURE_ERROR` | `feedStartDate` is after today on the calendar of Santiago (Chile). `params` carries `feedStartDate` and `today`. Retry with a `feedStartDate` on or before `today` |
 | `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR` | `feedStartDate` is after the oldest pending hold at the Provider, such as an open Cardda hold. A feed that starts later would never land the hold once the Provider approves it. `params` carries `feedStartDate` and `earliestPendingDate`. Retry with a `feedStartDate` on or before `earliestPendingDate` |
+| `BANK_FEED_UNCLOSED_SWEPT_DAY_ERROR` | A [Santander Brasil](#santander-brasil) swept day of the window doesn't close at zero: the opening balance plus the window's rows up to that day isn't zero, so the bank hasn't served a row yet. `params.sweptDay` is that day. Retry once Santander serves the missing row |
 
 The map also refuses these cases, each with the same coded body:
 
@@ -238,7 +239,7 @@ Mapping a discovered account to an existing Bank Account never answers `shortHis
 
 ### Refusals
 
-The endpoint refuses the same `feedStartDate` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `400` with `BANK_FEED_START_DATE_IN_FUTURE_ERROR` or `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`. It also refuses the map's cases about the discovered account (`DISCOVERED_ACCOUNT_NOT_FOUND_ERROR`, `BANK_FEED_PROVIDER_REFRESHING_ERROR`, `BANK_FEED_PROVIDER_HAS_NO_DATA_ERROR`, `DISCOVERED_ACCOUNT_ALREADY_FED_ERROR`, `BANK_FEED_MAP_RACED_ERROR`, and `DISCOVERED_ACCOUNT_IS_CARD_ERROR`), and the cases of [creating a Bank Account](/api-reference/bank-accounts#create-a-bank-account), such as an `id` that already exists.
+The endpoint refuses the same `400` cases as the [map](#map-a-discovered-account-to-an-existing-bank-account): `BANK_FEED_START_DATE_IN_FUTURE_ERROR`, `BANK_FEED_START_DATE_AFTER_PENDING_MOVEMENT_ERROR`, and `BANK_FEED_UNCLOSED_SWEPT_DAY_ERROR`. It also refuses the map's cases about the discovered account (`DISCOVERED_ACCOUNT_NOT_FOUND_ERROR`, `BANK_FEED_PROVIDER_REFRESHING_ERROR`, `BANK_FEED_PROVIDER_HAS_NO_DATA_ERROR`, `DISCOVERED_ACCOUNT_ALREADY_FED_ERROR`, `BANK_FEED_MAP_RACED_ERROR`, and `DISCOVERED_ACCOUNT_IS_CARD_ERROR`), and the cases of [creating a Bank Account](/api-reference/bank-accounts#create-a-bank-account), such as an `id` that already exists.
 
 ## Card accounts
 
@@ -563,6 +564,19 @@ Many Santander checking accounts sweep idle money into **ContaMax**, an automati
 - A balance Santander states in a currency other than the Bank Account's fails the sync with `424` and `BANK_FEED_PROVIDER_FAILURE_ERROR`.
 
 **Balance check.** Each sync checks the landed Movements against the checking balance. When they don't add up, the sync still lands and leaves the Bank Account [out of tie-out](/api-reference/bank-accounts#tie-out). The same sync also stores the total of checking plus ContaMax, as `feed.tieOut.reportedTotal`, and never checks against it. To read what the account holds in ContaMax, subtract `reportedBalance` from `reportedTotal`.
+
+**Swept days.** A swept day is a day with a ContaMax row, a day on which Santander swept the checking account to zero. Each sync also checks that the Bank Account's Movements add up to zero at the close of every swept day from the feed start date on. When one doesn't, the sync still lands, the Bank Account goes [out of tie-out](/api-reference/bank-accounts#tie-out) even if the balances agree, and `feed.tieOut.unclosedSweptDay` names the first such day. It's usually a row that Santander served late, dated on a day it had already swept. The next sync that lands Santander's sweep of that row ties out again. The latest day has no ContaMax row until Santander sweeps it, so it isn't a swept day yet and closes at whatever it received.
+
+The map and the Bank Account creation check the same over their window, counting the opening balance in. Because the opening balance is written once, they refuse a window whose swept day doesn't close at zero with `400` and `BANK_FEED_UNCLOSED_SWEPT_DAY_ERROR`:
+
+```json
+{
+  "code": "BANK_FEED_UNCLOSED_SWEPT_DAY_ERROR",
+  "params": { "sweptDay": "2026-11-23" }
+}
+```
+
+In the app, the map dialog shows the refusal with the day and keeps your draft. Try again once Santander serves the missing row.
 
 Santander serves every row since the account opened, so any feed start date works and a Santander Brasil account never has a [short history](#short-history).
 

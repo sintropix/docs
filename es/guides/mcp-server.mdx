@@ -135,12 +135,12 @@ Responde cuánto efectivo tienes y dónde. Lista las cuentas bancarias y las tar
 - `accountNumber` y `currency`.
 - `balance`: el lado del banco, en la moneda propia de la cuenta. Suma cada Movimiento que informó el banco, el dinero que entra en positivo y el que sale en negativo, así que lo que debe una tarjeta se lee negativo. Difiere de la Cuenta Contable del balance general mientras haya Movimientos por conciliar.
 - `movementsToReconcile`: cuántos Movimientos de la cuenta aún no se concilian con los libros. `list_bank_movements` los lista.
-- `feed`: `null` cuando ninguna [conexión bancaria](/api-reference/bank-feeds) alimenta la cuenta, y una persona ingresa o importa sus Movimientos. Si no, trae `provider`, `lastSyncedAt` (`null` antes de la primera sincronización) y `tieOut` (`null` antes de que una sincronización lo evaluara), con `status`, `reportedBalance` y `since`, cuando la conexión entró en ese estado. Consulta [Tie-out](/api-reference/bank-accounts#tie-out).
+- `feed`: `null` cuando ninguna [conexión bancaria](/api-reference/bank-feeds) alimenta la cuenta, y una persona ingresa o importa sus Movimientos. Si no, trae `provider`, `lastSyncedAt` (`null` antes de la primera sincronización) y `tieOut` (`null` antes de que una sincronización lo evaluara), con `status`, `reportedBalance`, `unclosedSweptDay` y `since`, cuando la conexión entró en ese estado. Consulta [Tie-out](/api-reference/bank-accounts#tie-out).
 
 | `tieOut.status` | Significado |
 | --- | --- |
 | `tied_out` | Los Movimientos suman el `reportedBalance` que informó el banco. |
-| `out_of_tie_out` | No lo suman. `balance` menos `reportedBalance` es la diferencia: un Movimiento que la conexión no trajo, como una comisión, o uno que llegó dos veces. |
+| `out_of_tie_out` | No lo suman. `balance` menos `reportedBalance` es la diferencia: un Movimiento que la conexión no trajo, como una comisión, o uno que llegó dos veces. Para un banco que deja la cuenta en cero cada día (Santander Brasil), `unclosedSweptDay` indica el primer día barrido en cuyo cierre los Movimientos no suman cero, y el estado es `out_of_tie_out` por ese día aunque `balance` sea igual a `reportedBalance`. En otro caso, `unclosedSweptDay` es `null`. |
 | `restated` | El banco reescribió Movimientos que ya habían llegado. Una persona debe revisarlos en la app. |
 
 La respuesta también trae tres totales:

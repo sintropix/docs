@@ -135,12 +135,12 @@ Answers how much cash you have, and where. It lists the bank accounts and cards 
 - `accountNumber` and `currency`.
 - `balance`: the bank's side, in the account's own currency. It adds up every Movement the bank reported, money in positive and money out negative, so what a card owes reads negative. It differs from the Ledger Account on the balance sheet while Movements wait to be reconciled.
 - `movementsToReconcile`: how many of the account's Movements aren't reconciled with the books yet. `list_bank_movements` lists them.
-- `feed`: `null` when no [bank feed](/api-reference/bank-feeds) feeds the account, and a person enters or imports its Movements. Otherwise it has `provider`, `lastSyncedAt` (`null` before the first sync), and `tieOut` (`null` before a sync judged it), with `status`, `reportedBalance`, and `since`, when the feed entered that status. See [Tie-out](/api-reference/bank-accounts#tie-out).
+- `feed`: `null` when no [bank feed](/api-reference/bank-feeds) feeds the account, and a person enters or imports its Movements. Otherwise it has `provider`, `lastSyncedAt` (`null` before the first sync), and `tieOut` (`null` before a sync judged it), with `status`, `reportedBalance`, `unclosedSweptDay`, and `since`, when the feed entered that status. See [Tie-out](/api-reference/bank-accounts#tie-out).
 
 | `tieOut.status` | Meaning |
 | --- | --- |
 | `tied_out` | The Movements add up to the `reportedBalance` the bank stated. |
-| `out_of_tie_out` | They don't. `balance` minus `reportedBalance` is the gap: a Movement the feed hasn't brought, such as a fee, or one that landed twice. |
+| `out_of_tie_out` | They don't. `balance` minus `reportedBalance` is the gap: a Movement the feed hasn't brought, such as a fee, or one that landed twice. For a bank that sweeps the account to zero each day (Santander Brasil), `unclosedSweptDay` names the first swept day on whose close the Movements don't add up to zero, and the status is `out_of_tie_out` for that day even when `balance` equals `reportedBalance`. `unclosedSweptDay` is `null` otherwise. |
 | `restated` | The bank rewrote Movements that had already landed. A person must review them in the app. |
 
 The answer also has three totals:
