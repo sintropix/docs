@@ -6,7 +6,7 @@ description: "List, create, and configure the legal companies (Entities) that ow
 
 import AppLink from "/snippets/app-link.mdx"
 
-An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. Every Entity belongs to exactly one [Organization](/api-reference/organizations), and Users reach it through their Membership in that Organization. This page covers the Entity CRUD, ledger-lock date, Fiscal Year start, parent Entity, and Organization move endpoints.
+An Entity is a legal company with its own books, functional currency, and integrations. Every ledger route in the API scopes by `entityId`. Every Entity belongs to exactly one [Organization](/api-reference/organizations), and Users reach it through their Membership in that Organization. This page covers the Entity CRUD, tax ID correction, ledger-lock date, Fiscal Year start, parent Entity, and Organization move endpoints.
 
 An Entity can have a parent Entity that controls it, and the Entities it controls are its subsidiaries. A parent Entity and its subsidiaries form a group, and a group stays inside one Organization: the parent is always an Entity of the same Organization. A Superadmin sets the structure from the Organization in the staff panel.
 
@@ -79,7 +79,7 @@ Check whether the identity fields of an Entity (name, country, taxId, currency) 
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `identityFieldsEditable` | boolean | `true` when `name`, `country`, `taxId`, and `currency` can still be changed |
+| `identityFieldsEditable` | boolean | `true` when `name`, `country`, `taxId`, and `currency` can still be changed with `PATCH /api/entities/:entityId`. Once it is `false`, correct `taxId` with [`POST /api/entities/:entityId/tax-id-correction`](#post-/api/entities/entityid/tax-id-correction). |
 
 - **Status:** 200
 
@@ -94,7 +94,7 @@ Update the core identity fields of an Entity. At least one field must be provide
 
 A corrected `country` or `taxId` also corrects the Entity's [representing Partner](/api-reference/partners#representing-partners). When another Partner of the Organization already holds the new tax identity, the update returns `409` with `ENTITY_TAX_IDENTITY_TAKEN_ERROR`, and `params.partnerId` names that Partner. Correct or clear that Partner's tax ID first.
 
-Once the Entity has had a Ledger Entry, a change to `country`, `taxId`, or `currency` returns `409` with `ENTITY_IDENTITY_FIELDS_LOCKED_ERROR`. Check first with [`GET /api/entities/:entityId/editability`](#get-/api/entities/entityid/editability). An unknown `country` returns `400` with `UNKNOWN_COUNTRY_ERROR`, an unknown `currency` returns `400` with `UNKNOWN_CURRENCY_ERROR`, and a `country` and `taxId` that another Entity already holds returns `409` with `ENTITY_ALREADY_EXISTS_ERROR`.
+Once the Entity has had a Ledger Entry, a change to `country`, `taxId`, or `currency` returns `409` with `ENTITY_IDENTITY_FIELDS_LOCKED_ERROR`. Check first with [`GET /api/entities/:entityId/editability`](#get-/api/entities/entityid/editability). To fix a wrong `taxId` after that, use [`POST /api/entities/:entityId/tax-id-correction`](#post-/api/entities/entityid/tax-id-correction). The `country` and `currency` stay locked. An unknown `country` returns `400` with `UNKNOWN_COUNTRY_ERROR`, an unknown `currency` returns `400` with `UNKNOWN_CURRENCY_ERROR`, and a `country` and `taxId` that another Entity already holds returns `409` with `ENTITY_ALREADY_EXISTS_ERROR`.
 
 - **Path param:** `entityId` (UUID)
 - **Body:**
@@ -116,6 +116,62 @@ curl -X PATCH https://api.sintropix.com/api/entities/$ENTITY_ID \
   -H "x-audit-actor: my-agent" \
   -d '{"name": "Acme SpA Updated"}'
 ```
+
+## POST /api/entities/:entityId/tax-id-correction
+
+Correct the tax ID of an Entity that already has Ledger Entries. Once an Entity has had a Ledger Entry, [`PATCH /api/entities/:entityId`](#patch-/api/entities/entityid) refuses a new `taxId`. Use this endpoint when the Entity was set up with a wrong or placeholder tax ID. The `country` and `currency` can't be corrected this way, and the Ledger Entries and their amounts don't change.
+
+One correction replaces the previous tax ID everywhere it names the Entity:
+
+1. The Entity's `taxId`.
+2. The `taxId` of its [representing Partner](/api-reference/partners#representing-partners).
+3. For a Chilean Entity only, the `issuerRut` and `receiverRut` of every [DTE](/api-reference/sii) that names the previous RUT, in every Entity of the Organization. This includes DTEs of sister Entities, such as an invoice another Entity received from this one. DTEs of other Organizations never change. A foreign tax ID names no DTE, so its correction changes the Entity and its Partner alone.
+
+Rehearse the correction first with `?dryRun=true`. The dry run runs every check and answers the same body, with `"dryRun": true`, but writes nothing. Then send the same request without `dryRun` to apply it.
+
+- **Path param:** `entityId` (UUID)
+- **Query param:** `dryRun` (boolean, optional). `true` answers what the correction would change and writes nothing.
+- **Headers:** `x-audit-reason` is required for every credential, a signed-in session included. A missing or blank reason returns `400` with `AUDIT_REASON_REQUIRED_ERROR`. See [Authentication](/api-reference/overview#authentication).
+- **Body:**
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `taxId` | string | Yes | The correct tax ID, 1 to 50 characters. For a Chilean Entity it must be a valid RUT, and it is canonicalized. |
+
+- **Success response:**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `entity` | object | The corrected Entity (see [Response shape](#response-shape)) |
+| `representingPartner` | object | The Entity's representing Partner, with the corrected `taxId` (see [Partners](/api-reference/partners)) |
+| `dtes` | array | Every DTE the correction rewrote, as on [`GET /sii/dte/:dteId`](/api-reference/sii#get-/sii/dte/dteid), each with `entityName`, the name of the Entity that holds it. Empty for a foreign Entity or when no DTE names the previous RUT. |
+| `dryRun` | `true` | Present only on a dry run |
+
+- **Status:** 200, for the dry run and the correction alike
+
+The dry run and the correction refuse the same cases, with the same codes:
+
+| Case | Status | Code |
+| --- | --- | --- |
+| Chilean Entity, and `taxId` is not a valid RUT | `400` | `RUT_INVALID_ERROR` |
+| Another Partner of the Organization holds the corrected tax ID. `params.partnerId` names it | `409` | `ENTITY_TAX_IDENTITY_TAKEN_ERROR` |
+| Another Entity holds the same `country` and corrected tax ID | `409` | `ENTITY_ALREADY_EXISTS_ERROR` |
+| An [SII connection](/api-reference/integrations) of the Organization follows the previous RUT. `params.integrationId` names it. Disconnect it first | `409` | `ENTITY_TAX_ID_FOLLOWED_BY_SII_ERROR` |
+| A rewritten DTE would take the issuer RUT, type, and folio of a DTE the same books already hold. `params` names that DTE with `entityId`, `dteId`, `dteTypeCode`, and `folio` | `409` | `ENTITY_TAX_ID_DTE_IDENTITY_TAKEN_ERROR` |
+| An [API key that lists its Entities](/guides/api-keys#key-scope), when a DTE of an Entity the key doesn't list names the previous RUT | `403` | `PERMISSION_DENIED_ERROR` |
+
+The correction is recorded on the [audit trail](/api-reference/audit-trail) as one change with your stated reason.
+
+```bash
+curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/tax-id-correction?dryRun=true" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Replace the placeholder RUT with the company's real RUT" \
+  -d '{"taxId": "76.354.772-8"}'
+```
+
+In the app, open the Entity's row on the **Empresa** page of its Organization. When the **ID fiscal** field is locked, click **Corregir ID fiscal**, enter the correct tax ID and a reason, and click **Revisar consecuencias**. The dialog lists what changes under **Cambia** and what doesn't under **No cambia**. Nothing is written until you click **Confirmar corrección**.
 
 ## PATCH /api/entities/:entityId/ledger-lock-date
 
@@ -283,7 +339,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ENTITY_CREATION_CURRENCY_UNKNOWN_ERROR` | The `currency` of a new Entity is not a known currency code |
 | `ENTITY_CREATION_TAX_ID_ALREADY_EXISTS_ERROR` | An Entity with the same `country` and `taxId` already exists |
 | `ENTITY_ALREADY_EXISTS_ERROR` | The corrected `country` and `taxId` belong to another Entity |
-| `ENTITY_IDENTITY_FIELDS_LOCKED_ERROR` | The Entity has had Ledger Entries, so `country`, `taxId`, and `currency` can't change |
+| `ENTITY_IDENTITY_FIELDS_LOCKED_ERROR` | The Entity has had Ledger Entries, so `PATCH /api/entities/:entityId` can't change `country`, `taxId`, or `currency`. Correct `taxId` with the tax ID correction |
 | `ENTITY_NOT_FOUND_ERROR` | Named Entity does not exist or is outside your reach |
 | `UNKNOWN_COUNTRY_ERROR` | The corrected `country` is not a known country code |
 | `UNKNOWN_CURRENCY_ERROR` | The corrected `currency` is not a known currency code |
@@ -298,6 +354,9 @@ Every endpoint on this page that returns an Entity uses this shape:
 | `ENTITY_MOVE_REPRESENTING_PARTNER_IN_USE_ERROR` | Another Entity uses the Partner that represents this Entity, so it can't move to another Organization |
 | `ENTITY_MOVE_TAX_IDENTITY_TAKEN_ERROR` | The target Organization already has a Partner with the Entity's tax identity |
 | `ENTITY_TAX_IDENTITY_TAKEN_ERROR` | Another Partner of the Organization already holds the Entity's corrected tax identity |
+| `ENTITY_TAX_ID_FOLLOWED_BY_SII_ERROR` | An SII connection of the Organization follows the Entity's current RUT, so the tax ID correction is refused. `params.integrationId` names it |
+| `ENTITY_TAX_ID_DTE_IDENTITY_TAKEN_ERROR` | The tax ID correction would give a DTE the issuer RUT, type, and folio of a DTE the same books already hold. `params` names that DTE |
+| `RUT_INVALID_ERROR` | The corrected `taxId` of a Chilean Entity is not a valid RUT |
 | `ORGANIZATION_NOT_FOUND_ERROR` | Named Organization does not exist or is outside your reach |
 | `PERMISSION_DENIED_ERROR` | Your Role in the Organization doesn't allow this action |
 | `SUPERADMIN_SESSION_REQUIRED` | The Entity creation, parent change, or Organization move was sent with an API key or token instead of a signed-in session |
@@ -307,7 +366,7 @@ Every endpoint on this page that returns an Entity uses this shape:
 
 | Status | Meaning |
 | --- | --- |
-| 200 | Success (GET, PATCH) |
+| 200 | Success (GET, PATCH, tax ID correction) |
 | 204 | Success (PATCH organization) |
 | 201 | Created (POST) |
 | 400 | Validation error, or a parent change that names the Entity itself or closes a cycle |
