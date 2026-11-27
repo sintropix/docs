@@ -573,7 +573,7 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/source-feeds" \
 
 A sync of an `expense` Feed lands each expense the tool approved as an [Expense Claim](/api-reference/expense-claims) that the Feed approves in the same act. Approving books it as an [Expense Rendition](/api-reference/sources#sources-that-hold-expense-renditions) in the Feed's Source. Sintropix syncs it every 4 hours with the other Feeds, and you can [sync it on demand](#post-/source-feeds/sourcefeedid/sync). In the app, click **Sincronizar** or **Vista previa** on the Subsidiary's line in the Integration's panel.
 
-Before the first sync, set the Entity's [booking setting](/api-reference/expense-claims#before-you-submit-claims). The Feed books with its **Rendición por pagar** account and its supplier payable account. Without the setting, the sync fails with `409` and `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` and lands nothing. The Feed doesn't need the Approver: Xpendit already approved the expense.
+Before the first sync, set the Entity's [booking setting](/api-reference/expense-claims#before-you-submit-claims). The Feed books with its **Rendición por pagar** account and its supplier payable account (Cuenta de proveedores). Without the setting, the sync fails with `409` and `EXPENSE_CLAIM_SETTING_NOT_SET_ERROR` and lands nothing. The Feed doesn't need the Approver: Xpendit already approved the expense.
 
 **What a sync reads.** It reads the expenses created in each month from the Link Date to today, one month at a time. Each month is a tie-out line with `range.month` set, and its `count` is the number of expenses Xpendit states for that month.
 
@@ -608,7 +608,7 @@ In `report.ignored`, an ignored expense still shows the date of its receipt.
 | `currency_mismatch` | The expense isn't in the Entity's functional currency. | The expense's currency |
 | `total_off_scale` | The amount is zero, negative, or doesn't fit the currency. | The amount |
 | `person_unknown` | The expense names no person. | The person's name, when present |
-| `expense_category_unassigned` | The expense's category has no expense account yet. | The category's name |
+| `expense_category_unassigned` | The expense's category has neither an expense account nor the Cuenta de proveedores yet. | The category's name |
 | `expense_approval_undated` | Xpendit states the expense as approved but names no date for its approval, so Sintropix has no date to book it on. The app shows: "La herramienta no indica cuándo se aprobó el gasto, y la rendición se registra en esa fecha." | None |
 | `document_invalid` | Booking the claim failed. | The error code |
 
@@ -626,17 +626,18 @@ If you [delete](/api-reference/expense-claims#delete-/expense-categories/expense
 
 ##### Expense accounts from Xpendit's codes
 
-In Xpendit, each category can carry an internal ID. Set it to the `code` of an account in the Entity's [Chart of Accounts](/api-reference/chart-of-accounts), such as `6-1-01-01-001`, and the sync uses it to assign the category's expense account:
+In Xpendit, each category can carry an internal ID. Set it to the `code` of an account in the Entity's [Chart of Accounts](/api-reference/chart-of-accounts), such as `6-1-01-01-001`, and the sync uses it to book the category: to that expense account, or to the [Cuenta de proveedores](/api-reference/expense-claims#categories-that-book-to-the-cuenta-de-proveedores) when the code is the supplier payable account of the Entity's booking setting:
 
 | The Entity's category | Xpendit's code | Result |
 | --- | --- | --- |
-| Has no expense account | The code of an expense account of the Entity (type `cost_of_goods_sold`, `operating_expense`, or `other_expense`) | The sync assigns that account to the category, and lands the expense in the same sync |
-| Has no expense account | The code of an account of another type, such as a payable, or no account (empty, `-`, or a code the Entity doesn't have) | The category keeps no account, and the expense is rejected |
-| Already has an expense account | Any code | The category keeps its account. A sync never replaces an account you set |
+| Has no account | The code of an expense account of the Entity (type `cost_of_goods_sold`, `operating_expense`, or `other_expense`) | The sync assigns that account to the category, and lands the expense in the same sync |
+| Has no account | The code of the supplier payable account of the Entity's booking setting, such as `2-1-01-01-200` | The sync books the category to the Cuenta de proveedores (`booksToSupplierPayable: true`), and lands the expense in the same sync. Its Expense Rendition debits the supplier payable account |
+| Has no account | The code of an account of another type, such as another payable, or no account (empty, `-`, or a code the Entity doesn't have) | The category keeps no account, and the expense is rejected |
+| Already has an expense account or the Cuenta de proveedores | Any code | The category keeps its booking. A sync never replaces one you set |
 
-The code only fills an empty account. Once the category has one, you manage it in Sintropix: a later change of the code in Xpendit has no effect. A category you delete and the Feed creates again takes the account of its code again.
+The code only fills a category with no account. Once the category has an expense account or the Cuenta de proveedores, you manage it in Sintropix: a later change of the code in Xpendit has no effect. A category you delete and the Feed creates again takes the booking of its code again.
 
-An expense whose category still has no expense account is rejected with `expense_category_unassigned`. Assign the account in **Configuración → Rendiciones** or with [`PATCH /expense-categories/:expenseCategoryId`](/api-reference/expense-claims#patch-/expense-categories/expensecategoryid), or set the category's code in Xpendit. The next sync lands the expense.
+An expense whose category still has neither an expense account nor the Cuenta de proveedores is rejected with `expense_category_unassigned`. Assign the account, or pick **Cuenta de proveedores**, in **Configuración → Rendiciones** or with [`PATCH /expense-categories/:expenseCategoryId`](/api-reference/expense-claims#patch-/expense-categories/expensecategoryid), or set the category's code in Xpendit. The next sync lands the expense.
 
 #### Changed expenses
 
