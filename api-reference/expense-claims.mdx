@@ -26,8 +26,8 @@ While a claim waits, it is no Invoice. It isn't listed among the Expense Renditi
 
 - **Person.** The Partner who paid the expense and is paid back, never the merchant.
 - **Receipt Kind.** What the person holds as proof: a `boleta` or a `factura` issued to the Entity. It decides what the approval debits. See [What approving books](#what-approving-books).
-- **Expense Category.** What the expense was spent on, such as "Alimentación" or "Movilización". Each Entity names its own categories, and each category can carry the expense account its claims propose. See [Expense Categories](#expense-categories).
-- **Proposed expense account.** The expense account the claim suggests: the account of the claim's category, or one the submitter names. It must be an account of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`. The Approver can pick another one on approval.
+- **Expense Category.** What the expense was spent on, such as "Alimentación" or "Movilización". Each Entity names its own categories. Each category carries the expense account its claims propose, or books its claims to the **Cuenta de proveedores** instead. See [Expense Categories](#expense-categories).
+- **Proposed expense account.** The expense account the claim suggests: the account of the claim's category, or one the submitter names. It must be an account of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`. The Approver can pick another one on approval. A claim whose category [books to the Cuenta de proveedores](#categories-that-book-to-the-cuenta-de-proveedores) proposes no account.
 - **Number.** Each claim takes the next number of its Entity when you submit it: 1, 2, 3, and so on. Numbers never repeat within an Entity, not even the number of a deleted claim. The Expense Rendition of an approved claim carries it as its Document Number, `R-<number>`, so a claim reads the same before and after approval.
 - **Approver.** The one User of the Organization who approves and rejects the claims of all its Entities. It must be a member with the `client` Role: someone of the client's own team, never Sintropix staff or a `viewer`. The Approver role ends when the User's Membership ends.
 - **Superadmin.** A Sintropix Superadmin can also approve and reject any `submitted` claim of an Organization where they hold a `staff` or `client` Membership, beside the Approver and also when the Organization has no Approver. Only from a signed-in session: their API keys and connected apps decide only if the Superadmin is the Approver. Who can be named Approver doesn't change.
@@ -46,11 +46,11 @@ Approving needs two settings. Set them in **Configuración → Rendiciones**, at
 2. **The booking setting of each Entity.** Use [`PUT /expense-claim-setting`](#put-/expense-claim-setting). It names three things:
    - The Source the Expense Renditions land in. It must be a Source that [holds Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions).
    - The **Rendición por pagar** account, which the approval credits with the person as Partner. It must be a `liability` account with the sub-type [`expense_rendition_payable`](/api-reference/chart-of-accounts#expense-rendition-payable). If the Entity already books renditions into a `payable` account, you can [switch its sub-type](/api-reference/chart-of-accounts#sub-type-changes-on-an-account-with-entries) to `expense_rendition_payable` even though it has entries.
-   - The supplier payable account, which a `factura` claim debits. It must have the sub-type `payable`, and it must be the account the Entity's SII invoices credit, so that you can [match](/api-reference/allocations) the two lines later.
+   - The supplier payable account (**Cuenta de proveedores**), which a `factura` claim debits, and so does every claim of a category that [books to it](#categories-that-book-to-the-cuenta-de-proveedores). It must have the sub-type `payable`, and it must be the account the Entity's SII invoices credit, so that you can [match](/api-reference/allocations) the two lines later.
 
 You can submit claims before you set either one. Only approving and rejecting need them. A Superadmin's signed-in session doesn't need the Approver: it can approve or reject while the Organization has none.
 
-To let submitters pick a category instead of an account, also create the Entity's [Expense Categories](#expense-categories) and assign each one its expense account.
+To let submitters pick a category instead of an account, also create the Entity's [Expense Categories](#expense-categories) and assign each one its expense account, or book it to the Cuenta de proveedores.
 
 In the app, each pick saves at once, with no **Guardar** button. The booking setting saves once the Source and both accounts are set.
 
@@ -81,12 +81,14 @@ Approving creates one `payable` Invoice and books it in the same request:
 | `issueDate` | The claim's `expenseDate` |
 | `memo` | The claim's `memo` |
 
-The booking entry is dated on the expense date. Its Control Line credits the **Rendición por pagar** account with the person as Partner. The debit depends on the Receipt Kind:
+The booking entry is dated on the expense date. Its Control Line credits the **Rendición por pagar** account with the person as Partner. The debit depends on the Receipt Kind, unless the claim has no expense account:
 
 | Receipt Kind | Debit | Why |
 | --- | --- | --- |
 | `boleta` | The expense account: the proposed one, or the one the Approver picks | The expense exists only in the claim. |
 | `factura` | The supplier payable account of the setting | The factura was issued to the Entity, so its expense and IVA reach the books with the SII invoice. Debiting an expense account would book it twice. |
+
+A claim with no expense account, because its category [books to the Cuenta de proveedores](#categories-that-book-to-the-cuenta-de-proveedores), debits the supplier payable account of the setting whatever its Receipt Kind, as a `factura` does. Settle that open line against the SII invoice the same way.
 
 For a `factura`, the claim keeps the expense account as the suggestion for booking the SII invoice. The debit to the supplier payable stays open until you settle it against the Control Line of the SII invoice with [`POST /ledger/allocations/match`](/api-reference/allocations#post-/api/entities/entityid/ledger/allocations/match). The SII invoice then reads as paid. When the two are in different currencies, settle both with a [manual entry that settles open lines](/api-reference/ledger-entries#settle-open-lines) instead, so the exchange difference is booked.
 
@@ -116,8 +118,8 @@ A `viewer` who writes receives `403` with `PERMISSION_DENIED_ERROR`. Anyone else
 | `amount` | integer | The amount to pay back, in minor units of the Entity's functional currency. Always positive. |
 | `memo` | string | What the expense was. |
 | `receiptKind` | `boleta` \| `factura` | The proof the person holds. |
-| `expenseAccountId` | uuid | The proposed expense account. After approval, the account the Approver booked or suggested. |
-| `expenseAccountCode`, `expenseAccountName` | string | The code and name of that account. |
+| `expenseAccountId` | uuid or null | The proposed expense account. After approval, the account the Approver booked or suggested. `null` when the claim's category books to the Cuenta de proveedores and the Approver picked no account: the approval debits the supplier payable account. |
+| `expenseAccountCode`, `expenseAccountName` | string or null | The code and name of that account. `null` when `expenseAccountId` is `null`. |
 | `expenseCategoryId` | uuid or null | The claim's [Expense Category](#expense-categories). `null` when the claim named an account instead. The claim keeps its category when the Approver books to another account. |
 | `expenseCategoryName` | string or null | The category's name. |
 | `status` | `submitted` \| `approved` \| `rejected` | Derived. See [Concepts](#concepts). |
@@ -140,12 +142,12 @@ Submit an Expense Claim. It starts as `submitted`, with the next `number` of its
 | `amount` | integer | Yes | Positive, in minor units of the Entity's functional currency. |
 | `memo` | string | Yes | Non-blank after trimming. |
 | `receiptKind` | `boleta` \| `factura` | Yes | The proof the person holds. |
-| `expenseCategoryId` | uuid | One of the two | An [Expense Category](#expense-categories) of the Entity. The claim proposes the category's expense account. A category with no account yet receives `409` with `EXPENSE_CATEGORY_EXPENSE_ACCOUNT_NOT_SET_ERROR`. |
+| `expenseCategoryId` | uuid | One of the two | An [Expense Category](#expense-categories) of the Entity. The claim proposes the category's expense account. When the category books to the Cuenta de proveedores, the claim proposes no account. A category with neither receives `409` with `EXPENSE_CATEGORY_EXPENSE_ACCOUNT_NOT_SET_ERROR`. |
 | `expenseAccountId` | uuid | One of the two | The proposed expense account: an account of the Entity of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`. |
 
 Send exactly one of `expenseCategoryId` and `expenseAccountId`. A body with both, or with neither, receives `400`.
 
-In the app, **Nueva rendición** asks for a **Categoría**, and the picker shows each category's account or **Sin cuenta asignada**. A category without an account is refused, and the dialog keeps your draft so you can assign the account in **Configuración → Rendiciones** and submit again.
+In the app, **Nueva rendición** asks for a **Categoría**, and the picker shows each category's account, **Cuenta de proveedores**, or **Sin cuenta asignada**. A category with **Sin cuenta asignada** is refused, and the dialog keeps your draft so you can assign the account in **Configuración → Rendiciones** and submit again.
 
 **Response** (`201`): the Expense Claim object.
 
@@ -203,7 +205,7 @@ Approve a `submitted` claim. Sintropix creates its Expense Rendition and books i
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `expenseAccountId` | uuid | No | Book to this expense account instead of the proposed one. Same rules as on create. For a `factura`, it becomes the suggested account for the SII invoice. The claim keeps its Expense Category. |
+| `expenseAccountId` | uuid | No | Book to this expense account instead of the proposed one. Same rules as on create. For a `factura`, it becomes the suggested account for the SII invoice. The claim keeps its Expense Category. On a claim with no expense account, omit it to debit the supplier payable account, or send one to book the claim like any other. |
 
 The lines of an Expense Rendition carry no Dimension Value. So when the expense account maps to a Group Account that [requires a Dimension](/api-reference/dimensions#required-dimensions), the approval is refused with `400` and `DIMENSION_VALUE_REQUIRED_ERROR`, and nothing is written: the claim stays `submitted`. `params.missingDimensions` names the Dimensions. Approve again with an `expenseAccountId` that requires none. In the app, the approve dialog names the Dimension: "La cuenta de gasto exige un valor de {Dimensión}, y una rendición no lo lleva. Elige otra cuenta de gasto."
 
@@ -267,15 +269,20 @@ curl -X DELETE "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-claims
 
 ## Expense Categories
 
-An **Expense Category** names what an expense was spent on, such as "Alimentación", "Movilización", or "Hospedaje". Each Entity keeps its own list. A category can carry an expense account: a claim that names the category proposes that account, so the submitter picks what the expense was, not where it books.
+An **Expense Category** names what an expense was spent on, such as "Alimentación", "Movilización", or "Hospedaje". Each Entity keeps its own list. A category books its claims in one of two ways, so the submitter picks what the expense was, not where it books:
+
+- **To an expense account.** A claim that names the category proposes that account.
+- **To the Cuenta de proveedores.** A claim that names the category proposes no account, and approving it debits the supplier payable account of the Entity's [booking setting](#before-you-submit-claims). See [Categories that book to the Cuenta de proveedores](#categories-that-book-to-the-cuenta-de-proveedores).
+
+The rules:
 
 - A category's name is unique within its Entity. Sintropix trims surrounding spaces, so `" Taxi "` and `"Taxi"` are one name.
-- A category starts with no account. Assign one before a claim names it. An [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) can assign it for you from the account code of the category in Xpendit.
-- You can rename a category and assign it another account, but you can't clear an account once it's assigned.
+- A category starts with no account. Assign an expense account, or book it to the Cuenta de proveedores, before a claim names it. An [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) can do it for you from the account code of the category in Xpendit.
+- You can rename a category and switch it between an expense account and the Cuenta de proveedores. Each choice replaces the other. You can't go back to no account.
 - The account must be an expense account of the Entity: of type `cost_of_goods_sold`, `operating_expense`, or `other_expense`.
 - You can delete a category while no Expense Claim names it. Once a claim names it, whatever the claim's status, the category stays: rename it instead.
 
-In the app, open **Configuración → Rendiciones**. The **Categorías** card lists the Entity's categories. Add one with **Agregar categoría**, rename it in place, and pick its **Cuenta de gasto**. To remove a category, click the trash icon on its row and confirm. A name can't be blank: clearing it is refused with *El nombre es obligatorio. Para quitar la categoría, elimínala.*
+In the app, open **Configuración → Rendiciones**. The **Categorías** card lists the Entity's categories. Add one with **Agregar categoría**, rename it in place, and pick its **Cuenta**: **Cuenta de proveedores**, the first option, or an expense account. To remove a category, click the trash icon on its row and confirm. A name can't be blank: clearing it is refused with *El nombre es obligatorio. Para quitar la categoría, elimínala.*
 
 <AppLink url="https://app.sintropix.com/{entityId}/settings/expense-claims" />
 
@@ -286,8 +293,9 @@ In the app, open **Configuración → Rendiciones**. The **Categorías** card li
 | `id` | uuid | Expense Category id. You choose it on create. |
 | `entityId` | uuid | Owning Entity. |
 | `name` | string | The category's name. |
-| `expenseAccountId` | uuid or null | The expense account a claim of the category proposes. `null` until you assign one. |
-| `expenseAccountCode`, `expenseAccountName` | string or null | The code and name of that account. `null` until you assign one. |
+| `expenseAccountId` | uuid or null | The expense account a claim of the category proposes. `null` until you assign one, and while the category books to the Cuenta de proveedores. |
+| `expenseAccountCode`, `expenseAccountName` | string or null | The code and name of that account. `null` when `expenseAccountId` is `null`. |
+| `booksToSupplierPayable` | boolean | `true` when the category's claims book to the Cuenta de proveedores instead of an expense account. Never `true` while `expenseAccountId` is set. |
 | `sourceFeedId`, `providerCategoryId` | uuid or null, string or null | The [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) that brought the category and the category's id in the expense tool. A Feed also sets them on a category of yours with the same name. `null` for every other category you create. |
 | `createdAt`, `updatedAt` | ISO datetime | Row timestamps. |
 
@@ -316,7 +324,7 @@ Create an Expense Category.
 | --- | --- | --- | --- |
 | `id` | uuid | Yes | Id of the new category. You choose it, so a retried request can't create it twice. A second request with the same `id` receives `409` with `EXPENSE_CATEGORY_ALREADY_EXISTS_ERROR`. |
 | `name` | string | Yes | Non-blank after trimming. A name another category of the Entity uses receives `409` with `EXPENSE_CATEGORY_NAME_TAKEN_ERROR`. |
-| `expenseAccountId` | uuid or null | No | The expense account its claims propose. Omit it to assign one later. |
+| `expenseAccountId` | uuid or null | No | The expense account its claims propose. Omit it to assign one later. To book the category to the Cuenta de proveedores, create it without an account and then [update it](#patch-/expense-categories/expensecategoryid) with `booksToSupplierPayable`. |
 
 **Response** (`201`): the Expense Category object.
 
@@ -337,14 +345,17 @@ curl -X POST "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-categori
 
 `PATCH /api/entities/:entityId/expense-categories/:expenseCategoryId`
 
-Rename a category, assign its expense account, or both. Send at least one field. A field you omit keeps its value. Claims already submitted keep the account they proposed.
+Rename a category, and assign its expense account or book it to the Cuenta de proveedores. Send at least one field. A field you omit keeps its value. Claims already submitted keep the account they proposed, or the Cuenta de proveedores.
 
 **Body**
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | No | The new name. Same rules as on create. |
-| `expenseAccountId` | uuid | No | The expense account to assign. It can't be `null`: an assigned account is never cleared. |
+| `expenseAccountId` | uuid | No | The expense account to assign. It sets `booksToSupplierPayable` to `false`. It can't be `null`: a category never goes back to no account. |
+| `booksToSupplierPayable` | `true` | No | Book the category's claims to the Cuenta de proveedores. It clears `expenseAccountId`. Only `true` is accepted: to leave the Cuenta de proveedores, send an `expenseAccountId`. |
+
+Send `expenseAccountId` or `booksToSupplierPayable`, never both. A body with both receives `400`.
 
 **Response** (`200`): the Expense Category object. An unknown id receives `404` with `EXPENSE_CATEGORY_NOT_FOUND_ERROR`.
 
@@ -357,6 +368,27 @@ curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-categor
   -d '{ "expenseAccountId": "7e8f9a0b-1c2d-4e3f-8a4b-5c6d7e8f9a0b" }'
 ```
 
+### Categories that book to the Cuenta de proveedores
+
+Some expenses a person pays are a supplier's factura issued to the Entity. Their expense and IVA reach the books with the SII invoice, so the claim must not debit an expense account. Book the category of such expenses to the **Cuenta de proveedores**, the supplier payable account of the Entity's [booking setting](#before-you-submit-claims):
+
+- A claim of the category proposes no expense account: its `expenseAccountId` is `null`.
+- Approving it credits the **Rendición por pagar** account as usual, and debits the supplier payable account, for a `boleta` and a `factura` alike. Settle that line against the SII invoice as [What approving books](#what-approving-books) describes.
+- In the app, the approve dialog shows no account picker for such a claim, and says the rendition goes to the Cuenta de proveedores. Through the API, you can still send an `expenseAccountId` on [approve](#post-/expense-claims/expenseclaimid/approve) to book the claim to that account instead.
+- In **Rendiciones**, the **Cuenta** column shows **Cuenta de proveedores** for such a claim.
+- A claim keeps the booking it was submitted with. Changing the category later doesn't move claims already submitted.
+
+You can't book a category to any other payable account.
+
+```bash
+curl -X PATCH "https://api.sintropix.com/api/entities/$ENTITY_ID/expense-categories/$EXPENSE_CATEGORY_ID" \
+  -H "x-api-key: $SINTROPIX_API_KEY" \
+  -H "x-audit-actor: my-agent" \
+  -H "x-audit-reason: Book supplier facturas paid by staff to the supplier payable" \
+  -H "Content-Type: application/json" \
+  -d '{ "booksToSupplierPayable": true }'
+```
+
 ### DELETE `/expense-categories/:expenseCategoryId`
 
 `DELETE /api/entities/:entityId/expense-categories/:expenseCategoryId`
@@ -367,7 +399,7 @@ Delete a category that no Expense Claim names, such as one created by mistake. T
 - An unknown id receives `404` with `EXPENSE_CATEGORY_NOT_FOUND_ERROR`.
 
 <Note>
-  A category that an [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) brought comes back the next time the Feed reads an expense of that category. It returns with no expense account, unless its [code in Xpendit](/api-reference/source-feeds#expense-categories-from-xpendit) names an expense account of the Entity. Until it has one, the expense is rejected with `expense_category_unassigned`. In the app, the delete confirmation of such a category says so.
+  A category that an [expense Feed](/api-reference/source-feeds#expense-categories-from-xpendit) brought comes back the next time the Feed reads an expense of that category. It returns with no account, unless its [code in Xpendit](/api-reference/source-feeds#expense-categories-from-xpendit) names an expense account of the Entity or its Cuenta de proveedores. Until it has one, the expense is rejected with `expense_category_unassigned`. In the app, the delete confirmation of such a category says so.
 </Note>
 
 **Response** (`200`): the deleted Expense Category object.
@@ -391,7 +423,7 @@ Read the Entity's booking setting.
 | `setting.entityId` | uuid | The Entity. |
 | `setting.sourceId` | uuid | The Source the Expense Renditions land in. |
 | `setting.renditionPayableAccountId` | uuid | The **Rendición por pagar** account. |
-| `setting.supplierPayableAccountId` | uuid | The supplier payable account a `factura` claim debits. |
+| `setting.supplierPayableAccountId` | uuid | The supplier payable account (Cuenta de proveedores) that a `factura` claim, and every claim with no expense account, debits. |
 | `setting.createdAt`, `setting.updatedAt` | ISO datetime | Row timestamps. |
 
 ## PUT `/expense-claim-setting`
@@ -469,7 +501,7 @@ curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/expens
 | `400` | Validation error (including a claim with both or neither of `expenseCategoryId` and `expenseAccountId`), an invalid cursor, an ineligible account, Source, or Approver, an expense account that requires a Dimension on approve (`DIMENSION_VALUE_REQUIRED_ERROR`), or missing `x-audit-actor` on a key-authenticated mutation. |
 | `403` | Your Role can't write (`PERMISSION_DENIED_ERROR`), or you aren't the Approver or a Superadmin's session (`EXPENSE_CLAIM_NOT_APPROVER_ERROR`). |
 | `404` | Entity, Organization, Expense Claim, Expense Category, or Partner not found. |
-| `409` | The claim's or category's `id` already exists, a category name is taken, the category to delete is in use, the claim's category has no account, the claim to decide or delete was already decided, the Organization has no Approver and the caller isn't a Superadmin's session, the Entity has no setting, or the Partner was merged. |
+| `409` | The claim's or category's `id` already exists, a category name is taken, the category to delete is in use, the claim's category has neither an expense account nor the Cuenta de proveedores, the claim to decide or delete was already decided, the Organization has no Approver and the caller isn't a Superadmin's session, the Entity has no setting, or the Partner was merged. |
 | `422` | The Partner represents the Entity (`PARTNER_REPRESENTS_ENTITY_ERROR`). |
 
 ## Domain error codes
@@ -483,7 +515,7 @@ curl -X PUT "https://api.sintropix.com/api/organizations/$ORGANIZATION_ID/expens
 | `EXPENSE_CATEGORY_ALREADY_EXISTS_ERROR` | `409` | A category with this `id` already exists. When you retry a request, treat it as created. `params.expenseCategoryId`. |
 | `EXPENSE_CATEGORY_NAME_TAKEN_ERROR` | `409` | Another category of the Entity has this name. `params.name`. |
 | `EXPENSE_CATEGORY_IN_USE_ERROR` | `409` | An Expense Claim names the category, so it can't be deleted. Rename it instead. `params.expenseCategoryId`. |
-| `EXPENSE_CATEGORY_EXPENSE_ACCOUNT_NOT_SET_ERROR` | `409` | The claim's category has no expense account yet. Assign one, or name another category. `params.expenseCategoryId`. |
+| `EXPENSE_CATEGORY_EXPENSE_ACCOUNT_NOT_SET_ERROR` | `409` | The claim's category has neither an expense account nor the Cuenta de proveedores yet. Assign one, or name another category. `params.expenseCategoryId`. |
 | `EXPENSE_CLAIM_ALREADY_DECIDED_ERROR` | `409` | The claim isn't `submitted` anymore, so it can't be approved, rejected, or deleted. `params.status` is `approved` or `rejected`. |
 | `EXPENSE_CLAIM_APPROVER_NOT_SET_ERROR` | `409` | The Organization has no Approver, and the caller isn't a Superadmin's session. Set one first. `params.organizationId`. |
 | `EXPENSE_CLAIM_NOT_APPROVER_ERROR` | `403` | You aren't the Approver, and the request isn't a Superadmin's signed-in session. `params.approverUserId` names who is. |
