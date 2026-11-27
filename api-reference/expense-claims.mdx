@@ -11,7 +11,7 @@ An **Expense Claim** (rendición) is one expense that a person paid with their o
 - **Approved:** Sintropix creates the person's payable Invoice in a Source that holds [Expense Renditions](/api-reference/sources#sources-that-hold-expense-renditions), and books it in the same request. From then on it's an Expense Rendition like any other, and you pay it from a [Payment Batch](/api-reference/payment-batches).
 - **Rejected:** the claim keeps the reason, and the decision is final. To try again, submit a new claim.
 
-An [Xpendit expense Feed](/api-reference/source-feeds#sync-an-expense-feed) also creates claims: each expense Xpendit approved lands as a claim that is already `approved`, with no wait for the Approver.
+An [Xpendit expense Feed](/api-reference/source-feeds#sync-an-expense-feed) also creates claims: each expense Xpendit approved lands as a claim that is already `approved`, with no wait for the Approver. Its expense date is the day of Xpendit's last approval, not the date on the receipt. See [Date of a landed claim](/api-reference/source-feeds#date-of-a-landed-claim).
 
 While a claim waits, it is no Invoice. It isn't listed among the Expense Renditions or in **Compras**, isn't a payable to plan in a Payment Batch, and doesn't count on the home dashboard.
 
